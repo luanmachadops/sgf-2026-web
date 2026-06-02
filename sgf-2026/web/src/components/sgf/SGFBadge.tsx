@@ -1,10 +1,10 @@
 import React from 'react';
-import { type LucideIcon } from 'lucide-react';
+import type { IconType } from './icons';
 
 export interface SGFBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: 'default' | 'success' | 'warning' | 'error' | 'info' | 'moving' | 'idle' | 'stopped' | 'alert';
   size?: 'sm' | 'md' | 'lg';
-  icon?: LucideIcon;
+  icon?: IconType;
   dot?: boolean;
 }
 
@@ -79,7 +79,7 @@ export const SGFBadge = React.forwardRef<HTMLSpanElement, SGFBadgeProps>(
         {dot && (
           <span className={`w-1.5 h-1.5 rounded-full ${dotColors[variant]}`} />
         )}
-        {Icon && <Icon size={iconSizes[size]} />}
+        {Icon && <Icon width={iconSizes[size]} height={iconSizes[size]} />}
         {children}
       </span>
     );

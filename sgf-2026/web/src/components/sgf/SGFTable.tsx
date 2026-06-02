@@ -26,11 +26,11 @@ export function SGFTable<T>({
 }: SGFTableProps<T>) {
   if (loading) {
     return (
-      <div className="bg-white rounded-[var(--sgf-card-radius)] overflow-hidden">
-        <div className="p-[var(--sgf-space-8)]">
-          <div className="h-8 bg-slate-100 rounded-[var(--sgf-radius-md)] animate-pulse mb-[var(--sgf-space-4)]" />
+      <div className="bg-white border border-slate-100 rounded-[var(--sgf-card-radius)] overflow-hidden shadow-sm">
+        <div className="p-6">
+          <div className="h-7 bg-slate-100 rounded-[var(--sgf-radius-md)] animate-pulse mb-3" />
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-16 bg-slate-50 rounded-[var(--sgf-radius-md)] animate-pulse mb-[var(--sgf-space-2)]" />
+            <div key={i} className="h-12 bg-slate-50 rounded-[var(--sgf-radius-md)] animate-pulse mb-2" />
           ))}
         </div>
       </div>
@@ -39,42 +39,65 @@ export function SGFTable<T>({
 
   if (data.length === 0) {
     return (
-      <div className="bg-white rounded-[var(--sgf-card-radius)] overflow-hidden p-[var(--sgf-space-12)]">
+      <div className="bg-white border border-slate-100 rounded-[var(--sgf-card-radius)] overflow-hidden shadow-sm p-12">
         <div className="text-center">
-          <p className="text-slate-400 text-[var(--sgf-text-lg)]">{emptyMessage}</p>
+          <p className="text-slate-400 text-sm">{emptyMessage}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-[var(--sgf-card-radius)] overflow-hidden">
+    <div className="bg-white border border-slate-100 rounded-[var(--sgf-card-radius)] overflow-hidden shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full text-left">
-          <thead className="bg-slate-50/50 text-[var(--sgf-text-2xs)] uppercase font-[var(--sgf-font-black)] text-slate-400 tracking-[0.15em]">
+          {/* ── Header ─────────────────────────────────── */}
+          <thead className="border-b border-slate-100">
             <tr>
               {columns.map((column, index) => (
                 <th
                   key={index}
-                  className={`px-[var(--sgf-table-cell-padding-x)] py-[var(--sgf-space-5)] ${column.headerClassName || ''}`}
+                  className={`
+                    px-[var(--sgf-table-cell-padding-x)]
+                    py-3
+                    text-[11px]
+                    font-semibold
+                    uppercase
+                    tracking-[0.04em]
+                    text-slate-400
+                    bg-slate-50/80
+                    whitespace-nowrap
+                    ${column.headerClassName || ''}
+                  `}
                 >
                   {column.header}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-50">
+
+          {/* ── Body ───────────────────────────────────── */}
+          <tbody className="divide-y divide-slate-100/70">
             {data.map((row, rowIndex) => (
               <tr
                 key={keyExtractor(row, rowIndex)}
-                className={`hover:bg-slate-50/40 transition-all duration-[var(--sgf-transition-fast)] group ${onRowClick ? 'cursor-pointer' : ''
-                  }`}
+                className={`
+                  hover:bg-slate-50/70
+                  transition-colors duration-100
+                  ${onRowClick ? 'cursor-pointer' : ''}
+                `}
                 onClick={() => onRowClick?.(row)}
               >
                 {columns.map((column, colIndex) => (
                   <td
                     key={colIndex}
-                    className={`px-[var(--sgf-table-cell-padding-x)] py-[var(--sgf-table-cell-padding-y)] ${column.className || ''}`}
+                    className={`
+                      px-[var(--sgf-table-cell-padding-x)]
+                      py-[var(--sgf-table-cell-padding-y)]
+                      text-[var(--sgf-text-base)]
+                      text-slate-700
+                      ${column.className || ''}
+                    `}
                   >
                     {typeof column.accessor === 'function'
                       ? column.accessor(row)

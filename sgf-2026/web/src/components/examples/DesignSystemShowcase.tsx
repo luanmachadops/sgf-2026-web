@@ -24,7 +24,7 @@ import {
   Fuel,
   Search,
   User,
-} from 'lucide-react';
+} from '@/components/sgf/icons';
 
 export const DesignSystemShowcase: React.FC = () => {
   const [inputValue, setInputValue] = useState('');

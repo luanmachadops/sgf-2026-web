@@ -1,11 +1,11 @@
 import React from 'react';
-import { type LucideIcon } from 'lucide-react';
+import type { IconType } from './icons';
 
 export interface SGFInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   hint?: string;
-  icon?: LucideIcon;
+  icon?: IconType;
   iconPosition?: 'left' | 'right';
   fullWidth?: boolean;
 }
@@ -65,7 +65,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
         <div className="relative">
           {Icon && iconPosition === 'left' && (
             <div className="absolute left-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-slate-400">
-              <Icon size={18} />
+              <Icon width={18} height={18} />
             </div>
           )}
 
@@ -78,7 +78,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
 
           {Icon && iconPosition === 'right' && (
             <div className="absolute right-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-slate-400">
-              <Icon size={18} />
+              <Icon width={18} height={18} />
             </div>
           )}
         </div>

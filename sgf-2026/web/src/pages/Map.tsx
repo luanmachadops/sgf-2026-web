@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { SGFCard } from '@/components/sgf/SGFCard';
-import { SGFInput } from '@/components/sgf/SGFInput';
-import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
-import { Search, Car, Navigation } from 'lucide-react';
+import { Car, Navigation, Search } from '@/components/sgf/icons';
 import { cn } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useEffect } from 'react';
+import { mapApi } from '@/lib/supabase-api';
 import 'leaflet/dist/leaflet.css';
 
 // Fix for default marker icons in Leaflet with Vite
@@ -54,48 +54,36 @@ const statusIcons = {
     alert: createCustomIcon('#EF4444'),
 };
 
-// Mock data
-const mockVehicles = [
-    { id: '1', plate: 'ABC-1234', driver: 'Maria Santos', status: 'moving', lat: -22.9068, lng: -43.1729, speed: 45, department: 'Obras' },
-    { id: '2', plate: 'XYZ-5678', driver: 'João Silva', status: 'idle', lat: -22.9128, lng: -43.1859, speed: 0, department: 'Saúde' },
-    { id: '3', plate: 'DEF-9012', driver: 'Pedro Lima', status: 'moving', lat: -22.9018, lng: -43.1659, speed: 38, department: 'Educação' },
-    { id: '4', plate: 'GHI-3456', driver: 'Ana Costa', status: 'stopped', lat: -22.9158, lng: -43.1789, speed: 0, department: 'Obras' },
-    { id: '5', plate: 'JKL-7890', driver: 'Carlos Souza', status: 'alert', lat: -22.8998, lng: -43.1929, speed: 85, department: 'Transporte' },
-];
+// Centro padrão do mapa quando não há veículos com posição.
+const DEFAULT_CENTER: [number, number] = [-15.7939, -47.8828];
 
-const statusLabels: Record<string, string> = {
-    moving: 'Em movimento',
-    idle: 'Parado/Ligado',
-    stopped: 'Desligado',
-    alert: 'Alerta',
-};
-
-// SGFBadge handles variants automatically if matched, otherwise fallback
-// SGFBadge variants: 'default' | 'success' | 'warning' | 'error' | 'info' | 'moving' | 'idle' | 'stopped' | 'alert'
-// We map mock status to Badge variant
-const getBadgeVariant = (status: string): any => {
-    // Exact match for moving, idle, stopped, alert
-    return status;
-};
+// SGFBadge variants: 'moving' | 'idle' | 'stopped' | 'alert' batem com o status.
+const getBadgeVariant = (status: string): any => status;
 
 export default function MapPage() {
-    const [vehicles] = useState(mockVehicles);
     const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
-    const { setTitle, setSearchPlaceholder, setSearchHandler } = useHeader();
+    const [mobileView, setMobileView] = useState<'map' | 'list'>('map');
+    const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler } = useHeader();
+
+    const { data: vehicles = [], isLoading } = useQuery({
+        queryKey: ['map', 'live-vehicles'],
+        queryFn: () => mapApi.getLiveVehicles(),
+        // "Centro de comando" ao vivo: atualiza periodicamente.
+        refetchInterval: 30_000,
+    });
 
     useEffect(() => {
         setTitle('Mapa');
+        setDescription('Localização dos veículos em operação, atualizada em tempo real.');
         setSearchPlaceholder('Pesquisar veículo ou motorista...');
         setSearchHandler((term: string) => setSearchTerm(term));
 
         return () => {
             setSearchHandler(() => { });
         };
-    }, [setTitle, setSearchPlaceholder, setSearchHandler]);
-
-
+    }, [setTitle, setDescription, setSearchPlaceholder, setSearchHandler]);
 
     const filteredVehicles = vehicles.filter((v) => {
         const matchesSearch =
@@ -114,41 +102,86 @@ export default function MapPage() {
     );
 
     return (
-        <div className="flex h-[calc(100vh-7rem)] gap-4">
+        <div className="flex flex-col h-[calc(100dvh-11rem)] min-h-[420px] gap-3 overflow-hidden">
+            {/* Alternador Mapa / Lista — só no mobile */}
+            <div className="flex shrink-0 gap-1.5 rounded-full bg-white border border-slate-200 p-1 lg:hidden">
+                {([['map', 'Mapa'], ['list', `Lista (${filteredVehicles.length})`]] as const).map(([key, label]) => (
+                    <button
+                        key={key}
+                        type="button"
+                        onClick={() => setMobileView(key)}
+                        className={
+                            'flex-1 rounded-full py-1.5 text-sm font-semibold transition ' +
+                            (mobileView === key ? 'bg-emerald-500 text-white' : 'text-slate-500')
+                        }
+                    >
+                        {label}
+                    </button>
+                ))}
+            </div>
+
+            <div className="flex flex-1 min-h-0 gap-4 overflow-hidden">
             {/* Sidebar */}
-            <SGFCard className="w-80 flex-shrink-0 flex flex-col p-0 overflow-hidden" padding="none">
+            <SGFCard
+                className={
+                    (mobileView === 'list' ? 'flex' : 'hidden') +
+                    ' lg:flex w-full lg:w-80 flex-shrink-0 flex-col p-0 overflow-hidden'
+                }
+                padding="none"
+            >
 
-                <div className="p-4 flex flex-col gap-4">
-                    {/* Filters */}
-                    <SGFInput
-                        placeholder="Buscar placa..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        icon={Search}
-                        className="bg-white"
-                    />
-                    <SGFSelect
-                        value={statusFilter}
-                        onChange={(val) => setStatusFilter(val)}
-                        options={[
-                            { value: 'all', label: 'Todos os status' },
-                            { value: 'moving', label: 'Em movimento' },
-                            { value: 'idle', label: 'Parado/Ligado' },
-                            { value: 'stopped', label: 'Desligado' },
-                            { value: 'alert', label: 'Alerta' },
-                        ]}
-                    />
+                <div className="p-4 flex flex-col gap-3">
+                    {/* Search Field */}
+                    <div className="group relative w-full">
+                        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[var(--sgf-primary)]" />
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(event) => setSearchTerm(event.target.value)}
+                            placeholder="Buscar placa ou motorista..."
+                            className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm font-medium text-slate-700 shadow-[var(--sgf-shadow-xs)] transition-all placeholder:text-slate-400 hover:border-[var(--sgf-primary)]/50 hover:bg-slate-50/50 focus:border-[var(--sgf-primary)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[var(--sgf-primary)]/10"
+                        />
+                    </div>
 
-                    {/* Status Summary */}
-                    <div className="flex flex-wrap gap-2">
-                        <SGFBadge variant="moving" dot>{statusCounts.moving || 0} ativo</SGFBadge>
-                        <SGFBadge variant="idle" dot>{statusCounts.idle || 0} parado</SGFBadge>
-                        <SGFBadge variant="alert" dot>{statusCounts.alert || 0} alerta</SGFBadge>
+                    {/* Tabs de status — padrão segmentado (igual às abas de detalhes) */}
+                    <div className="grid w-full grid-cols-4 gap-1 rounded-xl bg-slate-100/50 p-1">
+                        {[
+                            { value: 'all', label: 'Todos', count: vehicles.length },
+                            { value: 'moving', label: 'Movim.', count: statusCounts.moving || 0 },
+                            { value: 'idle', label: 'Parado', count: statusCounts.idle || 0 },
+                            { value: 'alert', label: 'Alerta', count: statusCounts.alert || 0 },
+                        ].map((t) => {
+                            const isActive = statusFilter === t.value;
+                            return (
+                                <button
+                                    key={t.value}
+                                    type="button"
+                                    onClick={() => setStatusFilter(t.value)}
+                                    className={
+                                        'flex flex-col items-center justify-center rounded-lg py-1.5 transition-all ' +
+                                        (isActive
+                                            ? 'bg-[#00A86B] text-white shadow-sm'
+                                            : 'text-slate-500 hover:bg-white')
+                                    }
+                                >
+                                    <span className="text-sm font-bold leading-none">{t.count}</span>
+                                    <span className={'mt-0.5 text-[10px] font-medium leading-none ' + (isActive ? 'text-white/80' : 'text-slate-400')}>{t.label}</span>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
                 {/* Vehicle List */}
-                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+                    {isLoading && (
+                        <p className="px-3 py-8 text-center text-sm text-slate-400">Carregando veículos…</p>
+                    )}
+                    {!isLoading && filteredVehicles.length === 0 && (
+                        <p className="px-3 py-8 text-center text-sm text-slate-400">
+                            Nenhum veículo em operação no momento.
+                        </p>
+                    )}
                     {filteredVehicles.map((vehicle) => (
                         <div
                             key={vehicle.id}
@@ -167,7 +200,6 @@ export default function MapPage() {
                                         'w-10 h-10 rounded-full flex items-center justify-center',
                                         vehicle.status === 'moving' && 'bg-emerald-100 text-emerald-600',
                                         vehicle.status === 'idle' && 'bg-blue-100 text-blue-600',
-                                        vehicle.status === 'stopped' && 'bg-slate-100 text-slate-600',
                                         vehicle.status === 'alert' && 'bg-red-100 text-red-600'
                                     )}
                                 >
@@ -187,10 +219,17 @@ export default function MapPage() {
             </SGFCard>
 
             {/* Map */}
-            <SGFCard className="flex-1 overflow-hidden p-0 h-full" padding="none">
+            <SGFCard
+                className={
+                    (mobileView === 'map' ? 'flex' : 'hidden') +
+                    ' lg:flex flex-1 flex-col overflow-hidden p-0 h-full'
+                }
+                padding="none"
+            >
                 <MapContainer
-                    center={[-22.9068, -43.1729]}
-                    zoom={13}
+                    key={filteredVehicles.length > 0 ? 'loaded' : 'empty'}
+                    center={filteredVehicles[0] ? [filteredVehicles[0].lat, filteredVehicles[0].lng] : DEFAULT_CENTER}
+                    zoom={filteredVehicles[0] ? 13 : 4}
                     style={{ height: '100%', width: '100%' }}
                     className="h-full w-full"
                 >
@@ -222,6 +261,7 @@ export default function MapPage() {
                     ))}
                 </MapContainer>
             </SGFCard>
+            </div>
         </div>
     );
 }

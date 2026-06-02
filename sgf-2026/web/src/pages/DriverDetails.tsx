@@ -1,265 +1,304 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import {
-    Breadcrumb,
-    BreadcrumbList,
-    BreadcrumbItem,
-    BreadcrumbPage,
-    BreadcrumbSeparator,
-    BreadcrumbLink,
-} from '@/components/ui/Breadcrumb';
-import {
     ArrowLeft,
     Edit2,
-    Route,
-    FileText,
     Phone,
     Mail,
-    MapPin,
-    Calendar,
-    Car,
+    Loader2,
+    FileText,
+    Route,
+    Gauge,
+    Building2,
     Award,
-} from 'lucide-react';
-import { formatDate, formatCPF, formatDistance, getStatusLabel, getStatusColor } from '@/lib/utils';
+    User,
+} from '@/components/sgf/icons';
+import { EditDriverModal } from '@/components/drivers/EditDriverModal';
+import type { Tables } from '@/types/database.types';
+import { formatDate, formatCPF, formatDistance, formatPhone, formatPlate } from '@/lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
+import { driversApi, tripsApi } from '@/lib/supabase-api';
 
-// Mock data
-const mockDriver = {
-    id: '1',
-    name: 'Maria Santos',
-    cpf: '12345678901',
-    phone: '11987654321',
-    email: 'maria@prefeitura.gov.br',
-    address: 'Rua das Flores, 123 - Centro',
-    licenseNumber: '12345678',
-    licenseCategory: 'B',
-    licenseExpiry: '2027-05-15',
-    department: 'Obras',
-    status: 'ACTIVE',
-    hireDate: '2020-03-15',
-    birthDate: '1985-08-22',
-    totalTrips: 342,
-    totalKm: 15420,
-    avgRating: 4.8,
-};
 
-const mockTrips = [
-    { id: '1', date: '2026-01-15', vehicle: 'ABC-1234', startKm: 45100, endKm: 45230, distance: 130, purpose: 'Visita técnica' },
-    { id: '2', date: '2026-01-12', vehicle: 'XYZ-5678', startKm: 67500, endKm: 67680, distance: 180, purpose: 'Transporte de materiais' },
-    { id: '3', date: '2026-01-10', vehicle: 'ABC-1234', startKm: 44900, endKm: 45100, distance: 200, purpose: 'Fiscalização' },
-];
+function getInitials(name: string) {
+    const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '–';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
-function getLicenseStatus(expiryDate: string) {
+function getLicenseStatus(expiryDate: string | null | undefined) {
+    if (!expiryDate) return { label: 'Não cadastrada', variant: 'default' as const };
     const today = new Date();
     const expiry = parseISO(expiryDate);
     const daysUntilExpiry = differenceInDays(expiry, today);
-
-    if (daysUntilExpiry < 0) {
-        return { label: 'Vencida', variant: 'error' as const };
-    } else if (daysUntilExpiry <= 30) {
-        return { label: `Vence em ${daysUntilExpiry} dias`, variant: 'warning' as const };
-    } else if (daysUntilExpiry <= 90) {
-        return { label: `Vence em ${daysUntilExpiry} dias`, variant: 'info' as const };
-    }
+    if (daysUntilExpiry < 0) return { label: 'Vencida', variant: 'error' as const };
+    if (daysUntilExpiry <= 30) return { label: `Vence em ${daysUntilExpiry} dias`, variant: 'warning' as const };
+    if (daysUntilExpiry <= 90) return { label: `Vence em ${daysUntilExpiry} dias`, variant: 'info' as const };
     return { label: 'Regular', variant: 'success' as const };
 }
 
 export default function DriverDetails() {
-    const { id } = useParams();
-    const [activeTab, setActiveTab] = useState('info');
+    const { id } = useParams<{ id: string }>();
+    const [isEditOpen, setEditOpen] = useState(false);
 
-    const driver = mockDriver;
-    const licenseStatus = getLicenseStatus(driver.licenseExpiry);
+    const { data: driver, isLoading, isError } = useQuery({
+        queryKey: ['driver', id],
+        queryFn: () => driversApi.getById(id!),
+        enabled: Boolean(id),
+    });
 
-    const tripColumns: SGFTableColumn<typeof mockTrips[0]>[] = [
-        { header: 'Data', accessor: (row) => formatDate(row.date) },
-        { header: 'Veículo', accessor: (row) => <span className="font-mono">{row.vehicle}</span> },
-        { header: 'Km Inicial', accessor: (row) => row.startKm.toLocaleString() },
-        { header: 'Km Final', accessor: (row) => row.endKm.toLocaleString() },
-        { header: 'Distância', accessor: (row) => formatDistance(row.distance) },
-        { header: 'Finalidade', accessor: 'purpose' },
+    const { data: trips = [] } = useQuery({
+        queryKey: ['driver', id, 'trips'],
+        queryFn: () => tripsApi.getAll({ driverId: id, limit: 50 }),
+        enabled: Boolean(id),
+    });
+
+    const totalKm = useMemo(
+        () => trips.reduce((s, t) => s + (Number((t as { distance_km: number | null }).distance_km) || 0), 0),
+        [trips],
+    );
+
+    type TripRow = (typeof trips)[number] & {
+        start_at: string;
+        start_odometer: number | null;
+        end_odometer: number | null;
+        distance_km: number | null;
+        destination: string;
+        vehicles?: { id: string; plate: string; brand: string; model: string } | null;
+    };
+
+    const tripColumns: SGFTableColumn<TripRow>[] = [
+        { header: 'Data', accessor: (r) => formatDate(r.start_at) },
+        {
+            header: 'Veículo',
+            accessor: (r) => <span className="font-mono">{r.vehicles?.plate ? formatPlate(r.vehicles.plate) : '—'}</span>,
+        },
+        { header: 'Km Inicial', accessor: (r) => r.start_odometer != null ? r.start_odometer.toLocaleString('pt-BR') : '—' },
+        { header: 'Km Final', accessor: (r) => r.end_odometer != null ? r.end_odometer.toLocaleString('pt-BR') : '—' },
+        { header: 'Distância', accessor: (r) => r.distance_km != null ? formatDistance(Number(r.distance_km)) : '—' },
+        { header: 'Destino', accessor: (r) => r.destination ?? '—' },
     ];
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+            </div>
+        );
+    }
+    if (isError || !driver) {
+        return (
+            <div className="space-y-4">
+                <Link to="/motoristas">
+                    <SGFButton variant="ghost" size="sm" icon={ArrowLeft}>Voltar</SGFButton>
+                </Link>
+                <SGFCard>
+                    <p className="text-sm text-rose-600 font-medium">Motorista não encontrado.</p>
+                </SGFCard>
+            </div>
+        );
+    }
+
+    const d = driver as unknown as {
+        id: string;
+        full_name: string;
+        cpf: string | null;
+        email: string | null;
+        phone: string | null;
+        cnh_number: string | null;
+        cnh_category: string | null;
+        cnh_expiry: string | null;
+        cnh_ear: boolean | null;
+        registration_number: string | null;
+        on_duty: boolean | null;
+        shift_start: string | null;
+        shift_end: string | null;
+        created_at: string;
+        score: number | null;
+        photo_url: string | null;
+        departments?: { id: string; name: string } | null;
+    };
+
+    const licenseStatus = getLicenseStatus(d.cnh_expiry);
+    const departmentName = d.departments?.name ?? '—';
+    const totalTrips = trips.length;
 
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <Breadcrumb>
-                        <BreadcrumbList>
-                            <BreadcrumbItem>
-                                <BreadcrumbLink href="/motoristas">Motoristas</BreadcrumbLink>
-                            </BreadcrumbItem>
-                            <BreadcrumbSeparator />
-                            <BreadcrumbItem>
-                                <BreadcrumbPage>{driver.name}</BreadcrumbPage>
-                            </BreadcrumbItem>
-                        </BreadcrumbList>
-                    </Breadcrumb>
-                    <div className="flex items-center gap-4 mt-2">
-                        <Link to="/motoristas">
-                            <SGFButton variant="ghost" size="sm" icon={ArrowLeft}>
-                                Voltar
-                            </SGFButton>
-                        </Link>
-                        <h1 className="text-2xl font-bold text-gray-900">{driver.name}</h1>
-                        <SGFBadge variant={getStatusColor(driver.status) as any}>
-                            {getStatusLabel(driver.status)}
-                        </SGFBadge>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4 min-w-0">
+                    <Link to="/motoristas">
+                        <SGFButton variant="ghost" size="sm" icon={ArrowLeft}>Voltar</SGFButton>
+                    </Link>
+                    <div className="min-w-0">
+                        <h1 className="text-2xl font-bold text-slate-900 truncate flex items-center gap-3">
+                            {d.full_name}
+                            {d.on_duty ? <SGFBadge variant="info">Em serviço</SGFBadge> : null}
+                        </h1>
                     </div>
                 </div>
-                <SGFButton icon={Edit2}>Editar</SGFButton>
+                <div className="flex shrink-0 justify-end">
+                    <SGFButton icon={Edit2} onClick={() => setEditOpen(true)}>Editar</SGFButton>
+                </div>
             </div>
 
             {/* Quick Stats */}
             <div className="grid gap-4 md:grid-cols-4">
-                <SGFCard padding="sm">
-                    <div className="flex items-center gap-3">
-                        <Route className="h-8 w-8 text-[var(--sgf-primary)]" />
-                        <div>
-                            <p className="text-2xl font-bold">{driver.totalTrips}</p>
-                            <p className="text-sm text-gray-500">Viagens totais</p>
-                        </div>
-                    </div>
-                </SGFCard>
-                <SGFCard padding="sm">
-                    <div className="flex items-center gap-3">
-                        <Car className="h-8 w-8 text-blue-600" />
-                        <div>
-                            <p className="text-2xl font-bold">{formatDistance(driver.totalKm)}</p>
-                            <p className="text-sm text-gray-500">Km percorridos</p>
-                        </div>
-                    </div>
-                </SGFCard>
-                <SGFCard padding="sm">
-                    <div className="flex items-center gap-3">
-                        <Award className="h-8 w-8 text-yellow-500" />
-                        <div>
-                            <p className="text-2xl font-bold">{driver.avgRating}</p>
-                            <p className="text-sm text-gray-500">Avaliação média</p>
-                        </div>
-                    </div>
-                </SGFCard>
-                <SGFCard padding="sm">
-                    <div className="flex items-center gap-3">
-                        <Calendar className="h-8 w-8 text-green-600" />
-                        <div>
-                            <p className="text-2xl font-bold">{formatDate(driver.licenseExpiry)}</p>
-                            <p className="text-sm text-gray-500">Validade CNH</p>
-                        </div>
-                    </div>
-                </SGFCard>
+                {[
+                    { icon: Route, color: 'text-emerald-600', bg: 'bg-emerald-50', value: String(totalTrips), label: 'Viagens totais' },
+                    { icon: Gauge, color: 'text-blue-600', bg: 'bg-blue-50', value: formatDistance(totalKm), label: 'Km percorridos' },
+                    { icon: Award, color: 'text-amber-600', bg: 'bg-amber-50', value: d.score != null ? `${d.score}` : '—', label: 'Pontuação' },
+                    { icon: Building2, color: 'text-purple-600', bg: 'bg-purple-50', value: departmentName, label: 'Secretaria' },
+                ].map((stat) => {
+                    const StatIcon = stat.icon;
+                    return (
+                        <SGFCard key={stat.label} padding="sm">
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2.5 rounded-xl ${stat.bg}`}>
+                                    <StatIcon className={`h-5 w-5 ${stat.color}`} />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-xl font-bold text-slate-900 truncate">{stat.value}</p>
+                                    <p className="text-sm text-slate-500 truncate">{stat.label}</p>
+                                </div>
+                            </div>
+                        </SGFCard>
+                    );
+                })}
             </div>
 
             {/* Tabs */}
-            <SGFCard>
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-3 mb-6">
-                        <TabsTrigger value="info">
-                            <FileText className="h-4 w-4 mr-2" />
-                            Informações
-                        </TabsTrigger>
-                        <TabsTrigger value="trips">
-                            <Route className="h-4 w-4 mr-2" />
-                            Viagens
-                        </TabsTrigger>
-                        <TabsTrigger value="documents">
-                            <FileText className="h-4 w-4 mr-2" />
-                            Documentos
-                        </TabsTrigger>
-                    </TabsList>
+            <Tabs defaultValue="info" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 lg:w-[300px] mx-auto bg-slate-100/50 p-1 rounded-xl">
+                    <TabsTrigger value="info" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Info</TabsTrigger>
+                    <TabsTrigger value="trips" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Viagens</TabsTrigger>
+                </TabsList>
 
-                    <TabsContent value="info">
-                        <div className="grid gap-6 md:grid-cols-2">
-                            <div className="space-y-4">
-                                <h3 className="font-semibold text-gray-900">Dados Pessoais</h3>
-                                <dl className="space-y-3 p-4 bg-slate-50 rounded-xl">
-                                    <div className="flex justify-between">
-                                        <dt className="text-gray-500">Nome completo</dt>
-                                        <dd className="font-medium">{driver.name}</dd>
+                <TabsContent value="info">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                        {/* Coluna esquerda: Foto + Categoria/Validade */}
+                        <div className="lg:col-span-1">
+                            <SGFCard>
+                                <div className="space-y-6">
+                                    <div className="aspect-[4/3] w-full bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-center overflow-hidden shadow-inner">
+                                        {d.photo_url ? (
+                                            <img
+                                                src={d.photo_url}
+                                                alt={d.full_name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center text-slate-200">
+                                                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-2xl font-bold text-emerald-500">
+                                                    {getInitials(d.full_name)}
+                                                </div>
+                                                <p className="mt-4 text-sm font-medium text-slate-400">Sem foto disponível</p>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="flex justify-between">
-                                        <dt className="text-gray-500">CPF</dt>
-                                        <dd className="font-medium">{formatCPF(driver.cpf)}</dd>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="p-4 bg-slate-100 rounded-2xl border border-slate-200 text-center">
+                                            <p className="text-[10px] text-slate-500 uppercase tracking-[0.1em] font-bold mb-1">Categoria</p>
+                                            <p className="text-xl font-black text-[#0F2B2F]">{d.cnh_category ?? '—'}</p>
+                                        </div>
+                                        <div className="p-4 bg-slate-100 rounded-2xl border border-slate-200 text-center flex flex-col justify-center">
+                                            <p className="text-[10px] text-slate-500 uppercase tracking-[0.1em] font-bold mb-1">Validade</p>
+                                            <p className="text-sm font-black text-[#0F2B2F] tabular-nums">{d.cnh_expiry ? formatDate(d.cnh_expiry) : '—'}</p>
+                                        </div>
                                     </div>
-                                    <div className="flex justify-between">
-                                        <dt className="text-gray-500">Data de nascimento</dt>
-                                        <dd className="font-medium">{formatDate(driver.birthDate)}</dd>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <dt className="text-gray-500">Telefone</dt>
-                                        <dd className="font-medium flex items-center gap-2">
-                                            <Phone className="h-4 w-4 text-gray-400" />
-                                            {driver.phone}
-                                        </dd>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <dt className="text-gray-500">Email</dt>
-                                        <dd className="font-medium flex items-center gap-2">
-                                            <Mail className="h-4 w-4 text-gray-400" />
-                                            {driver.email}
-                                        </dd>
-                                    </div>
-                                    <div className="flex justify-between items-start">
-                                        <dt className="text-gray-500">Endereço</dt>
-                                        <dd className="font-medium text-right flex items-start gap-2">
-                                            <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
-                                            {driver.address}
-                                        </dd>
-                                    </div>
-                                </dl>
-                            </div>
-                            <div className="space-y-4">
-                                <h3 className="font-semibold text-gray-900">Habilitação e Vínculo</h3>
-                                <dl className="space-y-3 p-4 bg-slate-50 rounded-xl">
-                                    <div className="flex justify-between">
-                                        <dt className="text-gray-500">Nº CNH</dt>
-                                        <dd className="font-medium font-mono">{driver.licenseNumber}</dd>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <dt className="text-gray-500">Categoria</dt>
-                                        <dd className="font-medium">{driver.licenseCategory}</dd>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <dt className="text-gray-500">Validade</dt>
-                                        <dd className="font-medium flex items-center gap-2">
-                                            {formatDate(driver.licenseExpiry)}
-                                            <SGFBadge variant={licenseStatus.variant}>{licenseStatus.label}</SGFBadge>
-                                        </dd>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <dt className="text-gray-500">Secretaria</dt>
-                                        <dd className="font-medium">{driver.department}</dd>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <dt className="text-gray-500">Data de admissão</dt>
-                                        <dd className="font-medium">{formatDate(driver.hireDate)}</dd>
-                                    </div>
-                                </dl>
-                            </div>
+                                </div>
+                            </SGFCard>
                         </div>
-                    </TabsContent>
 
-                    <TabsContent value="trips">
-                        <SGFTable columns={tripColumns} data={mockTrips} keyExtractor={(r) => r.id} emptyMessage="Nenhuma viagem registrada." />
-                    </TabsContent>
-
-                    <TabsContent value="documents">
-                        {/* Using SGFTable structure for documents if needed or just empty state */}
-                        <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-xl">
-                            <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <FileText className="h-6 w-6 text-gray-400" />
-                            </div>
-                            <p className="text-gray-500 font-medium">Nenhum documento cadastrado.</p>
+                        {/* Coluna meio: Dados Pessoais */}
+                        <div className="lg:col-span-1">
+                            <SGFCard title="Dados Pessoais" icon={User}>
+                                <div className="space-y-1">
+                                    {[
+                                        { label: 'Nome completo', value: d.full_name },
+                                        { label: 'CPF', value: formatCPF(d.cpf) || '—' },
+                                        { label: 'Telefone', value: formatPhone(d.phone) || '—', icon: Phone },
+                                        { label: 'E-mail', value: d.email ?? '—', icon: Mail },
+                                        { label: 'Matrícula', value: d.registration_number ?? '—' },
+                                    ].map((item) => {
+                                        const ItemIcon = item.icon;
+                                        return (
+                                            <div key={item.label} className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
+                                                <span className="text-sm text-slate-500 font-medium">{item.label}</span>
+                                                <span className="flex items-center gap-1.5 text-sm font-bold text-slate-900 text-right">
+                                                    {ItemIcon && <ItemIcon className="h-3.5 w-3.5 text-slate-400" />}
+                                                    {item.value}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </SGFCard>
                         </div>
-                    </TabsContent>
-                </Tabs>
-            </SGFCard>
+
+                        {/* Coluna direita: Habilitação e Vínculo */}
+                        <div className="lg:col-span-1">
+                            <SGFCard title="Habilitação e Vínculo" icon={FileText}>
+                                <div className="space-y-1">
+                                    {[
+                                        { label: 'Nº CNH', value: d.cnh_number ?? '—', isMono: true },
+                                        { label: 'Categoria', value: d.cnh_category ?? '—' },
+                                        {
+                                            label: 'Validade',
+                                            value: (
+                                                <span className="flex items-center justify-end gap-2">
+                                                    <SGFBadge variant={licenseStatus.variant} size="sm">{licenseStatus.label}</SGFBadge>
+                                                    <span>{d.cnh_expiry ? formatDate(d.cnh_expiry) : '—'}</span>
+                                                </span>
+                                            )
+                                        },
+                                        { label: 'EAR', value: d.cnh_ear ? 'Sim' : 'Não' },
+                                        { label: 'Secretaria', value: departmentName },
+                                        {
+                                            label: 'Turno',
+                                            value: d.shift_start && d.shift_end
+                                                ? `${d.shift_start.slice(0, 5)} — ${d.shift_end.slice(0, 5)}`
+                                                : '—',
+                                        },
+                                        { label: 'Cadastrado em', value: formatDate(d.created_at) },
+                                    ].map((item) => (
+                                        <div key={item.label} className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
+                                            <span className="text-sm text-slate-500 font-medium">{item.label}</span>
+                                            <span className={`text-sm font-bold text-slate-900 text-right ${item.isMono ? 'font-mono text-xs' : ''}`}>{item.value}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </SGFCard>
+                        </div>
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="trips">
+                    <div className="-mx-4 md:mx-0">
+                        <SGFTable
+                            columns={tripColumns}
+                            data={trips as unknown as TripRow[]}
+                            keyExtractor={(r) => r.id}
+                            emptyMessage="Nenhuma viagem registrada para este motorista."
+                        />
+                    </div>
+                </TabsContent>
+            </Tabs>
+
+            <EditDriverModal
+                isOpen={isEditOpen}
+                onClose={() => setEditOpen(false)}
+                driver={driver as unknown as Tables<'profiles'>}
+            />
         </div>
     );
 }

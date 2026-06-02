@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, CheckCircle, Info, AlertTriangle, X } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, AlertTriangle, X } from './icons';
 
 export interface SGFAlertProps {
   variant?: 'info' | 'success' | 'warning' | 'error';
@@ -58,7 +58,7 @@ export const SGFAlert: React.FC<SGFAlertProps> = ({
     >
       <div className="flex gap-3">
         <div className={`flex-shrink-0 ${iconColor}`}>
-          <Icon size={20} />
+          <Icon width={20} height={20} />
         </div>
 
         <div className="flex-1">
@@ -74,7 +74,7 @@ export const SGFAlert: React.FC<SGFAlertProps> = ({
             className={`flex-shrink-0 ${iconColor} hover:opacity-70 transition-opacity`}
             aria-label="Fechar"
           >
-            <X size={18} />
+            <X width={18} height={18} />
           </button>
         )}
       </div>

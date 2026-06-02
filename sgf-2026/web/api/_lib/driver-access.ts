@@ -1,6 +1,10 @@
 import { getSupabaseAdmin } from './supabase-admin.js';
 
-type DriverStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+// Banco unificado: motorista vive em `public.profiles` com role='motorista'.
+// O `id` do profile = `id` do auth.users (trigger handle_new_user já cria a row).
+
+type DriverDbStatus = 'ativo' | 'inativo' | 'suspenso';
+type DriverWebStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
 
 export interface CreateDriverPayload {
     cpf: string;
@@ -12,7 +16,7 @@ export interface CreateDriverPayload {
     departmentId?: string;
     phone?: string;
     email?: string;
-    status?: DriverStatus;
+    status?: DriverWebStatus;
     password: string;
 }
 
@@ -26,6 +30,14 @@ function normalizeCpf(cpf: string) {
 
 function buildDriverAuthEmail(cpf: string) {
     return `driver-${cpf}@internal.sgf2026.local`;
+}
+
+function statusToDb(status: DriverWebStatus | undefined): DriverDbStatus {
+    switch (status) {
+        case 'INACTIVE': return 'inativo';
+        case 'SUSPENDED': return 'suspenso';
+        default: return 'ativo';
+    }
 }
 
 function assertPassword(password: unknown) {
@@ -66,7 +78,7 @@ export async function createDriver(payload: CreateDriverPayload) {
     const normalizedCpf = normalizeCpf(payload.cpf);
 
     const { data: existingDriver, error: existingError } = await supabaseAdmin
-        .from('drivers')
+        .from('profiles')
         .select('id')
         .eq('cpf', normalizedCpf)
         .maybeSingle();
@@ -79,13 +91,15 @@ export async function createDriver(payload: CreateDriverPayload) {
         throw new Error('Já existe um motorista com este CPF');
     }
 
+    const authEmail = payload.email?.trim().toLowerCase() || buildDriverAuthEmail(normalizedCpf);
+
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: buildDriverAuthEmail(normalizedCpf),
+        email: authEmail,
         password: payload.password,
         email_confirm: true,
         user_metadata: {
             cpf: normalizedCpf,
-            name: payload.name,
+            full_name: payload.name,
             type: 'driver',
         },
     });
@@ -94,22 +108,24 @@ export async function createDriver(payload: CreateDriverPayload) {
         throw new Error(authError?.message || 'Não foi possível criar o acesso do motorista');
     }
 
+    // O trigger handle_new_user já criou um row em profiles com id = authData.user.id.
+    // Atualizamos os campos do motorista.
     const { data: driver, error: driverError } = await supabaseAdmin
-        .from('drivers')
-        .insert({
+        .from('profiles')
+        .update({
+            full_name: payload.name,
             cpf: normalizedCpf,
-            name: payload.name,
+            role: 'motorista',
             registration_number: payload.registrationNumber,
             cnh_number: payload.cnhNumber,
             cnh_category: payload.cnhCategory,
-            cnh_expiry_date: payload.cnhExpiryDate,
+            cnh_expiry: payload.cnhExpiryDate,
             department_id: payload.departmentId || null,
             phone: payload.phone?.trim() || null,
             email: payload.email?.trim().toLowerCase() || null,
-            status: payload.status || 'ACTIVE',
-            user_id: authData.user.id,
-            password_hash: null,
+            driver_status: statusToDb(payload.status),
         })
+        .eq('id', authData.user.id)
         .select('*, departments(id, name)')
         .single();
 
@@ -121,13 +137,15 @@ export async function createDriver(payload: CreateDriverPayload) {
     return driver;
 }
 
+// No banco unificado, todo motorista que existe na tabela já tem auth (id=auth.users.id).
+// "provisionar acesso" para um motorista existente sem auth não se aplica — mantido só por compat.
 export async function provisionDriverAccess(driverId: string, payload: DriverAccessPayload) {
     assertPassword(payload.password);
 
     const supabaseAdmin = getSupabaseAdmin();
     const { data: driver, error: driverError } = await supabaseAdmin
-        .from('drivers')
-        .select('id, cpf, name, user_id')
+        .from('profiles')
+        .select('id, cpf, full_name')
         .eq('id', driverId)
         .single();
 
@@ -135,38 +153,16 @@ export async function provisionDriverAccess(driverId: string, payload: DriverAcc
         throw new Error('Motorista não encontrado');
     }
 
-    if (driver.user_id) {
-        throw new Error('Motorista já possui acesso configurado');
-    }
-
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: buildDriverAuthEmail(driver.cpf),
+    // O profile.id já é o auth user id no banco unificado: apenas atualizar a senha.
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(driver.id, {
         password: payload.password,
-        email_confirm: true,
-        user_metadata: {
-            cpf: driver.cpf,
-            name: driver.name,
-            type: 'driver',
-        },
     });
 
-    if (authError || !authData.user) {
-        throw new Error(authError?.message || 'Não foi possível provisionar o acesso');
+    if (error) {
+        throw new Error(error.message);
     }
 
-    const { data: updatedDriver, error: updateError } = await supabaseAdmin
-        .from('drivers')
-        .update({ user_id: authData.user.id })
-        .eq('id', driverId)
-        .select('*, departments(id, name)')
-        .single();
-
-    if (updateError) {
-        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-        throw new Error(updateError.message);
-    }
-
-    return updatedDriver;
+    return driver;
 }
 
 export async function resetDriverPassword(driverId: string, payload: DriverAccessPayload) {
@@ -174,8 +170,8 @@ export async function resetDriverPassword(driverId: string, payload: DriverAcces
 
     const supabaseAdmin = getSupabaseAdmin();
     const { data: driver, error: driverError } = await supabaseAdmin
-        .from('drivers')
-        .select('user_id')
+        .from('profiles')
+        .select('id')
         .eq('id', driverId)
         .single();
 
@@ -183,11 +179,7 @@ export async function resetDriverPassword(driverId: string, payload: DriverAcces
         throw new Error('Motorista não encontrado');
     }
 
-    if (!driver.user_id) {
-        throw new Error('Motorista ainda não possui acesso configurado');
-    }
-
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(driver.user_id, {
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(driver.id, {
         password: payload.password,
     });
 

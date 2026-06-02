@@ -1,5 +1,5 @@
 import React from 'react';
-import { type LucideIcon } from 'lucide-react';
+import type { IconType } from './icons';
 import { SGFCard } from './SGFCard';
 import {
   BarChart,
@@ -18,7 +18,7 @@ export interface SGFKPIChartData {
 export interface SGFKPICardProps {
   title: string;
   value: string | number;
-  icon: LucideIcon;
+  icon: IconType;
   iconColor?: string;
   chartData?: SGFKPIChartData[];
   chartColor?: string;
@@ -61,16 +61,16 @@ export const SGFKPICard: React.FC<SGFKPICardProps> = ({
       <div className="flex items-center justify-between h-full gap-[var(--sgf-space-4)]">
         {/* Left Side: Info */}
         <div className="flex flex-col gap-[var(--sgf-space-2)] flex-1 min-w-0">
-          <div className={`p-[var(--sgf-space-3)] w-fit rounded-[var(--sgf-radius-base)] bg-slate-50 group-hover:scale-110 transition-transform duration-500 ${iconColor}`}>
-            <Icon size={20} />
+          <div className={`p-2 w-fit rounded-[var(--sgf-radius-base)] bg-slate-50 group-hover:scale-110 transition-transform duration-500 ${iconColor}`}>
+            <Icon width={18} height={18} />
           </div>
           <div>
-            <p className="text-slate-400 text-[var(--sgf-text-xs)] font-[var(--sgf-font-bold)] uppercase tracking-wider mb-[var(--sgf-space-1)] truncate">{title}</p>
+            <p className="text-slate-400 text-[11px] font-semibold tracking-[0.03em] mb-0.5 truncate">{title}</p>
             {loading ? (
               <div className="h-9 bg-slate-100 rounded-[var(--sgf-radius-md)] animate-pulse w-24" />
             ) : (
               <>
-                <h3 className="text-[var(--sgf-text-3xl)] font-[var(--sgf-font-black)] text-slate-800 tracking-tight leading-[var(--sgf-leading-tight)]">{value}</h3>
+                <h3 className="text-[var(--sgf-text-2xl)] font-bold text-slate-800 tracking-tight leading-tight">{value}</h3>
                 {percentage !== undefined && trend && (
                   <p className={`mt-1 text-[var(--sgf-text-xs)] font-[var(--sgf-font-bold)] ${trend === 'up' ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {trend === 'up' ? '+' : '-'}{percentage}% vs. periodo anterior

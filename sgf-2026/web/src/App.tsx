@@ -17,13 +17,21 @@ import Trips from '@/pages/Trips';
 import Refuelings from '@/pages/Refuelings';
 import Maintenances from '@/pages/Maintenances';
 import Reports from '@/pages/Reports';
+import Infracoes from '@/pages/Infracoes';
+import Configuracoes from '@/pages/Configuracoes';
+import Perfil from '@/pages/Perfil';
+import Departments from '@/pages/Departments';
+import Stations from '@/pages/Stations';
 
 // Create a query client
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
+      retry: 2,
+      // Refetch quando o foco volta — útil quando o usuário troca de tab depois de logar.
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
     },
   },
 });
@@ -50,7 +58,14 @@ function App() {
                 <Route path="/viagens" element={<Trips />} />
                 <Route path="/abastecimentos" element={<Refuelings />} />
                 <Route path="/manutencoes" element={<Maintenances />} />
+                <Route path="/infracoes" element={<Infracoes />} />
                 <Route path="/relatorios" element={<Reports />} />
+                <Route path="/secretarias" element={<Departments />} />
+                <Route path="/secretarias/:id" element={<Departments />} />
+                <Route path="/postos" element={<Stations />} />
+                <Route path="/postos/:id" element={<Stations />} />
+                <Route path="/configuracoes" element={<Configuracoes />} />
+                <Route path="/perfil" element={<Perfil />} />
               </Route>
             </Route>
 

@@ -19,10 +19,10 @@ import {
   Activity,
   Fuel,
   AlertTriangle,
-  Bell,
+  AlertBadge,
   Filter,
   MoreHorizontal,
-} from 'lucide-react';
+} from '@/components/sgf/icons';
 
 // Mock data
 const VEHICLES = [
@@ -83,7 +83,7 @@ export const DashboardExample: React.FC = () => {
       accessor: (row: typeof VEHICLES[0]) => (
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-[var(--sgf-primary)] group-hover:text-white transition-all duration-500">
-            <Truck size={24} />
+            <Truck width={24} height={24} />
           </div>
           <div>
             <p className="text-sm font-black text-slate-800">{row.plate}</p>
@@ -134,7 +134,7 @@ export const DashboardExample: React.FC = () => {
       className: 'text-right',
       accessor: () => (
         <button className="p-2 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all opacity-0 group-hover:opacity-100">
-          <MoreHorizontal size={20} />
+          <MoreHorizontal width={20} height={20} />
         </button>
       ),
     },
@@ -242,7 +242,7 @@ export const DashboardExample: React.FC = () => {
             <div className="space-y-6">
               <SGFCard padding="lg">
                 <h4 className="font-bold text-xl text-slate-800 mb-6 flex items-center gap-2">
-                  <Bell size={20} className="text-[var(--sgf-primary)]" /> Últimas Alertas
+                  <AlertBadge width={20} height={20} className="text-[var(--sgf-primary)]" /> Últimas Alertas
                 </h4>
                 <div className="space-y-4">
                   {ALERTS.map((alert) => (

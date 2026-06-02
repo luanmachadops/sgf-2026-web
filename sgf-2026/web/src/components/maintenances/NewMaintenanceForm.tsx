@@ -1,21 +1,25 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
+import { SGFTextarea } from '@/components/sgf/SGFTextarea';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { Loader2, Save, Wrench, Calendar, AlertTriangle, Car, FileText, DollarSign } from 'lucide-react';
+import { Loader2, Save, Wrench, Calendar, FileText, Car } from '@/components/sgf/icons';
 import { toast } from 'sonner';
+import { useVehicles } from '@/hooks/useVehicles';
+import { useCreateMaintenance } from '@/hooks/useMaintenances';
+import { useAuth } from '@/contexts/AuthContext';
 
+// Schema alinhado aos enums do banco (service_orders)
 const maintenanceSchema = z.object({
     vehicleId: z.string().min(1, 'Veículo é obrigatório'),
-    type: z.enum(['preventive', 'corrective', 'inspection']),
-    priority: z.enum(['low', 'medium', 'high']),
+    category: z.string().min(1, 'Categoria é obrigatória'),
+    priority: z.enum(['baixa', 'media', 'alta']),
     description: z.string().min(5, 'Descrição deve ter pelo menos 5 caracteres'),
     scheduledDate: z.string().min(1, 'Data é obrigatória'),
-    workshop: z.string().optional(),
-    estimatedCost: z.coerce.number().min(0).optional(),
+    odometer: z.coerce.number().min(0).optional(),
 });
 
 type MaintenanceFormData = z.infer<typeof maintenanceSchema>;
@@ -25,37 +29,75 @@ interface NewMaintenanceFormProps {
     onCancel: () => void;
 }
 
-// Mock vehicles for selection
-const mockVehicles = [
-    { value: '1', label: 'ABC-1234 - Fiat Strada' },
-    { value: '2', label: 'XYZ-5678 - Chevrolet Spin' },
-    { value: '3', label: 'DEF-9012 - VW Saveiro' },
-    { value: '4', label: 'GHI-3456 - Renault Duster' },
+const categoryOptions = [
+    { value: 'Troca de óleo', label: 'Troca de óleo' },
+    { value: 'Revisão geral', label: 'Revisão geral' },
+    { value: 'Freios', label: 'Freios' },
+    { value: 'Suspensão', label: 'Suspensão' },
+    { value: 'Pneus', label: 'Pneus' },
+    { value: 'Elétrica', label: 'Elétrica' },
+    { value: 'Funilaria', label: 'Funilaria' },
+    { value: 'Ar condicionado', label: 'Ar condicionado' },
+    { value: 'Motor', label: 'Motor' },
+    { value: 'Câmbio', label: 'Câmbio' },
+    { value: 'Outro', label: 'Outro' },
+];
+
+const priorityOptions = [
+    { value: 'baixa', label: 'Baixa' },
+    { value: 'media', label: 'Média' },
+    { value: 'alta', label: 'Alta' },
 ];
 
 export function NewMaintenanceForm({ onSuccess, onCancel }: NewMaintenanceFormProps) {
+    const { user } = useAuth();
+    const { data: vehicles = [], isLoading: vehiclesLoading } = useVehicles();
+    const createMaintenance = useCreateMaintenance();
+
+    const vehicleOptions = useMemo(
+        () =>
+            vehicles.map((v) => ({
+                value: v.id,
+                label: `${v.plate ?? '—'} — ${[v.brand, v.model].filter(Boolean).join(' ') || 'Veículo'}`,
+            })),
+        [vehicles]
+    );
+
     const {
         register,
         handleSubmit,
         control,
         formState: { errors, isSubmitting },
-    } = useForm({
+    } = useForm<MaintenanceFormData>({
         resolver: zodResolver(maintenanceSchema),
         defaultValues: {
-            type: 'preventive',
-            priority: 'medium',
+            category: '',
+            priority: 'media',
+            description: '',
             scheduledDate: new Date().toISOString().split('T')[0],
         },
     });
 
     const onSubmit = async (data: MaintenanceFormData) => {
+        if (!user?.id) {
+            toast.error('Usuário não autenticado.');
+            return;
+        }
+
         try {
-            console.log('Form data:', data);
-            await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
-            toast.success('Manutenção agendada com sucesso!');
+            await createMaintenance.mutateAsync({
+                vehicle_id: data.vehicleId,
+                driver_id: user.id,
+                category: data.category,
+                priority: data.priority,
+                description: data.description,
+                odometer: data.odometer ?? null,
+                status: 'pendente',
+            });
+            toast.success('Manutenção registrada com sucesso!');
             onSuccess();
-        } catch (error) {
-            toast.error('Erro ao agendar manutenção.');
+        } catch {
+            toast.error('Erro ao registrar manutenção.');
         }
     };
 
@@ -68,32 +110,31 @@ export function NewMaintenanceForm({ onSuccess, onCancel }: NewMaintenanceFormPr
                     render={({ field }) => (
                         <SGFSelect
                             label="Veículo"
-                            options={mockVehicles}
+                            options={vehicleOptions}
                             value={field.value}
                             onChange={field.onChange}
                             error={errors.vehicleId?.message}
-                            placeholder="Selecione o veículo..."
+                            placeholder={vehiclesLoading ? 'Carregando veículos...' : 'Selecione o veículo...'}
                             fullWidth
+                            icon={Car}
                         />
                     )}
                 />
 
                 <div className="grid grid-cols-2 gap-4">
                     <Controller
-                        name="type"
+                        name="category"
                         control={control}
                         render={({ field }) => (
                             <SGFSelect
-                                label="Tipo"
-                                options={[
-                                    { value: 'preventive', label: 'Preventiva' },
-                                    { value: 'corrective', label: 'Corretiva' },
-                                    { value: 'inspection', label: 'Vistoria' },
-                                ]}
+                                label="Categoria"
+                                options={categoryOptions}
                                 value={field.value}
                                 onChange={field.onChange}
-                                error={errors.type?.message}
+                                error={errors.category?.message}
+                                placeholder="Selecione..."
                                 fullWidth
+                                icon={Wrench}
                             />
                         )}
                     />
@@ -104,11 +145,7 @@ export function NewMaintenanceForm({ onSuccess, onCancel }: NewMaintenanceFormPr
                         render={({ field }) => (
                             <SGFSelect
                                 label="Prioridade"
-                                options={[
-                                    { value: 'low', label: 'Baixa' },
-                                    { value: 'medium', label: 'Média' },
-                                    { value: 'high', label: 'Alta' },
-                                ]}
+                                options={priorityOptions}
                                 value={field.value}
                                 onChange={field.onChange}
                                 error={errors.priority?.message}
@@ -128,42 +165,39 @@ export function NewMaintenanceForm({ onSuccess, onCancel }: NewMaintenanceFormPr
                 />
 
                 <SGFInput
-                    label="Oficina (Opcional)"
-                    placeholder="Nome da oficina ou concessionária"
-                    {...register('workshop')}
-                    error={errors.workshop?.message}
+                    label="Odômetro Atual (Opcional)"
+                    type="number"
+                    placeholder="Ex: 45230"
+                    {...register('odometer')}
+                    error={errors.odometer?.message}
                     fullWidth
-                    icon={Wrench}
+                    icon={Car}
                 />
 
                 <div className="md:col-span-2">
-                    <SGFInput
+                    <SGFTextarea
                         label="Descrição do Problema / Serviço"
-                        placeholder="Ex: Troca de óleo, barulho na suspensão, etc."
+                        placeholder="Ex: Barulho na suspensão dianteira, troca de pastilhas de freio, etc."
                         {...register('description')}
                         error={errors.description?.message}
                         fullWidth
-                        icon={FileText}
+                        rows={3}
+                        maxLength={500}
+                        showCount
                     />
                 </div>
-
-                <SGFInput
-                    label="Custo Estimado (Opcional)"
-                    type="number"
-                    placeholder="0,00"
-                    {...register('estimatedCost')}
-                    error={errors.estimatedCost?.message}
-                    fullWidth
-                    icon={DollarSign}
-                />
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <SGFButton type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
                     Cancelar
                 </SGFButton>
-                <SGFButton type="submit" icon={isSubmitting ? Loader2 : Save} disabled={isSubmitting}>
-                    {isSubmitting ? 'Agendando...' : 'Agendar Manutenção'}
+                <SGFButton
+                    type="submit"
+                    icon={isSubmitting ? Loader2 : Save}
+                    disabled={isSubmitting || vehiclesLoading}
+                >
+                    {isSubmitting ? 'Registrando...' : 'Registrar Manutenção'}
                 </SGFButton>
             </div>
         </form>

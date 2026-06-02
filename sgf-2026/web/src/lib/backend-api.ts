@@ -1,23 +1,39 @@
 import type { Tables } from '@/types/database.types';
 
+function isLocalHostname(hostname: string): boolean {
+    return hostname === 'localhost' || hostname === '127.0.0.1';
+}
+
 function resolveApiUrl(): string {
     const configuredUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
 
     if (configuredUrl) {
-        const isLocalApi = /localhost:3000\/api$/.test(configuredUrl);
-        const isLocalHost = typeof window !== 'undefined'
-            && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+        if (typeof window !== 'undefined') {
+            try {
+                const configuredHost = new URL(configuredUrl).hostname;
+                const currentHost = window.location.hostname;
+                const isConfiguredLocal = isLocalHostname(configuredHost);
+                const isCurrentLocal = isLocalHostname(currentHost);
 
-        if (!isLocalApi || isLocalHost) {
-            return configuredUrl;
+                // Evita usar localhost em produção (Vercel/GitHub Pages/etc.)
+                if (isConfiguredLocal && !isCurrentLocal) {
+                    return '/api';
+                }
+            } catch {
+                // If configured URL is malformed, fallback below.
+            }
         }
+
+        return configuredUrl;
     }
 
     if (typeof window !== 'undefined') {
-        return `${window.location.origin}/api`;
+        return isLocalHostname(window.location.hostname)
+            ? 'http://localhost:3000/api'
+            : '/api';
     }
 
-    return configuredUrl || '/api';
+    return '/api';
 }
 
 class BackendApiError extends Error {
@@ -82,9 +98,14 @@ export interface DriverAccessRequest {
     password: string;
 }
 
-export type DriverWithDepartment = Tables<'drivers'> & {
+// "Driver" no banco unificado = profile com role='motorista'
+export type DriverWithDepartment = Tables<'profiles'> & {
     department?: { id: string; name: string } | null;
     departments?: { id: string; name: string } | null;
+    // Aliases retro-compatíveis usados por componentes do web
+    name?: string;
+    cnh_expiry_date?: string | null;
+    status?: Tables<'profiles'>['driver_status'];
 };
 
 export const driverAccessApi = {

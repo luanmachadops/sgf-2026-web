@@ -1,6 +1,6 @@
 import React from 'react';
 import { useHeader } from '@/contexts/HeaderContext';
-import { Search } from 'lucide-react';
+import { Search } from '@/components/sgf/icons';
 
 export default function SubHeader() {
     const { searchPlaceholder, handleSearch } = useHeader();

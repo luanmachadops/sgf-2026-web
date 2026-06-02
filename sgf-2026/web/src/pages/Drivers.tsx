@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     AlertTriangle,
@@ -7,17 +7,17 @@ import {
     Eye,
     KeyRound,
     Phone,
-    Search,
     ShieldCheck,
+    X,
     Users,
-} from 'lucide-react';
+} from '@/components/sgf/icons';
 import { differenceInDays, parseISO } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
-import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
+import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { NewDriverForm } from '@/components/drivers/NewDriverForm';
 import { DriverAccessForm } from '@/components/drivers/DriverAccessForm';
 import { Modal } from '@/components/ui/Modal';
@@ -25,20 +25,23 @@ import { useHeader } from '@/contexts/HeaderContext';
 import { departmentsApi } from '@/lib/supabase-api';
 import { formatCPF, formatDate, getStatusColor, getStatusLabel } from '@/lib/utils';
 import { useDrivers, type DriverRecord } from '@/hooks/useDrivers';
+import { useAppSettings } from '@/hooks/useSettings';
 
-const statusOptions = [
-    { value: '', label: 'Todos os status' },
-    { value: 'ACTIVE', label: 'Ativo' },
-    { value: 'INACTIVE', label: 'Inativo' },
-    { value: 'SUSPENDED', label: 'Suspenso' },
-];
+
 
 type DriverTableRow = DriverRecord & {
     departmentName: string;
     hasAccess: boolean;
 };
 
-function getLicenseStatus(expiryDate: string) {
+function getInitials(name: string) {
+    const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '–';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function getLicenseStatus(expiryDate: string, alertDays = 30) {
     const today = new Date();
     const expiry = parseISO(expiryDate);
     const daysUntilExpiry = differenceInDays(expiry, today);
@@ -46,10 +49,10 @@ function getLicenseStatus(expiryDate: string) {
     if (daysUntilExpiry < 0) {
         return { label: 'Vencida', variant: 'error' as const, urgent: true };
     }
-    if (daysUntilExpiry <= 30) {
+    if (daysUntilExpiry <= alertDays) {
         return { label: `Vence em ${daysUntilExpiry} dias`, variant: 'warning' as const, urgent: true };
     }
-    if (daysUntilExpiry <= 90) {
+    if (daysUntilExpiry <= alertDays * 3) {
         return { label: `Vence em ${daysUntilExpiry} dias`, variant: 'info' as const, urgent: false };
     }
 
@@ -57,11 +60,14 @@ function getLicenseStatus(expiryDate: string) {
 }
 
 export default function Drivers() {
-    const { setTitle, setSearchHandler, setSearchPlaceholder, setHeaderAction } = useHeader();
+    const navigate = useNavigate();
+    const { setTitle, setDescription, setHeaderAction } = useHeader();
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [departmentFilter, setDepartmentFilter] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showWarning, setShowWarning] = useState(true);
+    const [showExpiredModal, setShowExpiredModal] = useState(false);
     const [accessModal, setAccessModal] = useState<{
         mode: 'provision' | 'reset';
         driver: DriverRecord;
@@ -77,26 +83,26 @@ export default function Drivers() {
         isLoading,
     } = useDrivers({
         search: searchTerm || undefined,
-        status: statusFilter as 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | undefined,
         departmentId: departmentFilter || undefined,
     });
 
+    const { data: appSettings } = useAppSettings();
+    const cnhDays = appSettings?.cnhAlertDays ?? 30;
+
     useEffect(() => {
         setTitle('Motoristas');
-        setSearchPlaceholder('Buscar por nome, CPF, e-mail ou CNH...');
-        setSearchHandler((term) => setSearchTerm(term));
+        setDescription('Cadastro, habilitação e acesso dos motoristas ao app.');
 
         setHeaderAction(
-            <SGFButton onClick={() => setShowAddModal(true)} icon={Users}>
+            <SGFButton onClick={() => setShowAddModal(true)} icon={Users} className="!rounded-full !h-[37px]">
                 Novo Motorista
             </SGFButton>
         );
 
         return () => {
-            setSearchHandler(() => { });
             setHeaderAction(null);
         };
-    }, [setTitle, setSearchHandler, setSearchPlaceholder, setHeaderAction]);
+    }, [setTitle, setDescription, setHeaderAction]);
 
     const departmentOptions = useMemo(
         () => [
@@ -109,7 +115,7 @@ export default function Drivers() {
         [departments]
     );
 
-    const tableRows = useMemo<DriverTableRow[]>(
+    const allDriversDecora = useMemo<DriverTableRow[]>(
         () =>
             drivers.map((driver) => ({
                 ...driver,
@@ -119,118 +125,133 @@ export default function Drivers() {
         [drivers]
     );
 
-    const urgentCNHCount = tableRows.filter((driver) => getLicenseStatus(driver.cnh_expiry_date).urgent).length;
-    const activeDriversCount = tableRows.filter((driver) => driver.status === 'ACTIVE').length;
-    const suspendedDriversCount = tableRows.filter((driver) => driver.status === 'SUSPENDED').length;
-    const noAccessCount = tableRows.filter((driver) => !driver.hasAccess).length;
+    const tableRows = useMemo<DriverTableRow[]>(
+        () => {
+            if (statusFilter) {
+                return allDriversDecora.filter((d) => d.status === statusFilter);
+            }
+            return allDriversDecora;
+        },
+        [allDriversDecora, statusFilter]
+    );
+
+    const urgentCNHCount = useMemo(() => allDriversDecora.filter((driver) => getLicenseStatus(driver.cnh_expiry_date, cnhDays).urgent).length, [allDriversDecora, cnhDays]);
+    const urgentDrivers = useMemo(() => allDriversDecora.filter((driver) => getLicenseStatus(driver.cnh_expiry_date, cnhDays).urgent), [allDriversDecora, cnhDays]);
+    const activeDriversCount = useMemo(() => allDriversDecora.filter((driver) => driver.status === 'ACTIVE').length, [allDriversDecora]);
+    const suspendedDriversCount = useMemo(() => allDriversDecora.filter((driver) => driver.status === 'SUSPENDED').length, [allDriversDecora]);
+    const noAccessCount = useMemo(() => allDriversDecora.filter((driver) => !driver.hasAccess).length, [allDriversDecora]);
+
+    const statusCounts = useMemo(() => ({
+        all: allDriversDecora.length,
+        ACTIVE: allDriversDecora.filter((d) => d.status === 'ACTIVE').length,
+        INACTIVE: allDriversDecora.filter((d) => d.status === 'INACTIVE').length,
+        SUSPENDED: allDriversDecora.filter((d) => d.status === 'SUSPENDED').length,
+    }), [allDriversDecora]);
 
     const columns: SGFTableColumn<DriverTableRow>[] = [
         {
-            header: (
-                <div className="flex flex-col gap-2 min-w-[220px]">
-                    <span className="text-xs uppercase font-bold text-slate-400">Motorista</span>
-                    <div className="relative group">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                        <input
-                            type="text"
-                            placeholder="Buscar motorista..."
-                            className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-medium text-slate-700 placeholder:text-slate-400 shadow-sm"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                        />
-                    </div>
-                </div>
-            ),
+            header: 'Motorista',
             accessor: (row) => (
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-[var(--sgf-primary)]/10 rounded-full flex items-center justify-center">
-                        <Users className="h-5 w-5 text-[var(--sgf-primary)]" />
-                    </div>
-                    <div>
-                        <p className="font-medium text-gray-900">{row.name}</p>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                            <Phone className="h-3 w-3" />
-                            {row.phone || 'Sem telefone'}
+                    {(row as { photo_url?: string | null }).photo_url ? (
+                        <img
+                            src={(row as { photo_url?: string | null }).photo_url as string}
+                            alt={row.name}
+                            className="h-10 w-10 shrink-0 rounded-full object-cover shadow-sm"
+                        />
+                    ) : (
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-sm font-bold text-white shadow-sm">
+                            {getInitials(row.name)}
                         </div>
+                    )}
+                    <div className="min-w-0">
+                        <p className="font-semibold text-slate-900 truncate">{row.name}</p>
+                        <p className="font-mono text-xs text-slate-400">{formatCPF(row.cpf)}</p>
                     </div>
                 </div>
             ),
         },
-        { header: 'CPF', accessor: (row) => formatCPF(row.cpf) },
+        {
+            header: 'Contato',
+            accessor: (row) => (
+                <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                    <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    <span>{row.phone || '—'}</span>
+                </div>
+            ),
+        },
         {
             header: 'CNH',
+            accessor: (row) => <span className="font-mono text-sm text-slate-700">{row.cnh_number}</span>,
+        },
+        {
+            header: 'Categoria',
+            accessor: (row) => <span className="font-bold text-sm text-slate-500">{row.cnh_category}</span>,
+        },
+        {
+            header: 'Vencimento CNH',
             accessor: (row) => (
-                <div>
-                    <span className="font-mono">{row.cnh_number}</span>
-                    <span className="ml-1 text-gray-500">({row.cnh_category})</span>
-                </div>
+                <span className="text-sm tabular-nums text-slate-700 font-medium">{formatDate(row.cnh_expiry_date)}</span>
             ),
         },
         {
-            header: 'Validade CNH',
+            header: 'Situação CNH',
             accessor: (row) => {
-                const status = getLicenseStatus(row.cnh_expiry_date);
-                return (
-                    <div className="flex items-center gap-2">
-                        <span>{formatDate(row.cnh_expiry_date)}</span>
-                        <SGFBadge variant={status.variant}>{status.label}</SGFBadge>
-                    </div>
-                );
+                const status = getLicenseStatus(row.cnh_expiry_date, cnhDays);
+                return <SGFBadge variant={status.variant} size="sm">{status.label}</SGFBadge>;
             },
         },
         {
-            header: (
-                <div className="flex flex-col gap-2 min-w-[150px]">
-                    <span className="text-xs uppercase font-bold text-slate-400">Secretaria</span>
-                    <SGFSelect
-                        value={departmentFilter}
-                        onChange={(value) => setDepartmentFilter(value)}
-                        options={departmentOptions}
-                        placeholder="Filtrar..."
-                    />
-                </div>
-            ),
-            accessor: 'departmentName',
+            header: 'Secretaria',
+            accessor: (row) => <span className="text-sm text-slate-600">{row.departmentName}</span>,
         },
         {
-            header: 'Acesso',
+            header: 'Status',
             accessor: (row) => (
-                <SGFBadge variant={row.hasAccess ? 'success' : 'warning'} icon={row.hasAccess ? ShieldCheck : KeyRound}>
-                    {row.hasAccess ? 'Com acesso' : 'Sem acesso'}
-                </SGFBadge>
-            ),
-        },
-        {
-            header: (
-                <div className="flex flex-col gap-2 min-w-[150px]">
-                    <span className="text-xs uppercase font-bold text-slate-400">Status</span>
-                    <SGFSelect
-                        value={statusFilter}
-                        onChange={(value) => setStatusFilter(value)}
-                        options={statusOptions}
-                        placeholder="Filtrar..."
-                    />
+                <div className="flex flex-col items-start gap-1.5">
+                    <SGFBadge variant={getStatusColor(row.status) as any}>
+                        {getStatusLabel(row.status)}
+                    </SGFBadge>
+                    {!row.hasAccess && (
+                        <SGFBadge
+                            variant="warning"
+                            icon={KeyRound}
+                            dot
+                            size="sm"
+                        >
+                            Sem acesso
+                        </SGFBadge>
+                    )}
                 </div>
-            ),
-            accessor: (row) => (
-                <SGFBadge variant={getStatusColor(row.status) as any}>
-                    {getStatusLabel(row.status)}
-                </SGFBadge>
             ),
         },
         {
             header: 'Ações',
+            headerClassName: 'text-right',
             accessor: (row) => (
-                <div className="flex items-center gap-1">
-                    <Link to={`/motoristas/${row.id}`}>
-                        <SGFButton variant="ghost" size="sm" icon={Eye} />
+                <div className="flex items-center justify-end gap-0.5">
+                    <Link
+                        to={`/motoristas/${row.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        title="Ver detalhes"
+                    >
+                        <Eye className="h-4 w-4" />
                     </Link>
-                    <SGFButton variant="ghost" size="sm" icon={Edit2} />
-                    <SGFButton
-                        variant="ghost"
-                        size="sm"
-                        icon={row.hasAccess ? KeyRound : ShieldCheck}
+                    <button
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        title="Editar motorista"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <Edit2 className="h-4 w-4" />
+                    </button>
+                    <button
+                        className={`inline-flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${
+                            row.hasAccess
+                                ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                                : 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50'
+                        }`}
+                        title={row.hasAccess ? 'Redefinir senha' : 'Criar acesso'}
                         onClick={(event) => {
                             event.stopPropagation();
                             setAccessModal({
@@ -238,7 +259,11 @@ export default function Drivers() {
                                 driver: row,
                             });
                         }}
-                    />
+                    >
+                        {row.hasAccess
+                            ? <KeyRound className="h-4 w-4" />
+                            : <ShieldCheck className="h-4 w-4" />}
+                    </button>
                 </div>
             ),
         },
@@ -247,23 +272,38 @@ export default function Drivers() {
     return (
         <div className="space-y-6">
             <AnimatePresence>
-                {urgentCNHCount > 0 && (
+                {urgentCNHCount > 0 && showWarning && (
                     <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
                         className="overflow-hidden"
                     >
-                        <div className="flex items-center gap-4 p-5 bg-rose-50 border border-rose-100 rounded-3xl shadow-sm mb-2">
-                            <div className="p-2.5 bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-500/20">
-                                <AlertTriangle className="h-6 w-6" />
+                        <div
+                            onClick={() => setShowExpiredModal(true)}
+                            className="relative flex items-center justify-between p-5 bg-rose-50 border border-rose-100 rounded-3xl shadow-sm mb-2 cursor-pointer hover:bg-rose-100/50 transition-colors group"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="p-2.5 bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-500/20 group-hover:scale-105 transition-transform shrink-0">
+                                    <AlertTriangle className="h-6 w-6" />
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-rose-900 leading-tight">Atenção com a CNH</h4>
+                                    <p className="text-sm text-rose-700/80 font-medium">
+                                        <span className="font-black">{urgentCNHCount} motorista(s)</span> com CNH vencida ou próxima do vencimento. Clique para ver a lista.
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <h4 className="font-black text-rose-900 leading-tight">Atenção com a CNH</h4>
-                                <p className="text-sm text-rose-700/80 font-medium">
-                                    <span className="font-black">{urgentCNHCount} motorista(s)</span> com CNH vencida ou próxima do vencimento.
-                                </p>
-                            </div>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowWarning(false);
+                                }}
+                                className="p-2 text-rose-400 hover:text-rose-700 hover:bg-rose-100/80 rounded-xl transition-colors shrink-0"
+                                title="Fechar aviso"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
                         </div>
                     </motion.div>
                 )}
@@ -320,12 +360,57 @@ export default function Drivers() {
                 />
             </div>
 
+            <SGFToolbar
+                searchValue={searchTerm}
+                onSearchChange={setSearchTerm}
+                searchPlaceholder="Buscar por nome, CPF, e-mail ou CNH..."
+                filters={[
+                    {
+                        key: 'department',
+                        value: departmentFilter,
+                        onChange: setDepartmentFilter,
+                        options: departmentOptions,
+                        placeholder: 'Secretaria',
+                    },
+                ]}
+            >
+                {/* Tabs de status */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {[
+                        { value: '', label: 'Todos' },
+                        { value: 'ACTIVE', label: 'Ativos' },
+                        { value: 'INACTIVE', label: 'Inativos' },
+                        { value: 'SUSPENDED', label: 'Suspensos' },
+                    ].map((t) => {
+                        const isActive = statusFilter === t.value;
+                        const count = t.value === '' ? statusCounts.all
+                            : (statusCounts[t.value as keyof typeof statusCounts] ?? 0);
+                        return (
+                            <button
+                                key={t.value || 'all'}
+                                type="button"
+                                onClick={() => setStatusFilter(t.value)}
+                                className={
+                                    'px-4 py-2.5 rounded-full text-sm font-semibold border transition whitespace-nowrap ' +
+                                    (isActive
+                                        ? 'bg-emerald-500 text-white border-emerald-500'
+                                        : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300')
+                                }
+                            >
+                                {t.label} <span className="opacity-70 ml-1">{count}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </SGFToolbar>
+
             <div className="-mx-6 md:mx-0">
                 <SGFTable
                     columns={columns}
                     data={tableRows}
                     keyExtractor={(row) => row.id}
                     loading={isLoading}
+                    onRowClick={(row) => navigate(`/motoristas/${row.id}`)}
                     emptyMessage="Nenhum motorista encontrado."
                 />
             </div>
@@ -366,6 +451,52 @@ export default function Drivers() {
                         onCancel={() => setAccessModal(null)}
                     />
                 ) : null}
+            </Modal>
+
+            <Modal
+                isOpen={showExpiredModal}
+                onClose={() => setShowExpiredModal(false)}
+                title="Motoristas com CNH Expirada / Alerta"
+                description="Selecione um motorista para ver o perfil completo e atualizar seus dados."
+                size="lg"
+            >
+                <div className="divide-y divide-slate-100 max-h-[60vh] overflow-y-auto pr-1">
+                    {urgentDrivers.map((driver) => {
+                        const status = getLicenseStatus(driver.cnh_expiry_date);
+                        return (
+                            <div
+                                key={driver.id}
+                                onClick={() => {
+                                    setShowExpiredModal(false);
+                                    navigate(`/motoristas/${driver.id}`);
+                                }}
+                                className="flex items-center justify-between py-3.5 px-2 hover:bg-slate-50 rounded-2xl cursor-pointer transition-colors group"
+                            >
+                                <div className="flex items-center gap-3">
+                                    {(driver as { photo_url?: string | null }).photo_url ? (
+                                        <img
+                                            src={(driver as { photo_url?: string | null }).photo_url as string}
+                                            alt={driver.name}
+                                            className="h-10 w-10 shrink-0 rounded-full object-cover shadow-sm"
+                                        />
+                                    ) : (
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-sm font-bold text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                                            {getInitials(driver.name)}
+                                        </div>
+                                    )}
+                                    <div className="min-w-0">
+                                        <p className="font-bold text-slate-800 group-hover:text-emerald-700 transition-colors truncate">{driver.name}</p>
+                                        <p className="text-xs font-mono text-slate-400">CNH: {driver.cnh_number} ({driver.cnh_category})</p>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                    <span className="text-sm font-semibold tabular-nums text-slate-700">{formatDate(driver.cnh_expiry_date)}</span>
+                                    <SGFBadge variant={status.variant} size="sm">{status.label}</SGFBadge>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
             </Modal>
         </div>
     );

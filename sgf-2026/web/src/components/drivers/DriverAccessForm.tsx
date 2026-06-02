@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader2, LockKeyhole, Save } from 'lucide-react';
+import { Loader2, LockKeyhole, Save } from '@/components/sgf/icons';
 import { toast } from 'sonner';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
@@ -66,7 +66,7 @@ export function DriverAccessForm({ driver, mode, onSuccess, onCancel }: DriverAc
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <div className="flex items-start gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-                        <LockKeyhole size={18} />
+                        <LockKeyhole width={18} height={18} />
                     </div>
                     <div>
                         <p className="font-semibold text-slate-900">{driver.name}</p>

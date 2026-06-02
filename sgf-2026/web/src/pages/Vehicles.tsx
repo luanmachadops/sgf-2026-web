@@ -2,13 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Car, Fuel, Plus, Search, Wrench } from 'lucide-react';
+import { Car, Fuel, Plus, Wrench } from '@/components/sgf/icons';
 import { Modal } from '@/components/ui/Modal';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
-import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
+import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { NewVehicleForm } from '@/components/vehicles/NewVehicleForm';
 import { useHeader } from '@/contexts/HeaderContext';
 import { departmentsApi } from '@/lib/supabase-api';
@@ -41,7 +41,7 @@ function getFuelLabel(fuelType: VehicleRecord['fuel_type']) {
 
 export default function Vehicles() {
     const navigate = useNavigate();
-    const { setTitle, setSearchPlaceholder, setSearchHandler, setHeaderAction } = useHeader();
+    const { setTitle, setDescription, setHeaderAction } = useHeader();
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [departmentFilter, setDepartmentFilter] = useState('');
@@ -60,20 +60,18 @@ export default function Vehicles() {
 
     useEffect(() => {
         setTitle('Frota');
-        setSearchPlaceholder('Buscar por placa, marca ou modelo...');
-        setSearchHandler((term: string) => setSearchTerm(term));
+        setDescription('Cadastro e gestão dos veículos da frota municipal.');
 
         setHeaderAction(
-            <SGFButton onClick={() => setShowAddModal(true)} icon={Plus}>
+            <SGFButton onClick={() => setShowAddModal(true)} icon={Plus} className="!rounded-full !h-[37px]">
                 Novo Veículo
             </SGFButton>
         );
 
         return () => {
-            setSearchHandler(() => { });
             setHeaderAction(null);
         };
-    }, [setHeaderAction, setSearchHandler, setSearchPlaceholder, setTitle]);
+    }, [setHeaderAction, setTitle, setDescription]);
 
     const departmentOptions = useMemo(
         () => [
@@ -111,52 +109,47 @@ export default function Vehicles() {
 
     const columns: SGFTableColumn<VehicleTableRow>[] = [
         {
-            header: (
-                <div className="flex min-w-[220px] flex-col gap-2">
-                    <span className="text-xs uppercase font-bold text-slate-400">Veículo</span>
-                    <div className="relative group">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-emerald-500" />
-                        <input
-                            type="text"
-                            placeholder="Buscar placa..."
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm font-medium text-slate-700 shadow-sm transition-all placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10"
-                            value={searchTerm}
-                            onChange={(event) => setSearchTerm(event.target.value)}
-                            onClick={(event) => event.stopPropagation()}
-                        />
-                    </div>
-                </div>
-            ),
+            header: 'Modelo do Veículo',
             accessor: (row) => (
                 <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--sgf-primary)]/10">
-                        <Car className="h-5 w-5 text-[var(--sgf-primary)]" />
-                    </div>
+                    {row.photo_url ? (
+                        <img
+                            src={row.photo_url}
+                            alt={row.plate ?? 'Veículo'}
+                            className="h-10 w-10 rounded-lg object-cover ring-1 ring-slate-200"
+                            loading="lazy"
+                            onError={(e) => {
+                                // Se a imagem falhar, esconde o <img> e mostra o fallback.
+                                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                        />
+                    ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--sgf-primary)]/10">
+                            <Car className="h-5 w-5 text-[var(--sgf-primary)]" />
+                        </div>
+                    )}
                     <div>
-                        <p className="font-medium text-gray-900">{formatPlate(row.plate)}</p>
-                        <p className="text-sm text-gray-500">
-                            {row.brand} {row.model} • {row.year}
+                        <p className="font-semibold text-slate-900 truncate">
+                            {row.brand} {row.model}
                         </p>
                     </div>
                 </div>
             ),
         },
         {
-            header: 'Combustível',
-            accessor: (row) => getFuelLabel(row.fuel_type),
+            header: 'Placa',
+            accessor: (row) => <span className="font-mono text-sm text-slate-700">{formatPlate(row.plate)}</span>,
         },
         {
-            header: (
-                <div className="flex min-w-[160px] flex-col gap-2">
-                    <span className="text-xs uppercase font-bold text-slate-400">Secretaria</span>
-                    <SGFSelect
-                        value={departmentFilter}
-                        onChange={(value) => setDepartmentFilter(value)}
-                        options={departmentOptions}
-                        placeholder="Filtrar..."
-                    />
-                </div>
-            ),
+            header: 'Ano',
+            accessor: (row) => <span className="text-sm text-slate-600 font-medium">{row.year}</span>,
+        },
+        {
+            header: 'Combustível',
+            accessor: (row) => <span className="text-sm text-slate-600 font-medium">{getFuelLabel(row.fuel_type)}</span>,
+        },
+        {
+            header: 'Secretaria',
             accessor: 'departmentName',
         },
         {
@@ -164,17 +157,7 @@ export default function Vehicles() {
             accessor: (row) => formatDistance(row.current_odometer),
         },
         {
-            header: (
-                <div className="flex min-w-[160px] flex-col gap-2">
-                    <span className="text-xs uppercase font-bold text-slate-400">Status</span>
-                    <SGFSelect
-                        value={statusFilter}
-                        onChange={(value) => setStatusFilter(value)}
-                        options={statusOptions}
-                        placeholder="Filtrar..."
-                    />
-                </div>
-            ),
+            header: 'Status',
             accessor: (row) => (
                 <SGFBadge variant={getStatusColor(row.status) as any}>
                     {getStatusLabel(row.status)}
@@ -239,6 +222,28 @@ export default function Vehicles() {
                     ]}
                 />
             </motion.div>
+
+            <SGFToolbar
+                searchValue={searchTerm}
+                onSearchChange={setSearchTerm}
+                searchPlaceholder="Buscar por placa, marca ou modelo..."
+                filters={[
+                    {
+                        key: 'department',
+                        value: departmentFilter,
+                        onChange: setDepartmentFilter,
+                        options: departmentOptions,
+                        placeholder: 'Secretaria',
+                    },
+                    {
+                        key: 'status',
+                        value: statusFilter,
+                        onChange: setStatusFilter,
+                        options: statusOptions,
+                        placeholder: 'Status',
+                    },
+                ]}
+            />
 
             <div className="-mx-6 md:mx-0">
                 <SGFTable

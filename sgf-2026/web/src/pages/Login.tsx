@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Car, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Car, Mail, Lock, AlertCircle } from '@/components/sgf/icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';

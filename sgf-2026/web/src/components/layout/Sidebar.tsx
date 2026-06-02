@@ -5,16 +5,19 @@ import {
     Map,
     Car,
     Users,
-    Activity,
     Fuel,
+    Droplet,
     Wrench,
+    Receipt,
     FileText,
+    Building2,
+    Settings2,
     ShieldCheck,
     X,
     LogOut,
     User,
     Menu,
-} from 'lucide-react';
+} from '@/components/sgf/icons';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -30,23 +33,33 @@ import {
 } from "@/components/ui/alert-dialog";
 
 // --- Configuration ---
-const menuSections = [
+type MenuItem = { icon: typeof Car; label: string; path: string; badge?: string };
+type MenuSection = { title: string; items: MenuItem[] };
+const menuSections: MenuSection[] = [
     {
-        title: 'INTELIGÊNCIA',
+        title: 'Inteligência',
         items: [
             { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-            { icon: Map, label: 'Centro de Comando', path: '/mapa', badge: '3' },
-            { icon: Activity, label: 'Telemetria Real', path: '/telemetria-placeholder' },
+            { icon: Map, label: 'Mapa', path: '/mapa' },
         ]
     },
     {
-        title: 'GESTÃO DE ATIVOS',
+        title: 'Gestão de Ativos',
         items: [
             { icon: Car, label: 'Frota Municipal', path: '/veiculos' },
             { icon: Users, label: 'Motoristas', path: '/motoristas' },
             { icon: Fuel, label: 'Abastecimentos', path: '/abastecimentos' },
+            { icon: Droplet, label: 'Postos', path: '/postos' },
             { icon: Wrench, label: 'Manutenções', path: '/manutencoes' },
+            { icon: Receipt, label: 'Infrações', path: '/infracoes' },
+            { icon: Building2, label: 'Secretarias', path: '/secretarias' },
             { icon: FileText, label: 'Relatórios & Auditoria', path: '/relatorios' },
+        ]
+    },
+    {
+        title: 'Sistema',
+        items: [
+            { icon: Settings2, label: 'Configurações', path: '/configuracoes' },
         ]
     }
 ];
@@ -66,88 +79,82 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
     return (
         <div
             className={cn(
-                "flex flex-col h-full rounded-r-[var(--sgf-radius-xl)] transition-all duration-[var(--sgf-transition-slow)]",
-                isCollapsed ? "w-[80px] items-center" : "w-[280px]",
+                "flex flex-col h-full transition-all duration-300",
+                isCollapsed ? "w-[64px] items-center" : "w-[240px]",
             )}
             style={{ backgroundColor: '#0F2B2F' }}
         >
             {/* Logo Section */}
             <div className={cn(
-                "flex flex-col shrink-0 transition-all relative",
-                isCollapsed ? "h-[140px] pt-[var(--sgf-space-4)] pb-[var(--sgf-space-2)] items-center justify-start gap-[var(--sgf-space-6)]" : "h-32 justify-center px-[var(--sgf-space-8)]"
+                "flex shrink-0 items-center relative",
+                isCollapsed
+                    ? "flex-col pt-4 pb-2 gap-4 h-[120px] justify-start"
+                    : "h-[72px] px-5 gap-3"
             )}>
-                {/* Hamburger Toggle */}
+                {/* Hamburger Toggle (collapsed) */}
                 {showToggle && isCollapsed && (
                     <button
                         onClick={onToggle}
-                        className="text-white/40 hover:text-white transition-colors p-[var(--sgf-space-2)] rounded-[var(--sgf-radius-md)] hover:bg-white/5"
+                        className="text-white/30 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/5"
                     >
-                        <Menu className="h-6 w-6" />
+                        <Menu className="h-5 w-5" />
                     </button>
                 )}
 
-                <div className="flex items-center gap-[var(--sgf-space-4)]">
-                    <div className={cn(
-                        "flex items-center justify-center rounded-[var(--sgf-radius-xl)] bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/20 shrink-0",
-                        isCollapsed ? "h-10 w-10" : "h-14 w-14"
-                    )}>
-                        <ShieldCheck className={cn("text-white", isCollapsed ? "h-6 w-6" : "h-8 w-8")} />
-                    </div>
-                    {!isCollapsed && (
-                        <div className="flex flex-col">
-                            <h1 className="text-[var(--sgf-text-2xl)] font-[var(--sgf-font-black)] text-white tracking-tight leading-none">SGF 2026</h1>
-                            <span className="text-[var(--sgf-text-2xs)] font-[var(--sgf-font-bold)] text-emerald-400 mt-[var(--sgf-space-1)] uppercase tracking-[0.2em]">Gestão Pública</span>
-                        </div>
-                    )}
+                {/* Logo icon */}
+                <div className={cn(
+                    "flex items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-900/30 shrink-0",
+                    isCollapsed ? "h-9 w-9" : "h-9 w-9"
+                )}>
+                    <ShieldCheck className="text-white h-5 w-5" />
                 </div>
+
+                {/* Brand text */}
+                {!isCollapsed && (
+                    <div className="flex flex-col leading-none">
+                        <span className="text-[13px] font-semibold text-white tracking-tight">SGF 2026</span>
+                        <span className="text-[11px] font-medium text-emerald-400/80 mt-0.5 tracking-normal">Gestão Pública</span>
+                    </div>
+                )}
 
                 {/* Close Button */}
                 {showToggle && !isCollapsed && (
                     <button
                         onClick={onToggle}
-                        className="absolute right-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors p-[var(--sgf-space-2)]"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/5"
                     >
-                        <X className="h-6 w-6" />
+                        <X className="h-4 w-4" />
                     </button>
                 )}
             </div>
 
+            {/* Divider */}
+            <div className="shrink-0 mx-4 h-px bg-white/[0.06]" />
+
             {/* Navigation */}
-            <nav className={cn("flex-1 overflow-y-auto pb-[var(--sgf-space-6)] custom-scrollbar", isCollapsed ? "px-[var(--sgf-space-2)]" : "px-[var(--sgf-space-6)]")}>
+            <nav className={cn(
+                "flex-1 overflow-y-auto py-3 custom-scrollbar",
+                isCollapsed ? "px-2" : "px-3"
+            )}>
                 {menuSections.map((section, sectionIndex) => (
-                    <div key={sectionIndex} className="mb-[var(--sgf-space-8)] last:mb-0">
+                    <div key={sectionIndex} className="mb-4 last:mb-0">
+                        {/* Section header */}
                         {!isCollapsed && (
-                            <h3 className="mb-[var(--sgf-space-4)] px-[var(--sgf-space-4)] text-[11px] font-[var(--sgf-font-bold)] uppercase tracking-widest text-emerald-500/80">
+                            <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-white/30 select-none">
                                 {section.title}
-                            </h3>
+                            </p>
                         )}
                         {isCollapsed && (
-                            <div className="mb-[var(--sgf-space-2)] w-8 h-[1px] bg-white/10 mx-auto" />
+                            <div className="mb-2 w-5 h-px bg-white/10 mx-auto" />
                         )}
-                        <div className="space-y-[var(--sgf-space-1)]">
+
+                        {/* Items */}
+                        <div className="space-y-0.5">
                             {section.items.map((item) => {
                                 const Icon = item.icon;
                                 const isActive = item.path === '/'
                                     ? location.pathname === '/'
                                     : location.pathname.startsWith(item.path);
-
-                                if (item.path === '/telemetria-placeholder') {
-                                    return (
-                                        <div
-                                            key={item.label}
-                                            title={isCollapsed ? item.label : undefined}
-                                            className={cn(
-                                                "group flex items-center rounded-[var(--sgf-radius-full)] py-[14px] text-[var(--sgf-text-sm)] font-[var(--sgf-font-bold)] text-white/50 hover:text-white transition-all cursor-not-allowed opacity-60",
-                                                isCollapsed ? "justify-center px-0" : "justify-between px-[var(--sgf-space-5)]"
-                                            )}
-                                        >
-                                            <div className="flex items-center gap-[var(--sgf-space-3)]">
-                                                <Icon className="h-5 w-5" />
-                                                {!isCollapsed && <span>{item.label}</span>}
-                                            </div>
-                                        </div>
-                                    )
-                                }
 
                                 return (
                                     <NavLink
@@ -156,25 +163,31 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                                         title={isCollapsed ? item.label : undefined}
                                         className={({ isActive }) =>
                                             cn(
-                                                'group flex items-center rounded-[var(--sgf-radius-full)] py-[14px] text-[var(--sgf-text-sm)] font-[var(--sgf-font-bold)] transition-all',
-                                                isCollapsed ? "justify-center px-0 w-12 h-12 mx-auto" : "justify-between px-[var(--sgf-space-5)]",
+                                                'group flex items-center rounded-lg py-2 text-[13px] font-medium transition-all duration-150',
+                                                isCollapsed
+                                                    ? "justify-center px-0 w-10 h-9 mx-auto"
+                                                    : "px-2 gap-2.5",
                                                 isActive
-                                                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                                                    : 'text-white/50 hover:bg-white/5 hover:text-white'
+                                                    ? 'bg-emerald-500 text-white shadow-md shadow-emerald-900/40'
+                                                    : 'text-white/50 hover:bg-white/[0.06] hover:text-white/90'
                                             )
                                         }
                                     >
-                                        <div className="flex items-center gap-[var(--sgf-space-3)]">
-                                            <Icon className={cn("h-5 w-5 transition-transform group-hover:scale-110", item.path === '/' && location.pathname === '/' ? "scale-110" : "")} />
-                                            {!isCollapsed && <span>{item.label}</span>}
-                                        </div>
-                                        {!isCollapsed && item.badge && (
-                                            <span className={cn(
-                                                "flex h-5 w-5 items-center justify-center rounded-full text-[var(--sgf-text-2xs)] font-[var(--sgf-font-bold)]",
-                                                isActive ? "bg-white text-emerald-600" : "bg-white/20 text-white"
-                                            )}>
-                                                {item.badge}
-                                            </span>
+                                        <Icon className="h-[18px] w-[18px] shrink-0" />
+                                        {!isCollapsed && (
+                                            <>
+                                                <span className="flex-1 truncate">{item.label}</span>
+                                                {item.badge && (
+                                                    <span className={cn(
+                                                        "flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-semibold",
+                                                        isActive
+                                                            ? "bg-white/20 text-white"
+                                                            : "bg-white/10 text-white/60"
+                                                    )}>
+                                                        {item.badge}
+                                                    </span>
+                                                )}
+                                            </>
                                         )}
                                     </NavLink>
                                 );
@@ -184,28 +197,45 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                 ))}
             </nav>
 
+            {/* Divider */}
+            <div className="shrink-0 mx-4 h-px bg-white/[0.06]" />
+
             {/* Profile Section */}
-            <div className={cn("shrink-0", isCollapsed ? "p-[var(--sgf-space-2)]" : "p-[var(--sgf-space-6)]")}>
-                <div className={cn("rounded-[var(--sgf-radius-xl)] bg-white/5 border border-white/5 flex items-center gap-[var(--sgf-space-4)] transition-all", isCollapsed ? "p-[var(--sgf-space-1)] justify-center flex-col gap-[var(--sgf-space-2)]" : "p-[var(--sgf-space-4)]")}>
-                    <div className={cn("shrink-0 rounded-[var(--sgf-radius-lg)] bg-gradient-to-tr from-emerald-500 to-teal-400 p-0.5", isCollapsed ? "h-10 w-10" : "h-12 w-12")}>
-                        <div className="w-full h-full rounded-[14px] bg-white/10 flex items-center justify-center overflow-hidden">
-                            <User className="h-6 w-6 text-emerald-400" />
-                        </div>
+            <div className={cn("shrink-0", isCollapsed ? "p-2" : "p-3")}>
+                <div className={cn(
+                    "flex items-center rounded-xl bg-white/[0.04] border border-white/[0.06] transition-all",
+                    isCollapsed
+                        ? "p-1.5 justify-center flex-col gap-1.5"
+                        : "px-3 py-2.5 gap-2.5"
+                )}>
+                    {/* Avatar */}
+                    <div className={cn(
+                        "shrink-0 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center",
+                        isCollapsed ? "h-8 w-8" : "h-8 w-8"
+                    )}>
+                        <User className="h-4 w-4 text-white" />
                     </div>
+
+                    {/* User info */}
                     {!isCollapsed && (
                         <div className="flex-1 min-w-0">
-                            <p className="text-[var(--sgf-text-sm)] font-[var(--sgf-font-bold)] text-white truncate">{user?.name?.split(' ')[0] || 'Usuário'}</p>
-                            <p className="text-[var(--sgf-text-2xs)] text-white/40 font-[var(--sgf-font-bold)] uppercase tracking-wider truncate">{user?.role || 'Visitante'}</p>
+                            <p className="text-[13px] font-semibold text-white/90 truncate leading-tight">
+                                {user?.name?.split(' ')[0] || 'Usuário'}
+                            </p>
+                            <p className="text-[10px] text-white/35 font-medium truncate mt-0.5 tracking-normal">
+                                {user?.role || 'Visitante'}
+                            </p>
                         </div>
                     )}
 
+                    {/* Logout */}
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <button
                                 title="Sair"
-                                className={cn("rounded-[var(--sgf-radius-base)] text-white/30 hover:bg-rose-500/20 hover:text-rose-400 transition-colors", "p-[var(--sgf-space-2)]")}
+                                className="rounded-md text-white/25 hover:bg-rose-500/15 hover:text-rose-400 transition-colors p-1.5"
                             >
-                                <LogOut className={cn(isCollapsed ? "h-4 w-4" : "h-5 w-5")} />
+                                <LogOut className="h-4 w-4" />
                             </button>
                         </AlertDialogTrigger>
                         <AlertDialogContent className="bg-[#0F2B2F] border-white/10 text-white">
@@ -216,9 +246,14 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                                <AlertDialogCancel className="bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white border-0 transition-colors">Cancelar</AlertDialogCancel>
+                                <AlertDialogCancel className="bg-white/5 border-white/10 text-white hover:bg-white/10 hover:text-white border-0 transition-colors">
+                                    Cancelar
+                                </AlertDialogCancel>
                                 <AlertDialogAction
-                                    onClick={logout}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        logout();
+                                    }}
                                     className="bg-rose-500 text-white hover:bg-rose-600 border-0 transition-colors"
                                 >
                                     Sair
@@ -270,7 +305,7 @@ export default function Sidebar({ variant, isOpen, onToggle }: SidebarProps) {
             {/* Overlay Drawer */}
             <aside
                 className={cn(
-                    'fixed left-0 top-0 z-50 h-full transform transition-transform duration-[var(--sgf-transition-slow)]',
+                    'fixed left-0 top-0 z-50 h-full transform transition-transform duration-300',
                     isOpen ? 'translate-x-0' : '-translate-x-full',
                     variant === 'desktop' ? 'hidden' : 'block'
                 )}

@@ -1,26 +1,24 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { User } from '@/types';
 import { supabase } from '@/lib/supabase';
+
+function isAbortError(err: unknown): boolean {
+    if (!err) return false;
+    if (typeof err === 'object' && 'name' in err && (err as { name?: string }).name === 'AbortError') return true;
+    const msg = (err as { message?: string })?.message ?? '';
+    return msg.includes('signal is aborted');
+}
 
 interface AuthContextType {
     user: User | null;
     token: string | null;
     login: (email: string, password: string) => Promise<void>;
-    logout: () => void;
+    logout: () => Promise<void>;
     isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const AUTH_TIMEOUT_MS = 8000;
-
-function withTimeout<T>(promise: Promise<T>, fallbackMessage: string): Promise<T> {
-    return Promise.race([
-        promise,
-        new Promise<T>((_, reject) => {
-            window.setTimeout(() => reject(new Error(fallbackMessage)), AUTH_TIMEOUT_MS);
-        }),
-    ]);
-}
 
 function loadCachedAuth() {
     try {
@@ -51,84 +49,119 @@ function persistAuthState(nextUser: User | null, nextToken: string | null) {
 }
 
 /**
- * Fetches the user profile from the `users` table.
- * Falls back to auth metadata if no profile row exists.
+ * Mapeia role do banco (pt-BR lowercase) para o enum esperado pelo web (UPPERCASE EN).
+ */
+function mapDbRole(dbRole: string | null | undefined): User['role'] {
+    switch ((dbRole ?? '').toLowerCase()) {
+        case 'admin': return 'ADMIN';
+        case 'gestor': return 'MANAGER';
+        case 'motorista': return 'VIEWER';
+        default: return 'VIEWER';
+    }
+}
+
+/**
+ * Busca o perfil do usuário em `profiles` (tabela unificada com motoristas e gestores).
+ * O id da profile É o mesmo do auth.user.
  */
 async function fetchUserProfile(authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }): Promise<User> {
     const { data: profile, error } = await supabase
-        .from('users')
-        .select('*, departments(id, name)')
-        .eq('user_id', authUser.id)
-        .single();
+        .from('profiles')
+        .select('id, full_name, email, role, department_id, created_at, departments(id, name)')
+        .eq('id', authUser.id)
+        .maybeSingle();
 
     if (profile && !error) {
-        const dept = (profile as unknown as { departments?: { id: string; name: string } }).departments;
+        const dept = (profile as unknown as { departments?: { id: string; name: string } | null }).departments;
         return {
             id: profile.id,
-            email: profile.email,
-            name: profile.name,
-            role: profile.role as User['role'],
+            email: profile.email ?? authUser.email ?? '',
+            name: profile.full_name || 'Usuário',
+            role: mapDbRole(profile.role),
             departmentId: profile.department_id || undefined,
             departmentName: dept?.name,
             createdAt: profile.created_at || new Date().toISOString(),
         };
     }
 
-    // Fallback: use auth metadata (new user without profile row)
+    // Fallback: usa auth metadata (sem profile row)
     return {
         id: authUser.id,
         email: authUser.email || '',
-        name: (authUser.user_metadata?.name as string) || 'Usuário',
-        role: (authUser.user_metadata?.role as User['role']) || 'VIEWER',
+        name: (authUser.user_metadata?.full_name as string) || (authUser.user_metadata?.name as string) || 'Usuário',
+        role: mapDbRole((authUser.user_metadata?.role as string) || 'motorista'),
         createdAt: new Date().toISOString(),
     };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const cachedAuth = loadCachedAuth();
+    const queryClient = useQueryClient();
     const [user, setUser] = useState<User | null>(cachedAuth.user);
     const [token, setToken] = useState<string | null>(cachedAuth.token);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         let isMounted = true;
+        let initialSessionHandled = false;
+        let lastUserId: string | null = cachedAuth.user?.id ?? null;
 
-        const applySession = async (session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']) => {
+        // Safety timeout: always resolve loading after 10s regardless of Supabase response
+        const safetyTimeout = setTimeout(() => {
+            if (isMounted) {
+                console.warn('Auth init timed out — forcing isLoading = false');
+                setIsLoading(false);
+            }
+        }, 10_000);
+
+        const applySession = async (
+            session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session'],
+            { invalidate = false }: { invalidate?: boolean } = {}
+        ) => {
             if (!isMounted) return;
 
             if (!session) {
                 setUser(null);
                 setToken(null);
                 persistAuthState(null, null);
+                lastUserId = null;
                 return;
             }
 
             setToken(session.access_token);
 
-            const userData = await withTimeout(
-                fetchUserProfile(session.user),
-                'Timed out while loading user profile'
-            );
+            const userData = await fetchUserProfile(session.user);
 
             if (!isMounted) return;
 
             setUser(userData);
             persistAuthState(userData, session.access_token);
+
+            // Só invalida queries quando o usuário realmente mudou (login/troca de conta).
+            // NÃO invalidamos em TOKEN_REFRESHED nem em refoco de aba — isso causaria
+            // refetch de TODO o sistema desnecessariamente.
+            if (invalidate && lastUserId !== userData.id) {
+                queryClient.invalidateQueries();
+            }
+            lastUserId = userData.id;
         };
 
         const initAuth = async () => {
             try {
                 const {
                     data: { session },
-                } = await withTimeout(
-                    supabase.auth.getSession(),
-                    'Timed out while restoring auth session'
-                );
+                } = await supabase.auth.getSession();
 
-                await applySession(session);
+                await applySession(session, { invalidate: true });
             } catch (error) {
-                console.error('Error checking auth session:', error);
+                // StrictMode/HMR pode abortar a primeira execução do effect — é benigno;
+                // o onAuthStateChange abaixo aplica a sessão quando ela chega.
+                if (!isAbortError(error)) {
+                    console.error('Error checking auth session:', error);
+                }
             } finally {
+                initialSessionHandled = true;
+                clearTimeout(safetyTimeout);
                 if (isMounted) {
                     setIsLoading(false);
                 }
@@ -137,28 +170,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         initAuth();
 
-        // Listen for auth changes
+        // Listen for auth changes.
+        // IMPORTANTE: o callback do onAuthStateChange roda SEGURANDO o lock de auth do
+        // GoTrue. Fazer chamadas `await supabase.from(...)` aqui dentro tenta readquirir o
+        // mesmo lock → deadlock (o app trava "carregando" após o refresh de token de ~1h).
+        // Por isso o callback NÃO é async e qualquer trabalho que toque o Supabase é
+        // adiado para fora do lock com setTimeout(0).
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
-                try {
-                    await applySession(session);
-                } catch (error) {
-                    console.error(`Auth state change failed during ${event}:`, error);
-                    if (isMounted && !cachedAuth.user) {
-                        setUser(null);
-                        setToken(null);
-                        persistAuthState(null, null);
-                    }
-                } finally {
-                    if (isMounted) {
-                        setIsLoading(false);
-                    }
+            (event, session) => {
+                // INITIAL_SESSION duplica o initAuth — ignorado.
+                if (event === 'INITIAL_SESSION') return;
+
+                // SIGNED_OUT: limpa estado imediatamente, sem chamadas ao banco.
+                if (event === 'SIGNED_OUT') {
+                    if (!isMounted) return;
+                    setUser(null);
+                    setToken(null);
+                    persistAuthState(null, null);
+                    lastUserId = null;
+                    return;
                 }
+
+                // TOKEN_REFRESHED: apenas atualiza o token persistido. NÃO busca profile
+                // (evita deadlock) nem invalida queries (evita refetch de todo o sistema).
+                if (event === 'TOKEN_REFRESHED') {
+                    if (session?.access_token) {
+                        setToken(session.access_token);
+                        try {
+                            localStorage.setItem('token', session.access_token);
+                        } catch { /* ignore */ }
+                    }
+                    return;
+                }
+
+                // SIGNED_IN / USER_UPDATED / PASSWORD_RECOVERY: precisam buscar o profile.
+                // Adiamos para fora do lock para não travar o GoTrue.
+                setTimeout(() => {
+                    applySession(session, { invalidate: event === 'SIGNED_IN' })
+                        .catch((error) => {
+                            if (!isAbortError(error)) {
+                                console.error(`Auth state change failed during ${event}:`, error);
+                            }
+                            if (isMounted && !cachedAuth.user) {
+                                setUser(null);
+                                setToken(null);
+                                persistAuthState(null, null);
+                            }
+                        })
+                        .finally(() => {
+                            if (isMounted) setIsLoading(false);
+                        });
+                }, 0);
             }
         );
 
         return () => {
             isMounted = false;
+            clearTimeout(safetyTimeout);
             subscription?.unsubscribe();
         };
     }, []);
@@ -187,14 +255,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const logout = async () => {
-        try {
-            await supabase.auth.signOut();
-        } catch (error) {
-            console.error('Logout error:', error);
-        }
+        // Clear local state immediately — don't let a hanging signOut block the user
         setUser(null);
         setToken(null);
         persistAuthState(null, null);
+
+        // Fire signOut in background (best-effort, never block redirect)
+        supabase.auth.signOut().catch((error) => {
+            console.error('Logout error:', error);
+        });
+
         window.location.href = '/login';
     };
 

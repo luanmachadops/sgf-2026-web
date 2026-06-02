@@ -27,7 +27,7 @@ import {
   Activity,
   Fuel,
   Wrench,
-} from 'lucide-react';
+} from '@/components/sgf/icons';
 
 interface Vehicle {
   id: string;
@@ -89,7 +89,7 @@ export const VehicleManagement: React.FC = () => {
       accessor: (row: Vehicle) => (
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-[var(--sgf-primary)] group-hover:text-white transition-all duration-500">
-            <Truck size={24} />
+            <Truck width={24} height={24} />
           </div>
           <div>
             <p className="text-sm font-black text-slate-800">{row.plate}</p>

@@ -1,5 +1,18 @@
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================= */
+/* TIPOGRAFIA — fonte única do app (Tailwind v4 lê via @theme)   */
+/* Padrão alinhado ao mobile: sans do sistema + Inter, ênfase    */
+/* em peso 600 e números tabulares para placas/hodômetro/valores */
+/* ============================================================= */
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Roboto Mono', 'JetBrains Mono',
+    Menlo, Consolas, monospace;
+  --default-font-family: var(--font-sans);
+}
+
 :root {
   /* SGF 2026 Design System - Colors */
   --sgf-dark: hsl(188, 49%, 12%);        /* #0F2B2F - Primary Dark Ocean */
@@ -27,7 +40,7 @@
   --sgf-info: #3B82F6;
   
   /* Original theme variables (keep for compatibility) */
-  --font-size: 16px;
+  --font-size: 14px;
   --background: #F8FAFC;
   --foreground: #1F2937;
   --card: #ffffff;
@@ -78,11 +91,11 @@
   --sgf-space-4: 1rem;      /* 16px */
   --sgf-space-5: 1.25rem;   /* 20px */
   --sgf-space-6: 1.5rem;    /* 24px */
-  --sgf-space-8: 2rem;      /* 32px */
-  --sgf-space-10: 2.5rem;   /* 40px */
-  --sgf-space-12: 3rem;     /* 48px */
-  --sgf-space-16: 4rem;     /* 64px */
-  --sgf-space-20: 5rem;     /* 80px */
+  --sgf-space-8: 2rem;      /* 28px at 14px base */
+  --sgf-space-10: 2.5rem;   /* 35px at 14px base */
+  --sgf-space-12: 3rem;     /* 42px at 14px base */
+  --sgf-space-16: 4rem;     /* 56px at 14px base */
+  --sgf-space-20: 5rem;     /* 70px at 14px base */
   
   /* BORDER RADIUS (Refined - less exaggerated) */
   --sgf-radius-xs: 0.25rem;    /* 4px - tiny elements */
@@ -109,32 +122,32 @@
   
   --sgf-input-radius: var(--sgf-radius-base);
   --sgf-input-padding-x: var(--sgf-space-4);
-  --sgf-input-padding-y: var(--sgf-space-3);
+  --sgf-input-padding-y: 0.625rem;
   
   --sgf-select-radius: var(--sgf-radius-base);
   --sgf-select-padding-x: var(--sgf-space-4);
-  --sgf-select-padding-y: var(--sgf-space-3);
+  --sgf-select-padding-y: 0.625rem;
   
   --sgf-badge-radius: var(--sgf-radius-sm);
   --sgf-badge-padding-x: var(--sgf-space-2);
   --sgf-badge-padding-y: var(--sgf-space-1);
   
   --sgf-table-cell-padding-x: var(--sgf-space-4);
-  --sgf-table-cell-padding-y: var(--sgf-space-3);
+  --sgf-table-cell-padding-y: 0.625rem;   /* 10px - compact rows */
   
   --sgf-modal-radius: var(--sgf-radius-xl);
   --sgf-modal-padding: var(--sgf-space-6);
   
-  /* TYPOGRAPHY SCALE */
-  --sgf-text-2xs: 0.625rem;   /* 10px */
-  --sgf-text-xs: 0.75rem;     /* 12px */
-  --sgf-text-sm: 0.875rem;    /* 14px */
-  --sgf-text-base: 1rem;      /* 16px */
-  --sgf-text-lg: 1.125rem;    /* 18px */
-  --sgf-text-xl: 1.25rem;     /* 20px */
-  --sgf-text-2xl: 1.5rem;     /* 24px */
-  --sgf-text-3xl: 2rem;       /* 32px */
-  --sgf-text-4xl: 2.5rem;     /* 40px */
+  /* TYPOGRAPHY SCALE — resolved at 14px base */
+  --sgf-text-2xs: 0.714rem;   /* ~10px */
+  --sgf-text-xs: 0.786rem;    /* 11px  */
+  --sgf-text-sm: 0.857rem;    /* 12px  */
+  --sgf-text-base: 1rem;      /* 14px  */
+  --sgf-text-lg: 1.143rem;    /* 16px  */
+  --sgf-text-xl: 1.286rem;    /* 18px  */
+  --sgf-text-2xl: 1.571rem;   /* 22px  */
+  --sgf-text-3xl: 1.857rem;   /* 26px  */
+  --sgf-text-4xl: 2.286rem;   /* 32px  */
   
   /* FONT WEIGHTS */
   --sgf-font-regular: 400;
@@ -256,47 +269,82 @@
 
   html {
     font-size: var(--font-size);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-weight: var(--sgf-font-regular);
+    letter-spacing: -0.01em;
+  }
+
+  /* Números tabulares (placas, hodômetro, valores) — espelha o "Mono" do mobile */
+  .tabular-nums,
+  code,
+  kbd,
+  samp,
+  pre {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
   }
 
   h1 {
-    font-size: var(--text-2xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-size: var(--sgf-text-3xl);
+    font-weight: var(--sgf-font-bold);
+    line-height: var(--sgf-leading-tight);
+    letter-spacing: -0.02em;
   }
 
   h2 {
-    font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-size: var(--sgf-text-2xl);
+    font-weight: var(--sgf-font-semibold);
+    line-height: var(--sgf-leading-tight);
+    letter-spacing: -0.02em;
   }
 
   h3 {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-size: var(--sgf-text-xl);
+    font-weight: var(--sgf-font-semibold);
+    line-height: var(--sgf-leading-snug);
+    letter-spacing: -0.01em;
   }
 
   h4 {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-size: var(--sgf-text-lg);
+    font-weight: var(--sgf-font-semibold);
+    line-height: var(--sgf-leading-snug);
   }
 
   label {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-size: var(--sgf-text-sm);
+    font-weight: var(--sgf-font-medium);
+    line-height: var(--sgf-leading-normal);
   }
 
   button {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
+    font-family: var(--font-sans);
+    font-size: var(--sgf-text-base);
+    font-weight: var(--sgf-font-semibold);
+    line-height: var(--sgf-leading-normal);
+    letter-spacing: -0.01em;
   }
 
-  input {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-normal);
-    line-height: 1.5;
+  input,
+  textarea,
+  select {
+    font-family: var(--font-sans);
+    font-size: var(--sgf-text-base);
+    font-weight: var(--sgf-font-regular);
+    line-height: var(--sgf-leading-normal);
   }
 }

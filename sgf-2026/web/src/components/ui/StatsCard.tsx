@@ -1,5 +1,5 @@
 import React, { type HTMLAttributes } from 'react';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus } from '../sgf/icons';
 import { Card as BaseCard, CardContent, CardHeader } from './Card';
 import { cn } from '@/lib/utils';
 

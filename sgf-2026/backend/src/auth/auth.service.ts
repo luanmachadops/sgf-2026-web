@@ -54,9 +54,22 @@ export class AuthService {
 
             return {
                 accessToken: authData.session!.access_token,
+                access_token: authData.session!.access_token,
                 userType: 'driver',
                 userId: driver.id,
                 name: driver.name,
+                driver: {
+                    id: driver.id,
+                    name: driver.name,
+                    cpf: driver.cpf,
+                    cnh_number: driver.cnh_number,
+                    cnh_category: driver.cnh_category,
+                    cnh_expiry: driver.cnh_expiry_date,
+                    department: driver.department_id || '',
+                    status: driver.status,
+                    score: driver.score ?? 0,
+                    phone: driver.phone || undefined,
+                },
             };
         } catch (error) {
             if (error instanceof UnauthorizedException) {

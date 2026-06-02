@@ -26,6 +26,9 @@ export class AuthResponseDto {
     @ApiProperty({ description: 'JWT Access Token' })
     accessToken: string;
 
+    @ApiProperty({ description: 'JWT Access Token (legacy snake_case)', required: false })
+    access_token?: string;
+
     @ApiProperty({ description: 'Tipo de usuário (driver ou user)' })
     userType: 'driver' | 'user';
 
@@ -37,6 +40,20 @@ export class AuthResponseDto {
 
     @ApiProperty({ description: 'Role (apenas para users)', required: false })
     role?: string;
+
+    @ApiProperty({ description: 'Driver data (legacy mobile contract)', required: false })
+    driver?: {
+        id: string;
+        name: string;
+        cpf: string;
+        cnh_number: string;
+        cnh_category: string;
+        cnh_expiry: string;
+        department: string;
+        status: string;
+        score: number;
+        phone?: string;
+    };
 }
 
 export class RefreshTokenDto {

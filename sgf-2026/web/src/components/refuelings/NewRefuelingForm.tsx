@@ -1,160 +1,272 @@
-import React from 'react';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { Loader2, Save, Fuel, Calendar, Car, User, Receipt, DollarSign, ArrowUpRight } from 'lucide-react';
-import { toast } from 'sonner';
+import { Loader2, Save, Fuel, Calendar, Car, User, Receipt, DollarSign, ArrowUpRight, Camera, X } from '@/components/sgf/icons';
+import { refuelingsApi, stationsApi, vehiclesApi } from '@/lib/supabase-api';
+import { supabase } from '@/lib/supabase';
+import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
+import { formatPlate } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { useAppSettings } from '@/hooks/useSettings';
 
-const refuelingSchema = z.object({
-    vehicleId: z.string().min(1, 'Veículo é obrigatório'),
-    driverId: z.string().min(1, 'Motorista é obrigatório'),
-    date: z.string().min(1, 'Data é obrigatória'),
-    fuelType: z.enum(['gasolina', 'etanol', 'diesel', 'gnv']),
-    liters: z.coerce.number().min(0.1, 'Mínimo 0.1L'),
-    pricePerLiter: z.coerce.number().min(0.01, 'Preço é obrigatório'),
-    totalValue: z.coerce.number().min(0.01, 'Valor total é obrigatório'),
-    odometer: z.coerce.number().min(0, 'Odômetro é obrigatório'),
-});
-
-type RefuelingFormData = z.infer<typeof refuelingSchema>;
-type RefuelingFormInput = z.input<typeof refuelingSchema>;
+// Slot de foto: faz upload ao selecionar e devolve a URL pública.
+function PhotoUpload({ label, hint, url, onChange }: { label: string; hint: string; url: string; onChange: (u: string) => void }) {
+    const inputRef = useRef<HTMLInputElement>(null);
+    const [loading, setLoading] = useState(false);
+    const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!isImageFile(file)) { toast.error('Selecione uma imagem válida.'); return; }
+        try {
+            setLoading(true);
+            const blob = await resizeAndConvertToWebP(file, 1100);
+            const fileName = `fuelings/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
+            const { error } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
+            if (error) throw error;
+            onChange(supabase.storage.from('fotos').getPublicUrl(fileName).data.publicUrl);
+        } catch (err) {
+            toast.error((err as { message?: string })?.message ?? 'Erro ao enviar a foto.');
+        } finally {
+            setLoading(false);
+            if (inputRef.current) inputRef.current.value = '';
+        }
+    };
+    return (
+        <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-slate-600">{label}</label>
+            <div
+                onClick={() => inputRef.current?.click()}
+                className={'relative aspect-[4/3] w-full cursor-pointer overflow-hidden rounded-xl border-2 border-dashed flex items-center justify-center transition-all ' + (url ? 'border-emerald-400 bg-emerald-50/30' : 'border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/20')}
+            >
+                {url ? (
+                    <>
+                        <img src={url} alt={label} className="absolute inset-0 h-full w-full object-cover" />
+                        <button type="button" onClick={(e) => { e.stopPropagation(); onChange(''); }} className="absolute right-1.5 top-1.5 rounded-full bg-black/50 p-1 text-white hover:bg-black/70">
+                            <X className="h-3.5 w-3.5" />
+                        </button>
+                    </>
+                ) : (
+                    <div className="px-2 text-center">
+                        {loading ? <Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-500" /> : <Camera className="mx-auto h-6 w-6 text-slate-300" />}
+                        <p className="mt-1 text-[11px] font-medium text-slate-500">{loading ? 'Enviando...' : hint}</p>
+                    </div>
+                )}
+                <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handle} />
+            </div>
+        </div>
+    );
+}
 
 interface NewRefuelingFormProps {
     onSuccess: () => void;
     onCancel: () => void;
 }
 
-// Mock data
-const mockVehicles = [
-    { value: '1', label: 'ABC-1234 - Fiat Strada' },
-    { value: '2', label: 'XYZ-5678 - Chevrolet Spin' },
-];
-
-const mockDrivers = [
-    { value: '1', label: 'Maria Santos' },
-    { value: '2', label: 'João Silva' },
+const FUEL_OPTIONS = [
+    { value: 'Gasolina', label: 'Gasolina' },
+    { value: 'Etanol', label: 'Etanol' },
+    { value: 'Diesel', label: 'Diesel' },
+    { value: 'GNV', label: 'GNV' },
 ];
 
 export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps) {
-    const {
-        register,
-        handleSubmit,
-        control,
-        watch,
-        setValue,
-        formState: { errors, isSubmitting },
-    } = useForm<RefuelingFormInput, unknown, RefuelingFormData>({
-        resolver: zodResolver(refuelingSchema),
-        defaultValues: {
-            date: new Date().toISOString().split('T')[0],
-            fuelType: 'gasolina',
-            liters: 0,
-            pricePerLiter: 0,
-            totalValue: 0,
-            odometer: 0,
-        },
+    const queryClient = useQueryClient();
+    const { user } = useAuth();
+    const { data: settings } = useAppSettings();
+    const contractMode = settings?.fuelPriceMode === 'contract';
+
+    // Listas reais para os selects
+    const { data: vehicles = [] } = useQuery({
+        queryKey: ['vehicles', 'form-list'],
+        queryFn: () => vehiclesApi.getAll(),
+    });
+    const { data: stations = [] } = useQuery({
+        queryKey: ['stations', 'form-list'],
+        queryFn: () => stationsApi.getAll({ activeOnly: true }),
     });
 
-    const liters = Number(watch('liters') || 0);
-    const pricePerLiter = Number(watch('pricePerLiter') || 0);
+    const vehicleOptions = useMemo(
+        () => vehicles.map((v) => ({
+            value: v.id,
+            label: `${formatPlate(v.plate) || v.unit_code} — ${v.brand ?? ''} ${v.model ?? ''}`.trim(),
+        })),
+        [vehicles],
+    );
+    const [vehicleId, setVehicleId] = useState('');
+    const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [fuelType, setFuelType] = useState('Gasolina');
+    const [odometer, setOdometer] = useState<string>('');
+    const [liters, setLiters] = useState<string>('');
+    const [pricePerLiter, setPricePerLiter] = useState<string>('');
+    const [totalValue, setTotalValue] = useState<string>('');
+    const [stationId, setStationId] = useState<string>('');
+    const [station, setStation] = useState<string>('');
+    const [requisitionUrl, setRequisitionUrl] = useState('');
+    const [odometerPhotoUrl, setOdometerPhotoUrl] = useState('');
+    const [error, setError] = useState<string | null>(null);
 
-    // Auto-calculate total or price per liter
-    React.useEffect(() => {
-        if (liters && pricePerLiter) {
-            setValue('totalValue', Number((liters * pricePerLiter).toFixed(2)));
+    // Auto-calcula total = litros × R$/L (preserva valor manual se usuário digitar diferente)
+    useEffect(() => {
+        const l = Number(liters);
+        const p = Number(pricePerLiter);
+        if (l > 0 && p > 0) {
+            setTotalValue((l * p).toFixed(2));
         }
-    }, [liters, pricePerLiter, setValue]);
+    }, [liters, pricePerLiter]);
 
-    const onSubmit = async (data: RefuelingFormData) => {
+    // Pré-preenche o odômetro com o atual do veículo selecionado.
+    useEffect(() => {
+        if (!vehicleId) return;
+        const v = vehicles.find((x) => x.id === vehicleId);
+        if (v && v.current_odometer != null && !odometer) {
+            setOdometer(String(v.current_odometer));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [vehicleId]);
+
+    // Preço da licitação (contrato) do posto para o combustível selecionado.
+    const contractPrice = useMemo(() => {
+        if (!contractMode || !stationId) return 0;
+        const st = stations.find((s) => s.id === stationId);
+        const prices = (st as { fuel_prices?: Record<string, number> } | undefined)?.fuel_prices ?? {};
+        return Number(prices[fuelType] ?? 0);
+    }, [contractMode, stationId, fuelType, stations]);
+
+    const priceLocked = contractMode && contractPrice > 0;
+
+    useEffect(() => {
+        if (priceLocked) setPricePerLiter(String(contractPrice));
+    }, [priceLocked, contractPrice]);
+
+    // Anomalia: litros acima da capacidade do tanque (quando habilitado nas configurações).
+    const tankCapacity = useMemo(() => {
+        const v = vehicles.find((x) => x.id === vehicleId);
+        return v?.tank_capacity ? Number(v.tank_capacity) : 0;
+    }, [vehicles, vehicleId]);
+    const overflow = Boolean(settings?.tankOverflowAlert) && tankCapacity > 0 && Number(liters) > tankCapacity;
+
+    const createMutation = useMutation({
+        mutationFn: refuelingsApi.create,
+    });
+
+    const isSaving = createMutation.isPending;
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+
+        if (!vehicleId) return setError('Selecione o veículo.');
+        if (!user?.id) return setError('Sessão expirada. Faça login novamente.');
+        if (!liters || Number(liters) <= 0) return setError('Informe a quantidade de litros.');
+        if (!pricePerLiter || Number(pricePerLiter) <= 0) return setError('Informe o preço por litro.');
+        if (!odometer || Number(odometer) < 0) return setError('Informe o odômetro.');
+
         try {
-            console.log('Refueling data:', data);
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            toast.success('Abastecimento registrado com sucesso!');
+            await createMutation.mutateAsync({
+                vehicle_id: vehicleId,
+                driver_id: user.id,
+                fuel_type: fuelType,
+                liters: Number(liters),
+                price_per_liter: Number(pricePerLiter),
+                total_cost: Number(totalValue),
+                odometer: Number(odometer),
+                station_id: stationId || null,
+                // Snapshot do nome do posto (caso o cadastro mude depois)
+                station: stationId ? (stations.find((s) => s.id === stationId)?.name ?? null) : (station.trim() || null),
+                date,
+                photo_requisition_url: requisitionUrl || null,
+                photo_dashboard_url: odometerPhotoUrl || null,
+                require_validation: Boolean(settings?.requireFuelValidation),
+                has_anomaly: overflow,
+                anomaly_type: overflow ? 'Litros acima da capacidade do tanque' : null,
+            });
+            await queryClient.invalidateQueries({ queryKey: ['refuelings'] });
+            await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+            await queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
+            toast.success(settings?.requireFuelValidation
+                ? 'Abastecimento enviado para validação!'
+                : 'Abastecimento registrado com sucesso!');
+            if (overflow) toast.warning('Atenção: litros acima da capacidade do tanque — marcado como anomalia.');
             onSuccess();
-        } catch (error) {
-            toast.error('Erro ao registrar abastecimento.');
+        } catch (err) {
+            const message = (err as { message?: string })?.message ?? 'Erro ao registrar o abastecimento.';
+            setError(message);
+            toast.error(message);
         }
     };
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Controller
-                    name="vehicleId"
-                    control={control}
-                    render={({ field }) => (
-                        <SGFSelect
-                            label="Veículo"
-                            options={mockVehicles}
-                            value={field.value}
-                            onChange={field.onChange}
-                            error={errors.vehicleId?.message}
-                            placeholder="Selecione o veículo..."
-                            fullWidth
-                            icon={Car}
-                        />
-                    )}
+                <SGFSelect
+                    label="Veículo"
+                    options={vehicleOptions}
+                    value={vehicleId}
+                    onChange={(val) => setVehicleId(val)}
+                    placeholder="Selecione o veículo..."
+                    fullWidth
+                    icon={Car}
                 />
 
-                <Controller
-                    name="driverId"
-                    control={control}
-                    render={({ field }) => (
-                        <SGFSelect
-                            label="Motorista"
-                            options={mockDrivers}
-                            value={field.value}
-                            onChange={field.onChange}
-                            error={errors.driverId?.message}
-                            placeholder="Selecione o motorista..."
-                            fullWidth
-                            icon={User}
-                        />
-                    )}
-                />
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                        <User className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Motorista</p>
+                        <p className="truncate text-sm font-semibold text-slate-800">{user?.name ?? 'Você'} (você)</p>
+                    </div>
+                </div>
 
                 <SGFInput
                     label="Data do Abastecimento"
                     type="date"
-                    {...register('date')}
-                    error={errors.date?.message}
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
                     fullWidth
                     icon={Calendar}
                 />
-
-                <Controller
-                    name="fuelType"
-                    control={control}
-                    render={({ field }) => (
-                        <SGFSelect
-                            label="Combustível"
-                            options={[
-                                { value: 'gasolina', label: 'Gasolina' },
-                                { value: 'etanol', label: 'Etanol' },
-                                { value: 'diesel', label: 'Diesel' },
-                                { value: 'gnv', label: 'GNV' },
-                            ]}
-                            value={field.value}
-                            onChange={field.onChange}
-                            error={errors.fuelType?.message}
-                            fullWidth
-                            icon={Fuel}
-                        />
-                    )}
+                <SGFSelect
+                    label="Combustível"
+                    options={FUEL_OPTIONS}
+                    value={fuelType}
+                    onChange={(val) => setFuelType(val)}
+                    fullWidth
+                    icon={Fuel}
                 />
 
                 <SGFInput
                     label="Odômetro Atual (km)"
                     type="number"
                     placeholder="Ex: 45230"
-                    {...register('odometer')}
-                    error={errors.odometer?.message}
+                    value={odometer}
+                    onChange={(e) => setOdometer(e.target.value)}
                     fullWidth
                     icon={ArrowUpRight}
                 />
+                <SGFSelect
+                    label="Posto"
+                    options={[
+                        { value: '', label: 'Outro / livre' },
+                        ...stations.map((s) => ({ value: s.id, label: `${s.name}${s.code ? ` (${s.code})` : ''}` })),
+                    ]}
+                    value={stationId}
+                    onChange={(val) => setStationId(val)}
+                    placeholder="Selecione o posto..."
+                    fullWidth
+                />
+                {!stationId && (
+                    <SGFInput
+                        label="Nome do posto (livre)"
+                        placeholder="Ex.: Auto Posto Central"
+                        value={station}
+                        onChange={(e) => setStation(e.target.value)}
+                        fullWidth
+                    />
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                     <SGFInput
@@ -162,8 +274,8 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
                         type="number"
                         step="0.01"
                         placeholder="0.00"
-                        {...register('liters')}
-                        error={errors.liters?.message}
+                        value={liters}
+                        onChange={(e) => setLiters(e.target.value)}
                         fullWidth
                     />
                     <SGFInput
@@ -171,9 +283,15 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
                         type="number"
                         step="0.001"
                         placeholder="0.000"
-                        {...register('pricePerLiter')}
-                        error={errors.pricePerLiter?.message}
+                        value={pricePerLiter}
+                        onChange={(e) => setPricePerLiter(e.target.value)}
                         fullWidth
+                        disabled={priceLocked}
+                        hint={
+                            contractMode
+                                ? (priceLocked ? 'Preço da licitação (fixo)' : 'Selecione um posto com preço de licitação cadastrado')
+                                : undefined
+                        }
                     />
                 </div>
 
@@ -183,25 +301,48 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
                         type="number"
                         step="0.01"
                         placeholder="0.00"
-                        {...register('totalValue')}
-                        error={errors.totalValue?.message}
+                        value={totalValue}
+                        onChange={(e) => setTotalValue(e.target.value)}
                         fullWidth
                         icon={DollarSign}
                     />
                 </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-3">
-                <Receipt className="h-5 w-5 text-slate-400" />
-                <p className="text-xs text-slate-500 font-medium">A foto do comprovante poderá ser anexada após o registro.</p>
+            {/* Comprovantes (igual ao app do motorista) */}
+            <div className="rounded-2xl border border-slate-200 p-4">
+                <h4 className="mb-3 text-sm font-bold text-slate-700">Comprovantes</h4>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <PhotoUpload label="Foto da requisição" hint="Toque para foto/galeria" url={requisitionUrl} onChange={setRequisitionUrl} />
+                    <PhotoUpload label="Foto do odômetro" hint="Painel com a quilometragem" url={odometerPhotoUrl} onChange={setOdometerPhotoUrl} />
+                </div>
             </div>
 
+            <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-3">
+                <Receipt className="h-5 w-5 text-slate-400" />
+                <p className="text-xs text-slate-500 font-medium">
+                    O km/L será calculado automaticamente a partir do último abastecimento deste veículo.
+                </p>
+            </div>
+
+            {overflow && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
+                    Os litros informados ({Number(liters).toLocaleString('pt-BR')} L) ultrapassam a capacidade do tanque ({tankCapacity} L). O registro será marcado como anomalia.
+                </div>
+            )}
+
+            {error && (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600">
+                    {error}
+                </div>
+            )}
+
             <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <SGFButton type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
+                <SGFButton type="button" variant="ghost" onClick={onCancel} disabled={isSaving}>
                     Cancelar
                 </SGFButton>
-                <SGFButton type="submit" icon={isSubmitting ? Loader2 : Save} disabled={isSubmitting}>
-                    {isSubmitting ? 'Registrando...' : 'Registrar Abastecimento'}
+                <SGFButton type="submit" icon={isSaving ? Loader2 : Save} disabled={isSaving}>
+                    {isSaving ? 'Registrando...' : 'Registrar Abastecimento'}
                 </SGFButton>
             </div>
         </form>

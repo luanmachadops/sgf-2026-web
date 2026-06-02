@@ -1,134 +1,192 @@
-import React, { useState } from 'react';
-import { SGFCard } from '@/components/sgf/SGFCard';
+import { useEffect, useMemo, useState } from 'react';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { SGFInput } from '@/components/sgf/SGFInput';
-import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
+import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { Modal } from '@/components/ui/Modal';
 import {
-    Breadcrumb,
-    BreadcrumbList,
-    BreadcrumbItem,
-    BreadcrumbPage,
-} from '@/components/ui/Breadcrumb';
-import {
-    Search,
     Fuel,
     Eye,
     AlertTriangle,
-    CheckCircle,
     XCircle,
     Car,
     Receipt,
     Plus,
-    DollarSign,
     User,
     MapPin,
-} from 'lucide-react';
-import { formatDate, formatCurrency, cn } from '@/lib/utils';
+} from '@/components/sgf/icons';
+import { formatDate, formatCurrency, cn, formatPlate } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
-import { useEffect } from 'react';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
-import { motion, AnimatePresence } from 'framer-motion';
 import { NewRefuelingForm } from '@/components/refuelings/NewRefuelingForm';
+import { AuthorizeFuelingModal } from '@/components/refuelings/AuthorizeFuelingModal';
+import { useRefuelings, useValidateRefueling, useCancelFuelAuthorization } from '@/hooks/useRefuelings';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Tables } from '@/types/database.types';
 
-// Mock data
-const mockRefuelings = [
-    { id: '1', date: '2026-01-17', vehicle: 'ABC-1234', driver: 'Maria Santos', department: 'Obras', liters: 45.5, cost: 290.75, pricePerLiter: 6.39, odometer: 45230, fuelType: 'Gasolina', consumption: 8.2, isValidated: true, hasAnomaly: false, receiptUrl: '/receipts/1.jpg' },
-    { id: '2', date: '2026-01-15', vehicle: 'XYZ-5678', driver: 'João Silva', department: 'Saúde', liters: 52.0, cost: 312.00, pricePerLiter: 6.00, odometer: 67680, fuelType: 'Etanol', consumption: 5.8, isValidated: true, hasAnomaly: true, receiptUrl: '/receipts/2.jpg' },
-    { id: '3', date: '2026-01-14', vehicle: 'DEF-9012', driver: 'Pedro Lima', department: 'Educação', liters: 60.0, cost: 414.00, pricePerLiter: 6.90, odometer: 89350, fuelType: 'Diesel', consumption: 7.5, isValidated: false, hasAnomaly: false, receiptUrl: null },
-    { id: '4', date: '2026-01-12', vehicle: 'GHI-3456', driver: 'Ana Costa', department: 'Saúde', liters: 38.0, cost: 242.82, pricePerLiter: 6.39, odometer: 12280, fuelType: 'Gasolina', consumption: 9.1, isValidated: true, hasAnomaly: false, receiptUrl: '/receipts/4.jpg' },
-    { id: '5', date: '2026-01-10', vehicle: 'JKL-7890', driver: 'Carlos Souza', department: 'Transporte', liters: 80.0, cost: 552.00, pricePerLiter: 6.90, odometer: 123450, fuelType: 'Diesel', consumption: 4.2, isValidated: true, hasAnomaly: true, receiptUrl: '/receipts/5.jpg' },
-];
+type WorkflowStatus = 'autorizado' | 'concluido' | 'rejeitado_motorista' | 'validado' | 'rejeitado_admin' | 'lancado_direto';
 
-const departmentOptions = [
-    { value: '', label: 'Todas as secretarias' },
-    { value: 'obras', label: 'Obras' },
-    { value: 'saude', label: 'Saúde' },
-    { value: 'educacao', label: 'Educação' },
-    { value: 'transporte', label: 'Transporte' },
-];
-
-const validationOptions = [
+const WORKFLOW_TABS: Array<{ value: '' | 'pending_validation' | WorkflowStatus; label: string }> = [
     { value: '', label: 'Todos' },
-    { value: 'validated', label: 'Validados' },
-    { value: 'pending', label: 'Pendentes' },
+    { value: 'autorizado', label: 'Autorizados (aguardando motorista)' },
+    { value: 'pending_validation', label: 'Aguardando validação' },
+    { value: 'validado', label: 'Validados' },
+    { value: 'rejeitado_admin', label: 'Rejeitados' },
 ];
+
+function workflowBadge(status: WorkflowStatus | null | undefined): { label: string; variant: 'success' | 'warning' | 'error' | 'info' | 'default' } {
+    switch (status) {
+        case 'autorizado':            return { label: 'Autorizado',           variant: 'info' };
+        case 'concluido':             return { label: 'Aguardando validação', variant: 'warning' };
+        case 'rejeitado_motorista':   return { label: 'Recusado pelo motorista', variant: 'error' };
+        case 'validado':              return { label: 'Validado',              variant: 'success' };
+        case 'rejeitado_admin':       return { label: 'Rejeitado',             variant: 'error' };
+        case 'lancado_direto':        return { label: 'Lançamento direto',     variant: 'default' };
+        default:                      return { label: '—',                     variant: 'default' };
+    }
+}
+
+type RefuelingWithRelations = Tables<'fuelings'> & {
+    vehicles?: { plate: string; brand?: string | null; model?: string | null; photo_url?: string | null } | null;
+    drivers?: { name: string } | null;
+    station_relation?: { id: string; name: string; code: string | null } | null;
+    workflow_status?: WorkflowStatus;
+};
+
+type RefuelingRow = {
+    id: string;
+    date: string | null;
+    vehicle: string;
+    vehicleModel: string;
+    vehiclePhoto: string | null;
+    driver: string;
+    liters: number;
+    cost: number;
+    pricePerLiter: number;
+    odometer: number;
+    fuelType: string;
+    station: string;
+    consumption: number | null;
+    isValidated: boolean;
+    hasAnomaly: boolean;
+    workflowStatus: WorkflowStatus;
+    maxLiters: number | null;
+};
 
 export default function Refuelings() {
     const [searchTerm, setSearchTerm] = useState('');
-    const [departmentFilter, setDepartmentFilter] = useState('');
-    const [validationFilter, setValidationFilter] = useState('');
-    const [showAnomaliesOnly, setShowAnomaliesOnly] = useState(false);
+    const [workflowTab, setWorkflowTab] = useState<'' | 'pending_validation' | WorkflowStatus>('');
     const [showAddModal, setShowAddModal] = useState(false);
-    const [selectedRefueling, setSelectedRefueling] = useState<typeof mockRefuelings[0] | null>(null);
-    const { setTitle, setSearchPlaceholder, setSearchHandler, setHeaderAction } = useHeader();
+    const [showAuthorizeModal, setShowAuthorizeModal] = useState(false);
+    const [selectedRefueling, setSelectedRefueling] = useState<RefuelingRow | null>(null);
+    const { setTitle, setDescription, setHeaderAction } = useHeader();
+    const { user } = useAuth();
+    const validateMutation = useValidateRefueling();
+    const cancelAuth = useCancelFuelAuthorization();
+
+    // "Aguardando validação" = workflow_status='concluido' (motorista preencheu, falta admin validar).
+    const queryStatus = workflowTab === 'pending_validation' ? 'concluido' : (workflowTab || undefined);
+
+    const { data: rawRefuelings = [] } = useRefuelings({
+        workflowStatus: queryStatus,
+    });
 
     useEffect(() => {
         setTitle('Abastecimentos');
-        setSearchPlaceholder('Pesquisar por veículo ou motorista...');
-        setSearchHandler((term: string) => setSearchTerm(term));
+        setDescription('Lançamentos de abastecimento, consumo e validações.');
 
         setHeaderAction(
-            <SGFButton onClick={() => setShowAddModal(true)} icon={Plus}>
-                Novo Abastecimento
-            </SGFButton>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+                <SGFButton variant="secondary" onClick={() => setShowAuthorizeModal(true)} icon={Plus} className="!rounded-full !h-[37px]">
+                    Autorizar abastecimento
+                </SGFButton>
+                <SGFButton onClick={() => setShowAddModal(true)} icon={Plus} className="!rounded-full !h-[37px]">
+                    Novo Abastecimento
+                </SGFButton>
+            </div>
         );
 
         return () => {
-            setSearchHandler(() => { });
             setHeaderAction(null);
         };
-    }, [setTitle, setSearchPlaceholder, setSearchHandler, setHeaderAction]);
+    }, [setTitle, setDescription, setHeaderAction]);
 
-    const refuelings = mockRefuelings;
+    const refuelings = useMemo(() => {
+        return (rawRefuelings as unknown as RefuelingWithRelations[]).map((row): RefuelingRow => {
+            const liters = Number(row.liters ?? 0);
+            const cost = Number(row.total_cost ?? 0);
+            const pricePerLiter = liters > 0 ? cost / liters : Number(row.price_per_liter ?? 0);
+            const vehicleModel = row.vehicles
+                ? `${row.vehicles.brand || ''} ${row.vehicles.model || ''}`.trim()
+                : 'Sem veículo';
 
-    const filteredRefuelings = refuelings.filter((r) => {
-        const matchesSearch =
-            r.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            r.driver.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesDepartment = !departmentFilter || r.department.toLowerCase() === departmentFilter;
-        const matchesValidation =
-            !validationFilter ||
-            (validationFilter === 'validated' ? r.isValidated : !r.isValidated);
-        const matchesAnomaly = !showAnomaliesOnly || r.hasAnomaly;
-        return matchesSearch && matchesDepartment && matchesValidation && matchesAnomaly;
-    });
+            return {
+                id: row.id,
+                date: (row as { date: string | null }).date,
+                vehicle: row.vehicles?.plate || 'Sem placa',
+                vehicleModel: vehicleModel || 'Sem veículo',
+                vehiclePhoto: row.vehicles?.photo_url ?? null,
+                driver: row.drivers?.name || 'Sem motorista',
+                liters,
+                cost,
+                pricePerLiter,
+                odometer: Number(row.odometer ?? 0),
+                fuelType: row.fuel_type ?? '',
+                station: row.station_relation?.name ?? row.station ?? '',
+                consumption: row.km_per_liter,
+                isValidated: Boolean(row.validated_at),
+                hasAnomaly: Boolean(row.has_anomaly),
+                workflowStatus: (row.workflow_status as WorkflowStatus) ?? 'lancado_direto',
+                maxLiters: row.max_liters ?? null,
+            };
+        });
+    }, [rawRefuelings]);
 
-    const totalLiters = filteredRefuelings.reduce((sum, r) => sum + r.liters, 0);
-    const totalCost = filteredRefuelings.reduce((sum, r) => sum + r.cost, 0);
-    const anomalyCount = refuelings.filter((r) => r.hasAnomaly).length;
-    const pendingCount = refuelings.filter((r) => !r.isValidated).length;
+    const filteredRefuelings = useMemo(() => {
+        return refuelings.filter((refueling) => {
+            const term = searchTerm.trim().toLowerCase();
+            const matchesSearch = !term
+                || refueling.vehicle.toLowerCase().includes(term)
+                || refueling.driver.toLowerCase().includes(term)
+                || refueling.station.toLowerCase().includes(term);
+            return matchesSearch;
+        });
+    }, [refuelings, searchTerm]);
 
-    const columns: SGFTableColumn<typeof mockRefuelings[0]>[] = [
-        { header: 'Data', accessor: (row) => formatDate(row.date) },
+    const totalLiters = filteredRefuelings.reduce((sum, row) => sum + row.liters, 0);
+    const totalCost = filteredRefuelings.reduce((sum, row) => sum + row.cost, 0);
+    const anomalyCount = refuelings.filter((row) => row.hasAnomaly).length;
+    const pendingCount = refuelings.filter((row) => !row.isValidated).length;
+
+    const columns: SGFTableColumn<RefuelingRow>[] = [
+        { header: 'Data', accessor: (row) => row.date ? formatDate(row.date) : '-' },
         {
-            header: (
-                <div className="flex flex-col gap-2 min-w-[200px]">
-                    <span className="text-xs uppercase font-bold text-slate-400">Veículo / Motorista</span>
-                    <div className="relative group">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                        <input
-                            type="text"
-                            placeholder="Buscar..."
-                            className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-medium text-slate-700 placeholder:text-slate-400 shadow-sm"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                        />
-                    </div>
-                </div>
-            ),
+            header: 'Veículo',
             accessor: (row) => (
-                <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                        <Car className="h-4 w-4 text-gray-400" />
-                        <span className="font-mono font-medium">{row.vehicle}</span>
-                    </div>
-                    <div className="text-sm text-gray-600">{row.driver}</div>
-                    <div className="text-xs text-gray-400">{row.department}</div>
+                <div className="flex items-center gap-2.5">
+                    {row.vehiclePhoto ? (
+                        <img src={row.vehiclePhoto} alt={row.vehicleModel} className="h-8 w-8 shrink-0 rounded-lg object-cover" />
+                    ) : (
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                            <Car className="h-4 w-4 text-slate-400" />
+                        </div>
+                    )}
+                    <span className="font-semibold text-slate-800 text-sm">{row.vehicleModel}</span>
                 </div>
+            )
+        },
+        {
+            header: 'Placa',
+            accessor: (row) => (
+                <span className="font-mono font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs whitespace-nowrap">
+                    {formatPlate(row.vehicle)}
+                </span>
+            )
+        },
+        {
+            header: 'Motorista',
+            accessor: (row) => (
+                <span className="text-sm text-slate-600 font-medium">{row.driver}</span>
             )
         },
         { header: 'Litros', accessor: (row) => `${row.liters.toFixed(1)} L` },
@@ -138,7 +196,7 @@ export default function Refuelings() {
             header: 'Consumo',
             accessor: (row) => (
                 <div className="flex items-center gap-1">
-                    <span>{row.consumption.toFixed(1)} km/L</span>
+                    <span>{row.consumption ? `${row.consumption.toFixed(1)} km/L` : '-'}</span>
                     {row.hasAnomaly && (
                         <AlertTriangle className="h-4 w-4 text-yellow-500" />
                     )}
@@ -146,26 +204,11 @@ export default function Refuelings() {
             )
         },
         {
-            header: (
-                <div className="flex flex-col gap-2 min-w-[150px]">
-                    <span className="text-xs uppercase font-bold text-slate-400">Status</span>
-                    <SGFSelect
-                        value={validationFilter}
-                        onChange={(val) => setValidationFilter(val)}
-                        options={validationOptions}
-                        placeholder="Filtrar..."
-                    />
-                </div>
-            ),
-            accessor: (row) => row.isValidated ? (
-                <SGFBadge variant="success">
-                    Validado
-                </SGFBadge>
-            ) : (
-                <SGFBadge variant="warning">
-                    Pendente
-                </SGFBadge>
-            )
+            header: 'Workflow',
+            accessor: (row) => {
+                const b = workflowBadge(row.workflowStatus);
+                return <SGFBadge variant={b.variant}>{b.label}</SGFBadge>;
+            },
         },
         {
             header: 'Ações',
@@ -175,9 +218,32 @@ export default function Refuelings() {
         }
     ];
 
+    const handleValidate = (approved: boolean) => {
+        if (!selectedRefueling || !user?.id) return;
+
+        validateMutation.mutate(
+            {
+                id: selectedRefueling.id,
+                approved,
+                validatedBy: user.id,
+                notes: approved ? undefined : 'Rejeitado manualmente pelo gestor',
+            },
+            {
+                onSuccess: () => setSelectedRefueling(null),
+            }
+        );
+    };
+
+    const tabCounts = useMemo(() => ({
+        all: refuelings.length,
+        autorizado: refuelings.filter(r => r.workflowStatus === 'autorizado').length,
+        concluido: refuelings.filter(r => r.workflowStatus === 'concluido').length,
+        validado: refuelings.filter(r => r.workflowStatus === 'validado').length,
+        rejeitado_admin: refuelings.filter(r => r.workflowStatus === 'rejeitado_admin').length,
+    }), [refuelings]);
+
     return (
         <div className="space-y-6">
-            {/* KPIs */}
             <div className="grid gap-4 md:grid-cols-4">
                 <SGFKPICard
                     title="Volume Total"
@@ -185,11 +251,7 @@ export default function Refuelings() {
                     icon={Fuel}
                     iconColor="text-blue-500"
                     chartColor="#3b82f6"
-                    chartData={[
-                        { month: 'Sem 1', value: 200 },
-                        { month: 'Sem 2', value: 250 },
-                        { month: 'Sem 3', value: totalLiters },
-                    ]}
+                    chartData={[]}
                 />
                 <SGFKPICard
                     title="Gasto Total"
@@ -197,11 +259,7 @@ export default function Refuelings() {
                     icon={Receipt}
                     iconColor="text-emerald-500"
                     chartColor="#10b981"
-                    chartData={[
-                        { month: 'Sem 1', value: 1200 },
-                        { month: 'Sem 2', value: 1500 },
-                        { month: 'Sem 3', value: totalCost },
-                    ]}
+                    chartData={[]}
                 />
                 <SGFKPICard
                     title="Anomalias"
@@ -209,11 +267,7 @@ export default function Refuelings() {
                     icon={AlertTriangle}
                     iconColor="text-amber-500"
                     chartColor="#f59e0b"
-                    chartData={[
-                        { month: 'Sem 1', value: 0 },
-                        { month: 'Sem 2', value: 1 },
-                        { month: 'Sem 3', value: anomalyCount },
-                    ]}
+                    chartData={[]}
                 />
                 <SGFKPICard
                     title="Aguardando Validação"
@@ -221,20 +275,51 @@ export default function Refuelings() {
                     icon={XCircle}
                     iconColor="text-orange-500"
                     chartColor="#f97316"
-                    chartData={[
-                        { month: 'Sem 1', value: 5 },
-                        { month: 'Sem 2', value: 3 },
-                        { month: 'Sem 3', value: pendingCount },
-                    ]}
+                    chartData={[]}
                 />
             </div>
 
-            {/* Table */}
+            <SGFToolbar
+                searchValue={searchTerm}
+                onSearchChange={setSearchTerm}
+                searchPlaceholder="Pesquisar por veículo ou motorista..."
+            >
+                {/* Tabs de workflow */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {WORKFLOW_TABS.map((t) => {
+                        const isActive = workflowTab === t.value;
+                        const count = t.value === '' ? tabCounts.all
+                            : t.value === 'pending_validation' ? tabCounts.concluido
+                            : (tabCounts[t.value as keyof typeof tabCounts] ?? 0);
+                        return (
+                            <button
+                                key={t.value || 'all'}
+                                type="button"
+                                onClick={() => setWorkflowTab(t.value)}
+                                className={
+                                    'px-4 py-2.5 rounded-full text-sm font-semibold border transition whitespace-nowrap ' +
+                                    (isActive
+                                        ? 'bg-emerald-500 text-white border-emerald-500'
+                                        : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300')
+                                }
+                            >
+                                {t.label} <span className="opacity-70 ml-1">{count}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </SGFToolbar>
+
             <div className="-mx-6 md:mx-0">
-                <SGFTable columns={columns} data={filteredRefuelings} keyExtractor={(r) => r.id} emptyMessage="Nenhum abastecimento encontrado." />
+                <SGFTable
+                    columns={columns}
+                    data={filteredRefuelings}
+                    keyExtractor={(row) => row.id}
+                    onRowClick={(row) => setSelectedRefueling(row)}
+                    emptyMessage="Nenhum abastecimento encontrado."
+                />
             </div>
 
-            {/* Refueling Details Modal */}
             <Modal
                 isOpen={!!selectedRefueling}
                 onClose={() => setSelectedRefueling(null)}
@@ -243,12 +328,41 @@ export default function Refuelings() {
                 footer={
                     <div className="flex w-full justify-between items-center">
                         <div className="flex gap-2">
-                            {selectedRefueling && !selectedRefueling.isValidated && (
+                            {/* Quando ainda é autorização pendente (motorista não preencheu): só cancelar */}
+                            {selectedRefueling?.workflowStatus === 'autorizado' && (
+                                <SGFButton
+                                    variant="ghost"
+                                    className="text-rose-600 hover:bg-rose-50"
+                                    onClick={() => {
+                                        if (!selectedRefueling) return;
+                                        cancelAuth.mutate({ id: selectedRefueling.id }, {
+                                            onSuccess: () => setSelectedRefueling(null),
+                                        });
+                                    }}
+                                    disabled={cancelAuth.isPending}
+                                >
+                                    Cancelar autorização
+                                </SGFButton>
+                            )}
+                            {/* Quando motorista preencheu (concluido) ou é lançamento direto sem validar */}
+                            {selectedRefueling && !selectedRefueling.isValidated
+                                && selectedRefueling.workflowStatus !== 'autorizado'
+                                && selectedRefueling.workflowStatus !== 'rejeitado_admin'
+                                && selectedRefueling.workflowStatus !== 'rejeitado_motorista' && (
                                 <>
-                                    <SGFButton variant="ghost" className="text-rose-600 hover:bg-rose-50" onClick={() => setSelectedRefueling(null)}>
+                                    <SGFButton
+                                        variant="ghost"
+                                        className="text-rose-600 hover:bg-rose-50"
+                                        onClick={() => handleValidate(false)}
+                                        disabled={validateMutation.isPending}
+                                    >
                                         Rejeitar
                                     </SGFButton>
-                                    <SGFButton variant="primary" onClick={() => setSelectedRefueling(null)}>
+                                    <SGFButton
+                                        variant="primary"
+                                        onClick={() => handleValidate(true)}
+                                        disabled={validateMutation.isPending}
+                                    >
                                         Validar Abastecimento
                                     </SGFButton>
                                 </>
@@ -262,7 +376,6 @@ export default function Refuelings() {
             >
                 {selectedRefueling && (
                     <div className="space-y-6">
-                        {/* Status Header */}
                         <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-100">
@@ -281,11 +394,10 @@ export default function Refuelings() {
                         </div>
 
                         <div className="grid gap-6 md:grid-cols-2">
-                            {/* Left Column: People & Vehicle */}
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
-                                        <Car size={20} />
+                                        <Car width={20} height={20} />
                                     </div>
                                     <div>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Veículo</p>
@@ -295,18 +407,17 @@ export default function Refuelings() {
 
                                 <div className="flex items-center gap-3">
                                     <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
-                                        <User size={20} />
+                                        <User width={20} height={20} />
                                     </div>
                                     <div>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Motorista</p>
                                         <p className="font-bold text-slate-800">{selectedRefueling.driver}</p>
-                                        <p className="text-xs text-slate-500">{selectedRefueling.department}</p>
                                     </div>
                                 </div>
 
                                 <div className="flex items-center gap-3">
                                     <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
-                                        <MapPin size={20} />
+                                        <MapPin width={20} height={20} />
                                     </div>
                                     <div>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Odômetro</p>
@@ -315,7 +426,6 @@ export default function Refuelings() {
                                 </div>
                             </div>
 
-                            {/* Right Column: Values & Consumption */}
                             <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resumo Financeiro</p>
@@ -344,9 +454,9 @@ export default function Refuelings() {
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Eficiência</p>
                                         <span className={cn(
                                             "font-black text-lg",
-                                            selectedRefueling.consumption > 8 ? "text-emerald-600" : "text-amber-600"
+                                            (selectedRefueling.consumption || 0) > 8 ? "text-emerald-600" : "text-amber-600"
                                         )}>
-                                            {selectedRefueling.consumption.toFixed(1)} km/L
+                                            {selectedRefueling.consumption ? `${selectedRefueling.consumption.toFixed(1)} km/L` : '-'}
                                         </span>
                                     </div>
                                 </div>
@@ -357,7 +467,7 @@ export default function Refuelings() {
                             <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
                                 <AlertTriangle className="h-5 w-5 text-amber-500" />
                                 <p className="text-sm text-amber-800 font-medium">
-                                    <span className="font-black">Anomalia detectada:</span> O consumo registrado está significativamente abaixo da média histórica deste veículo.
+                                    <span className="font-black">Anomalia detectada:</span> Registro marcado fora do padrão esperado.
                                 </p>
                             </div>
                         )}
@@ -365,7 +475,6 @@ export default function Refuelings() {
                 )}
             </Modal>
 
-            {/* Add Modal */}
             <Modal
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
@@ -378,6 +487,11 @@ export default function Refuelings() {
                     onCancel={() => setShowAddModal(false)}
                 />
             </Modal>
+
+            <AuthorizeFuelingModal
+                isOpen={showAuthorizeModal}
+                onClose={() => setShowAuthorizeModal(false)}
+            />
         </div>
     );
 }

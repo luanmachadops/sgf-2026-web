@@ -4,7 +4,10 @@ import {
     SGFCard,
     FuelExpenseChart,
     DepartmentConsumptionChart,
-    SGFSelect
+    PeriodSelect,
+    makePeriod,
+    resolvePeriod,
+    type PeriodValue,
 } from '@/components/sgf';
 import {
     AreaChart,
@@ -20,7 +23,7 @@ import {
     Activity,
     Fuel,
     Wrench,
-} from 'lucide-react';
+} from '@/components/sgf/icons';
 import { useHeader } from '@/contexts/HeaderContext';
 import {
     useDashboardKPIs,
@@ -28,27 +31,13 @@ import {
 } from '@/hooks/useDashboard';
 import { formatCurrency } from '@/lib/utils';
 
-const YEAR_OPTIONS = [
-    { value: '2026', label: '2026' },
-    { value: '2025', label: '2025' },
-    { value: '2024', label: '2024' },
-];
-
-const MONTH_OPTIONS = [
-    { value: 'jan', label: 'Jan' },
-    { value: 'fev', label: 'Fev' },
-    { value: 'mar', label: 'Mar' },
-    { value: 'all', label: 'Todos' },
-];
-
 export default function Dashboard() {
     const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler } = useHeader();
-    const [selectedYear, setSelectedYear] = useState('2026');
-    const [selectedMonth, setSelectedMonth] = useState('all');
+    const [expensePeriod, setExpensePeriod] = useState<PeriodValue>(() => makePeriod('6'));
 
     // Real Data Hooks
     const { data: kpis, isLoading: isLoadingKPIs } = useDashboardKPIs();
-    const { data: expenseData, isLoading: isLoadingExpenses } = useExpenseChart(6);
+    const { data: expenseData, isLoading: isLoadingExpenses, isError: isErrorExpenses } = useExpenseChart(resolvePeriod(expensePeriod));
 
     useEffect(() => {
         setTitle('Dashboard');
@@ -113,37 +102,30 @@ export default function Dashboard() {
                         <SGFCard padding="lg">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                                 <div>
-                                    <h4 className="font-bold text-xl text-slate-800">
+                                    <h4 className="font-semibold text-base text-slate-800">
                                         Evolução de Gastos
                                     </h4>
                                     <p className="text-sm text-slate-400 font-medium">
-                                        Gastos operacionais dos últimos 6 meses
+                                        Gastos operacionais por mês
                                     </p>
                                 </div>
-                                <div className="flex gap-3">
-                                    <div className="w-32">
-                                        <SGFSelect
-                                            options={MONTH_OPTIONS}
-                                            value={selectedMonth}
-                                            onChange={setSelectedMonth}
-                                            placeholder="Mês"
-                                        />
-                                    </div>
-                                    <div className="w-24">
-                                        <SGFSelect
-                                            options={YEAR_OPTIONS}
-                                            value={selectedYear}
-                                            onChange={setSelectedYear}
-                                            placeholder="Ano"
-                                        />
-                                    </div>
-                                </div>
+                                <PeriodSelect value={expensePeriod} onChange={setExpensePeriod} />
                             </div>
 
                             <div className="h-[250px] sm:h-[320px] w-full min-w-0">
-                                {isLoadingExpenses ? (
+                                {isErrorExpenses ? (
+                                    <div className="w-full h-full flex items-center justify-center bg-rose-50/50 rounded-2xl">
+                                        <p className="text-sm text-rose-500 font-bold">Erro ao carregar dados de gastos</p>
+                                    </div>
+                                ) : isLoadingExpenses ? (
                                     <div className="w-full h-full flex items-center justify-center bg-slate-50/50 rounded-2xl animate-pulse">
                                         <p className="text-sm text-slate-400 font-bold uppercase tracking-widest">Carregando dados...</p>
+                                    </div>
+                                ) : !expenseData || expenseData.every((d) => d.total === 0) ? (
+                                    <div className="w-full h-full flex items-center justify-center bg-slate-50/50 rounded-2xl">
+                                        <p className="text-sm text-slate-400 font-medium px-6 text-center">
+                                            Nenhum gasto registrado no período.
+                                        </p>
                                     </div>
                                 ) : (
                                     <ResponsiveContainer width="100%" height="100%">
@@ -208,16 +190,15 @@ export default function Dashboard() {
                     </div>
 
                     <div className="space-y-6">
-                        <SGFCard className="relative overflow-hidden h-full" padding="none">
-                            <div className="absolute inset-0 p-4">
-                                <FuelExpenseChart />
-                            </div>
+                        {/* h-full puxa altura do vizinho em lg; em mobile precisa de min-h próprio */}
+                        <SGFCard className="relative overflow-hidden h-[360px] lg:h-full lg:min-h-[360px]" padding="lg">
+                            <FuelExpenseChart />
                         </SGFCard>
                     </div>
                 </div>
 
                 <div className="mt-10">
-                    <SGFCard padding="none" className="overflow-hidden min-h-[400px]">
+                    <SGFCard padding="lg" className="overflow-hidden min-h-[400px]">
                         <DepartmentConsumptionChart />
                     </SGFCard>
                 </div>

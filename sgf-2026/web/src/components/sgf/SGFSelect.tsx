@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Check } from 'lucide-react';
+import { CaretDown, Check } from './icons';
 import { cn } from '@/lib/utils';
 
 export interface SGFSelectOption {
@@ -20,6 +20,8 @@ export interface SGFSelectProps {
   placeholder?: string;
   onChange?: (value: string) => void;
   className?: string;
+  /** sobrescreve estilos do gatilho (altura/padding/fonte) */
+  triggerClassName?: string;
   disabled?: boolean;
   name?: string;
   id?: string;
@@ -39,6 +41,7 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
       placeholder = 'Selecione...',
       onChange,
       className = '',
+      triggerClassName,
       id,
       disabled,
     },
@@ -98,7 +101,8 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
             'hover:border-emerald-500/50 hover:bg-slate-50/50',
             isOpen ? 'ring-4 ring-emerald-500/10 border-[var(--sgf-primary)] bg-white' : 'border-slate-200 shadow-[var(--sgf-shadow-xs)]',
             disabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : '',
-            error && 'border-red-300 focus:border-red-500 focus:ring-red-500/10'
+            error && 'border-red-300 focus:border-red-500 focus:ring-red-500/10',
+            triggerClassName
           )}
         >
           <span className={cn('flex items-center gap-2 truncate pr-2', selectedOption ? 'text-slate-900 font-medium' : 'text-slate-400')}>
@@ -106,10 +110,9 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
             {!selectedOption?.icon && Icon && <Icon className="h-4 w-4 shrink-0 text-slate-400" />}
             {selectedOption ? selectedOption.label : placeholder}
           </span>
-          <ChevronDown
-            size={16}
+          <CaretDown
             className={cn(
-              "text-slate-400 transition-transform duration-[var(--sgf-transition-base)] shrink-0",
+              "h-2.5 w-2.5 text-slate-400 transition-transform duration-[var(--sgf-transition-base)] shrink-0",
               isOpen && 'transform rotate-180 text-emerald-600'
             )}
           />
@@ -118,17 +121,17 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
         {/* Dropdown Menu */}
         {isOpen && (
           <div
-            className="absolute top-full left-0 right-0 mt-[var(--sgf-space-2)] z-[100] bg-white rounded-[var(--sgf-card-radius)] border border-slate-100 shadow-[var(--sgf-shadow-lg)] overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200"
+            className="absolute top-full left-0 right-0 mt-[var(--sgf-space-2)] z-[100] bg-white rounded-3xl border border-slate-100 shadow-[var(--sgf-shadow-lg)] overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200"
           >
-            <div className="max-h-64 overflow-y-auto p-[var(--sgf-space-2)] space-y-1 custom-scrollbar">
+            <div className="max-h-52 overflow-y-auto p-1.5 space-y-0.5 custom-scrollbar">
               {options.map((option) => (
                 <div
                   key={option.value}
                   onClick={() => handleSelect(option.value)}
                   className={cn(
                     'relative flex w-full cursor-pointer select-none items-center',
-                    'rounded-[var(--sgf-radius-md)] py-[var(--sgf-space-3)] px-[var(--sgf-space-3)]',
-                    'text-[var(--sgf-text-sm)] outline-none',
+                    'rounded-full py-1.5 px-3',
+                    'text-sm leading-tight outline-none',
                     'transition-all duration-[var(--sgf-transition-fast)]',
                     'hover:bg-emerald-50 hover:text-emerald-900',
                     currentValue === option.value
@@ -136,10 +139,10 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
                       : 'text-slate-600 font-medium'
                   )}
                 >
-                  <span className="flex-1 flex items-center gap-3 truncate">
+                  <span className="flex-1 flex items-center gap-2.5 truncate">
                     {option.icon && (
                       <div className={cn(
-                        "w-8 h-8 rounded-[var(--sgf-radius-md)] flex items-center justify-center transition-colors",
+                        "w-6 h-6 rounded-full flex items-center justify-center transition-colors",
                         currentValue === option.value ? "bg-emerald-100 text-emerald-600" : "bg-slate-50 text-slate-400"
                       )}>
                         <option.icon className="h-4 w-4" />

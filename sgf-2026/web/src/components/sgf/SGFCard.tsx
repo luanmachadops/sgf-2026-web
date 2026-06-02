@@ -1,11 +1,12 @@
 import React from 'react';
+import type { IconType } from './icons';
 
 export interface SGFCardProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: 'default' | 'elevated' | 'bordered' | 'glass';
   padding?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
   hover?: boolean;
   title?: string;
-  icon?: React.ComponentType<{ size?: number; className?: string }>;
+  icon?: IconType;
 }
 
 export const SGFCard = React.forwardRef<HTMLDivElement, SGFCardProps>(
@@ -63,7 +64,7 @@ export const SGFCard = React.forwardRef<HTMLDivElement, SGFCardProps>(
       >
         {(title || Icon) && (
           <div className="flex items-center gap-2 mb-4">
-            {Icon && <Icon size={18} className="text-slate-500" />}
+            {Icon && <Icon width={18} height={18} className="text-slate-500" />}
             {title && <h3 className="font-semibold text-slate-800 text-sm">{title}</h3>}
           </div>
         )}

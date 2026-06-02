@@ -57,17 +57,19 @@ export function formatDistanceToNow(date: Date | string): string {
 }
 
 /**
- * Format CPF
+ * Format CPF — tolerante a null/undefined (motoristas podem não ter CPF cadastrado ainda).
  */
-export function formatCPF(cpf: string): string {
+export function formatCPF(cpf: string | null | undefined): string {
+    if (!cpf) return '';
     const cleaned = cpf.replace(/\D/g, '');
     return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
 }
 
 /**
- * Format license plate
+ * Format license plate — tolerante a null/undefined.
  */
-export function formatPlate(plate: string): string {
+export function formatPlate(plate: string | null | undefined): string {
+    if (!plate) return '';
     const cleaned = plate.replace(/[^A-Z0-9]/g, '');
     if (cleaned.length === 7) {
         // Mercosul: ABC1D23
@@ -81,9 +83,10 @@ export function formatPlate(plate: string): string {
 }
 
 /**
- * Format phone number
+ * Format phone number — tolerante a null/undefined.
  */
-export function formatPhone(phone: string): string {
+export function formatPhone(phone: string | null | undefined): string {
+    if (!phone) return '';
     const cleaned = phone.replace(/\D/g, '');
     if (cleaned.length === 11) {
         return cleaned.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
@@ -92,6 +95,40 @@ export function formatPhone(phone: string): string {
         return cleaned.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
     }
     return phone;
+}
+
+/**
+ * Máscaras progressivas (aplicadas enquanto o usuário digita).
+ */
+export function maskCPF(value: string): string {
+    return value
+        .replace(/\D/g, '')
+        .slice(0, 11)
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+}
+
+export function maskCNPJ(value: string): string {
+    return value
+        .replace(/\D/g, '')
+        .slice(0, 14)
+        .replace(/(\d{2})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1/$2')
+        .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+}
+
+export function maskPhone(value: string): string {
+    const d = value.replace(/\D/g, '').slice(0, 11);
+    if (d.length <= 10) {
+        return d
+            .replace(/(\d{2})(\d)/, '($1) $2')
+            .replace(/(\d{4})(\d{1,4})$/, '$1-$2');
+    }
+    return d
+        .replace(/(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{5})(\d{1,4})$/, '$1-$2');
 }
 
 /**

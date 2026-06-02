@@ -28,7 +28,7 @@ export function useCreateMaintenance() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (data: TablesInsert<'maintenances'>) => maintenancesApi.create(data),
+        mutationFn: (data: TablesInsert<'service_orders'>) => maintenancesApi.create(data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['maintenances'] });
         },

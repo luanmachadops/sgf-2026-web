@@ -40,7 +40,7 @@ import {
   // Combustível e Manutenção
   Fuel,
   Wrench,
-  Hammer, // Substitui Tool que não existe
+  Hammer,
   AlertTriangle,
   AlertCircle,
   CheckCircle,
@@ -87,7 +87,7 @@ import {
   HelpCircle,
   Star,
   Heart,
-} from 'lucide-react';
+} from '@/components/sgf/icons';
 
 const iconCategories = [
   {
@@ -224,7 +224,7 @@ export const IconsShowcase: React.FC = () => {
                     className="flex flex-col items-center p-4 rounded-2xl border-2 border-transparent hover:border-[var(--sgf-primary)] hover:bg-emerald-50 transition-all duration-200 cursor-pointer group"
                   >
                     <div className="w-16 h-16 flex items-center justify-center mb-3 rounded-2xl bg-slate-100 group-hover:bg-[var(--sgf-primary)] group-hover:text-white transition-all duration-200">
-                      <Icon size={32} />
+                      <Icon width={32} height={32} />
                     </div>
 
                     <p className="font-bold text-sm text-slate-800 mb-1 text-center">
@@ -267,7 +267,7 @@ export const IconsShowcase: React.FC = () => {
                   { color: 'text-red-600', name: 'Red (Error)', bg: 'bg-red-50' },
                 ].map((item) => (
                   <div key={item.name} className={`p-4 ${item.bg} rounded-2xl`}>
-                    <Truck className={`${item.color} mb-2`} size={32} />
+                    <Truck className={`${item.color} mb-2`} width={32} height={32} />
                     <p className="text-xs font-bold text-slate-700">{item.name}</p>
                     <code className="text-[10px] text-slate-500 block mt-1">
                       {item.color}
@@ -289,7 +289,7 @@ export const IconsShowcase: React.FC = () => {
                 ].map((item) => (
                   <div key={item.size} className="text-center">
                     <div className="flex items-center justify-center h-24 mb-2">
-                      <Truck size={item.size} className="text-[var(--sgf-primary)]" />
+                      <Truck width={item.size} height={item.size} className="text-[var(--sgf-primary)]" />
                     </div>
                     <p className="font-bold text-xs text-slate-700">{item.label}</p>
                     <p className="text-[10px] text-slate-500">{item.usage}</p>

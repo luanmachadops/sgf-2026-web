@@ -5,10 +5,25 @@ import { z } from 'zod';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { Loader2, Save, Camera, User, LockKeyhole } from 'lucide-react';
+import { Loader2, Save, Camera, User, LockKeyhole } from '@/components/sgf/icons';
 import { departmentsApi } from '@/lib/supabase-api';
 import { toast } from 'sonner';
 import { isImageFile } from '@/lib/imageUtils';
+import { maskCPF, maskPhone } from '@/lib/utils';
+
+// Aplica uma máscara sobre o onChange do react-hook-form (register).
+function withMask(
+    reg: { onChange: (e: unknown) => unknown; onBlur: (e: unknown) => unknown; name: string; ref: (i: unknown) => void },
+    mask: (v: string) => string,
+) {
+    return {
+        ...reg,
+        onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+            e.target.value = mask(e.target.value);
+            return reg.onChange(e);
+        },
+    };
+}
 import { useAuth } from '@/contexts/AuthContext';
 import { useCreateDriver } from '@/hooks/useDrivers';
 
@@ -128,7 +143,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                 cnhCategory: data.licenseCategory,
                 cnhExpiryDate: data.licenseExpiry,
                 departmentId: data.departmentId,
-                phone: data.phone.trim(),
+                phone: data.phone.replace(/\D/g, ''),
                 email: data.email.trim().toLowerCase(),
                 status: data.status ?? 'ACTIVE',
                 password: data.password,
@@ -179,7 +194,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                         ) : (
                             <div className="text-center p-4">
                                 <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3">
-                                    <User size={24} />
+                                    <User width={24} height={24} />
                                 </div>
                                 <p className="text-sm font-medium text-slate-700">
                                     Clique para enviar
@@ -212,7 +227,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                         <SGFInput
                             label="CPF"
                             placeholder="000.000.000-00"
-                            {...register('cpf')}
+                            {...withMask(register('cpf'), maskCPF)}
                             error={errors.cpf?.message}
                             fullWidth
                         />
@@ -229,7 +244,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                         <SGFInput
                             label="Telefone"
                             placeholder="(00) 00000-0000"
-                            {...register('phone')}
+                            {...withMask(register('phone'), maskPhone)}
                             error={errors.phone?.message}
                             fullWidth
                         />
@@ -327,7 +342,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                     <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 space-y-4">
                         <div className="flex items-center gap-2">
                             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-                                <LockKeyhole size={18} />
+                                <LockKeyhole width={18} height={18} />
                             </div>
                             <div>
                                 <p className="text-sm font-semibold text-slate-900">Dados de acesso</p>

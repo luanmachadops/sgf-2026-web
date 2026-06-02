@@ -1,5 +1,5 @@
-import React from 'react';
-import { X } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { X } from '../sgf/icons';
 import { cn } from '@/lib/utils';
 
 export interface ModalProps {
@@ -23,6 +23,14 @@ function Modal({
     showCloseButton = true,
     footer,
 }: ModalProps) {
+    // Fechar com ESC.
+    useEffect(() => {
+        if (!isOpen) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [isOpen, onClose]);
+
     if (!isOpen) return null;
 
     const sizes = {
@@ -41,19 +49,19 @@ function Modal({
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-[var(--sgf-space-4)]"
+            className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 p-[var(--sgf-space-4)]"
             onClick={handleBackdropClick}
         >
             <div
                 className={cn(
-                    'relative w-full bg-white shadow-[var(--sgf-shadow-xl)]',
+                    'relative flex max-h-[90dvh] w-full flex-col bg-white shadow-[var(--sgf-shadow-xl)]',
                     'rounded-[var(--sgf-modal-radius)]',
                     sizes[size]
                 )}
             >
                 {/* Header */}
                 {(title || showCloseButton) && (
-                    <div className="flex items-start justify-between border-b border-slate-100 p-[var(--sgf-modal-padding)]">
+                    <div className="flex shrink-0 items-start justify-between border-b border-slate-100 p-[var(--sgf-modal-padding)]">
                         <div>
                             {title && (
                                 <h2 className="text-[var(--sgf-text-xl)] font-[var(--sgf-font-semibold)] text-slate-900">{title}</h2>
@@ -74,11 +82,11 @@ function Modal({
                 )}
 
                 {/* Content */}
-                <div className="p-[var(--sgf-modal-padding)]">{children}</div>
+                <div className="flex-1 overflow-y-auto p-[var(--sgf-modal-padding)] custom-scrollbar">{children}</div>
 
                 {/* Footer */}
                 {footer && (
-                    <div className="flex items-center justify-end gap-[var(--sgf-space-3)] border-t border-slate-100 bg-slate-50/50 px-[var(--sgf-modal-padding)] py-[var(--sgf-space-4)] rounded-b-[var(--sgf-modal-radius)]">
+                    <div className="flex shrink-0 items-center justify-end gap-[var(--sgf-space-3)] border-t border-slate-100 bg-slate-50/50 px-[var(--sgf-modal-padding)] py-[var(--sgf-space-4)] rounded-b-[var(--sgf-modal-radius)]">
                         {footer}
                     </div>
                 )}

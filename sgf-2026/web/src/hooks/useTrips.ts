@@ -25,3 +25,11 @@ export function useTrip(id: string) {
         enabled: !!id,
     });
 }
+
+export function useTripLocations(id: string | undefined, enabled = true) {
+    return useQuery({
+        queryKey: ['trip-locations', id],
+        queryFn: () => tripsApi.getLocations(id as string),
+        enabled: !!id && enabled,
+    });
+}

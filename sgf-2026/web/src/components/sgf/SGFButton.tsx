@@ -1,10 +1,10 @@
 import React from 'react';
-import { type LucideIcon } from 'lucide-react';
+import type { IconType } from './icons';
 
 export interface SGFButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg' | 'xl';
-  icon?: LucideIcon;
+  icon?: IconType;
   iconPosition?: 'left' | 'right';
   fullWidth?: boolean;
   loading?: boolean;
@@ -88,9 +88,9 @@ export const SGFButton = React.forwardRef<HTMLButtonElement, SGFButtonProps>(
             />
           </svg>
         )}
-        {!loading && Icon && iconPosition === 'left' && <Icon size={iconSizes[size]} />}
+        {!loading && Icon && iconPosition === 'left' && <Icon width={iconSizes[size]} height={iconSizes[size]} />}
         {children}
-        {!loading && Icon && iconPosition === 'right' && <Icon size={iconSizes[size]} />}
+        {!loading && Icon && iconPosition === 'right' && <Icon width={iconSizes[size]} height={iconSizes[size]} />}
       </button>
     );
   }

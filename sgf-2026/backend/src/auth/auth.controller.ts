@@ -17,6 +17,14 @@ export class AuthController {
         return this.authService.loginDriver(loginDto);
     }
 
+    @Post('driver-login')
+    @ApiOperation({ summary: 'Legacy login route for drivers (CPF + password)' })
+    @ApiResponse({ status: 200, description: 'Login successful.', type: AuthResponseDto })
+    @ApiResponse({ status: 401, description: 'Invalid credentials or account locked.' })
+    loginDriverLegacy(@Body() loginDto: LoginDriverDto) {
+        return this.authService.loginDriver(loginDto);
+    }
+
     @Post('user/login')
     @ApiOperation({ summary: 'Login for managers/admins (email + password)' })
     @ApiResponse({ status: 200, description: 'Login successful.', type: AuthResponseDto })
