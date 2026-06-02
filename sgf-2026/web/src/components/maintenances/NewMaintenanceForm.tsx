@@ -22,7 +22,10 @@ const maintenanceSchema = z.object({
     odometer: z.coerce.number().min(0).optional(),
 });
 
-type MaintenanceFormData = z.infer<typeof maintenanceSchema>;
+// `z.coerce.number()` gera tipos de entrada (unknown) e saída (number) distintos;
+// separamos os dois para alinhar com a tipagem do react-hook-form + zodResolver.
+type MaintenanceFormInput = z.input<typeof maintenanceSchema>;
+type MaintenanceFormData = z.output<typeof maintenanceSchema>;
 
 interface NewMaintenanceFormProps {
     onSuccess: () => void;
@@ -68,7 +71,7 @@ export function NewMaintenanceForm({ onSuccess, onCancel }: NewMaintenanceFormPr
         handleSubmit,
         control,
         formState: { errors, isSubmitting },
-    } = useForm<MaintenanceFormData>({
+    } = useForm<MaintenanceFormInput, unknown, MaintenanceFormData>({
         resolver: zodResolver(maintenanceSchema),
         defaultValues: {
             category: '',

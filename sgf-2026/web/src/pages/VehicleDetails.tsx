@@ -30,6 +30,7 @@ import {
     tripsApi,
     refuelingsApi,
     maintenancesApi,
+    type VehicleRecord,
 } from '@/lib/supabase-api';
 import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
 import { toast } from 'sonner';
@@ -42,8 +43,7 @@ const FUEL_LABEL: Record<string, string> = {
     flex: 'Flex',
 };
 
-type VehicleRow = Tables<'vehicles'> & {
-    departments?: { id: string; name: string } | null;
+type VehicleRow = VehicleRecord & {
     photo_url: string | null;
 };
 

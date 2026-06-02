@@ -39,7 +39,7 @@ export function useUpdateMaintenance() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ id, data }: { id: string; data: TablesUpdate<'maintenances'> }) =>
+        mutationFn: ({ id, data }: { id: string; data: TablesUpdate<'service_orders'> }) =>
             maintenancesApi.update(id, data),
         onSuccess: (_, { id }) => {
             queryClient.invalidateQueries({ queryKey: ['maintenances'] });

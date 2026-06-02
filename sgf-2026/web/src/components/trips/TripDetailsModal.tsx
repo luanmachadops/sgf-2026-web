@@ -7,6 +7,7 @@ import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { MapPin, Navigation, Clock, Car, Users, AlertTriangle, Route, Gauge } from '@/components/sgf/icons';
 import { formatDateTime, formatDistance, getStatusLabel, getStatusColor } from '@/lib/utils';
 import { useTrip, useTripLocations } from '@/hooks/useTrips';
+import type { TripRecord } from '@/lib/supabase-api';
 import type { Tables } from '@/types/database.types';
 
 interface TripDetailsModalProps {
@@ -14,9 +15,7 @@ interface TripDetailsModalProps {
     onClose: () => void;
 }
 
-type TripFull = Tables<'trips'> & {
-    vehicles?: { plate?: string; brand?: string | null; model?: string | null } | null;
-    drivers?: { name?: string } | null;
+type TripFull = TripRecord & {
     start_odometer_photo_url?: string | null;
     end_odometer_photo_url?: string | null;
     notes?: string | null;
@@ -107,7 +106,7 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
     const startKm = trip?.start_odometer ?? 0;
     const endKm = trip?.end_odometer ?? startKm;
     const distance = trip?.distance_km ?? Math.max(endKm - startKm, 0);
-    const hasAnomaly = trip?.status === 'problema' || (trip as { has_anomaly?: boolean })?.has_anomaly;
+    const hasAnomaly = trip?.status === 'CANCELLED' || Boolean(trip?.has_anomaly);
 
     return (
         <Modal

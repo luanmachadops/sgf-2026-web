@@ -13,6 +13,8 @@ import {
     webToDbTripStatus,
     webToDbMaintenanceStatus,
     webToDbFuelType,
+    dbToWebTripStatus,
+    dbToWebMaintenanceStatus,
     dbCategoryToWebTypeCategory,
     webUrgencyToDbPriority,
 } from './db-mapping';
@@ -21,14 +23,38 @@ import {
 // Apelidamos as colunas para preservar o que o resto do web já espera.
 export type DriverRecord = Tables<'profiles'> & {
     departments?: { id: string; name: string } | null;
-    // aliases retro-compatíveis (preenchidos via mapeamento quando necessário)
+    // aliases retro-compatíveis (preenchidos via decorateDriver na camada de API)
     name?: string;
     cnh_expiry_date?: string | null;
-    status?: Tables<'profiles'>['driver_status'];
+    // status já mapeado para o enum EN que o web usa (ACTIVE|INACTIVE|SUSPENDED).
+    status?: DriverStatus;
+    // No banco unificado profile.id === auth.users.id; exposto como user_id por compat.
+    user_id?: string;
 };
 
-export type VehicleRecord = Tables<'vehicles'> & {
+export type VehicleRecord = Omit<Tables<'vehicles'>, 'status'> & {
+    // status já mapeado para o enum EN que o web usa (AVAILABLE|IN_USE|MAINTENANCE|INACTIVE).
+    status: VehicleStatus;
     departments?: { id: string; name: string } | null;
+};
+
+// Trip decorada pela camada de API: status em EN + aliases de colunas (start_time/end_time/...).
+export type TripRecord = Omit<Tables<'trips'>, 'status'> & {
+    status: TripStatus;
+    start_time: string;
+    end_time: string | null;
+    actual_distance_km: number | null;
+    has_anomaly: boolean;
+    vehicles?: { id: string; plate: string; brand: string; model: string } | null;
+    drivers?: { id: string; name: string } | null;
+};
+
+// Fueling decorada pela camada de API: aliases date/supplier_name + relações.
+export type RefuelingRecord = Tables<'fuelings'> & {
+    date: string;
+    supplier_name: string;
+    drivers?: { id: string; name: string } | null;
+    station_relation?: { id: string; name: string; code: string | null } | null;
 };
 
 export interface DepartmentOverview {
@@ -76,7 +102,7 @@ export interface DepartmentTripRecord {
     destination: string;
     // Compat: 'start_time' é alias de 'start_at' do banco unificado, preservado para o restante do web.
     start_time: string;
-    status: Enums<'trip_status'>;
+    status: TripStatus;
     actual_distance_km: number | null;
     has_anomaly: boolean | null;
     vehicles?: {
@@ -121,8 +147,8 @@ export interface DepartmentMaintenanceRecord {
     type: string;
     category: string;
     description: string;
-    // Status já em pt-BR do banco unificado.
-    status: Enums<'service_order_status'>;
+    // Status já mapeado para o enum EN que o web usa (PENDING|APPROVED|...).
+    status: MaintenanceStatus;
     actual_cost: number | null;
     estimated_cost: number | null;
     vehicles?: {
@@ -341,7 +367,7 @@ export const vehiclesApi = {
         return decorateVehicle(data as Record<string, unknown>);
     },
 
-    create: async (vehicle: TablesInsert<'vehicles'>): Promise<Tables<'vehicles'>> => {
+    create: async (vehicle: TablesInsert<'vehicles'>): Promise<VehicleRecord> => {
         // O resto do web fala UPPERCASE EN ('DIESEL', 'AVAILABLE'); o banco aceita
         // só os enums em pt-BR/lowercase. Convertemos no boundary.
         const payload: TablesInsert<'vehicles'> = {
@@ -362,7 +388,7 @@ export const vehiclesApi = {
         return decorateVehicle(data as Record<string, unknown>);
     },
 
-    update: async (id: string, updates: TablesUpdate<'vehicles'>): Promise<Tables<'vehicles'>> => {
+    update: async (id: string, updates: TablesUpdate<'vehicles'>): Promise<VehicleRecord> => {
         const payload: TablesUpdate<'vehicles'> = {
             ...updates,
             ...(updates.fuel_type !== undefined && {
@@ -523,22 +549,17 @@ export const driversApi = {
 
 // Decora um trip com aliases retro-compatíveis (status em UPPERCASE EN,
 // start_time/end_time/actual_distance_km/has_anomaly/drivers.name).
-function decorateTrip(row: Record<string, unknown>) {
+function decorateTrip(row: Record<string, unknown>): TripRecord {
     const drv = row.profiles as { id: string; full_name: string } | null;
-    const s = row.status as string | null;
-    const statusEn = s === 'andamento' ? 'IN_PROGRESS'
-        : s === 'concluida' ? 'COMPLETED'
-        : s === 'problema' ? 'CANCELLED'
-        : 'IN_PROGRESS';
     return {
         ...row,
         start_time: row.start_at as string,
         end_time: row.end_at as string | null,
         actual_distance_km: (row.distance_km as number | null) ?? null,
         has_anomaly: row.status === 'problema',
-        status: statusEn,
+        status: dbToWebTripStatus(row.status as Enums<'trip_status'>),
         drivers: drv ? { id: drv.id, name: drv.full_name } : null,
-    };
+    } as unknown as TripRecord;
 }
 
 export const tripsApi = {
@@ -551,7 +572,7 @@ export const tripsApi = {
         hasAnomaly?: boolean;
         page?: number;
         limit?: number;
-    }): Promise<Tables<'trips'>[]> => {
+    }): Promise<TripRecord[]> => {
         let query = supabase
             .from('trips')
             .select('*, vehicles(id, plate, brand, model), profiles!trips_driver_id_fkey(id, full_name)')
@@ -572,17 +593,17 @@ export const tripsApi = {
 
         const { data, error } = await query;
         if (error) handleError(error);
-        return (data ?? []).map((r) => decorateTrip(r as Record<string, unknown>)) as unknown as Tables<'trips'>[];
+        return (data ?? []).map((r) => decorateTrip(r as Record<string, unknown>));
     },
 
-    getById: async (id: string): Promise<Tables<'trips'>> => {
+    getById: async (id: string): Promise<TripRecord> => {
         const { data, error } = await supabase
             .from('trips')
             .select('*, vehicles(id, plate, brand, model), profiles!trips_driver_id_fkey(id, full_name)')
             .eq('id', id)
             .single();
         if (error) handleError(error);
-        return decorateTrip(data as Record<string, unknown>) as unknown as Tables<'trips'>;
+        return decorateTrip(data as Record<string, unknown>);
     },
 
     // Pontos GPS registrados ao longo da viagem (para desenhar o traçado/rota no mapa).
@@ -818,7 +839,7 @@ export const infractionsApi = {
 // ========================================
 
 // Decora um fueling com aliases (date, supplier_name, drivers.name) + dados do posto/autorização.
-function decorateFueling(row: Record<string, unknown>) {
+function decorateFueling(row: Record<string, unknown>): RefuelingRecord {
     const drv = row.profiles as { id: string; full_name: string } | null;
     const station = (row as { fuel_stations?: { id: string; name: string; code: string | null } | null }).fuel_stations ?? null;
     return {
@@ -827,7 +848,7 @@ function decorateFueling(row: Record<string, unknown>) {
         supplier_name: (row.station as string | null) ?? station?.name ?? '',
         drivers: drv ? { id: drv.id, name: drv.full_name } : null,
         station_relation: station,
-    };
+    } as unknown as RefuelingRecord;
 }
 
 // "refuelings" no banco unificado = fuelings (já com colunas de validação/anomalia)
@@ -841,7 +862,7 @@ export const refuelingsApi = {
         workflowStatus?: 'autorizado' | 'concluido' | 'rejeitado_motorista' | 'validado' | 'rejeitado_admin' | 'lancado_direto';
         page?: number;
         limit?: number;
-    }): Promise<Tables<'fuelings'>[]> => {
+    }): Promise<RefuelingRecord[]> => {
         let query = supabase
             .from('fuelings')
             .select('*, vehicles(id, plate, brand, model, photo_url), profiles!fuelings_driver_id_fkey(id, full_name), fuel_stations(id, name, code)')
@@ -861,17 +882,17 @@ export const refuelingsApi = {
 
         const { data, error } = await query;
         if (error) handleError(error);
-        return (data ?? []).map((r) => decorateFueling(r as Record<string, unknown>)) as unknown as Tables<'fuelings'>[];
+        return (data ?? []).map((r) => decorateFueling(r as Record<string, unknown>));
     },
 
-    getById: async (id: string): Promise<Tables<'fuelings'>> => {
+    getById: async (id: string): Promise<RefuelingRecord> => {
         const { data, error } = await supabase
             .from('fuelings')
             .select('*, vehicles(id, plate, brand, model), profiles!fuelings_driver_id_fkey(id, full_name)')
             .eq('id', id)
             .single();
         if (error) handleError(error);
-        return decorateFueling(data as Record<string, unknown>) as unknown as Tables<'fuelings'>;
+        return decorateFueling(data as Record<string, unknown>);
     },
 
     validate: async (id: string, approved: boolean, validatedBy: string, notes?: string) => {
@@ -1392,14 +1413,17 @@ export const departmentsApi = {
         if (vehiclesResult.error) handleError(vehiclesResult.error);
         if (driversResult.error) handleError(driversResult.error);
 
-        const vehicles = (vehiclesResult.data || []) as VehicleRecord[];
-        const drivers = (driversResult.data || []) as DriverRecord[];
+        // Dados crus (status pt-BR) para o agregador; versões decoradas (status EN) para a UI.
+        const vehiclesRaw = (vehiclesResult.data || []) as unknown as Tables<'vehicles'>[];
+        const driversRaw = (driversResult.data || []) as unknown as Tables<'profiles'>[];
+        const vehicles = vehiclesRaw.map((v) => decorateVehicle(v as unknown as Record<string, unknown>));
+        const drivers = driversRaw.map((d) => decorateDriver(d as unknown as Record<string, unknown>));
         const vehicleIds = vehicles.map((vehicle) => vehicle.id);
 
         if (vehicleIds.length === 0) {
             return {
                 department: departmentResult.data,
-                overview: buildDepartmentOverview(departmentResult.data, [], drivers, [], [], [], 0),
+                overview: buildDepartmentOverview(departmentResult.data, [], driversRaw, [], [], [], 0),
                 vehicles,
                 drivers,
                 recentTrips: [],
@@ -1458,7 +1482,7 @@ export const departmentsApi = {
                 id: t.id as string,
                 destination: t.destination as string,
                 start_time: t.start_at as string,
-                status: t.status as Enums<'trip_status'>,
+                status: dbToWebTripStatus(t.status as Enums<'trip_status'>),
                 actual_distance_km: (t.distance_km as number | null) ?? null,
                 has_anomaly: t.status === 'problema',
                 vehicles: t.vehicles as DepartmentTripRecord['vehicles'],
@@ -1488,7 +1512,7 @@ export const departmentsApi = {
                 type: mapped.type,
                 category: mapped.category,
                 description: (m.description as string) ?? '',
-                status: m.status as Enums<'service_order_status'>,
+                status: dbToWebMaintenanceStatus(m.status as Enums<'service_order_status'>),
                 actual_cost: null,
                 estimated_cost: null,
                 vehicles: m.vehicles as DepartmentMaintenanceRecord['vehicles'],
@@ -1530,13 +1554,14 @@ export const departmentsApi = {
 
         return {
             department: departmentResult.data,
+            // O agregador trabalha com os valores crus pt-BR do banco (start_at/created_at/status pt-BR).
             overview: buildDepartmentOverview(
                 departmentResult.data,
-                vehicles,
-                drivers,
-                trips,
-                refuelings,
-                maintenances,
+                vehiclesRaw,
+                driversRaw,
+                (tripsResult.data || []) as unknown as OverviewTripSlice[],
+                (refuelingsResult.data || []) as unknown as OverviewFuelingSlice[],
+                (maintenancesResult.data || []) as unknown as OverviewMaintenanceSlice[],
                 checklistIssues,
             ),
             vehicles,
@@ -1965,7 +1990,7 @@ export const stationsApi = {
         const vehMap = new Map<string, { vehicleId: string; plate: string | null; brand: string | null; model: string | null; totalCost: number; liters: number }>();
         for (const r of all) {
             if (!r.vehicle_id) continue;
-            const v = (r as { vehicles?: { plate: string | null; brand: string | null; model: string | null } | null }).vehicles;
+            const v = (r as unknown as { vehicles?: { plate: string | null; brand: string | null; model: string | null } | null }).vehicles;
             const cur = vehMap.get(r.vehicle_id) ?? {
                 vehicleId: r.vehicle_id, plate: v?.plate ?? null, brand: v?.brand ?? null, model: v?.model ?? null,
                 totalCost: 0, liters: 0,

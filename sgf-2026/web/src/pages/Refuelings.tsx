@@ -47,6 +47,8 @@ function workflowBadge(status: WorkflowStatus | null | undefined): { label: stri
 }
 
 type RefuelingWithRelations = Tables<'fuelings'> & {
+    // Alias adicionado por decorateFueling (created_at → date).
+    date?: string | null;
     vehicles?: { plate: string; brand?: string | null; model?: string | null; photo_url?: string | null } | null;
     drivers?: { name: string } | null;
     station_relation?: { id: string; name: string; code: string | null } | null;
@@ -122,7 +124,7 @@ export default function Refuelings() {
 
             return {
                 id: row.id,
-                date: (row as { date: string | null }).date,
+                date: row.date ?? null,
                 vehicle: row.vehicles?.plate || 'Sem placa',
                 vehicleModel: vehicleModel || 'Sem veículo',
                 vehiclePhoto: row.vehicles?.photo_url ?? null,

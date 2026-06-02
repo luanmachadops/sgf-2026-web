@@ -17,14 +17,12 @@ import {
 import { formatDate, formatDateTime, formatDistance, getStatusLabel, getStatusColor } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useTrips } from '@/hooks/useTrips';
-import type { Tables } from '@/types/database.types';
+import type { TripRecord } from '@/lib/supabase-api';
+import type { TripStatus } from '@/types';
 
 type TripStatusBadge = 'default' | 'success' | 'warning' | 'error' | 'info';
 
-type TripWithRelations = Tables<'trips'> & {
-    vehicles?: { plate: string } | null;
-    drivers?: { name: string } | null;
-};
+type TripWithRelations = TripRecord;
 
 type TripRow = {
     id: string;
@@ -36,7 +34,7 @@ type TripRow = {
     distance: number;
     duration: number;
     purpose: string;
-    status: Tables<'trips'>['status'];
+    status: TripStatus;
     hasAnomaly: boolean;
 };
 
@@ -68,7 +66,7 @@ export default function Trips() {
     const { setTitle, setDescription } = useHeader();
 
     const { data: rawTrips = [] } = useTrips({
-        status: statusFilter || undefined,
+        status: (statusFilter || undefined) as TripStatus | undefined,
         hasAnomaly: showAnomaliesOnly || undefined,
     });
 

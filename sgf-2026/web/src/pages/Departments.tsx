@@ -538,7 +538,7 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} />
                                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} tickFormatter={(value) => `${Math.round(value)} km`} />
-                                <Tooltip formatter={(value: number, _name, props: { dataKey?: string }) => props.dataKey === 'trips' ? `${value} viagens` : formatDistance(value)} />
+                                <Tooltip formatter={(value: number, _name, item) => (item as { dataKey?: string })?.dataKey === 'trips' ? `${value} viagens` : formatDistance(value)} />
                                 <Bar dataKey="totalKm" radius={[10, 10, 0, 0]} fill="#3B82F6" barSize={28} />
                             </BarChart>
                         </ResponsiveContainer>

@@ -40,7 +40,7 @@ export function useUpdateDriver() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ id, data }: { id: string; data: TablesUpdate<'drivers'> }) =>
+        mutationFn: ({ id, data }: { id: string; data: TablesUpdate<'profiles'> }) =>
             driversApi.update(id, data),
         onSuccess: (_, { id }) => {
             queryClient.invalidateQueries({ queryKey: ['drivers'] });
