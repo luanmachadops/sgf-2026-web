@@ -198,7 +198,9 @@ export default function Dashboard() {
                 </div>
 
                 <div className="mt-10">
-                    <SGFCard padding="lg" className="overflow-hidden min-h-[400px]">
+                    {/* Altura explícita: o ResponsiveContainer do recharts precisa de um
+                        pai com altura definida — só min-h não resolve o h-full interno. */}
+                    <SGFCard padding="lg" className="overflow-hidden h-[460px]">
                         <DepartmentConsumptionChart />
                     </SGFCard>
                 </div>
