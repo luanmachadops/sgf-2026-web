@@ -1,5 +1,5 @@
-import { createDriver } from '../_lib/driver-access.js';
-import { getCaller, assertCanManageDrivers, resolveScopedDepartment } from '../_lib/caller.js';
+import { createManager } from '../_lib/manager-access.js';
+import { getCaller } from '../_lib/caller.js';
 
 function sendJson(res: any, status: number, body: unknown) {
     res.status(status).json(body);
@@ -9,7 +9,6 @@ function parseBody(req: any) {
     if (typeof req.body === 'string') {
         return JSON.parse(req.body);
     }
-
     return req.body ?? {};
 }
 
@@ -20,17 +19,16 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
+        // Apenas o ADMIN cria usuários do painel (secretários/gestores).
         const caller = await getCaller(req);
-        assertCanManageDrivers(caller);
+        if (!caller) throw Object.assign(new Error('Não autenticado'), { status: 401 });
+        if (caller.role !== 'admin') throw Object.assign(new Error('Apenas o administrador pode criar secretários'), { status: 403 });
 
-        const body = parseBody(req);
-        body.departmentId = resolveScopedDepartment(caller, body.departmentId);
-
-        const driver = await createDriver(body);
-        return sendJson(res, 201, driver);
+        const manager = await createManager(parseBody(req));
+        return sendJson(res, 201, manager);
     } catch (error) {
         const status = (error as any)?.status ?? 400;
-        const message = error instanceof Error ? error.message : 'Erro ao criar motorista';
+        const message = error instanceof Error ? error.message : 'Erro ao criar acesso';
         return sendJson(res, status, { message });
     }
 }

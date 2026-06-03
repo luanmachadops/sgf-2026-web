@@ -15,6 +15,7 @@ interface AuthContextType {
     token: string | null;
     login: (email: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
+    refreshUser: () => Promise<void>;
     isLoading: boolean;
 }
 
@@ -55,6 +56,7 @@ function mapDbRole(dbRole: string | null | undefined): User['role'] {
     switch ((dbRole ?? '').toLowerCase()) {
         case 'admin': return 'ADMIN';
         case 'gestor': return 'MANAGER';
+        case 'secretario': return 'MANAGER'; // capacidades de gestor, porém escopado por secretaria (via RLS)
         case 'motorista': return 'VIEWER';
         default: return 'VIEWER';
     }
@@ -67,7 +69,7 @@ function mapDbRole(dbRole: string | null | undefined): User['role'] {
 async function fetchUserProfile(authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }): Promise<User> {
     const { data: profile, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, department_id, created_at, departments(id, name)')
+        .select('id, full_name, email, role, department_id, created_at, photo_url, departments(id, name)')
         .eq('id', authUser.id)
         .maybeSingle();
 
@@ -80,6 +82,8 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
             role: mapDbRole(profile.role),
             departmentId: profile.department_id || undefined,
             departmentName: dept?.name,
+            photoUrl: profile.photo_url || undefined,
+            departmentScopeId: profile.role === 'secretario' ? (profile.department_id || undefined) : undefined,
             createdAt: profile.created_at || new Date().toISOString(),
         };
     }
@@ -254,6 +258,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    // Recarrega o perfil do usuário logado (ex.: após trocar foto/nome no /perfil).
+    const refreshUser = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) return;
+        const userData = await fetchUserProfile(session.user);
+        setUser(userData);
+        persistAuthState(userData, session.access_token);
+    };
+
     const logout = async () => {
         // Clear local state immediately — don't let a hanging signOut block the user
         setUser(null);
@@ -269,7 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+        <AuthContext.Provider value={{ user, token, login, logout, refreshUser, isLoading }}>
             {children}
         </AuthContext.Provider>
     );

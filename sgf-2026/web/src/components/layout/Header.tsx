@@ -44,7 +44,6 @@ export default function Header({ onMenuClick }: HeaderProps) {
             )}
 
             <div className="flex items-center gap-[var(--sgf-space-2)] md:gap-[var(--sgf-space-3)] shrink-0">
-                <NotificationBell />
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button
@@ -69,6 +68,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
                     <UserProfileDropdown />
                 </DropdownMenu>
+                <NotificationBell />
             </div>
           </div>
         </header>

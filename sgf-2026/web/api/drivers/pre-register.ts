@@ -1,4 +1,4 @@
-import { createDriver } from '../_lib/driver-access.js';
+import { preRegisterDriver, preRegisterDriversBulk } from '../_lib/driver-access.js';
 import { getCaller, assertCanManageDrivers, resolveScopedDepartment } from '../_lib/caller.js';
 
 function sendJson(res: any, status: number, body: unknown) {
@@ -9,7 +9,6 @@ function parseBody(req: any) {
     if (typeof req.body === 'string') {
         return JSON.parse(req.body);
     }
-
     return req.body ?? {};
 }
 
@@ -24,13 +23,23 @@ export default async function handler(req: any, res: any) {
         assertCanManageDrivers(caller);
 
         const body = parseBody(req);
-        body.departmentId = resolveScopedDepartment(caller, body.departmentId);
 
-        const driver = await createDriver(body);
+        // Import em lote: { drivers: [...] }
+        if (Array.isArray(body?.drivers)) {
+            const rows = body.drivers.map((r: any) => ({
+                ...r,
+                departmentId: resolveScopedDepartment(caller, r?.departmentId),
+            }));
+            const result = await preRegisterDriversBulk(rows);
+            return sendJson(res, 200, result);
+        }
+
+        body.departmentId = resolveScopedDepartment(caller, body.departmentId);
+        const driver = await preRegisterDriver(body);
         return sendJson(res, 201, driver);
     } catch (error) {
         const status = (error as any)?.status ?? 400;
-        const message = error instanceof Error ? error.message : 'Erro ao criar motorista';
+        const message = error instanceof Error ? error.message : 'Erro no pré-cadastro';
         return sendJson(res, status, { message });
     }
 }

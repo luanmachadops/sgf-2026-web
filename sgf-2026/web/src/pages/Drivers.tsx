@@ -19,6 +19,7 @@ import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { NewDriverForm } from '@/components/drivers/NewDriverForm';
+import { PreRegisterDriverModal } from '@/components/drivers/PreRegisterDriverModal';
 import { DriverAccessForm } from '@/components/drivers/DriverAccessForm';
 import { Modal } from '@/components/ui/Modal';
 import { useHeader } from '@/contexts/HeaderContext';
@@ -66,6 +67,7 @@ export default function Drivers() {
     const [statusFilter, setStatusFilter] = useState('');
     const [departmentFilter, setDepartmentFilter] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showPreRegister, setShowPreRegister] = useState(false);
     const [showWarning, setShowWarning] = useState(true);
     const [showExpiredModal, setShowExpiredModal] = useState(false);
     const [accessModal, setAccessModal] = useState<{
@@ -94,9 +96,14 @@ export default function Drivers() {
         setDescription('Cadastro, habilitação e acesso dos motoristas ao app.');
 
         setHeaderAction(
-            <SGFButton onClick={() => setShowAddModal(true)} icon={Users} className="!rounded-full !h-[37px]">
-                Novo Motorista
-            </SGFButton>
+            <div className="flex items-center gap-2">
+                <SGFButton variant="secondary" onClick={() => setShowPreRegister(true)} className="!rounded-full !h-[37px]">
+                    Pré-cadastro
+                </SGFButton>
+                <SGFButton onClick={() => setShowAddModal(true)} icon={Users} className="!rounded-full !h-[37px]">
+                    Novo Motorista
+                </SGFButton>
+            </div>
         );
 
         return () => {
@@ -212,7 +219,7 @@ export default function Drivers() {
                     <SGFBadge variant={getStatusColor(row.status) as any}>
                         {getStatusLabel(row.status)}
                     </SGFBadge>
-                    {!row.hasAccess && (
+                    {!row.hasAccess ? (
                         <SGFBadge
                             variant="warning"
                             icon={KeyRound}
@@ -221,7 +228,11 @@ export default function Drivers() {
                         >
                             Sem acesso
                         </SGFBadge>
-                    )}
+                    ) : row.must_change_password ? (
+                        <SGFBadge variant="info" icon={KeyRound} dot size="sm">
+                            Aguardando 1º acesso
+                        </SGFBadge>
+                    ) : null}
                 </div>
             ),
         },
@@ -430,6 +441,11 @@ export default function Drivers() {
                     onCancel={() => setShowAddModal(false)}
                 />
             </Modal>
+
+            <PreRegisterDriverModal
+                isOpen={showPreRegister}
+                onClose={() => setShowPreRegister(false)}
+            />
 
             <Modal
                 isOpen={Boolean(accessModal)}

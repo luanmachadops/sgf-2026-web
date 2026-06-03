@@ -18,8 +18,12 @@ import {
     Building2,
     Award,
     User,
+    CalendarClock,
+    LockKeyhole,
 } from '@/components/sgf/icons';
 import { EditDriverModal } from '@/components/drivers/EditDriverModal';
+import { DriverAccessForm } from '@/components/drivers/DriverAccessForm';
+import { Modal } from '@/components/ui/Modal';
 import type { Tables } from '@/types/database.types';
 import { formatDate, formatCPF, formatDistance, formatPhone, formatPlate } from '@/lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
@@ -47,6 +51,7 @@ function getLicenseStatus(expiryDate: string | null | undefined) {
 export default function DriverDetails() {
     const { id } = useParams<{ id: string }>();
     const [isEditOpen, setEditOpen] = useState(false);
+    const [isResetOpen, setResetOpen] = useState(false);
 
     const { data: driver, isLoading, isError } = useQuery({
         queryKey: ['driver', id],
@@ -110,6 +115,8 @@ export default function DriverDetails() {
         id: string;
         full_name: string;
         cpf: string | null;
+        birth_date: string | null;
+        must_change_password: boolean | null;
         email: string | null;
         phone: string | null;
         cnh_number: string | null;
@@ -142,10 +149,14 @@ export default function DriverDetails() {
                         <h1 className="text-2xl font-bold text-slate-900 truncate flex items-center gap-3">
                             {d.full_name}
                             {d.on_duty ? <SGFBadge variant="info">Em serviço</SGFBadge> : null}
+                            {d.must_change_password
+                                ? <SGFBadge variant="warning">Aguardando 1º acesso</SGFBadge>
+                                : <SGFBadge variant="success">Acesso ativo</SGFBadge>}
                         </h1>
                     </div>
                 </div>
-                <div className="flex shrink-0 justify-end">
+                <div className="flex shrink-0 justify-end gap-2">
+                    <SGFButton variant="secondary" icon={LockKeyhole} onClick={() => setResetOpen(true)}>Gerar nova senha</SGFButton>
                     <SGFButton icon={Edit2} onClick={() => setEditOpen(true)}>Editar</SGFButton>
                 </div>
             </div>
@@ -226,6 +237,7 @@ export default function DriverDetails() {
                                     {[
                                         { label: 'Nome completo', value: d.full_name },
                                         { label: 'CPF', value: formatCPF(d.cpf) || '—' },
+                                        { label: 'Nascimento', value: d.birth_date ? formatDate(d.birth_date) : '—', icon: CalendarClock },
                                         { label: 'Telefone', value: formatPhone(d.phone) || '—', icon: Phone },
                                         { label: 'E-mail', value: d.email ?? '—', icon: Mail },
                                         { label: 'Matrícula', value: d.registration_number ?? '—' },
@@ -299,6 +311,21 @@ export default function DriverDetails() {
                 onClose={() => setEditOpen(false)}
                 driver={driver as unknown as Tables<'profiles'>}
             />
+
+            <Modal
+                isOpen={isResetOpen}
+                onClose={() => setResetOpen(false)}
+                title="Gerar nova senha"
+                description="Defina uma nova senha de acesso para este motorista."
+                size="md"
+            >
+                <DriverAccessForm
+                    driver={driver}
+                    mode="reset"
+                    onSuccess={() => setResetOpen(false)}
+                    onCancel={() => setResetOpen(false)}
+                />
+            </Modal>
         </div>
     );
 }

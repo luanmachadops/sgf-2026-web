@@ -494,6 +494,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          birth_date: string | null
+          must_change_password: boolean
           cnh_category: string | null
           cnh_ear: boolean
           cnh_expiry: string | null
@@ -517,6 +519,8 @@ export type Database = {
           shift_start: string | null
         }
         Insert: {
+          birth_date?: string | null
+          must_change_password?: boolean
           cnh_category?: string | null
           cnh_ear?: boolean
           cnh_expiry?: string | null
@@ -540,6 +544,8 @@ export type Database = {
           shift_start?: string | null
         }
         Update: {
+          birth_date?: string | null
+          must_change_password?: boolean
           cnh_category?: string | null
           cnh_ear?: boolean
           cnh_expiry?: string | null

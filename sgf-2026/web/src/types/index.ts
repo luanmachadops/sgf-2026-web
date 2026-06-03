@@ -8,6 +8,8 @@ export interface User {
     departmentName?: string;
     createdAt: string;
     photoUrl?: string;
+    /** Definido apenas para 'secretário': trava o usuário à sua secretaria (escopo). */
+    departmentScopeId?: string;
 }
 
 export interface LoginResponse {
