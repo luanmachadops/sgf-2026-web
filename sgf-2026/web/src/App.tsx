@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import PrivateRoute from '@/components/auth/PrivateRoute';
 import MainLayout from '@/components/layout/MainLayout';
+import { Toaster } from '@/components/ui/sonner';
 
 // Pages
 import Login from '@/pages/Login';
@@ -39,6 +40,7 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <Toaster richColors closeButton position="top-right" />
       <BrowserRouter>
         <AuthProvider>
           <Routes>

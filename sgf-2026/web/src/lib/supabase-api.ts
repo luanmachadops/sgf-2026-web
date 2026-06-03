@@ -2119,3 +2119,50 @@ export const edgeFunctionsApi = {
         return data as TripAnomalyResult;
     },
 };
+
+// ========================================
+// NOTIFICATIONS (alertas para admin/gestor)
+// ========================================
+
+// Destinatário = driver_id (= auth.users.id). Vale para admin/gestor e motoristas.
+export type NotificationRecord = Tables<'notifications'>;
+
+export const notificationsApi = {
+    list: async (userId: string, limit = 30): Promise<NotificationRecord[]> => {
+        const { data, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('driver_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+        if (error) handleError(error);
+        return (data ?? []) as NotificationRecord[];
+    },
+
+    unreadCount: async (userId: string): Promise<number> => {
+        const { count, error } = await supabase
+            .from('notifications')
+            .select('id', { count: 'exact', head: true })
+            .eq('driver_id', userId)
+            .eq('read', false);
+        if (error) handleError(error);
+        return count ?? 0;
+    },
+
+    markRead: async (id: string): Promise<void> => {
+        const { error } = await supabase
+            .from('notifications')
+            .update({ read: true })
+            .eq('id', id);
+        if (error) handleError(error);
+    },
+
+    markAllRead: async (userId: string): Promise<void> => {
+        const { error } = await supabase
+            .from('notifications')
+            .update({ read: true })
+            .eq('driver_id', userId)
+            .eq('read', false);
+        if (error) handleError(error);
+    },
+};

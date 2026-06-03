@@ -7,6 +7,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import UserProfileDropdown from './UserProfileDropdown';
+import NotificationBell from './NotificationBell';
 
 interface HeaderProps {
     onMenuClick: () => void;
@@ -42,7 +43,8 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 </div>
             )}
 
-            <div className="flex items-center gap-[var(--sgf-space-4)] shrink-0">
+            <div className="flex items-center gap-[var(--sgf-space-2)] md:gap-[var(--sgf-space-3)] shrink-0">
+                <NotificationBell />
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button

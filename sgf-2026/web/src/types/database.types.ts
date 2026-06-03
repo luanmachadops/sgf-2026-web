@@ -458,7 +458,10 @@ export type Database = {
           body: string
           created_at: string
           driver_id: string
+          entity_id: string | null
+          entity_type: string | null
           id: string
+          link: string | null
           read: boolean
           title: string
           type: string
@@ -467,7 +470,10 @@ export type Database = {
           body: string
           created_at?: string
           driver_id: string
+          entity_id?: string | null
+          entity_type?: string | null
           id?: string
+          link?: string | null
           read?: boolean
           title: string
           type: string
@@ -476,7 +482,10 @@ export type Database = {
           body?: string
           created_at?: string
           driver_id?: string
+          entity_id?: string | null
+          entity_type?: string | null
           id?: string
+          link?: string | null
           read?: boolean
           title?: string
           type?: string
