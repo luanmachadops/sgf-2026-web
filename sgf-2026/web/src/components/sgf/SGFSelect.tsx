@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { CaretDown, Check } from './icons';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +28,8 @@ export interface SGFSelectProps {
   id?: string;
 }
 
+const MENU_MAX_HEIGHT = 240;
+
 export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
   (
     {
@@ -49,16 +52,55 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
   ) => {
     const [isOpen, setIsOpen] = useState(false);
     const [internalValue, setInternalValue] = useState(defaultValue || '');
+    const [coords, setCoords] = useState<{ left: number; width: number; top?: number; bottom?: number; maxHeight: number }>({ left: 0, width: 0, maxHeight: MENU_MAX_HEIGHT });
     const containerRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
     const selectId = id || `select-${Math.random().toString(36).substr(2, 9)}`;
 
     const currentValue = controlledValue !== undefined ? controlledValue : internalValue;
     const selectedOption = options.find((opt) => opt.value === currentValue);
 
-    // Close on click outside
+    // Posiciona o menu (portal) a partir do gatilho; abre para cima se faltar espaço.
+    const updatePosition = useCallback(() => {
+      const el = triggerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const openUp = spaceBelow < Math.min(MENU_MAX_HEIGHT, 200) && spaceAbove > spaceBelow;
+      const maxHeight = Math.max(120, Math.min(MENU_MAX_HEIGHT, (openUp ? spaceAbove : spaceBelow) - 16));
+      setCoords({
+        left: rect.left,
+        width: rect.width,
+        maxHeight,
+        ...(openUp
+          ? { bottom: window.innerHeight - rect.top + 8 }
+          : { top: rect.bottom + 8 }),
+      });
+    }, []);
+
+    // Recalcula ao abrir + em scroll/resize.
+    useEffect(() => {
+      if (!isOpen) return;
+      updatePosition();
+      const onScroll = () => updatePosition();
+      window.addEventListener('scroll', onScroll, true);
+      window.addEventListener('resize', onScroll);
+      return () => {
+        window.removeEventListener('scroll', onScroll, true);
+        window.removeEventListener('resize', onScroll);
+      };
+    }, [isOpen, updatePosition]);
+
+    // Fecha ao clicar fora (considerando o gatilho E o menu no portal).
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
-        if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        const target = event.target as Node;
+        if (
+          containerRef.current && !containerRef.current.contains(target) &&
+          menuRef.current && !menuRef.current.contains(target)
+        ) {
           setIsOpen(false);
         }
       };
@@ -88,7 +130,11 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
         )}
 
         <div
-          ref={ref}
+          ref={(node) => {
+            triggerRef.current = node;
+            if (typeof ref === 'function') ref(node);
+            else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+          }}
           id={selectId}
           onClick={() => !disabled && setIsOpen(!isOpen)}
           className={cn(
@@ -118,12 +164,19 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
           />
         </div>
 
-        {/* Dropdown Menu */}
-        {isOpen && (
+        {/* Dropdown Menu — renderizado em portal para não ser cortado por modais/overflow */}
+        {isOpen && createPortal(
           <div
-            className="absolute top-full left-0 right-0 mt-[var(--sgf-space-2)] z-[100] bg-white rounded-3xl border border-slate-100 shadow-[var(--sgf-shadow-lg)] overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200"
+            ref={menuRef}
+            className="fixed z-[2000] bg-white rounded-2xl border border-slate-100 shadow-[var(--sgf-shadow-lg)] overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150"
+            style={{
+              left: coords.left,
+              width: coords.width,
+              ...(coords.top !== undefined ? { top: coords.top } : {}),
+              ...(coords.bottom !== undefined ? { bottom: coords.bottom } : {}),
+            }}
           >
-            <div className="max-h-52 overflow-y-auto p-1.5 space-y-0.5 custom-scrollbar">
+            <div className="overflow-y-auto p-1.5 space-y-0.5 custom-scrollbar" style={{ maxHeight: coords.maxHeight }}>
               {options.map((option) => (
                 <div
                   key={option.value}
@@ -163,7 +216,8 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
                 </div>
               )}
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {error && (

@@ -627,11 +627,17 @@ export interface LiveVehicle {
     plate: string;
     driver: string;
     department: string;
+    vehicleModel: string;
+    photo: string | null;
     lat: number;
     lng: number;
     speed: number;
     status: 'moving' | 'idle' | 'alert';
     recordedAt: string | null;
+    // Viagem associada (para o modal de detalhes)
+    tripId: string;
+    destination: string;
+    startAt: string | null;
 }
 
 export const mapApi = {
@@ -639,7 +645,7 @@ export const mapApi = {
     getLiveVehicles: async (): Promise<LiveVehicle[]> => {
         const { data: trips, error } = await supabase
             .from('trips')
-            .select('id, status, vehicle_id, vehicles(plate, brand, model, departments(name)), profiles!trips_driver_id_fkey(full_name)')
+            .select('id, status, vehicle_id, destination, start_at, vehicles(plate, brand, model, photo_url, departments(name)), profiles!trips_driver_id_fkey(full_name)')
             .in('status', ['andamento', 'problema']);
         if (error) handleError(error);
 
@@ -666,7 +672,7 @@ export const mapApi = {
         for (const t of activeTrips) {
             const loc = latestByTrip.get(t.id);
             if (!loc) continue; // sem posição registrada ainda
-            const v = t.vehicles as { plate?: string | null; departments?: { name?: string } | null } | null;
+            const v = t.vehicles as { plate?: string | null; brand?: string | null; model?: string | null; photo_url?: string | null; departments?: { name?: string } | null } | null;
             const driver = (t.profiles as { full_name?: string } | null)?.full_name ?? 'Sem motorista';
             const speed = Number(loc.speed ?? 0);
             const status: LiveVehicle['status'] = t.status === 'problema' ? 'alert' : speed > 0 ? 'moving' : 'idle';
@@ -675,11 +681,16 @@ export const mapApi = {
                 plate: v?.plate ?? 'Sem placa',
                 driver,
                 department: v?.departments?.name ?? '—',
+                vehicleModel: [v?.brand, v?.model].filter(Boolean).join(' ') || 'Veículo',
+                photo: v?.photo_url ?? null,
                 lat: Number(loc.lat),
                 lng: Number(loc.lng),
                 speed,
                 status,
                 recordedAt: loc.recorded_at ?? null,
+                tripId: t.id,
+                destination: (t as { destination?: string }).destination ?? '—',
+                startAt: (t as { start_at?: string | null }).start_at ?? null,
             });
         }
         return result;
