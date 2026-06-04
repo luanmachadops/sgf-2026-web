@@ -13,6 +13,8 @@ import {
     PieChart,
     Clock,
     Receipt,
+    Search,
+    X,
 } from '@/components/sgf/icons';
 import { cn } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
@@ -213,16 +215,37 @@ export default function Reports() {
                     })}
                 </div>
 
-                {searchTerm && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-right-4 duration-500">
-                        <span className="text-[10px] uppercase font-black">Filtrando por:</span>
-                        <span className="text-sm font-bold italic">"{searchTerm}"</span>
-                        <button onClick={() => setSearchTerm('')} className="p-0.5 hover:bg-emerald-100 rounded-full transition-colors">
-                            <Clock className="h-3 w-3 rotate-45" />
+                {/* Busca (padrão do site: input arredondado com ícone) */}
+                <div className="group relative w-full shrink-0 sm:w-72">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[var(--sgf-primary)]" />
+                    <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Buscar relatório..."
+                        className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-9 text-sm font-medium text-slate-700 shadow-[var(--sgf-shadow-xs)] transition-all placeholder:text-slate-400 hover:border-[var(--sgf-primary)]/50 hover:bg-slate-50/50 focus:border-[var(--sgf-primary)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[var(--sgf-primary)]/10"
+                    />
+                    {searchTerm && (
+                        <button
+                            type="button"
+                            onClick={() => setSearchTerm('')}
+                            aria-label="Limpar busca"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                        >
+                            <X className="h-3.5 w-3.5" />
                         </button>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
+
+            {/* Estado vazio quando a busca não encontra relatórios */}
+            {filteredReports.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 py-12 text-center">
+                    <p className="text-sm font-medium text-slate-400">
+                        Nenhum relatório encontrado{searchTerm ? ` para "${searchTerm}"` : ''}.
+                    </p>
+                </div>
+            )}
 
             {/* Reports Grid */}
             <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
