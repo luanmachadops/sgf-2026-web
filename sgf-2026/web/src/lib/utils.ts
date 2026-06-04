@@ -33,15 +33,17 @@ export function formatDistance(km: number): string {
 /**
  * Format date to Brazilian format
  */
-export function formatDate(date: Date | string, formatStr: string = 'dd/MM/yyyy'): string {
+export function formatDate(date: Date | string | null | undefined, formatStr: string = 'dd/MM/yyyy'): string {
+    if (!date) return '—';
     const dateObj = typeof date === 'string' ? new Date(date) : date;
+    if (Number.isNaN(dateObj.getTime())) return '—';
     return dateFnsFormat(dateObj, formatStr, { locale: ptBR });
 }
 
 /**
  * Format date time to Brazilian format
  */
-export function formatDateTime(date: Date | string): string {
+export function formatDateTime(date: Date | string | null | undefined): string {
     return formatDate(date, 'dd/MM/yyyy HH:mm');
 }
 

@@ -246,7 +246,7 @@ export default function Reports() {
                                 {/* Subtle Background Pattern */}
                                 <div className={cn(
                                     "absolute -right-6 -top-6 h-32 w-32 rounded-full blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-500",
-                                    categoryColors[report.category].split(' ')[0]
+                                    (categoryColors[report.category] || '').split(' ')[0]
                                 )} />
 
                                 <div className="relative z-10 flex h-full flex-col">
