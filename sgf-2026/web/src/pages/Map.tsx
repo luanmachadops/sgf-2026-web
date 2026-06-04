@@ -114,8 +114,10 @@ export default function MapPage() {
     const { data: vehicles = [], isLoading } = useQuery({
         queryKey: ['map', 'live-vehicles'],
         queryFn: () => mapApi.getLiveVehicles(),
-        // Realtime cuida da atualização instantânea; este intervalo é só rede de segurança.
-        refetchInterval: 60_000,
+        // Realtime cuida da atualização instantânea; este intervalo é rede de segurança
+        // (garante atualização automática mesmo se o realtime oscilar) e roda em background.
+        refetchInterval: 15_000,
+        refetchIntervalInBackground: true,
     });
 
     // Realtime: qualquer mudança em live_positions (viagem iniciou / veículo se moveu /
