@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useEffect, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { MapContainer, TileLayer, Marker, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import { SGFCard } from '@/components/sgf/SGFCard';
@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Car, Navigation, Search, User, Building2, MapPin, Clock, AlertTriangle } from '@/components/sgf/icons';
 import { cn, formatDateTime } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
+import { supabase } from '@/lib/supabase';
 import { mapApi, type LiveVehicle } from '@/lib/supabase-api';
 import 'leaflet/dist/leaflet.css';
 
@@ -107,11 +108,43 @@ export default function MapPage() {
     const [mobileView, setMobileView] = useState<'map' | 'list'>('map');
     const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler } = useHeader();
 
+    const queryClient = useQueryClient();
+    const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const { data: vehicles = [], isLoading } = useQuery({
         queryKey: ['map', 'live-vehicles'],
         queryFn: () => mapApi.getLiveVehicles(),
-        refetchInterval: 30_000,
+        // Realtime cuida da atualização instantânea; este intervalo é só rede de segurança.
+        refetchInterval: 60_000,
     });
+
+    // Realtime: qualquer mudança em live_positions (viagem iniciou / veículo se moveu /
+    // viagem encerrou) atualiza o mapa SEM recarregar a página. Debounce p/ coalescer rajadas.
+    useEffect(() => {
+        const topic = 'map:live-positions';
+        for (const ch of supabase.getChannels()) {
+            if (ch.topic === `realtime:${topic}`) supabase.removeChannel(ch);
+        }
+        const scheduleRefetch = () => {
+            if (refetchTimer.current) return;
+            refetchTimer.current = setTimeout(() => {
+                refetchTimer.current = null;
+                queryClient.invalidateQueries({ queryKey: ['map', 'live-vehicles'] });
+            }, 1200);
+        };
+        const channel = supabase.channel(topic);
+        channel.on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'live_positions' },
+            scheduleRefetch,
+        );
+        channel.subscribe();
+        return () => {
+            if (refetchTimer.current) clearTimeout(refetchTimer.current);
+            refetchTimer.current = null;
+            supabase.removeChannel(channel);
+        };
+    }, [queryClient]);
 
     useEffect(() => {
         setTitle('Mapa');
