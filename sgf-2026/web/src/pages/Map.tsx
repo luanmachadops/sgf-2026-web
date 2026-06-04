@@ -133,11 +133,13 @@ export default function MapPage() {
             }, 1200);
         };
         const channel = supabase.channel(topic);
-        channel.on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'live_positions' },
-            scheduleRefetch,
-        );
+        channel
+            // viagem iniciou/encerrou
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'trips' }, scheduleRefetch)
+            // veículo se moveu (sinal contínuo de GPS) — gatilho mais confiável
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_locations' }, scheduleRefetch)
+            // posição atual por motorista (backup)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'live_positions' }, scheduleRefetch);
         channel.subscribe();
         return () => {
             if (refetchTimer.current) clearTimeout(refetchTimer.current);
