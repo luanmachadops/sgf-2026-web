@@ -246,18 +246,19 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <SGFInput label="Nome" value={name} onChange={(e) => setName(e.target.value)} fullWidth autoFocus />
-                    <SGFInput label="Código" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} hint="Curto, único." fullWidth />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SGFInput
                         label="CNPJ"
                         value={cnpj}
                         onChange={(e) => handleCnpjChange(e.target.value)}
                         placeholder="00.000.000/0000-00"
-                        hint={cnpjLoading ? 'Buscando dados do CNPJ...' : 'Preenche automaticamente ao digitar os 14 dígitos.'}
+                        hint={cnpjLoading ? 'Buscando dados do CNPJ...' : 'Digite os 14 dígitos para preencher os dados automaticamente.'}
                         fullWidth
+                        autoFocus
                     />
+                    <SGFInput label="Nome" value={name} onChange={(e) => setName(e.target.value)} fullWidth />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <SGFInput label="Código" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} hint="Curto, único." fullWidth />
                     <SGFInput label="Telefone" value={phone} onChange={(e) => setPhone(maskPhone(e.target.value))} placeholder="(00) 00000-0000" fullWidth />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
