@@ -21,8 +21,12 @@ import {
     Loader2,
     Route,
     Download,
+    Qr,
 } from '@/components/sgf/icons';
 import { EditVehicleModal } from '@/components/vehicles/EditVehicleModal';
+import { Modal } from '@/components/ui/Modal';
+import { StyledQr } from '@/components/qr/StyledQr';
+import { downloadVehicleQr } from '@/lib/vehicleQr';
 import { formatDate, formatDistance, formatCurrency, formatPlate, getStatusLabel, getStatusColor } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import {
@@ -52,6 +56,7 @@ export default function VehicleDetails() {
     const queryClient = useQueryClient();
     const [isUploading, setIsUploading] = useState(false);
     const [isEditOpen, setEditOpen] = useState(false);
+    const [isQrOpen, setQrOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // ── Veículo ────────────────────────────────────────────────────────────
@@ -255,7 +260,10 @@ export default function VehicleDetails() {
                         </h1>
                     </div>
                 </div>
-                <div className="flex shrink-0 justify-end">
+                <div className="flex shrink-0 justify-end gap-2">
+                    <SGFButton variant="secondary" icon={Qr} onClick={() => setQrOpen(true)}>
+                        QR Code
+                    </SGFButton>
                     <SGFButton icon={Edit2} onClick={() => setEditOpen(true)}>
                         Editar
                     </SGFButton>
@@ -453,6 +461,36 @@ export default function VehicleDetails() {
                 onClose={() => setEditOpen(false)}
                 vehicle={v as unknown as Tables<'vehicles'>}
             />
+
+            <Modal
+                isOpen={isQrOpen}
+                onClose={() => setQrOpen(false)}
+                title="QR Code do veículo"
+                description="Aponte a câmera do app do motorista para vincular o veículo."
+                size="sm"
+            >
+                <div className="flex flex-col items-center gap-4">
+                    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                        {v.plate ? (
+                            <StyledQr value={v.plate} size={240} />
+                        ) : (
+                            <p className="px-8 py-12 text-sm text-slate-400">Veículo sem placa cadastrada.</p>
+                        )}
+                    </div>
+                    <div className="text-center">
+                        <p className="font-mono text-lg font-bold tracking-wide text-slate-900">{v.plate ? formatPlate(v.plate) : '—'}</p>
+                        <p className="text-xs text-slate-500">{v.brand} {v.model}</p>
+                    </div>
+                    <SGFButton
+                        icon={Download}
+                        onClick={() => v.plate && downloadVehicleQr(v.plate)}
+                        disabled={!v.plate}
+                        className="w-full"
+                    >
+                        Baixar QR Code (PNG)
+                    </SGFButton>
+                </div>
+            </Modal>
         </div>
     );
 }

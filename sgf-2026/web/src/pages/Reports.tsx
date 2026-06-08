@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { SGFCard } from '@/components/sgf/SGFCard';
+import { SGFButton } from '@/components/sgf/SGFButton';
 import { ReportViewerModal } from '@/components/reports/ReportViewerModal';
 import {
     Car,
@@ -15,7 +16,9 @@ import {
     Receipt,
     Search,
     X,
+    Qr,
 } from '@/components/sgf/icons';
+import { QrLabelGenerator } from '@/components/reports/QrLabelGenerator';
 import { cn } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useEffect } from 'react';
@@ -114,6 +117,7 @@ export default function Reports() {
     const [selectedReport, setSelectedReport] = useState<Report | null>(null);
     const [categoryFilter, setCategoryFilter] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [showQrGen, setShowQrGen] = useState(false);
     const { setTitle, setDescription } = useHeader();
 
     useEffect(() => {
@@ -180,6 +184,26 @@ export default function Reports() {
                     loading={kpisLoading}
                 />
             </div>
+
+            {/* Gerador de etiquetas QR dos veículos */}
+            <SGFCard padding="lg" className="overflow-hidden border border-slate-200/80">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0F2B2F] to-[#00A86B] text-white">
+                            <Qr className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold text-slate-900">Etiquetas QR dos veículos</h3>
+                            <p className="text-sm text-slate-500">
+                                Gere etiquetas com o QR Code (placa) por secretaria e tipo, escolha o tamanho e imprima/baixe em PDF.
+                            </p>
+                        </div>
+                    </div>
+                    <SGFButton icon={Qr} onClick={() => setShowQrGen(true)} className="shrink-0">
+                        Abrir gerador
+                    </SGFButton>
+                </div>
+            </SGFCard>
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -308,6 +332,8 @@ export default function Reports() {
                     description={selectedReport.description}
                 />
             )}
+
+            <QrLabelGenerator isOpen={showQrGen} onClose={() => setShowQrGen(false)} />
         </div>
     );
 }

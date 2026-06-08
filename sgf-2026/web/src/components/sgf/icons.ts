@@ -176,3 +176,4 @@ export { WeatherSunny24Regular as Sun } from '@fluentui/react-icons';
 export { PlayCircle24Regular as Play } from '@fluentui/react-icons';
 export { Square24Regular as Stop } from '@fluentui/react-icons';
 export { QrCode24Regular as Qr } from '@fluentui/react-icons';
+export { Print24Regular as Printer } from '@fluentui/react-icons';
