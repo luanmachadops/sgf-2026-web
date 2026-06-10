@@ -16,10 +16,10 @@ interface QrLabelGeneratorProps {
 }
 
 // Tamanhos de etiqueta (mm): largura do card e lado do QR.
-const LABEL_SIZES: Record<string, { label: string; w: number; qr: number; plate: number }> = {
-    small:  { label: 'Pequena (≈45mm)', w: 45, qr: 34, plate: 11 },
-    medium: { label: 'Média (≈58mm)',   w: 58, qr: 46, plate: 13 },
-    large:  { label: 'Grande (≈72mm)',  w: 72, qr: 58, plate: 16 },
+const LABEL_SIZES: Record<string, { label: string; w: number; qr: number; plate: number; model: number }> = {
+    small:  { label: 'Pequena (≈45mm)', w: 45, qr: 34, plate: 11, model: 9 },
+    medium: { label: 'Média (≈58mm)',   w: 58, qr: 46, plate: 13, model: 10.5 },
+    large:  { label: 'Grande (≈72mm)',  w: 72, qr: 58, plate: 16, model: 13 },
 };
 
 const SHEET_SIZES: Record<string, { label: string; css: string }> = {
@@ -108,7 +108,7 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                 .label { width:${size.w}mm; border:1px solid #cbd5e1; border-radius:10px; padding:3mm 2mm; display:flex; flex-direction:column; align-items:center; gap:1.5mm; break-inside:avoid; }
                 .label img { width:${size.qr}mm; height:${size.qr}mm; display:block; }
                 .plate { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-weight:800; font-size:${size.plate}px; letter-spacing:1px; color:#0F2B2F; }
-                .model { font-size:8px; color:#64748b; text-align:center; line-height:1.2; }
+                .model { font-size:${size.model}px; color:#64748b; text-align:center; line-height:1.2; }
                 @media print { .no-print { display:none } }
               </style></head>
               <body>

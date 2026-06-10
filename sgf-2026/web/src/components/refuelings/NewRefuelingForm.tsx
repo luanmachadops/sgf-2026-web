@@ -22,7 +22,7 @@ function PhotoUpload({ label, hint, url, onChange }: { label: string; hint: stri
         if (!isImageFile(file)) { toast.error('Selecione uma imagem válida.'); return; }
         try {
             setLoading(true);
-            const blob = await resizeAndConvertToWebP(file, 1100);
+            const blob = await resizeAndConvertToWebP(file, 1000);
             const fileName = `fuelings/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
             const { error } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
             if (error) throw error;

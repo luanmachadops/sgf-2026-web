@@ -19,6 +19,7 @@ export interface CreateDriverPayload {
     email?: string;
     status?: DriverWebStatus;
     password: string;
+    tenantId?: string | null;
 }
 
 export interface DriverAccessPayload {
@@ -104,6 +105,7 @@ export async function createDriver(payload: CreateDriverPayload) {
             cpf: normalizedCpf,
             full_name: payload.name,
             type: 'driver',
+            tenant_id: payload.tenantId ?? undefined,
         },
     });
 
@@ -125,6 +127,7 @@ export async function createDriver(payload: CreateDriverPayload) {
             cnh_expiry: payload.cnhExpiryDate,
             birth_date: payload.birthDate || null,
             department_id: payload.departmentId || null,
+            ...(payload.tenantId ? { tenant_id: payload.tenantId } : {}),
             phone: payload.phone?.trim() || null,
             email: payload.email?.trim().toLowerCase() || null,
             driver_status: statusToDb(payload.status),
@@ -147,6 +150,7 @@ export interface PreRegisterDriverPayload {
     name: string;
     registrationNumber?: string;
     departmentId?: string;
+    tenantId?: string | null;
 }
 
 /**
@@ -177,7 +181,7 @@ export async function preRegisterDriver(payload: PreRegisterDriverPayload) {
         email: authEmail,
         password: normalizedCpf, // senha inicial = CPF
         email_confirm: true,
-        user_metadata: { cpf: normalizedCpf, full_name: payload.name, type: 'driver' },
+        user_metadata: { cpf: normalizedCpf, full_name: payload.name, type: 'driver', tenant_id: payload.tenantId ?? undefined },
     });
     if (authError || !authData.user) {
         throw new Error(authError?.message || 'Não foi possível criar o acesso do motorista');
@@ -191,6 +195,7 @@ export async function preRegisterDriver(payload: PreRegisterDriverPayload) {
             role: 'motorista',
             registration_number: payload.registrationNumber?.trim() || null,
             department_id: payload.departmentId || null,
+            ...(payload.tenantId ? { tenant_id: payload.tenantId } : {}),
             driver_status: 'ativo',
             must_change_password: true,
         })

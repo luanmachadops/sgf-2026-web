@@ -68,7 +68,7 @@ export default function Perfil() {
         if (!isImageFile(file)) { toast.error('Selecione uma imagem válida.'); return; }
         try {
             setUploading(true);
-            const blob = await resizeAndConvertToWebP(file, 800);
+            const blob = await resizeAndConvertToWebP(file, 512);
             const fileName = `drivers/${user.id}-${Date.now()}.webp`;
             const { error } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
             if (error) throw error;

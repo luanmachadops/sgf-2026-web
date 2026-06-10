@@ -21,7 +21,7 @@ export async function extractDriverFromCNH(files: File[]): Promise<ExtractedDriv
 
     const urls: string[] = [];
     for (const file of valid) {
-        const blob = await resizeAndConvertToWebP(file, 1400);
+        const blob = await resizeAndConvertToWebP(file, 1000);
         const fileName = `drivers/ai/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
         const { error: upErr } = await supabase.storage
             .from('fotos')

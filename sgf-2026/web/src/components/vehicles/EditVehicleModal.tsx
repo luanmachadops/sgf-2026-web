@@ -5,9 +5,10 @@ import { Modal, ModalFooter } from '@/components/ui/Modal';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
-import { FileText, Plus, X, Download, Loader2 } from '@/components/sgf/icons';
+import { FileText, Plus, X, Download, Loader2, Camera } from '@/components/sgf/icons';
 import { departmentsApi, vehiclesApi } from '@/lib/supabase-api';
 import { supabase } from '@/lib/supabase';
+import { resizeAndConvertToWebP, isImageFile, prepareUpload } from '@/lib/imageUtils';
 import type { Tables, TablesUpdate } from '@/types/database.types';
 
 // Mesma lista usada no cadastro (Novo Veículo). + "Outro" para digitar livre.
@@ -46,8 +47,11 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
     const [chassis, setChassis] = useState<string>('');
     const [documentUrl, setDocumentUrl] = useState<string>('');
     const [uploadingDoc, setUploadingDoc] = useState(false);
+    const [photoUrl, setPhotoUrl] = useState<string>('');
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const docInputRef = useRef<HTMLInputElement>(null);
+    const photoInputRef = useRef<HTMLInputElement>(null);
 
     const { data: departments = [] } = useQuery({
         queryKey: ['departments', 'list-all'],
@@ -102,6 +106,7 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
         setRenavam((vehicle as { renavam?: string | null }).renavam ?? '');
         setChassis((vehicle as { chassis?: string | null }).chassis ?? '');
         setDocumentUrl((vehicle as { document_url?: string | null }).document_url ?? '');
+        setPhotoUrl((vehicle as { photo_url?: string | null }).photo_url ?? '');
         setError(null);
     }, [isOpen, vehicle]);
 
@@ -110,10 +115,11 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
         if (!file) return;
         try {
             setUploadingDoc(true);
-            const safe = file.name.replace(/[^\w.\-]+/g, '_');
-            const fileName = `vehicle-docs/${vehicle.id}-${Date.now()}-${safe}`;
-            const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, file, {
-                contentType: file.type || 'application/pdf',
+            const prepared = await prepareUpload(file, { maxSize: 1400, quality: 0.8 });
+            const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^\w.\-]+/g, '_');
+            const fileName = `vehicle-docs/${vehicle.id}-${Date.now()}-${safe}.${prepared.ext}`;
+            const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, prepared.blob, {
+                contentType: prepared.contentType,
                 upsert: true,
             });
             if (upErr) throw upErr;
@@ -125,6 +131,27 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
         } finally {
             setUploadingDoc(false);
             if (docInputRef.current) docInputRef.current.value = '';
+        }
+    };
+
+    const uploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!isImageFile(file)) { toast.error('Selecione uma imagem válida.'); return; }
+        try {
+            setUploadingPhoto(true);
+            const blob = await resizeAndConvertToWebP(file, 1000);
+            const fileName = `vehicles/${vehicle.id}-${Date.now()}.webp`;
+            const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
+            if (upErr) throw upErr;
+            const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
+            setPhotoUrl(publicUrl);
+            toast.success('Foto anexada. Salve para confirmar.');
+        } catch (err) {
+            toast.error((err as { message?: string })?.message ?? 'Erro ao enviar a foto.');
+        } finally {
+            setUploadingPhoto(false);
+            if (photoInputRef.current) photoInputRef.current.value = '';
         }
     };
 
@@ -160,6 +187,7 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
             renavam: renavam.trim() || null,
             chassis: chassis.trim() || null,
             document_url: documentUrl || null,
+            photo_url: photoUrl || null,
         };
 
         try {
@@ -312,6 +340,34 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SGFInput label="RENAVAM" value={renavam} onChange={(e) => setRenavam(e.target.value)} fullWidth />
                     <SGFInput label="Chassi" value={chassis} onChange={(e) => setChassis(e.target.value)} fullWidth />
+                </div>
+
+                {/* Foto do veículo */}
+                <div className="rounded-2xl border border-slate-200 p-4">
+                    <div className="flex items-center gap-4">
+                        <div className="h-20 w-24 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                            {photoUrl ? (
+                                <img src={photoUrl} alt="Foto do veículo" className="h-full w-full object-cover" />
+                            ) : (
+                                <div className="flex h-full w-full items-center justify-center text-slate-300"><Camera className="h-7 w-7" /></div>
+                            )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <h4 className="text-sm font-bold text-slate-700">Foto do veículo</h4>
+                            <p className="text-xs text-slate-400">Aparece na ficha e nas listagens.</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                            <SGFButton type="button" variant="secondary" size="sm" icon={uploadingPhoto ? Loader2 : Camera} disabled={uploadingPhoto} onClick={() => photoInputRef.current?.click()}>
+                                {uploadingPhoto ? 'Enviando...' : (photoUrl ? 'Trocar foto' : 'Adicionar')}
+                            </SGFButton>
+                            {photoUrl && (
+                                <button type="button" onClick={() => setPhotoUrl('')} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-rose-600" title="Remover">
+                                    <X className="h-4 w-4" />
+                                </button>
+                            )}
+                            <input ref={photoInputRef} type="file" accept="image/*" onChange={uploadPhoto} className="hidden" />
+                        </div>
+                    </div>
                 </div>
 
                 {/* Documento (PDF) */}

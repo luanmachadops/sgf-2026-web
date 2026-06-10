@@ -127,7 +127,7 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
         }
         try {
             setIsUploading(true);
-            const optimizedBlob = await resizeAndConvertToWebP(file, 800);
+            const optimizedBlob = await resizeAndConvertToWebP(file, 512);
             const fileName = `drivers/${driver.id}-${Date.now()}.webp`;
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error('Sessão expirada. Faça login novamente.');

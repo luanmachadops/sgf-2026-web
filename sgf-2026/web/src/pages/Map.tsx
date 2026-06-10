@@ -27,27 +27,37 @@ const STATUS_STYLE: Record<LiveVehicle['status'], { color: string; svg: string }
     alert:  { color: '#EF4444', svg: '<path d="M12 3l10 17H2L12 3z"/>' },                       // triângulo de alerta
 };
 
-function createMarkerIcon(status: LiveVehicle['status']) {
+/**
+ * Miniatura compacta: se for uma URL pública do Supabase Storage, usa a
+ * transformação de imagem (render/image) para baixar uma versão pequena/rápida.
+ * Caso contrário, devolve a URL original.
+ */
+function thumbUrl(url: string | null | undefined, width = 96): string {
+    if (!url) return '';
+    if (url.includes('/storage/v1/object/public/')) {
+        const base = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/');
+        return `${base}${base.includes('?') ? '&' : '?'}width=${width}&height=${width}&resize=cover&quality=70`;
+    }
+    return url;
+}
+
+function createMarkerIcon(status: LiveVehicle['status'], photo?: string | null) {
     const s = STATUS_STYLE[status] ?? STATUS_STYLE.idle;
+    const inner = photo
+        ? `<img class="sgf-vmarker__img" src="${thumbUrl(photo, 72)}" loading="lazy"
+              onerror="this.onerror=null;this.src='${photo}'" alt="" />`
+        : `<svg width="15" height="15" viewBox="0 0 24 24" fill="#fff">${s.svg}</svg>`;
     return L.divIcon({
         className: 'sgf-vmarker-wrap',
         html: `
           <div class="sgf-vmarker sgf-vmarker--${status}" style="--mk:${s.color}">
             <span class="sgf-vmarker__pulse"></span>
-            <div class="sgf-vmarker__dot">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff">${s.svg}</svg>
-            </div>
+            <div class="sgf-vmarker__dot">${inner}</div>
           </div>`,
-        iconSize: [34, 34],
-        iconAnchor: [17, 17],
+        iconSize: [38, 38],
+        iconAnchor: [19, 19],
     });
 }
-
-const statusIcons = {
-    moving: createMarkerIcon('moving'),
-    idle: createMarkerIcon('idle'),
-    alert: createMarkerIcon('alert'),
-};
 
 const DEFAULT_CENTER: [number, number] = [-15.7939, -47.8828];
 const getBadgeVariant = (status: string): any => status;
@@ -69,7 +79,7 @@ function VehicleCardBody({ v }: { v: LiveVehicle }) {
         <>
             <div className="relative h-28 w-full bg-slate-100">
                 {v.photo ? (
-                    <img src={v.photo} alt={v.vehicleModel} className="h-full w-full object-cover" />
+                    <img src={thumbUrl(v.photo, 360)} onError={(e) => { const t = e.currentTarget; t.onerror = null; t.src = v.photo!; }} alt={v.vehicleModel} loading="lazy" className="h-full w-full object-cover" />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center text-slate-300">
                         <Car className="h-10 w-10" />
@@ -177,10 +187,11 @@ export default function MapPage() {
         <div className="flex flex-col h-[calc(100dvh-11rem)] min-h-[420px] gap-3 overflow-hidden">
             {/* Estilos dos marcadores animados + tooltip-card */}
             <style>{`
-              .sgf-vmarker { position: relative; width: 34px; height: 34px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
-              .sgf-vmarker__dot { width:30px; height:30px; border-radius:9999px; display:flex; align-items:center; justify-content:center; border:3px solid #fff; background:var(--mk); box-shadow:0 2px 8px rgba(0,0,0,.35), 0 0 14px color-mix(in srgb, var(--mk) 55%, transparent); transition: transform .18s ease; }
+              .sgf-vmarker { position: relative; width: 38px; height: 38px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+              .sgf-vmarker__dot { width:34px; height:34px; border-radius:9999px; display:flex; align-items:center; justify-content:center; overflow:hidden; border:3px solid var(--mk); background:var(--mk); box-shadow:0 2px 8px rgba(0,0,0,.35), 0 0 14px color-mix(in srgb, var(--mk) 55%, transparent); transition: transform .18s ease; }
+              .sgf-vmarker__img { width:100%; height:100%; object-fit:cover; border-radius:9999px; display:block; }
               .sgf-vmarker:hover .sgf-vmarker__dot { transform: scale(1.3); }
-              .sgf-vmarker__pulse { position:absolute; width:34px; height:34px; border-radius:9999px; border:2.5px solid var(--mk); opacity:0; pointer-events:none; }
+              .sgf-vmarker__pulse { position:absolute; width:38px; height:38px; border-radius:9999px; border:2.5px solid var(--mk); opacity:0; pointer-events:none; }
               .sgf-vmarker--moving .sgf-vmarker__pulse { animation: sgfvpulse 1.9s ease-out infinite; }
               .sgf-vmarker--alert .sgf-vmarker__pulse { animation: sgfvpulse 1.3s ease-out infinite; }
               @keyframes sgfvpulse { 0%{transform:scale(.9);opacity:.6} 100%{transform:scale(2);opacity:0} }
@@ -266,13 +277,23 @@ export default function MapPage() {
                                     <div className="flex items-center gap-3">
                                         <div
                                             className={cn(
-                                                'w-10 h-10 rounded-full flex items-center justify-center shrink-0',
-                                                vehicle.status === 'moving' && 'bg-emerald-100 text-emerald-600',
-                                                vehicle.status === 'idle' && 'bg-blue-100 text-blue-600',
-                                                vehicle.status === 'alert' && 'bg-red-100 text-red-600'
+                                                'w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden ring-2',
+                                                vehicle.status === 'moving' && 'bg-emerald-100 text-emerald-600 ring-emerald-300',
+                                                vehicle.status === 'idle' && 'bg-blue-100 text-blue-600 ring-blue-300',
+                                                vehicle.status === 'alert' && 'bg-red-100 text-red-600 ring-red-300'
                                             )}
                                         >
-                                            {vehicle.status === 'moving' ? <Navigation className="h-5 w-5" /> : vehicle.status === 'alert' ? <AlertTriangle className="h-5 w-5" /> : <Car className="h-5 w-5" />}
+                                            {vehicle.photo ? (
+                                                <img
+                                                    src={thumbUrl(vehicle.photo, 96)}
+                                                    onError={(e) => { const t = e.currentTarget; t.onerror = null; t.src = vehicle.photo!; }}
+                                                    alt={vehicle.plate}
+                                                    loading="lazy"
+                                                    className="h-full w-full object-cover"
+                                                />
+                                            ) : (
+                                                vehicle.status === 'moving' ? <Navigation className="h-5 w-5" /> : vehicle.status === 'alert' ? <AlertTriangle className="h-5 w-5" /> : <Car className="h-5 w-5" />
+                                            )}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="font-bold text-sm text-gray-900">{vehicle.plate}</p>
@@ -308,7 +329,7 @@ export default function MapPage() {
                             <Marker
                                 key={vehicle.id}
                                 position={[vehicle.lat, vehicle.lng]}
-                                icon={statusIcons[vehicle.status as keyof typeof statusIcons]}
+                                icon={createMarkerIcon(vehicle.status, vehicle.photo)}
                                 eventHandlers={{
                                     click: () => setSelectedVehicle(vehicle.id),
                                     mouseover: () => setHoveredId(vehicle.id),

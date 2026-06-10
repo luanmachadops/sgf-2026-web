@@ -29,12 +29,14 @@ export default async function handler(req: any, res: any) {
             const rows = body.drivers.map((r: any) => ({
                 ...r,
                 departmentId: resolveScopedDepartment(caller, r?.departmentId),
+                tenantId: caller.tenantId,
             }));
             const result = await preRegisterDriversBulk(rows);
             return sendJson(res, 200, result);
         }
 
         body.departmentId = resolveScopedDepartment(caller, body.departmentId);
+        body.tenantId = caller.tenantId;
         const driver = await preRegisterDriver(body);
         return sendJson(res, 201, driver);
     } catch (error) {

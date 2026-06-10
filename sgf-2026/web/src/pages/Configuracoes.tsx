@@ -3,11 +3,13 @@ import { toast } from 'sonner';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { DollarSign, Receipt, CheckCircle, Building2, AlertTriangle, Loader2, Users } from '@/components/sgf/icons';
+import { DollarSign, Receipt, CheckCircle, AlertTriangle, Loader2, Users } from '@/components/sgf/icons';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppSettings, useUpdateSettings } from '@/hooks/useSettings';
 import { NewSecretarioModal } from '@/components/settings/NewSecretarioModal';
+import { TenantIdentityCard } from '@/components/settings/TenantIdentityCard';
+import { ChangePasswordCard } from '@/components/settings/ChangePasswordCard';
 import { cn } from '@/lib/utils';
 
 const FUEL_MODE_OPTIONS = [
@@ -120,21 +122,11 @@ export default function Configuracoes() {
                 </SGFCard>
             )}
 
-            {/* Identidade */}
-            <SGFCard padding="lg" className="border border-slate-200/80">
-                <div className="mb-4 flex items-center gap-2">
-                    <Building2 className="h-5 w-5 text-slate-400" />
-                    <h3 className="text-lg font-semibold text-slate-900">Identidade</h3>
-                </div>
-                <SGFInput
-                    label="Nome do órgão / prefeitura"
-                    value={orgName}
-                    onChange={(e) => setOrgName(e.target.value)}
-                    placeholder="Ex.: Prefeitura Municipal de Tapejara"
-                    hint="Aparece nos relatórios e documentos exportados."
-                    fullWidth
-                />
-            </SGFCard>
+            {/* Identidade da Prefeitura (white-label) */}
+            <TenantIdentityCard />
+
+            {/* Segurança — alterar senha da própria conta */}
+            <ChangePasswordCard />
 
             {/* Precificação */}
             <SGFCard padding="lg" className="border border-slate-200/80">

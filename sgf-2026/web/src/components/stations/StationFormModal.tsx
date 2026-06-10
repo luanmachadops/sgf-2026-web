@@ -7,7 +7,7 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 import { Camera, Loader2, FileText, Plus, X, Download } from '@/components/sgf/icons';
 import { useCreateStation, useUpdateStation } from '@/hooks/useStations';
 import { supabase } from '@/lib/supabase';
-import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
+import { resizeAndConvertToWebP, isImageFile, prepareUpload } from '@/lib/imageUtils';
 import { maskCNPJ, maskPhone } from '@/lib/utils';
 import type { Tables } from '@/types/database.types';
 
@@ -133,9 +133,10 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
         if (!file) return;
         try {
             setUploadingDoc(true);
-            const safe = file.name.replace(/[^\w.\-]+/g, '_');
-            const fileName = `station-docs/${Date.now()}-${safe}`;
-            const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, file, { contentType: file.type || 'application/octet-stream', upsert: true });
+            const prepared = await prepareUpload(file, { maxSize: 1400, quality: 0.8 });
+            const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^\w.\-]+/g, '_');
+            const fileName = `station-docs/${Date.now()}-${safe}.${prepared.ext}`;
+            const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, prepared.blob, { contentType: prepared.contentType, upsert: true });
             if (upErr) throw upErr;
             const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
             setDocuments((prev) => [...prev, { name: file.name, url: publicUrl }]);

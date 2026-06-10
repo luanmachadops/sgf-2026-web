@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import { HeaderProvider, useHeader } from '@/contexts/HeaderContext';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 
 export default function MainLayout() {
     return (
@@ -16,6 +17,9 @@ function LayoutWithHeader() {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [variant, setVariant] = useState<'desktop' | 'compact' | 'mobile'>('desktop');
     const { title, description } = useHeader();
+
+    // Atualização em tempo real de listas/dashboard/mapa (sem F5).
+    useRealtimeSync();
 
     // Determine Layout Variant on resize
     React.useEffect(() => {

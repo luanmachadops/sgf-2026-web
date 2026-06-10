@@ -4,6 +4,7 @@ export interface Caller {
     id: string;
     role: string;
     departmentId: string | null;
+    tenantId: string | null;
 }
 
 /** Lê e valida o JWT do header Authorization, retornando o perfil do chamador. */
@@ -20,12 +21,12 @@ export async function getCaller(req: any): Promise<Caller | null> {
 
     const { data: profile } = await admin
         .from('profiles')
-        .select('role, department_id')
+        .select('role, department_id, tenant_id')
         .eq('id', data.user.id)
         .single();
     if (!profile) return null;
 
-    return { id: data.user.id, role: profile.role, departmentId: profile.department_id };
+    return { id: data.user.id, role: profile.role, departmentId: profile.department_id, tenantId: (profile as any).tenant_id ?? null };
 }
 
 /** Garante que o chamador pode gerenciar motoristas (admin, gestor ou secretário). */

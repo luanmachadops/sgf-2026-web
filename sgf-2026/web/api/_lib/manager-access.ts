@@ -6,6 +6,7 @@ export interface CreateManagerPayload {
     password: string;
     departmentId?: string;
     role?: 'secretario' | 'gestor';
+    tenantId?: string | null;
 }
 
 /**
@@ -25,12 +26,15 @@ export async function createManager(payload: CreateManagerPayload) {
     if (role === 'secretario' && !payload.departmentId) {
         throw Object.assign(new Error('Secretário precisa de uma secretaria'), { status: 400 });
     }
+    if (!payload.tenantId) {
+        throw Object.assign(new Error('Prefeitura (tenant) não identificada'), { status: 400 });
+    }
 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password: payload.password,
         email_confirm: true,
-        user_metadata: { full_name: payload.name, role },
+        user_metadata: { full_name: payload.name, role, tenant_id: payload.tenantId },
     });
     if (authError || !authData.user) {
         throw Object.assign(new Error(authError?.message || 'Não foi possível criar o acesso'), { status: 400 });
@@ -43,6 +47,7 @@ export async function createManager(payload: CreateManagerPayload) {
             email,
             role,
             department_id: payload.departmentId || null,
+            tenant_id: payload.tenantId,
         })
         .eq('id', authData.user.id)
         .select('*, departments(id, name)')

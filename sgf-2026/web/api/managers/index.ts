@@ -24,7 +24,7 @@ export default async function handler(req: any, res: any) {
         if (!caller) throw Object.assign(new Error('Não autenticado'), { status: 401 });
         if (caller.role !== 'admin') throw Object.assign(new Error('Apenas o administrador pode criar secretários'), { status: 403 });
 
-        const manager = await createManager(parseBody(req));
+        const manager = await createManager({ ...parseBody(req), tenantId: caller.tenantId });
         return sendJson(res, 201, manager);
     } catch (error) {
         const status = (error as any)?.status ?? 400;

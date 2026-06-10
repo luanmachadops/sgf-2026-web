@@ -5,6 +5,7 @@
  */
 
 import { supabase } from './supabase';
+import { optimizeImage, IMAGE_PRESETS } from './imageUtils';
 import type { Enums, Tables, TablesInsert, TablesUpdate } from '@/types/database.types';
 import type { VehicleStatus, DriverStatus, TripStatus, MaintenanceStatus } from '@/types';
 import {
@@ -429,6 +430,37 @@ export const vehiclesApi = {
             .single();
         if (error) handleError(error);
         return data;
+    },
+};
+
+// ========================================
+// VEHICLE DOCUMENTS / PHOTOS (placa, renavam, hodômetro, extras)
+// ========================================
+
+export const vehicleDocumentsApi = {
+    getByVehicle: async (vehicleId: string): Promise<Tables<'vehicle_documents'>[]> => {
+        const { data, error } = await supabase
+            .from('vehicle_documents')
+            .select('*')
+            .eq('vehicle_id', vehicleId)
+            .order('created_at', { ascending: false });
+        if (error) handleError(error);
+        return (data ?? []) as Tables<'vehicle_documents'>[];
+    },
+
+    add: async (input: { vehicleId: string; url: string; title: string; docType: string }): Promise<void> => {
+        const { error } = await supabase.from('vehicle_documents').insert({
+            vehicle_id: input.vehicleId,
+            url: input.url,
+            title: input.title,
+            doc_type: input.docType,
+        } as TablesInsert<'vehicle_documents'>);
+        if (error) handleError(error);
+    },
+
+    remove: async (id: string): Promise<void> => {
+        const { error } = await supabase.from('vehicle_documents').delete().eq('id', id);
+        if (error) handleError(error);
     },
 };
 
@@ -1230,6 +1262,84 @@ export const settingsApi = {
             .single();
         if (error) handleError(error);
         return mapSettings(data as Record<string, unknown> | null);
+    },
+};
+
+// ========================================
+// TENANT (prefeitura — identidade / white-label)
+// ========================================
+
+export interface TenantData {
+    id: string;
+    slug: string;
+    name: string;
+    appName: string;
+    loginEyebrow: string;
+    logoUrl: string;
+    sealUrl: string;
+    photoUrl: string;
+    primaryColor: string;
+    darkColor: string;
+    accentColor: string;
+    cnpj: string;
+    city: string;
+    state: string;
+    address: string;
+    mayorName: string;
+    reportFooter: string;
+    status: string;
+}
+
+const TENANT_COLS = 'id, slug, name, app_name, login_eyebrow, logo_url, seal_url, photo_url, primary_color, dark_color, accent_color, cnpj, city, state, address, mayor_name, report_footer, status';
+
+function mapTenantData(d: Record<string, unknown> | null): TenantData | null {
+    if (!d) return null;
+    return {
+        id: String(d.id ?? ''), slug: String(d.slug ?? ''), name: String(d.name ?? ''),
+        appName: (d.app_name as string) ?? '', loginEyebrow: (d.login_eyebrow as string) ?? '',
+        logoUrl: (d.logo_url as string) ?? '', sealUrl: (d.seal_url as string) ?? '', photoUrl: (d.photo_url as string) ?? '',
+        primaryColor: (d.primary_color as string) ?? '#00A86B', darkColor: (d.dark_color as string) ?? '#0F2B2F', accentColor: (d.accent_color as string) ?? '#70C4A8',
+        cnpj: (d.cnpj as string) ?? '', city: (d.city as string) ?? '', state: (d.state as string) ?? '',
+        address: (d.address as string) ?? '', mayorName: (d.mayor_name as string) ?? '', reportFooter: (d.report_footer as string) ?? '',
+        status: (d.status as string) ?? 'active',
+    };
+}
+
+export const tenantApi = {
+    /** Retorna o tenant do usuário logado (RLS garante que só o próprio é visível). */
+    getCurrent: async (): Promise<TenantData | null> => {
+        const { data, error } = await supabase.from('tenants').select(TENANT_COLS).limit(1).maybeSingle();
+        if (error) handleError(error);
+        return mapTenantData(data as Record<string, unknown> | null);
+    },
+
+    update: async (id: string, patch: Partial<TenantData>): Promise<void> => {
+        const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        const map: Record<keyof TenantData, string> = {
+            id: 'id', slug: 'slug', name: 'name', appName: 'app_name', loginEyebrow: 'login_eyebrow',
+            logoUrl: 'logo_url', sealUrl: 'seal_url', photoUrl: 'photo_url',
+            primaryColor: 'primary_color', darkColor: 'dark_color', accentColor: 'accent_color',
+            cnpj: 'cnpj', city: 'city', state: 'state', address: 'address', mayorName: 'mayor_name',
+            reportFooter: 'report_footer', status: 'status',
+        };
+        (Object.keys(patch) as (keyof TenantData)[]).forEach((k) => {
+            if (k === 'id') return;
+            const col = map[k];
+            if (col) payload[col] = (patch[k] as string) || null;
+        });
+        const { error } = await supabase.from('tenants').update(payload).eq('id', id);
+        if (error) handleError(error);
+    },
+
+    /** Upload de imagem de branding (logo/brasão/foto) no bucket público `fotos` — otimizada. */
+    uploadBrandingImage: async (tenantId: string, kind: 'logo' | 'seal' | 'photo', file: File): Promise<string> => {
+        const preset = kind === 'photo' ? IMAGE_PRESETS.photo : IMAGE_PRESETS.logo;
+        const opt = await optimizeImage(file, preset);
+        const path = `branding/${tenantId}/${kind}-${Date.now()}.${opt.ext}`;
+        const { error } = await supabase.storage.from('fotos').upload(path, opt.blob, { upsert: true, contentType: opt.contentType });
+        if (error) handleError(error);
+        const { data } = supabase.storage.from('fotos').getPublicUrl(path);
+        return data.publicUrl;
     },
 };
 

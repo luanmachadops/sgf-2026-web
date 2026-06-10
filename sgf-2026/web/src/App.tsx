@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { BrandingProvider } from '@/contexts/BrandingContext';
 import PrivateRoute from '@/components/auth/PrivateRoute';
 import MainLayout from '@/components/layout/MainLayout';
 import { Toaster } from '@/components/ui/sonner';
@@ -43,6 +44,7 @@ function App() {
       <Toaster richColors closeButton position="top-right" />
       <BrowserRouter>
         <AuthProvider>
+          <BrandingProvider>
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
@@ -74,6 +76,7 @@ function App() {
             {/* Catch all */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </BrandingProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

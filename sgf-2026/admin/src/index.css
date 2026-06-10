@@ -1,0 +1,13 @@
+@import "tailwindcss";
+@import "./styles/theme.css";
+
+@source "../index.html";
+@source "./src/**/*.{js,ts,jsx,tsx}";
+
+html, body, #root { height: 100%; }
+body { margin: 0; background: var(--sgf-surface, #F5F7F9); color: var(--sgf-text-primary, #1F2937); }
+
+/* Scrollbar sutil (igual ao painel do gestor) */
+.custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(148,163,184,0.4) transparent; }
+.custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(148,163,184,0.4); border-radius: 9999px; }
