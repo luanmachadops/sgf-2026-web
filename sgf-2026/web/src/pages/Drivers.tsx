@@ -421,7 +421,77 @@ export default function Drivers() {
                 </div>
             </SGFToolbar>
 
-            <div className="-mx-6 md:mx-0">
+            {/* Cards (mobile) — design dedicado de motoristas */}
+            <div className="space-y-3 md:hidden">
+                {isLoading ? (
+                    [...Array(4)].map((_, i) => <div key={i} className="h-[110px] animate-pulse rounded-[18px] bg-white/70" />)
+                ) : tableRows.length === 0 ? (
+                    <div className="rounded-[18px] bg-white p-10 text-center text-sm text-slate-400 shadow-sm">Nenhum motorista encontrado.</div>
+                ) : tableRows.map((row) => {
+                    const barColor = row.status === 'ACTIVE' ? '#5BCE72' : row.status === 'SUSPENDED' ? '#EF4444' : '#9CA3AF';
+                    const cnhStatus = getLicenseStatus(row.cnh_expiry_date, cnhDays);
+                    
+                    return (
+                        <div
+                            key={row.id}
+                            onClick={() => navigate(`/motoristas/${row.id}`)}
+                            className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-5 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
+                        >
+                            <span className="absolute inset-y-0 left-0 w-[7px]" style={{ backgroundColor: barColor }} />
+
+                            <div className="relative h-[62px] w-[62px] shrink-0">
+                                {/* Fallback por baixo */}
+                                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-base font-bold text-white shadow-sm">
+                                    {getInitials(row.name)}
+                                </div>
+                                {(row as { photo_url?: string | null }).photo_url && (
+                                    <img
+                                        src={(row as { photo_url?: string | null }).photo_url as string}
+                                        alt={row.name}
+                                        loading="lazy"
+                                        className="absolute inset-0 h-[62px] w-[62px] rounded-full object-cover ring-1 ring-slate-200 bg-white"
+                                        onError={(e) => {
+                                            (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                        }}
+                                    />
+                                )}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-2">
+                                    <p className="min-w-0 truncate text-[16px] font-bold leading-tight">{row.name}</p>
+                                    <span className="max-w-[42%] shrink-0 truncate rounded-full bg-[#E0E8E6] px-2.5 py-0.5 text-[11px] font-bold text-[#2F2F2F]">
+                                        {row.departmentName}
+                                    </span>
+                                </div>
+                                <div className="mt-1.5 grid grid-cols-2 text-[13.5px] leading-snug">
+                                    <div className="space-y-0.5 pr-3 text-slate-500">
+                                        <p className="truncate font-mono text-slate-600 font-medium">CNH: {row.cnh_number || '—'}</p>
+                                        <p className="truncate uppercase font-bold text-[11px] tracking-wider text-slate-400">Cat. {row.cnh_category || '—'}</p>
+                                    </div>
+                                    <div className="space-y-0.5 border-l border-slate-200 pl-3">
+                                        <p className={`truncate font-medium text-slate-600 ${cnhStatus.urgent ? 'text-red-600 font-bold' : ''}`}>
+                                            Val. {formatDate(row.cnh_expiry_date)}
+                                        </p>
+                                        <div className="truncate text-[12px] font-bold">
+                                            {!row.hasAccess ? (
+                                                <span className="text-amber-600">Sem acesso</span>
+                                            ) : row.must_change_password ? (
+                                                <span className="text-sky-600 font-medium">1º acesso pendente</span>
+                                            ) : (
+                                                <span className="text-emerald-600">Acesso liberado</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Tabela (desktop) */}
+            <div className="-mx-6 hidden md:mx-0 md:block">
                 <SGFTable
                     columns={columns}
                     data={tableRows}

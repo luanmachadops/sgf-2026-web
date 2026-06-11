@@ -1,5 +1,5 @@
 import React, { useRef, useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFButton } from '@/components/sgf/SGFButton';
@@ -28,6 +28,9 @@ import {
 } from '@/components/sgf/icons';
 import { EditVehicleModal } from '@/components/vehicles/EditVehicleModal';
 import { VehicleAIModal } from '@/components/vehicles/VehicleAIModal';
+import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
+import { RefuelingDetailsModal } from '@/components/refuelings/RefuelingDetailsModal';
+import { MaintenanceDetailsModal } from '@/components/maintenances/MaintenanceDetailsModal';
 import { Modal } from '@/components/ui/Modal';
 import { PhotoViewer } from '@/components/ui/PhotoViewer';
 import { StyledQr } from '@/components/qr/StyledQr';
@@ -61,16 +64,23 @@ type VehicleRow = VehicleRecord & {
 
 export default function VehicleDetails() {
     const { id } = useParams<{ id: string }>();
+    const location = useLocation();
+    const navigate = useNavigate();
+    const backTo = (location.state as { backTo?: string } | null)?.backTo ?? '/veiculos';
     const queryClient = useQueryClient();
     const [isUploading, setIsUploading] = useState(false);
     const [isEditOpen, setEditOpen] = useState(false);
     const [isQrOpen, setQrOpen] = useState(false);
     const [isAiOpen, setAiOpen] = useState(false);
     const [viewer, setViewer] = useState<{ images: string[]; index: number } | null>(null);
+    const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+    const [selectedRefuelId, setSelectedRefuelId] = useState<string | null>(null);
+    const [selectedMaintId, setSelectedMaintId] = useState<string | null>(null);
     const [photoIdx, setPhotoIdx] = useState(0);
     const [uploadingMulti, setUploadingMulti] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const multiInputRef = useRef<HTMLInputElement>(null);
+    const tabsRef = useRef<HTMLDivElement>(null);
 
     // ── Veículo ────────────────────────────────────────────────────────────
     const { data: vehicle, isLoading: loadingVehicle, isError: errorVehicle } = useQuery({
@@ -280,8 +290,8 @@ export default function VehicleDetails() {
     if (errorVehicle || !vehicle) {
         return (
             <div className="space-y-4">
-                <Link to="/veiculos">
-                    <SGFButton variant="ghost" size="sm" icon={ArrowLeft}>Voltar</SGFButton>
+                <Link to={backTo}>
+                    <SGFButton variant="ghost" size="sm" icon={ArrowLeft}><span className="hidden md:inline">Voltar</span></SGFButton>
                 </Link>
                 <SGFCard>
                     <p className="text-sm text-rose-600 font-medium">Veículo não encontrado.</p>
@@ -345,13 +355,13 @@ export default function VehicleDetails() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4 min-w-0">
-                    <Link to="/veiculos">
-                        <SGFButton variant="ghost" size="sm" icon={ArrowLeft}>Voltar</SGFButton>
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    <Link to={backTo} className="shrink-0">
+                        <SGFButton variant="ghost" size="sm" icon={ArrowLeft}><span className="hidden md:inline">Voltar</span></SGFButton>
                     </Link>
                     <div className="min-w-0">
-                        <h1 className="text-2xl font-bold text-slate-900 truncate">
+                        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate">
                             {v.brand} {v.model}
                             {v.plate && (
                                 <span className="font-normal text-slate-500"> - {formatPlate(v.plate)}</span>
@@ -359,15 +369,15 @@ export default function VehicleDetails() {
                         </h1>
                     </div>
                 </div>
-                <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                    <SGFButton variant="secondary" icon={Sparkles} onClick={() => setAiOpen(true)}>
-                        Preencher com IA
+                <div className="flex shrink-0 items-center gap-2">
+                    <SGFButton variant="secondary" icon={Sparkles} onClick={() => setAiOpen(true)} className="!h-[37px] !rounded-full">
+                        <span className="hidden sm:inline">Preencher com IA</span>
                     </SGFButton>
-                    <SGFButton variant="secondary" icon={Qr} onClick={() => setQrOpen(true)}>
-                        QR Code
+                    <SGFButton variant="secondary" icon={Qr} onClick={() => setQrOpen(true)} className="!h-[37px] !rounded-full">
+                        <span className="hidden sm:inline">QR Code</span>
                     </SGFButton>
-                    <SGFButton icon={Edit2} onClick={() => setEditOpen(true)}>
-                        Editar
+                    <SGFButton icon={Edit2} onClick={() => setEditOpen(true)} className="!h-[37px] !rounded-full">
+                        <span className="hidden sm:inline">Editar</span>
                     </SGFButton>
                 </div>
             </div>
@@ -398,7 +408,16 @@ export default function VehicleDetails() {
             </div>
 
             {/* Tabs */}
-            <Tabs defaultValue="info" className="w-full">
+            <div ref={tabsRef} className="scroll-mt-28 w-full">
+            <Tabs
+                defaultValue="info"
+                className="w-full"
+                onValueChange={() => {
+                    setTimeout(() => {
+                        tabsRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    }, 50);
+                }}
+            >
                 <TabsList className="grid w-full grid-cols-4 lg:w-[400px] mx-auto bg-slate-100/50 p-1 rounded-xl">
                     <TabsTrigger value="info" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Info</TabsTrigger>
                     <TabsTrigger value="trips" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Viagens</TabsTrigger>
@@ -577,6 +596,7 @@ export default function VehicleDetails() {
                             columns={tripColumns}
                             data={trips as unknown as TripRow[]}
                             keyExtractor={(r) => r.id}
+                            onRowClick={(r) => setSelectedTripId(r.id)}
                             emptyMessage="Nenhuma viagem registrada para este veículo."
                         />
                     </div>
@@ -588,6 +608,7 @@ export default function VehicleDetails() {
                             columns={refuelingColumns}
                             data={refuelings as unknown as FuelRow[]}
                             keyExtractor={(r) => r.id}
+                            onRowClick={(r) => setSelectedRefuelId(r.id)}
                             emptyMessage="Nenhum abastecimento registrado para este veículo."
                         />
                     </div>
@@ -599,11 +620,13 @@ export default function VehicleDetails() {
                             columns={maintenanceColumns}
                             data={maintenances}
                             keyExtractor={(r) => r.id}
+                            onRowClick={(r) => setSelectedMaintId(r.id)}
                             emptyMessage="Nenhuma ordem de serviço para este veículo."
                         />
                     </div>
                 </TabsContent>
             </Tabs>
+            </div>
 
             <EditVehicleModal
                 isOpen={isEditOpen}
@@ -654,6 +677,10 @@ export default function VehicleDetails() {
                 alt={`${v.brand} ${v.model}`}
                 onClose={() => setViewer(null)}
             />
+
+            <TripDetailsModal tripId={selectedTripId} onClose={() => setSelectedTripId(null)} />
+            <RefuelingDetailsModal refuelingId={selectedRefuelId} onClose={() => setSelectedRefuelId(null)} />
+            <MaintenanceDetailsModal maintenanceId={selectedMaintId} onClose={() => setSelectedMaintId(null)} />
         </div>
     );
 }

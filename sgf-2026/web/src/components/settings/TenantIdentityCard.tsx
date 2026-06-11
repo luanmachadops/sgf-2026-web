@@ -7,6 +7,7 @@ import { Building2, Loader2 } from '@/components/sgf/icons';
 import { tenantApi, type TenantData } from '@/lib/supabase-api';
 import { useAuth } from '@/contexts/AuthContext';
 import { applyBrandingColors } from '@/lib/tenantBranding';
+import { maskCNPJ } from '@/lib/utils';
 
 type ImageKind = 'logo' | 'seal' | 'photo';
 
@@ -94,7 +95,7 @@ export function TenantIdentityCard() {
             <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <SGFInput label="Nome da prefeitura" value={tenant.name} onChange={(e) => set({ name: e.target.value })} placeholder="Prefeitura Municipal de..." fullWidth />
                 <SGFInput label="Nome no app (mobile)" value={tenant.appName} onChange={(e) => set({ appName: e.target.value })} placeholder="Frota Municipal" fullWidth />
-                <SGFInput label="CNPJ" value={tenant.cnpj} onChange={(e) => set({ cnpj: e.target.value })} placeholder="00.000.000/0001-00" fullWidth />
+                <SGFInput label="CNPJ" value={tenant.cnpj ? maskCNPJ(tenant.cnpj) : ''} onChange={(e) => set({ cnpj: maskCNPJ(e.target.value) })} placeholder="00.000.000/0001-00" fullWidth />
                 <SGFInput label="Prefeito(a)" value={tenant.mayorName} onChange={(e) => set({ mayorName: e.target.value })} fullWidth />
                 <SGFInput label="Cidade" value={tenant.city} onChange={(e) => set({ city: e.target.value })} fullWidth />
                 <SGFInput label="UF" value={tenant.state} onChange={(e) => set({ state: e.target.value })} placeholder="RS" fullWidth />

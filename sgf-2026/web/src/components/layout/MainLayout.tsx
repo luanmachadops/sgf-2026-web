@@ -42,19 +42,19 @@ function LayoutWithHeader() {
     const toggleSidebar = () => setIsMobileOpen(!isMobileOpen);
 
     return (
-        <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'hsl(181, 46%, 18%)' }}>
+        <div className="flex h-[100dvh] overflow-hidden" style={{ backgroundColor: 'hsl(181, 46%, 18%)' }}>
             <Sidebar
                 variant={variant}
                 isOpen={isMobileOpen}
                 onToggle={toggleSidebar}
             />
 
-            <div className="flex flex-1 flex-col overflow-hidden p-0 relative">
+            <div className="flex flex-1 flex-col overflow-hidden p-0 relative min-h-0 min-w-0">
                 {/* Main Content Area - Single Container */}
-                <div className="flex-1 flex flex-col overflow-hidden lg:mt-[var(--sgf-space-4)] lg:ml-[var(--sgf-space-6)] mt-0 ml-0 lg:rounded-tl-[32px] rounded-none bg-[#E3E9E7] shadow-none lg:shadow-2xl relative">
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0 lg:mt-[var(--sgf-space-4)] lg:ml-[var(--sgf-space-6)] mt-0 ml-0 lg:rounded-tl-[32px] rounded-none bg-[#E3E9E7] shadow-none lg:shadow-2xl relative">
                     <Header onMenuClick={toggleSidebar} />
-                    
-                    <main className="flex-1 overflow-y-auto p-[var(--sgf-space-4)] md:p-[var(--sgf-space-8)] scroll-smooth custom-scrollbar">
+
+                    <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] p-[var(--sgf-space-4)] md:p-[var(--sgf-space-8)] scroll-smooth custom-scrollbar">
                         <div className="w-full max-w-[1400px] mx-auto">
                             <Outlet />
                         </div>

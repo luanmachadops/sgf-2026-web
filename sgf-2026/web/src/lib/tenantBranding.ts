@@ -21,6 +21,27 @@ export function applyBrandingColors(b?: TenantBranding | null) {
     root.style.setProperty('--sgf-primary', primary);
     root.style.setProperty('--sgf-dark', dark);
     root.style.setProperty('--sgf-light', accent);
+
+    // Update favicon dynamically to tenant logo/seal
+    if (typeof window !== 'undefined') {
+        const logoUrl = b?.logoUrl || b?.sealUrl;
+        if (logoUrl) {
+            let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
+            if (!link) {
+                link = document.createElement('link');
+                link.rel = 'icon';
+                document.head.appendChild(link);
+            }
+            link.href = logoUrl;
+            if (logoUrl.endsWith('.png')) {
+                link.type = 'image/png';
+            } else if (logoUrl.endsWith('.svg')) {
+                link.type = 'image/svg+xml';
+            } else {
+                link.type = 'image/x-icon';
+            }
+        }
+    }
 }
 
 /** Slug do tenant a partir do subdomínio (ex.: tapejara.dominio.com → "tapejara"). */

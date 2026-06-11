@@ -47,8 +47,44 @@ export function SGFTable<T>({
     );
   }
 
+  const renderCell = (column: SGFTableColumn<T>, row: T) =>
+    typeof column.accessor === 'function' ? column.accessor(row) : String(row[column.accessor] ?? '');
+
   return (
-    <div className="bg-white border border-slate-100 rounded-[var(--sgf-card-radius)] overflow-hidden shadow-sm">
+    <>
+      {/* ── Cards (mobile) ─────────────────────────────── */}
+      <div className="space-y-2.5 md:hidden">
+        {data.map((row, rowIndex) => {
+          const [head, ...rest] = columns;
+          return (
+            <div
+              key={keyExtractor(row, rowIndex)}
+              onClick={() => onRowClick?.(row)}
+              className={`rounded-2xl border border-slate-100 bg-white px-3.5 py-3 shadow-sm ${onRowClick ? 'cursor-pointer active:bg-slate-50' : ''}`}
+            >
+              {/* Cabeçalho: primeira coluna (geralmente foto + nome) */}
+              <div className="text-[15px] font-semibold text-slate-900">
+                {renderCell(head, row)}
+              </div>
+
+              {/* Demais campos em grade compacta de 2 colunas */}
+              {rest.length > 0 && (
+                <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-50 pt-2.5">
+                  {rest.map((column, colIndex) => (
+                    <div key={colIndex} className="min-w-0">
+                      <p className="text-[9.5px] font-bold uppercase tracking-[0.05em] text-slate-400">{column.header}</p>
+                      <div className="mt-0.5 truncate text-[13px] font-medium text-slate-700">{renderCell(column, row)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Tabela (desktop) ───────────────────────────── */}
+      <div className="hidden rounded-[var(--sgf-card-radius)] border border-slate-100 bg-white shadow-sm md:block overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           {/* ── Header ─────────────────────────────────── */}
@@ -109,6 +145,7 @@ export function SGFTable<T>({
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

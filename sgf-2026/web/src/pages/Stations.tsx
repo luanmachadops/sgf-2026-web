@@ -187,7 +187,7 @@ function StationDetailPage({ stationId }: { stationId: string }) {
         setHeaderAction(
             <div className="flex items-center gap-2">
                 <SGFButton variant="ghost" size="md" icon={ArrowLeft} onClick={() => navigate('/postos')}>
-                    Voltar
+                    <span className="hidden md:inline">Voltar</span>
                 </SGFButton>
                 {detail && (
                     <SGFButton variant="secondary" size="md" onClick={() => setEditOpen(true)}>
@@ -223,7 +223,7 @@ function StationDetailPage({ stationId }: { stationId: string }) {
         return (
             <div className="space-y-4">
                 <Link to="/postos">
-                    <SGFButton variant="ghost" size="sm" icon={ArrowLeft}>Voltar</SGFButton>
+                    <SGFButton variant="ghost" size="sm" icon={ArrowLeft}><span className="hidden md:inline">Voltar</span></SGFButton>
                 </Link>
                 <SGFCard><p className="text-sm text-rose-600 font-medium">Posto não encontrado.</p></SGFCard>
             </div>

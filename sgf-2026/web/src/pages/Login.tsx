@@ -67,8 +67,11 @@ export default function Login() {
                         )}
                     </div>
                     <h1 className="mt-6 text-3xl font-bold text-gray-900">{branding.name}</h1>
-                    <p className="mt-2 text-sm text-gray-600">{branding.appName ?? 'Sistema de Gestão de Frotas'}</p>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--sgf-primary)] mt-1">{branding.loginEyebrow ?? 'Painel de Gestão'}</p>
+                    <p className="mt-2 text-sm text-slate-500">
+                        {branding.city && branding.state 
+                            ? `${branding.city} - ${branding.state}` 
+                            : 'Tapejara - PR'}
+                    </p>
                 </div>
 
                 {/* Form */}
@@ -96,6 +99,11 @@ export default function Login() {
                             onChange={(e) => setEmail(e.target.value)}
                             icon={Mail}
                             required
+                            inputClassName={`!rounded-full transition-colors duration-200 autofill:!shadow-[inset_0_0_0_1000px_#E3E9E7] ${
+                                email 
+                                    ? '!bg-[#E3E9E7] focus:!bg-[#E3E9E7]' 
+                                    : '!bg-white focus:!bg-white'
+                            }`}
                         />
 
                         {view === 'login' && (
@@ -108,6 +116,11 @@ export default function Login() {
                                     onChange={(e) => setPassword(e.target.value)}
                                     icon={Lock}
                                     required
+                                    inputClassName={`!rounded-full transition-colors duration-200 autofill:!shadow-[inset_0_0_0_1000px_#E3E9E7] ${
+                                        password 
+                                            ? '!bg-[#E3E9E7] focus:!bg-[#E3E9E7]' 
+                                            : '!bg-white focus:!bg-white'
+                                    }`}
                                 />
                                 <div className="flex justify-end">
                                     <button
@@ -132,7 +145,7 @@ export default function Login() {
                         size="lg"
                         loading={isLoading}
                         fullWidth
-                        className="mt-6 shadow-xl shadow-emerald-500/20"
+                        className="mt-6 shadow-xl shadow-emerald-500/20 !rounded-full"
                     >
                         {view === 'login' ? 'Entrar' : 'Enviar Link de Recuperação'}
                     </SGFButton>
@@ -154,7 +167,7 @@ export default function Login() {
 
                 {/* Footer */}
                 <div className="text-center text-xs text-slate-400">
-                    <p>© 2026 Prefeitura Municipal</p>
+                    <p>© 2026 SGF 2026 - Todos os direitos reservados</p>
                     <p className="mt-1">Setor de Obras e Garagem</p>
                 </div>
             </div>
