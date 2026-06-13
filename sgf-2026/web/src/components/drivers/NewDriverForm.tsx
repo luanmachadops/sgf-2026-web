@@ -194,7 +194,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-[300px_1fr] gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-8">
                 {/* Left Column - Photo Upload */}
                 <div className="space-y-4">
                     <label className="block text-sm font-medium text-slate-700">
@@ -272,7 +272,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
 
                 {/* Right Column - Form Fields */}
                 <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <SGFInput
                             label="Nome Completo"
                             placeholder="João da Silva"
@@ -289,7 +289,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <SGFInput
                             label="Matrícula"
                             placeholder="MT001"
@@ -306,7 +306,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <SGFInput
                             label="Telefone"
                             placeholder="(00) 00000-0000"
@@ -332,7 +332,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                         fullWidth
                     />
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Controller
                             name="licenseCategory"
                             control={control}
@@ -366,7 +366,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Controller
                             name="departmentId"
                             control={control}
@@ -417,7 +417,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <SGFInput
                                 label="Senha inicial"
                                 type="password"

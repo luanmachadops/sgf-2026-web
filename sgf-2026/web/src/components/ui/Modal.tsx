@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from '../sgf/icons';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +32,16 @@ function Modal({
         return () => document.removeEventListener('keydown', onKey);
     }, [isOpen, onClose]);
 
+    // Bloquear rolagem do body quando o modal estiver aberto.
+    useEffect(() => {
+        if (!isOpen) return;
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = originalOverflow;
+        };
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const sizes = {
@@ -47,9 +58,9 @@ function Modal({
         }
     };
 
-    return (
+    return createPortal(
         <div
-            className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 p-[var(--sgf-space-4)]"
+            className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 p-[var(--sgf-space-4)]"
             onClick={handleBackdropClick}
         >
             <div
@@ -91,7 +102,8 @@ function Modal({
                     </div>
                 )}
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
 

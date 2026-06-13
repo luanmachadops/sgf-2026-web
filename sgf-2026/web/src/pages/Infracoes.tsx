@@ -36,9 +36,9 @@ import { prepareUpload } from '@/lib/imageUtils';
 import type { Tables } from '@/types/database.types';
 
 type InfractionRow = Tables<'infractions'> & {
-    vehicles?: { plate?: string; brand?: string; model?: string; departments?: { name?: string } | null } | null;
-    suggested?: { id: string; full_name: string } | null;
-    indicated?: { id: string; full_name: string } | null;
+    vehicles?: { plate?: string; brand?: string; model?: string; photo_url?: string | null; departments?: { name?: string } | null } | null;
+    suggested?: { id: string; full_name: string; photo_url?: string | null } | null;
+    indicated?: { id: string; full_name: string; photo_url?: string | null } | null;
 };
 
 const STATUS_META: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'error' | 'info' }> = {
@@ -122,24 +122,49 @@ export default function Infracoes() {
         },
         {
             header: 'Veículo',
-            accessor: (r) => (
-                <div className="flex items-center gap-2">
-                    <Car className="h-4 w-4 shrink-0 text-slate-400" />
-                    <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{[r.vehicles?.brand, r.vehicles?.model].filter(Boolean).join(' ') || '—'}</p>
-                        <p className="font-mono text-xs text-slate-400">{r.plate ? formatPlate(r.plate) : '—'}</p>
+            accessor: (r) => {
+                const name = [r.vehicles?.brand, r.vehicles?.model].filter(Boolean).join(' ') || '—';
+                const photo = r.vehicles?.photo_url;
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {photo ? (
+                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200" />
+                        ) : (
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                                <Car className="h-4 w-4" />
+                            </div>
+                        )}
+                        <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-800 truncate">{name}</p>
+                            <p className="font-mono text-xs text-slate-400">{r.plate ? formatPlate(r.plate) : '—'}</p>
+                        </div>
                     </div>
-                </div>
-            ),
+                );
+            },
         },
         { header: 'Local', accessor: (r) => <span className="text-sm text-slate-600">{r.location || '—'}</span> },
         { header: 'Valor', accessor: (r) => <span className="font-semibold text-slate-800">{formatCurrency(Number(r.amount ?? 0))}</span>, className: 'text-right', headerClassName: 'text-right' },
         {
             header: 'Condutor',
             accessor: (r) => {
-                if (r.indicated?.full_name) return <span className="text-sm font-medium text-slate-800">{r.indicated.full_name}</span>;
-                if (r.suggested?.full_name) return <span className="text-sm text-emerald-600">sugestão: {r.suggested.full_name}</span>;
-                return <span className="text-sm text-slate-400">—</span>;
+                const cond = r.indicated || r.suggested;
+                const isSuggested = !r.indicated && r.suggested;
+                if (!cond) return <span className="text-sm text-slate-400">—</span>;
+                const photo = cond.photo_url;
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {photo ? (
+                            <img src={photo} alt={cond.full_name} className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-slate-200" />
+                        ) : (
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                                <User className="h-4 w-4" />
+                            </div>
+                        )}
+                        <span className={`text-sm font-semibold ${isSuggested ? 'text-emerald-600' : 'text-slate-800'}`}>
+                            {isSuggested ? `sugestão: ${cond.full_name}` : cond.full_name}
+                        </span>
+                    </div>
+                );
             },
         },
         {

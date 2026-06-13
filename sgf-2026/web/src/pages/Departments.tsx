@@ -434,12 +434,24 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
     const vehicleColumns = [
         {
             header: 'Veículo',
-            accessor: (row: DepartmentDetail['vehicles'][number]) => (
-                <div>
-                    <p className="font-semibold text-slate-800">{row.plate}</p>
-                    <p className="text-xs text-slate-500">{row.brand} {row.model}</p>
-                </div>
-            ),
+            accessor: (row: DepartmentDetail['vehicles'][number]) => {
+                const name = `${row.brand} ${row.model}`;
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {row.photo_url ? (
+                            <img src={row.photo_url} alt={name} className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200 bg-white" />
+                        ) : (
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+                                <Car className="h-4 w-4" />
+                            </div>
+                        )}
+                        <div>
+                            <p className="font-semibold text-slate-800">{row.plate}</p>
+                            <p className="text-xs text-slate-500">{name}</p>
+                        </div>
+                    </div>
+                );
+            },
         },
         {
             header: 'Status',
@@ -462,12 +474,24 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
     const driverColumns = [
         {
             header: 'Motorista',
-            accessor: (row: DepartmentDetail['drivers'][number]) => (
-                <div>
-                    <p className="font-semibold text-slate-800">{row.name}</p>
-                    <p className="text-xs text-slate-500">{row.registration_number}</p>
-                </div>
-            ),
+            accessor: (row: DepartmentDetail['drivers'][number]) => {
+                const name = row.name || '—';
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {row.photo_url ? (
+                            <img src={row.photo_url} alt={name} className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-slate-200 bg-white" />
+                        ) : (
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-xs font-bold text-white shadow-sm">
+                                {getInitials(name)}
+                            </div>
+                        )}
+                        <div>
+                            <p className="font-semibold text-slate-800">{name}</p>
+                            <p className="text-xs text-slate-500">{row.registration_number}</p>
+                        </div>
+                    </div>
+                );
+            },
         },
         {
             header: 'Status',
@@ -500,11 +524,46 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
         },
         {
             header: 'Veículo',
-            accessor: (row: DepartmentDetail['recentTrips'][number]) => row.vehicles ? `${row.vehicles.brand} ${row.vehicles.model} (${formatPlate(row.vehicles.plate)})` : '—',
+            accessor: (row: DepartmentDetail['recentTrips'][number]) => {
+                const brand = row.vehicles?.brand || '';
+                const model = row.vehicles?.model || '';
+                const name = [brand, model].filter(Boolean).join(' ') || '—';
+                const photo = row.vehicles?.photo_url;
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {photo ? (
+                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200 bg-white" />
+                        ) : (
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+                                <Car className="h-4 w-4" />
+                            </div>
+                        )}
+                        <div>
+                            <span className="font-semibold text-slate-800 text-sm block">{name}</span>
+                            <span className="font-mono text-xs text-slate-500">{row.vehicles?.plate ? formatPlate(row.vehicles.plate) : '—'}</span>
+                        </div>
+                    </div>
+                );
+            },
         },
         {
             header: 'Motorista',
-            accessor: (row: DepartmentDetail['recentTrips'][number]) => row.drivers?.name || '—',
+            accessor: (row: DepartmentDetail['recentTrips'][number]) => {
+                const name = row.drivers?.name || '—';
+                const photo = row.drivers?.photo_url;
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {photo ? (
+                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-slate-200 bg-white" />
+                        ) : (
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-xs font-bold text-white shadow-sm">
+                                {getInitials(name)}
+                            </div>
+                        )}
+                        <span className="font-semibold text-slate-800 text-sm">{name}</span>
+                    </div>
+                );
+            },
         },
         {
             header: 'Distância',
@@ -527,11 +586,46 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
         },
         {
             header: 'Veículo',
-            accessor: (row: DepartmentDetail['recentRefuelings'][number]) => row.vehicles ? `${row.vehicles.brand} ${row.vehicles.model} (${formatPlate(row.vehicles.plate)})` : '—',
+            accessor: (row: DepartmentDetail['recentRefuelings'][number]) => {
+                const brand = row.vehicles?.brand || '';
+                const model = row.vehicles?.model || '';
+                const name = [brand, model].filter(Boolean).join(' ') || '—';
+                const photo = row.vehicles?.photo_url;
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {photo ? (
+                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200 bg-white" />
+                        ) : (
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+                                <Car className="h-4 w-4" />
+                            </div>
+                        )}
+                        <div>
+                            <span className="font-semibold text-slate-800 text-sm block">{name}</span>
+                            <span className="font-mono text-xs text-slate-500">{row.vehicles?.plate ? formatPlate(row.vehicles.plate) : '—'}</span>
+                        </div>
+                    </div>
+                );
+            },
         },
         {
             header: 'Motorista',
-            accessor: (row: DepartmentDetail['recentRefuelings'][number]) => row.drivers?.name || '—',
+            accessor: (row: DepartmentDetail['recentRefuelings'][number]) => {
+                const name = row.drivers?.name || '—';
+                const photo = row.drivers?.photo_url;
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {photo ? (
+                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-slate-200 bg-white" />
+                        ) : (
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-xs font-bold text-white shadow-sm">
+                                {getInitials(name)}
+                            </div>
+                        )}
+                        <span className="font-semibold text-slate-800 text-sm">{name}</span>
+                    </div>
+                );
+            },
         },
         {
             header: 'Combustível',
@@ -558,7 +652,27 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
         },
         {
             header: 'Veículo',
-            accessor: (row: DepartmentDetail['recentMaintenances'][number]) => row.vehicles ? `${row.vehicles.brand} ${row.vehicles.model} (${formatPlate(row.vehicles.plate)})` : '—',
+            accessor: (row: DepartmentDetail['recentMaintenances'][number]) => {
+                const brand = row.vehicles?.brand || '';
+                const model = row.vehicles?.model || '';
+                const name = [brand, model].filter(Boolean).join(' ') || '—';
+                const photo = row.vehicles?.photo_url;
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {photo ? (
+                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200 bg-white" />
+                        ) : (
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+                                <Car className="h-4 w-4" />
+                            </div>
+                        )}
+                        <div>
+                            <span className="font-semibold text-slate-800 text-sm block">{name}</span>
+                            <span className="font-mono text-xs text-slate-500">{row.vehicles?.plate ? formatPlate(row.vehicles.plate) : '—'}</span>
+                        </div>
+                    </div>
+                );
+            },
         },
         {
             header: 'Tipo',
@@ -782,10 +896,8 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                                     <div
                                         key={row.id}
                                         onClick={() => navigate(`/veiculos/${row.id}`, { state: { backTo: `/secretarias/${departmentId}` } })}
-                                        className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-5 pr-3.5 text-[#2F2F2F] shadow-sm active:scale-[0.98] transition-all duration-150 active:bg-slate-50"
+                                        className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-4 pr-3.5 text-[#2F2F2F] shadow-sm active:scale-[0.98] transition-all duration-150 active:bg-slate-50"
                                     >
-                                        <span className="absolute inset-y-0 left-0 w-[7px]" style={{ backgroundColor: barColor }} />
-
                                         <div className="relative h-[62px] w-[62px] shrink-0">
                                             {/* Fallback por baixo */}
                                             <div className="absolute inset-0 flex items-center justify-center rounded-[14px] bg-[#D9D9D9]">
@@ -855,10 +967,8 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                                     <div
                                         key={row.id}
                                         onClick={() => navigate(`/motoristas/${row.id}`, { state: { backTo: `/secretarias/${departmentId}` } })}
-                                        className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-5 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
+                                        className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-4 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
                                     >
-                                        <span className="absolute inset-y-0 left-0 w-[7px]" style={{ backgroundColor: barColor }} />
-
                                         <div className="relative h-[62px] w-[62px] shrink-0">
                                             {/* Fallback por baixo */}
                                             <div className="absolute inset-0 flex items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-base font-bold text-white shadow-sm">
@@ -931,10 +1041,8 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                                     <div
                                         key={trip.id}
                                         onClick={() => setSelectedTripId(trip.id)}
-                                        className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-5 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
+                                        className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-4 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
                                     >
-                                        <span className="absolute inset-y-0 left-0 w-[7px]" style={{ backgroundColor: barColor }} />
-
                                         <div className="flex h-[62px] w-[62px] shrink-0 flex-col items-center justify-center rounded-[14px] bg-[#E0E8E6] text-[#0F2B2F]">
                                             <span className="text-[17px] font-black leading-none">
                                                 {trip.actual_distance_km != null ? Math.round(Number(trip.actual_distance_km)) : '—'}
@@ -1002,10 +1110,8 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                                     <div
                                         key={item.id}
                                         onClick={() => setSelectedRefuelId(item.id)}
-                                        className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-5 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
+                                        className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-4 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
                                     >
-                                        <span className="absolute inset-y-0 left-0 w-[7px]" style={{ backgroundColor: barColor }} />
-
                                         <div className="flex h-[62px] w-[62px] shrink-0 flex-col items-center justify-center rounded-[14px] bg-emerald-50 text-[#00A86B]">
                                             <Fuel className="h-6 w-6" />
                                             <span className="text-[10px] font-bold mt-1 truncate max-w-full px-1">{item.fuel_type}</span>
@@ -1071,10 +1177,8 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                                     <div
                                         key={item.id}
                                         onClick={() => setSelectedMaintId(item.id)}
-                                        className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-5 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
+                                        className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-4 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
                                     >
-                                        <span className="absolute inset-y-0 left-0 w-[7px]" style={{ backgroundColor: barColor }} />
-
                                         <div className="flex h-[62px] w-[62px] shrink-0 flex-col items-center justify-center rounded-[14px] bg-amber-50 text-[#F59E0B]">
                                             <Wrench className="h-6 w-6" />
                                             <span className="text-[10px] font-bold mt-1 truncate max-w-full px-1">{item.type}</span>

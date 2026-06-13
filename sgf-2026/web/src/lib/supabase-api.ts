@@ -46,15 +46,15 @@ export type TripRecord = Omit<Tables<'trips'>, 'status'> & {
     end_time: string | null;
     actual_distance_km: number | null;
     has_anomaly: boolean;
-    vehicles?: { id: string; plate: string; brand: string; model: string } | null;
-    drivers?: { id: string; name: string } | null;
+    vehicles?: { id: string; plate: string; brand: string; model: string; photo_url: string | null } | null;
+    drivers?: { id: string; name: string; photo_url: string | null } | null;
 };
 
 // Fueling decorada pela camada de API: aliases date/supplier_name + relações.
 export type RefuelingRecord = Tables<'fuelings'> & {
     date: string;
     supplier_name: string;
-    drivers?: { id: string; name: string } | null;
+    drivers?: { id: string; name: string; photo_url: string | null } | null;
     station_relation?: { id: string; name: string; code: string | null } | null;
 };
 
@@ -111,10 +111,12 @@ export interface DepartmentTripRecord {
         plate: string;
         brand: string;
         model: string;
+        photo_url?: string | null;
     } | null;
     drivers?: {
         id: string;
         name: string;
+        photo_url?: string | null;
     } | null;
 }
 
@@ -134,10 +136,12 @@ export interface DepartmentRefuelingRecord {
         plate: string;
         brand: string;
         model: string;
+        photo_url?: string | null;
     } | null;
     drivers?: {
         id: string;
         name: string;
+        photo_url?: string | null;
     } | null;
 }
 
@@ -157,6 +161,7 @@ export interface DepartmentMaintenanceRecord {
         plate: string;
         brand: string;
         model: string;
+        photo_url?: string | null;
     } | null;
 }
 
@@ -582,7 +587,7 @@ export const driversApi = {
 // Decora um trip com aliases retro-compatíveis (status em UPPERCASE EN,
 // start_time/end_time/actual_distance_km/has_anomaly/drivers.name).
 function decorateTrip(row: Record<string, unknown>): TripRecord {
-    const drv = row.profiles as { id: string; full_name: string } | null;
+    const drv = row.profiles as { id: string; full_name: string; photo_url?: string | null } | null;
     return {
         ...row,
         start_time: row.start_at as string,
@@ -590,7 +595,7 @@ function decorateTrip(row: Record<string, unknown>): TripRecord {
         actual_distance_km: (row.distance_km as number | null) ?? null,
         has_anomaly: row.status === 'problema',
         status: dbToWebTripStatus(row.status as Enums<'trip_status'>),
-        drivers: drv ? { id: drv.id, name: drv.full_name } : null,
+        drivers: drv ? { id: drv.id, name: drv.full_name, photo_url: drv.photo_url ?? null } : null,
     } as unknown as TripRecord;
 }
 
@@ -607,7 +612,7 @@ export const tripsApi = {
     }): Promise<TripRecord[]> => {
         let query = supabase
             .from('trips')
-            .select('*, vehicles(id, plate, brand, model), profiles!trips_driver_id_fkey(id, full_name)')
+            .select('*, vehicles(id, plate, brand, model, photo_url), profiles!trips_driver_id_fkey(id, full_name, photo_url)')
             .order('start_at', { ascending: false });
 
         if (filters?.vehicleId) query = query.eq('vehicle_id', filters.vehicleId);
@@ -631,7 +636,7 @@ export const tripsApi = {
     getById: async (id: string): Promise<TripRecord> => {
         const { data, error } = await supabase
             .from('trips')
-            .select('*, vehicles(id, plate, brand, model), profiles!trips_driver_id_fkey(id, full_name)')
+            .select('*, vehicles(id, plate, brand, model, photo_url), profiles!trips_driver_id_fkey(id, full_name, photo_url)')
             .eq('id', id)
             .single();
         if (error) handleError(error);
@@ -883,13 +888,13 @@ export const infractionsApi = {
 
 // Decora um fueling com aliases (date, supplier_name, drivers.name) + dados do posto/autorização.
 function decorateFueling(row: Record<string, unknown>): RefuelingRecord {
-    const drv = row.profiles as { id: string; full_name: string } | null;
+    const drv = row.profiles as { id: string; full_name: string; photo_url?: string | null } | null;
     const station = (row as { fuel_stations?: { id: string; name: string; code: string | null } | null }).fuel_stations ?? null;
     return {
         ...row,
         date: row.created_at as string,
         supplier_name: (row.station as string | null) ?? station?.name ?? '',
-        drivers: drv ? { id: drv.id, name: drv.full_name } : null,
+        drivers: drv ? { id: drv.id, name: drv.full_name, photo_url: drv.photo_url ?? null } : null,
         station_relation: station,
     } as unknown as RefuelingRecord;
 }
@@ -908,7 +913,7 @@ export const refuelingsApi = {
     }): Promise<RefuelingRecord[]> => {
         let query = supabase
             .from('fuelings')
-            .select('*, vehicles(id, plate, brand, model, photo_url), profiles!fuelings_driver_id_fkey(id, full_name), fuel_stations(id, name, code)')
+            .select('*, vehicles(id, plate, brand, model, photo_url), profiles!fuelings_driver_id_fkey(id, full_name, photo_url), fuel_stations(id, name, code)')
             .order('created_at', { ascending: false });
 
         if (filters?.vehicleId) query = query.eq('vehicle_id', filters.vehicleId);
@@ -931,7 +936,7 @@ export const refuelingsApi = {
     getById: async (id: string): Promise<RefuelingRecord> => {
         const { data, error } = await supabase
             .from('fuelings')
-            .select('*, vehicles(id, plate, brand, model), profiles!fuelings_driver_id_fkey(id, full_name)')
+            .select('*, vehicles(id, plate, brand, model, photo_url), profiles!fuelings_driver_id_fkey(id, full_name, photo_url)')
             .eq('id', id)
             .single();
         if (error) handleError(error);
@@ -959,7 +964,7 @@ export const refuelingsApi = {
     // O motorista verá no app, aceita/rejeita e completa com litros/foto.
     createAuthorization: async (input: {
         vehicle_id: string;
-        driver_id: string;
+        driver_id?: string | null;
         authorized_by: string;
         station_id?: string | null;
         fuel_type?: string | null;
@@ -968,7 +973,8 @@ export const refuelingsApi = {
     }): Promise<Tables<'fuelings'>> => {
         const payload: TablesInsert<'fuelings'> = {
             vehicle_id: input.vehicle_id,
-            driver_id: input.driver_id,
+            // Autorização fica ligada ao VEÍCULO; qualquer motorista com ele realiza.
+            driver_id: input.driver_id ?? null,
             authorized_by: input.authorized_by,
             authorized_at: new Date().toISOString(),
             station_id: input.station_id ?? null,
@@ -1568,19 +1574,19 @@ export const departmentsApi = {
         const [tripsResult, refuelingsResult, maintenancesResult, checklistsResult] = await Promise.all([
             supabase
                 .from('trips')
-                .select('id, destination, start_at, status, distance_km, vehicles(id, plate, brand, model), profiles!trips_driver_id_fkey(id, full_name)')
+                .select('id, destination, start_at, status, distance_km, vehicles(id, plate, brand, model, photo_url), profiles!trips_driver_id_fkey(id, full_name, photo_url)')
                 .in('vehicle_id', vehicleIds)
                 .order('start_at', { ascending: false })
                 .limit(12),
             supabase
                 .from('fuelings')
-                .select('id, created_at, total_cost, liters, fuel_type, station, km_per_liter, has_anomaly, vehicles(id, plate, brand, model), profiles!fuelings_driver_id_fkey(id, full_name)')
+                .select('id, created_at, total_cost, liters, fuel_type, station, km_per_liter, has_anomaly, vehicles(id, plate, brand, model, photo_url), profiles!fuelings_driver_id_fkey(id, full_name, photo_url)')
                 .in('vehicle_id', vehicleIds)
                 .order('created_at', { ascending: false })
                 .limit(12),
             supabase
                 .from('service_orders')
-                .select('id, created_at, category, description, status, priority, vehicles(id, plate, brand, model)')
+                .select('id, created_at, category, description, status, priority, vehicles(id, plate, brand, model, photo_url)')
                 .in('vehicle_id', vehicleIds)
                 .order('created_at', { ascending: false })
                 .limit(10),
@@ -1598,7 +1604,8 @@ export const departmentsApi = {
         // Adapta os nomes do banco unificado (start_at, created_at, station, full_name)
         // para os aliases esperados pelos componentes do web (start_time, date, supplier_name, name).
         const trips: DepartmentTripRecord[] = (tripsResult.data || []).map((t: Record<string, unknown>) => {
-            const drv = t.profiles as { id: string; full_name: string } | null;
+            const drv = t.profiles as { id: string; full_name: string; photo_url: string | null } | null;
+            const veh = t.vehicles as { id: string; plate: string; brand: string; model: string; photo_url: string | null } | null;
             return {
                 id: t.id as string,
                 destination: t.destination as string,
@@ -1606,12 +1613,13 @@ export const departmentsApi = {
                 status: dbToWebTripStatus(t.status as Enums<'trip_status'>),
                 actual_distance_km: (t.distance_km as number | null) ?? null,
                 has_anomaly: t.status === 'problema',
-                vehicles: t.vehicles as DepartmentTripRecord['vehicles'],
-                drivers: drv ? { id: drv.id, name: drv.full_name } : null,
+                vehicles: veh ? { id: veh.id, plate: veh.plate, brand: veh.brand, model: veh.model, photo_url: veh.photo_url } : null,
+                drivers: drv ? { id: drv.id, name: drv.full_name, photo_url: drv.photo_url } : null,
             };
         });
         const refuelings: DepartmentRefuelingRecord[] = (refuelingsResult.data || []).map((r: Record<string, unknown>) => {
-            const drv = r.profiles as { id: string; full_name: string } | null;
+            const drv = r.profiles as { id: string; full_name: string; photo_url: string | null } | null;
+            const veh = r.vehicles as { id: string; plate: string; brand: string; model: string; photo_url: string | null } | null;
             return {
                 id: r.id as string,
                 date: r.created_at as string | null,
@@ -1621,12 +1629,13 @@ export const departmentsApi = {
                 supplier_name: (r.station as string) ?? '',
                 km_per_liter: (r.km_per_liter as number | null) ?? null,
                 has_anomaly: (r.has_anomaly as boolean | null) ?? false,
-                vehicles: r.vehicles as DepartmentRefuelingRecord['vehicles'],
-                drivers: drv ? { id: drv.id, name: drv.full_name } : null,
+                vehicles: veh ? { id: veh.id, plate: veh.plate, brand: veh.brand, model: veh.model, photo_url: veh.photo_url } : null,
+                drivers: drv ? { id: drv.id, name: drv.full_name, photo_url: drv.photo_url } : null,
             };
         });
         const maintenances: DepartmentMaintenanceRecord[] = (maintenancesResult.data || []).map((m: Record<string, unknown>) => {
             const mapped = dbCategoryToWebTypeCategory(m.category as string);
+            const veh = m.vehicles as { id: string; plate: string; brand: string; model: string; photo_url: string | null } | null;
             return {
                 id: m.id as string,
                 created_at: m.created_at as string | null,
@@ -1636,7 +1645,7 @@ export const departmentsApi = {
                 status: dbToWebMaintenanceStatus(m.status as Enums<'service_order_status'>),
                 actual_cost: null,
                 estimated_cost: null,
-                vehicles: m.vehicles as DepartmentMaintenanceRecord['vehicles'],
+                vehicles: veh ? { id: veh.id, plate: veh.plate, brand: veh.brand, model: veh.model, photo_url: veh.photo_url } : null,
             };
         });
         // Considera issue um checklist NÃO marcado como quick_confirm

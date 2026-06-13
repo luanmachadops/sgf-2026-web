@@ -24,7 +24,7 @@ import { DriverAccessForm } from '@/components/drivers/DriverAccessForm';
 import { Modal } from '@/components/ui/Modal';
 import { useHeader } from '@/contexts/HeaderContext';
 import { departmentsApi } from '@/lib/supabase-api';
-import { formatCPF, formatDate, getStatusColor, getStatusLabel } from '@/lib/utils';
+import { formatCPF, formatDate, getStatusColor, getStatusLabel, formatPhone, formatCNH } from '@/lib/utils';
 import { useDrivers, type DriverRecord } from '@/hooks/useDrivers';
 import { useAppSettings } from '@/hooks/useSettings';
 
@@ -187,15 +187,14 @@ export default function Drivers() {
         {
             header: 'Contato',
             accessor: (row) => (
-                <div className="flex items-center gap-1.5 text-sm text-slate-600">
-                    <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                    <span>{row.phone || '—'}</span>
+                <div className="flex items-center text-sm text-slate-600">
+                    <span>{formatPhone(row.phone)}</span>
                 </div>
             ),
         },
         {
             header: 'CNH',
-            accessor: (row) => <span className="font-mono text-sm text-slate-700">{row.cnh_number}</span>,
+            accessor: (row) => <span className="font-mono text-sm text-slate-700">{formatCNH(row.cnh_number)}</span>,
         },
         {
             header: 'Categoria',
@@ -221,25 +220,21 @@ export default function Drivers() {
         {
             header: 'Status',
             accessor: (row) => (
-                <div className="flex flex-col items-start gap-1.5">
-                    <SGFBadge variant={getStatusColor(row.status) as any}>
-                        {getStatusLabel(row.status)}
-                    </SGFBadge>
-                    {!row.hasAccess ? (
-                        <SGFBadge
-                            variant="warning"
-                            icon={KeyRound}
-                            dot
-                            size="sm"
-                        >
-                            Sem acesso
-                        </SGFBadge>
-                    ) : row.must_change_password ? (
-                        <SGFBadge variant="info" icon={KeyRound} dot size="sm">
-                            Aguardando 1º acesso
-                        </SGFBadge>
-                    ) : null}
-                </div>
+                <SGFBadge variant={getStatusColor(row.status) as any} size="sm">
+                    {getStatusLabel(row.status)}
+                </SGFBadge>
+            ),
+        },
+        {
+            header: 'Acesso',
+            accessor: (row) => (
+                !row.hasAccess ? (
+                    <SGFBadge variant="default" size="sm">Sem acesso</SGFBadge>
+                ) : row.must_change_password ? (
+                    <SGFBadge variant="info" size="sm">Aguardando 1º acesso</SGFBadge>
+                ) : (
+                    <SGFBadge variant="success" size="sm">Com acesso</SGFBadge>
+                )
             ),
         },
         {
@@ -298,16 +293,16 @@ export default function Drivers() {
                     >
                         <div
                             onClick={() => setShowExpiredModal(true)}
-                            className="relative flex items-center justify-between p-5 bg-rose-50 border border-rose-100 rounded-3xl shadow-sm mb-2 cursor-pointer hover:bg-rose-100/50 transition-colors group"
+                            className="relative mb-2 flex items-center justify-between gap-3 rounded-2xl border border-transparent bg-rose-50 p-4 transition-colors hover:bg-rose-100/40 cursor-pointer"
                         >
-                            <div className="flex items-center gap-4">
-                                <div className="p-2.5 bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-500/20 group-hover:scale-105 transition-transform shrink-0">
-                                    <AlertTriangle className="h-6 w-6" />
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 ring-1 ring-inset ring-rose-200">
+                                    <AlertTriangle className="h-5 w-5" />
                                 </div>
                                 <div>
-                                    <h4 className="font-black text-rose-900 leading-tight">Atenção com a CNH</h4>
-                                    <p className="text-sm text-rose-700/80 font-medium">
-                                        <span className="font-black">{urgentCNHCount} motorista(s)</span> com CNH vencida ou próxima do vencimento. Clique para ver a lista.
+                                    <h4 className="text-sm font-semibold leading-tight text-rose-800">Atenção com a CNH</h4>
+                                    <p className="text-[13px] text-rose-600/90">
+                                        <span className="font-semibold">{urgentCNHCount} motorista(s)</span> com CNH vencida ou próxima do vencimento. Clique para ver a lista.
                                     </p>
                                 </div>
                             </div>
@@ -316,10 +311,10 @@ export default function Drivers() {
                                     e.stopPropagation();
                                     setShowWarning(false);
                                 }}
-                                className="p-2 text-rose-400 hover:text-rose-700 hover:bg-rose-100/80 rounded-xl transition-colors shrink-0"
+                                className="shrink-0 rounded-lg p-1.5 text-rose-400 transition-colors hover:bg-rose-100/80 hover:text-rose-700"
                                 title="Fechar aviso"
                             >
-                                <X className="h-5 w-5" />
+                                <X className="h-4 w-4" />
                             </button>
                         </div>
                     </motion.div>
@@ -435,10 +430,8 @@ export default function Drivers() {
                         <div
                             key={row.id}
                             onClick={() => navigate(`/motoristas/${row.id}`)}
-                            className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-5 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
+                            className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-4 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
                         >
-                            <span className="absolute inset-y-0 left-0 w-[7px]" style={{ backgroundColor: barColor }} />
-
                             <div className="relative h-[62px] w-[62px] shrink-0">
                                 {/* Fallback por baixo */}
                                 <div className="absolute inset-0 flex items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-base font-bold text-white shadow-sm">

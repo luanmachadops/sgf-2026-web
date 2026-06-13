@@ -135,7 +135,7 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
         defaultValues: {
             status: 'AVAILABLE',
             currentOdometer: 0,
-            year: new Date().getFullYear(),
+            year: '' as unknown as number,
             departmentId: user?.departmentId ?? '',
         },
     });

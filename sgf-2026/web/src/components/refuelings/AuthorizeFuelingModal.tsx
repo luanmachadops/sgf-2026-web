@@ -6,7 +6,7 @@ import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { Car, Fuel, User } from '@/components/sgf/icons';
-import { driversApi, stationsApi, vehiclesApi } from '@/lib/supabase-api';
+import { stationsApi, vehiclesApi } from '@/lib/supabase-api';
 import { useCreateFuelAuthorization } from '@/hooks/useRefuelings';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPlate } from '@/lib/utils';
@@ -29,7 +29,6 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
     const createAuth = useCreateFuelAuthorization();
 
     const { data: vehicles = [] } = useQuery({ queryKey: ['vehicles', 'all'], queryFn: () => vehiclesApi.getAll() });
-    const { data: drivers = [] }  = useQuery({ queryKey: ['drivers', 'all'], queryFn: () => driversApi.getAll() });
     const { data: stations = [] } = useQuery({ queryKey: ['stations', { activeOnly: true }], queryFn: () => stationsApi.getAll({ activeOnly: true }) });
 
     const vehicleOptions = useMemo(
@@ -38,10 +37,6 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
             label: `${formatPlate(v.plate) || v.unit_code} — ${v.brand ?? ''} ${v.model ?? ''}`.trim(),
         })),
         [vehicles],
-    );
-    const driverOptions = useMemo(
-        () => drivers.map((d) => ({ value: d.id, label: (d as { full_name?: string; name?: string }).full_name ?? d.name ?? 'Motorista' })),
-        [drivers],
     );
     const stationOptions = useMemo(
         () => [
@@ -52,17 +47,37 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
     );
 
     const [vehicleId, setVehicleId] = useState('');
-    const [driverId, setDriverId] = useState('');
     const [stationId, setStationId] = useState('');
     const [fuelType, setFuelType] = useState('');
     const [maxLiters, setMaxLiters] = useState('');
     const [notes, setNotes] = useState('');
     const [error, setError] = useState<string | null>(null);
 
+    // Combustível segue o veículo: específico → trava; flex → só Gasolina/Etanol.
+    const FUEL_BY_VEHICLE: Record<string, string> = { DIESEL: 'Diesel', GASOLINE: 'Gasolina', ETHANOL: 'Etanol' };
+    const selectedVehicle = useMemo(() => vehicles.find((v) => v.id === vehicleId), [vehicles, vehicleId]);
+    const vFuel = String((selectedVehicle as { fuel_type?: string } | undefined)?.fuel_type ?? '').toUpperCase();
+    const lockedFuel = FUEL_BY_VEHICLE[vFuel]; // undefined quando flex/desconhecido
+    const isFlex = vFuel === 'FLEX';
+
+    const fuelOptions = useMemo(() => {
+        if (lockedFuel) return [{ value: lockedFuel, label: lockedFuel }];
+        if (isFlex) return [
+            { value: '', label: 'Selecione (Gasolina ou Etanol)' },
+            { value: 'Gasolina', label: 'Gasolina' },
+            { value: 'Etanol', label: 'Etanol' },
+        ];
+        return FUEL_OPTIONS;
+    }, [lockedFuel, isFlex]);
+
+    // Ao trocar o veículo: trava no combustível dele (ou limpa, no flex/sem veículo).
+    useEffect(() => {
+        setFuelType(lockedFuel ?? '');
+    }, [vehicleId, lockedFuel]);
+
     useEffect(() => {
         if (!isOpen) return;
         setVehicleId('');
-        setDriverId('');
         setStationId('');
         setFuelType('');
         setMaxLiters('');
@@ -75,13 +90,13 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
         setError(null);
 
         if (!vehicleId) return setError('Selecione o veículo.');
-        if (!driverId) return setError('Selecione o motorista.');
         if (!user?.id) return setError('Sessão inválida — faça login novamente.');
 
         try {
             await createAuth.mutateAsync({
                 vehicle_id: vehicleId,
-                driver_id: driverId,
+                // Sem motorista: a autorização fica ligada ao veículo.
+                driver_id: null,
                 authorized_by: user.id,
                 station_id: stationId || null,
                 fuel_type: fuelType || null,
@@ -114,26 +129,19 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
             )}
         >
             <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <SGFSelect
-                        label="Veículo"
-                        options={vehicleOptions}
-                        value={vehicleId}
-                        onChange={setVehicleId}
-                        placeholder="Selecione o veículo..."
-                        fullWidth
-                        icon={Car}
-                    />
-                    <SGFSelect
-                        label="Motorista"
-                        options={driverOptions}
-                        value={driverId}
-                        onChange={setDriverId}
-                        placeholder="Selecione o motorista..."
-                        fullWidth
-                        icon={User}
-                    />
-                </div>
+                <SGFSelect
+                    label="Veículo"
+                    options={vehicleOptions}
+                    value={vehicleId}
+                    onChange={setVehicleId}
+                    placeholder="Selecione o veículo..."
+                    fullWidth
+                    icon={Car}
+                />
+                <p className="-mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                    <User className="h-3.5 w-3.5 text-slate-400" />
+                    Sem motorista: a autorização aparece para quem estiver com este veículo no app.
+                </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SGFSelect
@@ -146,10 +154,11 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
                         icon={Fuel}
                     />
                     <SGFSelect
-                        label="Combustível (opcional)"
-                        options={FUEL_OPTIONS}
+                        label={lockedFuel ? 'Combustível (do veículo)' : isFlex ? 'Combustível (Flex)' : 'Combustível (opcional)'}
+                        options={fuelOptions}
                         value={fuelType}
                         onChange={setFuelType}
+                        disabled={!!lockedFuel}
                         fullWidth
                     />
                 </div>

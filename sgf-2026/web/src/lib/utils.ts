@@ -88,15 +88,24 @@ export function formatPlate(plate: string | null | undefined): string {
  * Format phone number — tolerante a null/undefined.
  */
 export function formatPhone(phone: string | null | undefined): string {
-    if (!phone) return '';
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length === 11) {
-        return cleaned.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    if (!phone) return '—';
+    const d = phone.replace(/\D/g, '');
+    if (d.length === 11) {
+        return d.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
     }
-    if (cleaned.length === 10) {
-        return cleaned.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+    if (d.length === 10) {
+        return d.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
     }
     return phone;
+}
+
+export function formatCNH(cnh: string | null | undefined): string {
+    if (!cnh) return '—';
+    const d = cnh.replace(/\D/g, '');
+    if (d.length === 11) {
+        return d.replace(/(\d{9})(\d{2})/, '$1-$2');
+    }
+    return cnh;
 }
 
 /**
@@ -133,36 +142,33 @@ export function maskPhone(value: string): string {
         .replace(/(\d{5})(\d{1,4})$/, '$1-$2');
 }
 
-/**
- * Get status badge color
- */
-export function getStatusColor(status: string): string {
-    const statusMap: Record<string, string> = {
+export function getStatusColor(status: string): 'default' | 'success' | 'warning' | 'error' | 'info' {
+    const statusMap: Record<string, 'default' | 'success' | 'warning' | 'error' | 'info'> = {
         // Vehicle status
-        AVAILABLE: 'bg-green-100 text-green-800',
-        IN_USE: 'bg-blue-100 text-blue-800',
-        MAINTENANCE: 'bg-yellow-100 text-yellow-800',
-        INACTIVE: 'bg-gray-100 text-gray-800',
+        AVAILABLE: 'success',
+        IN_USE: 'info',
+        MAINTENANCE: 'warning',
+        INACTIVE: 'default',
 
         // Trip status
-        IN_PROGRESS: 'bg-blue-100 text-blue-800',
-        COMPLETED: 'bg-green-100 text-green-800',
-        CANCELLED: 'bg-red-100 text-red-800',
+        IN_PROGRESS: 'info',
+        COMPLETED: 'success',
+        CANCELLED: 'error',
 
         // Maintenance status
-        PENDING: 'bg-yellow-100 text-yellow-800',
-        APPROVED: 'bg-green-100 text-green-800',
-        REJECTED: 'bg-red-100 text-red-800',
-        IN_PROGRESS_MAINT: 'bg-blue-100 text-blue-800',
-        AWAITING_PARTS: 'bg-orange-100 text-orange-800',
-        COMPLETED_MAINT: 'bg-green-100 text-green-800',
+        PENDING: 'warning',
+        APPROVED: 'success',
+        REJECTED: 'error',
+        IN_PROGRESS_MAINT: 'info',
+        AWAITING_PARTS: 'warning',
+        COMPLETED_MAINT: 'success',
 
         // Driver status
-        ACTIVE: 'bg-green-100 text-green-800',
-        SUSPENDED: 'bg-red-100 text-red-800',
+        ACTIVE: 'success',
+        SUSPENDED: 'error',
     };
 
-    return statusMap[status] || 'bg-gray-100 text-gray-800';
+    return statusMap[status] || 'default';
 }
 
 /**

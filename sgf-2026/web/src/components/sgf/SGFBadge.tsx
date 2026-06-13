@@ -23,28 +23,29 @@ export const SGFBadge = React.forwardRef<HTMLSpanElement, SGFBadgeProps>(
   ) => {
     const baseStyles = `
       inline-flex items-center gap-1.5
-      font-[var(--sgf-font-bold)]
-      rounded-[var(--sgf-radius-full)]
+      font-semibold whitespace-nowrap
+      rounded-full ring-1 ring-inset
       transition-colors duration-[var(--sgf-transition-fast)]
     `;
 
+    // Estilo "soft": fundo bem claro + texto forte + anel sutil (menos chamativo, padronizado).
     const variantStyles = {
-      default: 'bg-slate-100 text-slate-700',
-      success: 'bg-emerald-100 text-emerald-700',
-      warning: 'bg-amber-100 text-amber-700',
-      error: 'bg-red-100 text-red-700',
-      info: 'bg-blue-100 text-blue-700',
-      moving: 'bg-emerald-100 text-emerald-700',
-      idle: 'bg-blue-100 text-blue-700',
-      stopped: 'bg-slate-100 text-slate-600',
-      alert: 'bg-red-100 text-red-700 animate-pulse',
+      default: 'bg-slate-50 text-slate-600 ring-slate-200',
+      success: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+      warning: 'bg-amber-50 text-amber-700 ring-amber-200',
+      error: 'bg-red-50 text-red-700 ring-red-200',
+      info: 'bg-blue-50 text-blue-700 ring-blue-200',
+      moving: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+      idle: 'bg-blue-50 text-blue-700 ring-blue-200',
+      stopped: 'bg-slate-50 text-slate-600 ring-slate-200',
+      alert: 'bg-red-50 text-red-700 ring-red-200',
     };
 
-    // Using design tokens for consistent spacing
+    // Tamanhos consistentes em todo o site.
     const sizeStyles = {
-      sm: 'px-[var(--sgf-space-2)] py-[2px] text-[var(--sgf-text-2xs)]',
-      md: 'px-[var(--sgf-space-3)] py-[var(--sgf-space-1)] text-[var(--sgf-text-xs)]',
-      lg: 'px-[var(--sgf-space-4)] py-[6px] text-[var(--sgf-text-sm)]',
+      sm: 'px-2 py-[1px] text-[10px]',
+      md: 'px-2.5 py-0.5 text-[11px]',
+      lg: 'px-3 py-1 text-xs',
     };
 
     const dotColors = {

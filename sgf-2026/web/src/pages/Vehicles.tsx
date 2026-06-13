@@ -257,10 +257,8 @@ export default function Vehicles() {
                         <div
                             key={row.id}
                             onClick={() => navigate(`/veiculos/${row.id}`)}
-                            className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-5 pr-3.5 text-[#2F2F2F] shadow-sm active:bg-slate-50"
+                            className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-4 pr-3.5 text-[#2F2F2F] shadow-sm active:bg-slate-50"
                         >
-                            <span className="absolute inset-y-0 left-0 w-[7px]" style={{ backgroundColor: barColor }} />
-
                             <div className="relative h-[62px] w-[62px] shrink-0">
                                 {/* Fallback por baixo */}
                                 <div className="absolute inset-0 flex items-center justify-center rounded-[14px] bg-[#D9D9D9]">

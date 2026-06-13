@@ -360,7 +360,7 @@ export type Database = {
           authorized_at: string | null
           authorized_by: string | null
           created_at: string
-          driver_id: string
+          driver_id: string | null
           fuel_type: string | null
           has_anomaly: boolean | null
           id: string
@@ -388,7 +388,7 @@ export type Database = {
           authorized_at?: string | null
           authorized_by?: string | null
           created_at?: string
-          driver_id: string
+          driver_id?: string | null
           fuel_type?: string | null
           has_anomaly?: boolean | null
           id?: string
@@ -416,7 +416,7 @@ export type Database = {
           authorized_at?: string | null
           authorized_by?: string | null
           created_at?: string
-          driver_id?: string
+          driver_id?: string | null
           fuel_type?: string | null
           has_anomaly?: boolean | null
           id?: string
@@ -1647,6 +1647,7 @@ export type Database = {
           status: string
         }[]
       }
+      get_user_current_vehicle_id: { Args: never; Returns: string }
       get_user_department_id: { Args: never; Returns: string }
       get_user_tenant_id: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }

@@ -25,6 +25,7 @@ import {
     Sparkles,
     ChevronLeft,
     ChevronRight,
+    User,
 } from '@/components/sgf/icons';
 import { EditVehicleModal } from '@/components/vehicles/EditVehicleModal';
 import { VehicleAIModal } from '@/components/vehicles/VehicleAIModal';
@@ -308,11 +309,29 @@ export default function VehicleDetails() {
         start_at: string; end_at: string | null;
         start_odometer: number | null; end_odometer: number | null;
         distance_km: number | null; destination: string;
-        drivers?: { id: string; name: string } | null;
+        drivers?: { id: string; name: string; photo_url?: string | null } | null;
     };
     const tripColumns: SGFTableColumn<TripRow>[] = [
         { header: 'Data', accessor: (r) => formatDate(r.start_at) },
-        { header: 'Motorista', accessor: (r) => r.drivers?.name ?? '—' },
+        {
+            header: 'Motorista',
+            accessor: (r) => {
+                const name = r.drivers?.name ?? '—';
+                const photo = r.drivers?.photo_url;
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {photo ? (
+                            <img src={photo} alt={name} className="h-6 w-6 shrink-0 rounded-full object-cover ring-1 ring-slate-200" />
+                        ) : (
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                                <User className="h-3 w-3" />
+                            </div>
+                        )}
+                        <span className="text-sm font-semibold text-slate-800">{name}</span>
+                    </div>
+                );
+            },
+        },
         { header: 'Km Inicial', accessor: (r) => r.start_odometer != null ? r.start_odometer.toLocaleString('pt-BR') : '—' },
         { header: 'Km Final', accessor: (r) => r.end_odometer != null ? r.end_odometer.toLocaleString('pt-BR') : '—' },
         { header: 'Distância', accessor: (r) => r.distance_km != null ? formatDistance(Number(r.distance_km)) : '—' },
@@ -326,6 +345,7 @@ export default function VehicleDetails() {
     };
     const refuelingColumns: SGFTableColumn<FuelRow>[] = [
         { header: 'Data', accessor: (r) => formatDate(r.created_at) },
+        { header: 'Posto', accessor: (r) => r.supplier_name || '—' },
         { header: 'Litros', accessor: (r) => `${Number(r.liters ?? 0).toLocaleString('pt-BR')} L` },
         { header: 'Valor', accessor: (r) => formatCurrency(Number(r.total_cost ?? 0)) },
         { header: 'Odômetro', accessor: (r) => r.odometer != null ? formatDistance(r.odometer) : '—' },

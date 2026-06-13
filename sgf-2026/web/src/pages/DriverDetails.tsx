@@ -20,13 +20,14 @@ import {
     User,
     CalendarClock,
     LockKeyhole,
+    Car,
 } from '@/components/sgf/icons';
 import { EditDriverModal } from '@/components/drivers/EditDriverModal';
 import { DriverAccessForm } from '@/components/drivers/DriverAccessForm';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
 import { Modal } from '@/components/ui/Modal';
 import type { Tables } from '@/types/database.types';
-import { formatDate, formatCPF, formatDistance, formatPhone, formatPlate } from '@/lib/utils';
+import { formatDate, formatDateTime, formatCPF, formatDistance, formatPhone, formatPlate } from '@/lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
 import { driversApi, tripsApi } from '@/lib/supabase-api';
 
@@ -47,6 +48,16 @@ function getLicenseStatus(expiryDate: string | null | undefined) {
     if (daysUntilExpiry <= 30) return { label: `Vence em ${daysUntilExpiry} dias`, variant: 'warning' as const };
     if (daysUntilExpiry <= 90) return { label: `Vence em ${daysUntilExpiry} dias`, variant: 'info' as const };
     return { label: 'Regular', variant: 'success' as const };
+}
+
+function getDuration(startAt: string, endAt: string | null | undefined): string {
+    if (!endAt) return '—';
+    const diff = new Date(endAt).getTime() - new Date(startAt).getTime();
+    const minutes = Math.max(Math.round(diff / 60000), 0);
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours === 0) return `${mins}min`;
+    return `${hours}h ${mins}min`;
 }
 
 export default function DriverDetails() {
@@ -81,13 +92,36 @@ export default function DriverDetails() {
         end_odometer: number | null;
         distance_km: number | null;
         destination: string;
-        vehicles?: { id: string; plate: string; brand: string; model: string } | null;
+        vehicles?: { id: string; plate: string; brand: string; model: string; photo_url: string | null } | null;
     };
 
     const tripColumns: SGFTableColumn<TripRow>[] = [
-        { header: 'Data', accessor: (r) => formatDate(r.start_at) },
+        { header: 'Início', accessor: (r) => `${formatDate(r.start_at)} - ${formatDate(r.start_at, 'HH:mm')}` },
+        { header: 'Fim', accessor: (r) => r.end_at ? `${formatDate(r.end_at)} - ${formatDate(r.end_at, 'HH:mm')}` : '—' },
+        { header: 'Duração', accessor: (r) => getDuration(r.start_at, r.end_at) },
         {
             header: 'Veículo',
+            accessor: (r) => {
+                const brand = r.vehicles?.brand || '';
+                const model = r.vehicles?.model || '';
+                const name = [brand, model].filter(Boolean).join(' ') || '—';
+                const photo = r.vehicles?.photo_url;
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {photo ? (
+                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200" />
+                        ) : (
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--sgf-primary)]/10 text-[var(--sgf-primary)]">
+                                <Car className="h-4 w-4" />
+                            </div>
+                        )}
+                        <span className="font-semibold text-slate-800 text-sm">{name}</span>
+                    </div>
+                );
+            },
+        },
+        {
+            header: 'Placa',
             accessor: (r) => <span className="font-mono">{r.vehicles?.plate ? formatPlate(r.vehicles.plate) : '—'}</span>,
         },
         { header: 'Km Inicial', accessor: (r) => r.start_odometer != null ? r.start_odometer.toLocaleString('pt-BR') : '—' },
@@ -325,16 +359,13 @@ export default function DriverDetails() {
                         ) : (
                             trips.map((row) => {
                                 const trip = row as unknown as TripRow;
-                                const barColor = trip.status === 'COMPLETED' ? '#5BCE72' : trip.status === 'IN_PROGRESS' ? '#3B82F6' : '#EF4444';
                                 
                                 return (
                                     <div
                                         key={trip.id}
                                         onClick={() => setSelectedTripId(trip.id)}
-                                        className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-5 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
+                                        className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-4 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
                                     >
-                                        <span className="absolute inset-y-0 left-0 w-[7px]" style={{ backgroundColor: barColor }} />
-
                                         <div className="flex h-[62px] w-[62px] shrink-0 flex-col items-center justify-center rounded-[14px] bg-[#E0E8E6] text-[#0F2B2F]">
                                             <span className="text-[17px] font-black leading-none">
                                                 {trip.distance_km != null ? Math.round(Number(trip.distance_km)) : '—'}
