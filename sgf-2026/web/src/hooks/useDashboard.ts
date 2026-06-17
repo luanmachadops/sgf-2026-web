@@ -11,6 +11,14 @@ export function useDashboardKPIs() {
     });
 }
 
+export function useDashboardKpiTrends() {
+    return useQuery({
+        queryKey: ['dashboard', 'kpi-trends'],
+        queryFn: () => dashboardApi.getKpiTrends(),
+        staleTime: 5 * 60 * 1000,
+    });
+}
+
 export function useExpenseChart(period: ResolvedPeriod = { monthsBack: 6 }) {
     return useQuery({
         queryKey: ['dashboard', 'expenses', period],

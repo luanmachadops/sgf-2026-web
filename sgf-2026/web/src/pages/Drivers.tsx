@@ -239,6 +239,7 @@ export default function Drivers() {
         },
         {
             header: 'Ações',
+            sortable: false,
             headerClassName: 'text-right',
             accessor: (row) => (
                 <div className="flex items-center justify-end gap-0.5">

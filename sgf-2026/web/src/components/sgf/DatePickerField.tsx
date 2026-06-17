@@ -13,6 +13,8 @@ export interface DatePickerFieldProps {
     onChange: (value: string) => void;
     label?: string;
     className?: string;
+    /** alinhamento do calendário em relação ao botão. 'start' abre para a direita. */
+    align?: 'start' | 'center' | 'end';
 }
 
 // Variáveis do react-day-picker mapeadas para a paleta do site.
@@ -28,7 +30,7 @@ const RDP_THEME: CSSProperties = {
     '--rdp-day_button-height': '2rem',
 };
 
-export function DatePickerField({ value, onChange, label = 'Selecionar data', className }: DatePickerFieldProps) {
+export function DatePickerField({ value, onChange, label = 'Selecionar data', className, align = 'end' }: DatePickerFieldProps) {
     const [open, setOpen] = useState(false);
 
     const selected = value ? parse(value, 'yyyy-MM-dd', new Date()) : undefined;
@@ -54,7 +56,7 @@ export function DatePickerField({ value, onChange, label = 'Selecionar data', cl
 
             <Popover.Portal>
                 <Popover.Content
-                    align="end"
+                    align={align}
                     sideOffset={6}
                     className="z-[200] rounded-2xl border border-slate-200 bg-white p-3 shadow-xl animate-in fade-in zoom-in-95 duration-150"
                 >

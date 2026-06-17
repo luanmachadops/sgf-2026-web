@@ -164,6 +164,7 @@ export default function Trips() {
         },
         {
             header: 'Ações',
+            sortable: false,
             accessor: (row) => (
                 <SGFButton variant="ghost" size="sm" onClick={() => setSelectedTripId(row.id)} icon={Eye} />
             )

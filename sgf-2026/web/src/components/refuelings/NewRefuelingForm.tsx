@@ -4,7 +4,8 @@ import { toast } from 'sonner';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { Loader2, Save, Fuel, Calendar, Car, User, Receipt, DollarSign, ArrowUpRight, Camera, X } from '@/components/sgf/icons';
+import { VehiclePickerField } from '@/components/sgf/VehiclePickerField';
+import { Loader2, Save, Fuel, Calendar, User, Receipt, DollarSign, ArrowUpRight, Camera, X } from '@/components/sgf/icons';
 import { refuelingsApi, stationsApi, vehiclesApi } from '@/lib/supabase-api';
 import { supabase } from '@/lib/supabase';
 import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
@@ -88,13 +89,6 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
         queryFn: () => stationsApi.getAll({ activeOnly: true }),
     });
 
-    const vehicleOptions = useMemo(
-        () => vehicles.map((v) => ({
-            value: v.id,
-            label: `${formatPlate(v.plate) || v.unit_code} — ${v.brand ?? ''} ${v.model ?? ''}`.trim(),
-        })),
-        [vehicles],
-    );
     const [vehicleId, setVehicleId] = useState('');
     const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [fuelType, setFuelType] = useState('Gasolina');
@@ -107,6 +101,7 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
     const [requisitionUrl, setRequisitionUrl] = useState('');
     const [odometerPhotoUrl, setOdometerPhotoUrl] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [askConfirm, setAskConfirm] = useState(false);
 
     // Auto-calcula total = litros × R$/L (preserva valor manual se usuário digitar diferente)
     useEffect(() => {
@@ -127,6 +122,30 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [vehicleId]);
 
+    // Combustível segue o veículo: específico → trava; flex → só Gasolina/Etanol.
+    const FUEL_BY_VEHICLE: Record<string, string> = { DIESEL: 'Diesel', GASOLINA: 'Gasolina', ETANOL: 'Etanol' };
+    const selectedVehicle = useMemo(() => vehicles.find((v) => v.id === vehicleId), [vehicles, vehicleId]);
+    const vFuel = String((selectedVehicle as { fuel_type?: string } | undefined)?.fuel_type ?? '').toUpperCase();
+    const lockedFuel = FUEL_BY_VEHICLE[vFuel]; // undefined quando flex/desconhecido
+    const isFlex = vFuel === 'FLEX';
+    const fuelOptions = useMemo(() => {
+        if (lockedFuel) return [{ value: lockedFuel, label: lockedFuel }];
+        if (isFlex) return [
+            { value: 'Gasolina', label: 'Gasolina' },
+            { value: 'Etanol', label: 'Etanol' },
+        ];
+        return FUEL_OPTIONS;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lockedFuel, isFlex]);
+
+    // Ao trocar o veículo, ajusta o combustível: trava no do veículo; flex => Gasolina por padrão.
+    useEffect(() => {
+        if (!vehicleId) return;
+        if (lockedFuel) setFuelType(lockedFuel);
+        else if (isFlex) setFuelType((cur) => (cur === 'Gasolina' || cur === 'Etanol' ? cur : 'Gasolina'));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [vehicleId, lockedFuel, isFlex]);
+
     // Preço da licitação (contrato) do posto para o combustível selecionado.
     const contractPrice = useMemo(() => {
         if (!contractMode || !stationId) return 0;
@@ -136,10 +155,15 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
     }, [contractMode, stationId, fuelType, stations]);
 
     const priceLocked = contractMode && contractPrice > 0;
+    // Posto selecionado sem preço de licitação para o combustível escolhido.
+    const noContractForFuel = contractMode && !!stationId && contractPrice <= 0;
 
     useEffect(() => {
         if (priceLocked) setPricePerLiter(String(contractPrice));
     }, [priceLocked, contractPrice]);
+
+    // Reabre a confirmação se mudar posto/combustível/veículo.
+    useEffect(() => { setAskConfirm(false); }, [stationId, fuelType, vehicleId]);
 
     // Anomalia: litros acima da capacidade do tanque (quando habilitado nas configurações).
     const tankCapacity = useMemo(() => {
@@ -159,6 +183,8 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
         setError(null);
 
         if (!vehicleId) return setError('Selecione o veículo.');
+        // Bloqueio: posto sem licitação para este combustível exige confirmação explícita.
+        if (noContractForFuel && !askConfirm) { setAskConfirm(true); return; }
         if (!user?.id) return setError('Sessão expirada. Faça login novamente.');
         if (!liters || Number(liters) <= 0) return setError('Informe a quantidade de litros.');
         if (!pricePerLiter || Number(pricePerLiter) <= 0) return setError('Informe o preço por litro.');
@@ -201,14 +227,10 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <SGFSelect
-                    label="Veículo"
-                    options={vehicleOptions}
+                <VehiclePickerField
+                    vehicles={vehicles}
                     value={vehicleId}
-                    onChange={(val) => setVehicleId(val)}
-                    placeholder="Selecione o veículo..."
-                    fullWidth
-                    icon={Car}
+                    onChange={setVehicleId}
                 />
 
                 <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
@@ -230,10 +252,11 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
                     icon={Calendar}
                 />
                 <SGFSelect
-                    label="Combustível"
-                    options={FUEL_OPTIONS}
+                    label={lockedFuel ? 'Combustível (do veículo)' : isFlex ? 'Combustível (Flex)' : 'Combustível'}
+                    options={fuelOptions}
                     value={fuelType}
                     onChange={(val) => setFuelType(val)}
+                    disabled={!!lockedFuel}
                     fullWidth
                     icon={Fuel}
                 />
@@ -289,7 +312,11 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
                         disabled={priceLocked}
                         hint={
                             contractMode
-                                ? (priceLocked ? 'Preço da licitação (fixo)' : 'Selecione um posto com preço de licitação cadastrado')
+                                ? (priceLocked
+                                    ? 'Preço da licitação (fixo)'
+                                    : noContractForFuel
+                                        ? `Sem licitação de ${fuelType} neste posto — informe o preço`
+                                        : 'Selecione um posto com preço de licitação cadastrado')
                                 : undefined
                         }
                     />
@@ -328,6 +355,23 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
             {overflow && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700">
                     Os litros informados ({Number(liters).toLocaleString('pt-BR')} L) ultrapassam a capacidade do tanque ({tankCapacity} L). O registro será marcado como anomalia.
+                </div>
+            )}
+
+            {askConfirm && (
+                <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3.5 text-sm text-amber-800">
+                    <p className="font-bold">Posto sem licitação para {fuelType || 'este combustível'}</p>
+                    <p className="mt-1 text-amber-700">
+                        O posto selecionado não possui preço de licitação cadastrado para <strong>{fuelType}</strong>. Deseja prosseguir mesmo assim e informar o preço manualmente?
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                        <SGFButton type="button" variant="ghost" className="!text-slate-600" onClick={() => setAskConfirm(false)}>
+                            Não, cancelar
+                        </SGFButton>
+                        <SGFButton type="submit" className="!bg-amber-600 hover:!bg-amber-700" disabled={isSaving}>
+                            Sim, abastecer assim mesmo
+                        </SGFButton>
+                    </div>
                 </div>
             )}
 

@@ -9,7 +9,6 @@ import { Toaster } from '@/components/ui/sonner';
 // Pages
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
-import Showcase from '@/pages/Showcase';
 import MapPage from '@/pages/Map';
 import Vehicles from '@/pages/Vehicles';
 import VehicleDetails from '@/pages/VehicleDetails';
@@ -53,7 +52,6 @@ function App() {
             <Route element={<PrivateRoute />}>
               <Route element={<MainLayout />}>
                 <Route path="/" element={<Dashboard />} />
-                <Route path="/design-system" element={<Showcase />} />
                 <Route path="/mapa" element={<MapPage />} />
                 <Route path="/veiculos" element={<Vehicles />} />
                 <Route path="/veiculos/:id" element={<VehicleDetails />} />

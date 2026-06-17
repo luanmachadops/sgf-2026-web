@@ -1105,7 +1105,7 @@ export const maintenancesApi = {
     }): Promise<Tables<'service_orders'>[]> => {
         let query = supabase
             .from('service_orders')
-            .select('*, vehicles(id, plate, brand, model, departments(name)), profiles!service_orders_driver_id_fkey(id, full_name)')
+            .select('*, vehicles(id, plate, brand, model, photo_url, departments(name)), profiles!service_orders_driver_id_fkey(id, full_name)')
             .order('created_at', { ascending: false });
 
         if (filters?.vehicleId) query = query.eq('vehicle_id', filters.vehicleId);
@@ -1822,6 +1822,59 @@ export const dashboardApi = {
                 cnhExpiringSoon,
                 avgScore: Number(avgScore.toFixed(2)),
             },
+        };
+    },
+
+    // Séries dos últimos 6 meses para os mini-gráficos dos cards do dashboard.
+    getKpiTrends: async () => {
+        const buckets = getTrailingMonthBuckets(6);
+        const start = new Date();
+        start.setMonth(start.getMonth() - 5);
+        start.setDate(1);
+        start.setHours(0, 0, 0, 0);
+        const startIso = start.toISOString();
+
+        const [fuelingsRes, tripsRes, ordersRes] = await Promise.all([
+            supabase.from('fuelings').select('liters, created_at').gte('created_at', startIso),
+            supabase.from('trips').select('vehicle_id, distance_km, status, start_at').gte('start_at', startIso),
+            supabase.from('service_orders').select('created_at').gte('created_at', startIso),
+        ]);
+        if (fuelingsRes.error) handleError(fuelingsRes.error);
+        if (tripsRes.error) handleError(tripsRes.error);
+        if (ordersRes.error) handleError(ordersRes.error);
+
+        const keyOf = (iso: string) => {
+            const d = new Date(iso);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        };
+
+        const fuel: Record<string, number> = {};
+        const km: Record<string, number> = {};
+        const maint: Record<string, number> = {};
+        const active: Record<string, Set<string>> = {};
+        buckets.forEach((b) => { fuel[b.key] = 0; km[b.key] = 0; maint[b.key] = 0; active[b.key] = new Set(); });
+
+        (fuelingsRes.data || []).forEach((r) => {
+            const k = keyOf(r.created_at as string);
+            if (k in fuel) fuel[k] += Number(r.liters || 0);
+        });
+        (tripsRes.data || []).forEach((t) => {
+            const k = keyOf(t.start_at as string);
+            if (k in km) {
+                if (t.status === 'concluida') km[k] += Number(t.distance_km || 0);
+                if (t.vehicle_id) active[k].add(t.vehicle_id as string);
+            }
+        });
+        (ordersRes.data || []).forEach((o) => {
+            const k = keyOf(o.created_at as string);
+            if (k in maint) maint[k] += 1;
+        });
+
+        return {
+            fuelLiters: buckets.map((b) => ({ month: b.label, value: Math.round(fuel[b.key]) })),
+            distanceKm: buckets.map((b) => ({ month: b.label, value: Math.round(km[b.key]) })),
+            maintenance: buckets.map((b) => ({ month: b.label, value: maint[b.key] })),
+            activeFleet: buckets.map((b) => ({ month: b.label, value: active[b.key].size })),
         };
     },
 

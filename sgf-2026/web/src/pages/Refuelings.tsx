@@ -216,6 +216,7 @@ export default function Refuelings() {
         },
         {
             header: 'Ações',
+            sortable: false,
             accessor: (row) => (
                 <SGFButton variant="ghost" size="sm" icon={Eye} onClick={() => setSelectedRefueling(row)} />
             )

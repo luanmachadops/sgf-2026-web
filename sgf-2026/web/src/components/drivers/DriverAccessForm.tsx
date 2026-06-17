@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader2, LockKeyhole, Save } from '@/components/sgf/icons';
+import { Loader2, LockKeyhole, Save, Eye, EyeOff } from '@/components/sgf/icons';
 import { toast } from 'sonner';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
@@ -29,6 +30,9 @@ export function DriverAccessForm({ driver, mode, onSuccess, onCancel }: DriverAc
     const provisionAccessMutation = useProvisionDriverAccess();
     const resetPasswordMutation = useResetDriverPassword();
     const isProvisionMode = mode === 'provision';
+
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const {
         register,
@@ -83,18 +87,24 @@ export function DriverAccessForm({ driver, mode, onSuccess, onCancel }: DriverAc
             <div className="grid grid-cols-2 gap-4">
                 <SGFInput
                     label="Nova senha"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     placeholder="Mínimo de 6 caracteres"
                     {...register('password')}
                     error={errors.password?.message}
+                    icon={showPassword ? EyeOff : Eye}
+                    iconPosition="right"
+                    onIconClick={() => setShowPassword((s) => !s)}
                     fullWidth
                 />
                 <SGFInput
                     label="Confirmar senha"
-                    type="password"
+                    type={showConfirmPassword ? 'text' : 'password'}
                     placeholder="Repita a senha"
                     {...register('confirmPassword')}
                     error={errors.confirmPassword?.message}
+                    icon={showConfirmPassword ? EyeOff : Eye}
+                    iconPosition="right"
+                    onIconClick={() => setShowConfirmPassword((s) => !s)}
                     fullWidth
                 />
             </div>

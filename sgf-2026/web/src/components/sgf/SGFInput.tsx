@@ -9,6 +9,7 @@ export interface SGFInputProps extends React.InputHTMLAttributes<HTMLInputElemen
   iconPosition?: 'left' | 'right';
   fullWidth?: boolean;
   inputClassName?: string;
+  onIconClick?: () => void;
 }
 
 export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
@@ -23,6 +24,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
       className = '',
       id,
       inputClassName = '',
+      onIconClick,
       ...props
     },
     ref
@@ -66,9 +68,19 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
 
         <div className="relative">
           {Icon && iconPosition === 'left' && (
-            <div className="absolute left-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-slate-400">
-              <Icon width={18} height={18} />
-            </div>
+            onIconClick ? (
+              <button
+                type="button"
+                onClick={onIconClick}
+                className="absolute left-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+              >
+                <Icon width={18} height={18} />
+              </button>
+            ) : (
+              <div className="absolute left-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-slate-400">
+                <Icon width={18} height={18} />
+              </div>
+            )
           )}
 
           <input
@@ -79,9 +91,19 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
           />
 
           {Icon && iconPosition === 'right' && (
-            <div className="absolute right-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-slate-400">
-              <Icon width={18} height={18} />
-            </div>
+            onIconClick ? (
+              <button
+                type="button"
+                onClick={onIconClick}
+                className="absolute right-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+              >
+                <Icon width={18} height={18} />
+              </button>
+            ) : (
+              <div className="absolute right-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-slate-400">
+                <Icon width={18} height={18} />
+              </div>
+            )
           )}
         </div>
 

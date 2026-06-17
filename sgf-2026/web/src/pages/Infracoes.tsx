@@ -176,6 +176,7 @@ export default function Infracoes() {
         },
         {
             header: 'Ações',
+            sortable: false,
             headerClassName: 'text-right',
             accessor: (r) => (
                 <div className="flex justify-end">
