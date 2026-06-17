@@ -1,6 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { driversApi, type DriverRecord } from '@/lib/supabase-api';
-import { driverAccessApi, type CreateDriverRequest } from '@/lib/backend-api';
+import {
+    driverAccessApi,
+    type CreateDriverRequest,
+    type PreRegisterDriverRequest,
+} from '@/lib/backend-api';
 import type { DriverFilters } from '@/types';
 import type { TablesUpdate } from '@/types/database.types';
 
@@ -30,6 +34,26 @@ export function useCreateDriver() {
 
     return useMutation({
         mutationFn: (data: CreateDriverRequest) => driverAccessApi.create(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['drivers'] });
+        },
+    });
+}
+
+export function usePreRegisterDriver() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (data: PreRegisterDriverRequest) => driverAccessApi.preRegister(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['drivers'] });
+        },
+    });
+}
+
+export function usePreRegisterDriversBulk() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (rows: PreRegisterDriverRequest[]) => driverAccessApi.preRegisterBulk(rows),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['drivers'] });
         },

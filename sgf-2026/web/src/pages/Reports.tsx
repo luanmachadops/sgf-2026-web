@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { SGFCard } from '@/components/sgf/SGFCard';
+import { SGFButton } from '@/components/sgf/SGFButton';
 import { ReportViewerModal } from '@/components/reports/ReportViewerModal';
 import {
     Car,
@@ -13,7 +14,11 @@ import {
     PieChart,
     Clock,
     Receipt,
+    Search,
+    X,
+    Qr,
 } from '@/components/sgf/icons';
+import { QrLabelGenerator } from '@/components/reports/QrLabelGenerator';
 import { cn } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useEffect } from 'react';
@@ -112,6 +117,7 @@ export default function Reports() {
     const [selectedReport, setSelectedReport] = useState<Report | null>(null);
     const [categoryFilter, setCategoryFilter] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [showQrGen, setShowQrGen] = useState(false);
     const { setTitle, setDescription } = useHeader();
 
     useEffect(() => {
@@ -179,6 +185,26 @@ export default function Reports() {
                 />
             </div>
 
+            {/* Gerador de etiquetas QR dos veículos */}
+            <SGFCard padding="lg" className="overflow-hidden border border-slate-200/80">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0F2B2F] to-[#00A86B] text-white">
+                            <Qr className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold text-slate-900">Etiquetas QR dos veículos</h3>
+                            <p className="text-sm text-slate-500">
+                                Gere etiquetas com o QR Code (placa) por secretaria e tipo, escolha o tamanho e imprima/baixe em PDF.
+                            </p>
+                        </div>
+                    </div>
+                    <SGFButton icon={Qr} onClick={() => setShowQrGen(true)} className="shrink-0">
+                        Abrir gerador
+                    </SGFButton>
+                </div>
+            </SGFCard>
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
                     <button
@@ -213,16 +239,37 @@ export default function Reports() {
                     })}
                 </div>
 
-                {searchTerm && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-right-4 duration-500">
-                        <span className="text-[10px] uppercase font-black">Filtrando por:</span>
-                        <span className="text-sm font-bold italic">"{searchTerm}"</span>
-                        <button onClick={() => setSearchTerm('')} className="p-0.5 hover:bg-emerald-100 rounded-full transition-colors">
-                            <Clock className="h-3 w-3 rotate-45" />
+                {/* Busca (padrão do site: input arredondado com ícone) */}
+                <div className="group relative w-full shrink-0 sm:w-72">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[var(--sgf-primary)]" />
+                    <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Buscar relatório..."
+                        className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-9 text-sm font-medium text-slate-700 shadow-[var(--sgf-shadow-xs)] transition-all placeholder:text-slate-400 hover:border-[var(--sgf-primary)]/50 hover:bg-slate-50/50 focus:border-[var(--sgf-primary)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[var(--sgf-primary)]/10"
+                    />
+                    {searchTerm && (
+                        <button
+                            type="button"
+                            onClick={() => setSearchTerm('')}
+                            aria-label="Limpar busca"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                        >
+                            <X className="h-3.5 w-3.5" />
                         </button>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
+
+            {/* Estado vazio quando a busca não encontra relatórios */}
+            {filteredReports.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 py-12 text-center">
+                    <p className="text-sm font-medium text-slate-400">
+                        Nenhum relatório encontrado{searchTerm ? ` para "${searchTerm}"` : ''}.
+                    </p>
+                </div>
+            )}
 
             {/* Reports Grid */}
             <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -246,7 +293,7 @@ export default function Reports() {
                                 {/* Subtle Background Pattern */}
                                 <div className={cn(
                                     "absolute -right-6 -top-6 h-32 w-32 rounded-full blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-500",
-                                    categoryColors[report.category].split(' ')[0]
+                                    (categoryColors[report.category] || '').split(' ')[0]
                                 )} />
 
                                 <div className="relative z-10 flex h-full flex-col">
@@ -285,6 +332,8 @@ export default function Reports() {
                     description={selectedReport.description}
                 />
             )}
+
+            <QrLabelGenerator isOpen={showQrGen} onClose={() => setShowQrGen(false)} />
         </div>
     );
 }

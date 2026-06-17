@@ -16,11 +16,23 @@ export interface ReportFilters {
     departmentLabel: string;
 }
 
+export interface ReportBranding {
+    name: string;
+    logoUrl?: string;
+    sealUrl?: string;
+    city?: string;
+    state?: string;
+    cnpj?: string;
+    mayorName?: string;
+    reportFooter?: string;
+}
+
 export interface ReportExportOptions {
     reportTitle: string;
     reportDescription: string;
     dataset: ReportDataset;
     filters: ReportFilters;
+    branding?: ReportBranding;
 }
 
 function generatedAt(): string {
@@ -49,9 +61,16 @@ const LOGO_SVG = `
 // PDF — abre janela com HTML elegante (mesma paleta/identidade) e imprime
 // ──────────────────────────────────────────────────────────────────────────
 export function exportReportToPDF(opts: ReportExportOptions): void {
-    const { reportTitle, reportDescription, dataset, filters } = opts;
+    const { reportTitle, reportDescription, dataset, filters, branding } = opts;
     const win = window.open('', '_blank', 'width=900,height=1000');
     if (!win) return;
+
+    const brandName = branding?.name || 'SGF 2026';
+    const brandSub = [branding?.city ? `${branding.city}${branding.state ? '/' + branding.state : ''}` : '', branding?.cnpj ? `CNPJ ${branding.cnpj}` : '']
+        .filter(Boolean).join('  •  ') || 'Gestão Pública de Frota';
+    const logoImg = branding?.sealUrl || branding?.logoUrl;
+    const logoHtml = logoImg ? `<img src="${logoImg}" alt="${brandName}" style="width:48px;height:48px;object-fit:contain" />` : LOGO_SVG;
+    const footerLeft = branding?.reportFooter || `${brandName} — Sistema de Gestão de Frota`;
 
     const kpisHtml = dataset.kpis.map((k) => `
         <div class="kpi">
@@ -102,14 +121,14 @@ export function exportReportToPDF(opts: ReportExportOptions): void {
 </head>
 <body>
   <div class="header">
-    ${LOGO_SVG}
+    ${logoHtml}
     <div class="brand">
-      <span class="brand-name">SGF 2026</span>
-      <span class="brand-sub">Gestão Pública de Frota</span>
+      <span class="brand-name">${brandName}</span>
+      <span class="brand-sub">${brandSub}</span>
     </div>
     <div class="meta">
       Gerado em ${generatedAt()}<br/>
-      Documento confidencial
+      ${branding?.mayorName ? 'Prefeito(a): ' + branding.mayorName : 'Documento confidencial'}
     </div>
   </div>
 
@@ -128,7 +147,7 @@ export function exportReportToPDF(opts: ReportExportOptions): void {
   </table>
 
   <div class="footer">
-    <span>SGF 2026 — Sistema de Gestão de Frota</span>
+    <span>${footerLeft}</span>
     <span>${reportTitle}</span>
   </div>
 
@@ -144,7 +163,10 @@ export function exportReportToPDF(opts: ReportExportOptions): void {
 // Excel — gerado com ExcelJS (cabeçalho com a paleta, cores e formatação)
 // ──────────────────────────────────────────────────────────────────────────
 export async function exportReportToExcel(opts: ReportExportOptions): Promise<void> {
-    const { reportTitle, reportDescription, dataset, filters } = opts;
+    const { reportTitle, reportDescription, dataset, filters, branding } = opts;
+    const brandLine = branding?.name
+        ? `${branding.name}${branding.city ? '  •  ' + branding.city + (branding.state ? '/' + branding.state : '') : ''}`
+        : 'SGF 2026  •  Gestão Pública de Frota';
     const wb = new ExcelJS.Workbook();
     wb.creator = 'SGF 2026';
     wb.created = new Date();
@@ -160,7 +182,7 @@ export async function exportReportToExcel(opts: ReportExportOptions): Promise<vo
     // Faixa de marca (linha 1)
     ws.mergeCells(`A1:${lastCol}1`);
     const brandCell = ws.getCell('A1');
-    brandCell.value = 'SGF 2026  •  Gestão Pública de Frota';
+    brandCell.value = brandLine;
     brandCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
     brandCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
     brandCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${BRAND.primary}` } };

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,27 +9,44 @@ import { SGFButton } from '@/components/sgf/SGFButton';
 import { Loader2, Save, Wrench, Calendar, FileText, Car } from '@/components/sgf/icons';
 import { toast } from 'sonner';
 import { useVehicles } from '@/hooks/useVehicles';
-import { useCreateMaintenance } from '@/hooks/useMaintenances';
+import { useCreateMaintenance, useUpdateMaintenance } from '@/hooks/useMaintenances';
 import { useAuth } from '@/contexts/AuthContext';
+import { VehiclePickerField } from '@/components/sgf/VehiclePickerField';
 
 // Schema alinhado aos enums do banco (service_orders)
 const maintenanceSchema = z.object({
     vehicleId: z.string().min(1, 'Veículo é obrigatório'),
     category: z.string().min(1, 'Categoria é obrigatória'),
+    categoryOther: z.string().optional(),
     priority: z.enum(['baixa', 'media', 'alta']),
     description: z.string().min(5, 'Descrição deve ter pelo menos 5 caracteres'),
     scheduledDate: z.string().min(1, 'Data é obrigatória'),
     odometer: z.coerce.number().min(0).optional(),
-});
+}).refine(
+    (data) => data.category !== 'Outro' || (data.categoryOther?.trim().length ?? 0) >= 2,
+    { path: ['categoryOther'], message: 'Informe a categoria' }
+);
 
 // `z.coerce.number()` gera tipos de entrada (unknown) e saída (number) distintos;
 // separamos os dois para alinhar com a tipagem do react-hook-form + zodResolver.
 type MaintenanceFormInput = z.input<typeof maintenanceSchema>;
 type MaintenanceFormData = z.output<typeof maintenanceSchema>;
 
+export interface MaintenanceEditData {
+    id: string;
+    vehicleId: string;
+    category: string;
+    priority: 'baixa' | 'media' | 'alta';
+    description: string;
+    odometer: number | null;
+    scheduledDate?: string;
+}
+
 interface NewMaintenanceFormProps {
     onSuccess: () => void;
     onCancel: () => void;
+    /** Quando informado, o formulário entra em modo de edição da O.S. */
+    editData?: MaintenanceEditData;
 }
 
 const categoryOptions = [
@@ -52,33 +69,41 @@ const priorityOptions = [
     { value: 'alta', label: 'Alta' },
 ];
 
-export function NewMaintenanceForm({ onSuccess, onCancel }: NewMaintenanceFormProps) {
+export function NewMaintenanceForm({ onSuccess, onCancel, editData }: NewMaintenanceFormProps) {
     const { user } = useAuth();
     const { data: vehicles = [], isLoading: vehiclesLoading } = useVehicles();
     const createMaintenance = useCreateMaintenance();
+    const updateMaintenance = useUpdateMaintenance();
+    const isEdit = Boolean(editData);
 
-    const vehicleOptions = useMemo(
-        () =>
-            vehicles.map((v) => ({
-                value: v.id,
-                label: `${v.plate ?? '—'} — ${[v.brand, v.model].filter(Boolean).join(' ') || 'Veículo'}`,
-            })),
-        [vehicles]
-    );
+    // Categoria fora da lista padrão (edição) vira "Outro" + texto livre.
+    const knownCategory = editData ? categoryOptions.some((o) => o.value === editData.category) : true;
 
     const {
         register,
         handleSubmit,
         control,
+        watch,
         formState: { errors, isSubmitting },
     } = useForm<MaintenanceFormInput, unknown, MaintenanceFormData>({
         resolver: zodResolver(maintenanceSchema),
-        defaultValues: {
-            category: '',
-            priority: 'media',
-            description: '',
-            scheduledDate: new Date().toISOString().split('T')[0],
-        },
+        defaultValues: editData
+            ? {
+                  vehicleId: editData.vehicleId,
+                  category: knownCategory ? editData.category : 'Outro',
+                  categoryOther: knownCategory ? '' : editData.category,
+                  priority: editData.priority,
+                  description: editData.description,
+                  scheduledDate: editData.scheduledDate ?? new Date().toISOString().split('T')[0],
+                  odometer: editData.odometer ?? undefined,
+              }
+            : {
+                  category: '',
+                  categoryOther: '',
+                  priority: 'media',
+                  description: '',
+                  scheduledDate: new Date().toISOString().split('T')[0],
+              },
     });
 
     const onSubmit = async (data: MaintenanceFormData) => {
@@ -87,42 +112,57 @@ export function NewMaintenanceForm({ onSuccess, onCancel }: NewMaintenanceFormPr
             return;
         }
 
+        const category = data.category === 'Outro' ? (data.categoryOther?.trim() || 'Outro') : data.category;
+
         try {
-            await createMaintenance.mutateAsync({
-                vehicle_id: data.vehicleId,
-                driver_id: user.id,
-                category: data.category,
-                priority: data.priority,
-                description: data.description,
-                odometer: data.odometer ?? null,
-                status: 'pendente',
-            });
-            toast.success('Manutenção registrada com sucesso!');
+            if (isEdit && editData) {
+                await updateMaintenance.mutateAsync({
+                    id: editData.id,
+                    data: {
+                        vehicle_id: data.vehicleId,
+                        category,
+                        priority: data.priority,
+                        description: data.description,
+                        odometer: data.odometer ?? null,
+                    },
+                });
+                toast.success('Ordem de serviço atualizada!');
+            } else {
+                await createMaintenance.mutateAsync({
+                    vehicle_id: data.vehicleId,
+                    driver_id: user.id,
+                    category,
+                    priority: data.priority,
+                    description: data.description,
+                    odometer: data.odometer ?? null,
+                    status: 'pendente',
+                });
+                toast.success('Manutenção registrada com sucesso!');
+            }
             onSuccess();
         } catch {
-            toast.error('Erro ao registrar manutenção.');
+            toast.error(isEdit ? 'Erro ao atualizar a O.S.' : 'Erro ao registrar manutenção.');
         }
     };
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Controller
-                    name="vehicleId"
-                    control={control}
-                    render={({ field }) => (
-                        <SGFSelect
-                            label="Veículo"
-                            options={vehicleOptions}
-                            value={field.value}
-                            onChange={field.onChange}
-                            error={errors.vehicleId?.message}
-                            placeholder={vehiclesLoading ? 'Carregando veículos...' : 'Selecione o veículo...'}
-                            fullWidth
-                            icon={Car}
-                        />
-                    )}
-                />
+                <div className="md:col-span-2">
+                    <Controller
+                        name="vehicleId"
+                        control={control}
+                        render={({ field }) => (
+                            <VehiclePickerField
+                                vehicles={vehicles}
+                                value={field.value}
+                                onChange={field.onChange}
+                                loading={vehiclesLoading}
+                                error={errors.vehicleId?.message}
+                            />
+                        )}
+                    />
+                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                     <Controller
@@ -157,6 +197,17 @@ export function NewMaintenanceForm({ onSuccess, onCancel }: NewMaintenanceFormPr
                         )}
                     />
                 </div>
+
+                {watch('category') === 'Outro' && (
+                    <SGFInput
+                        label="Qual a categoria?"
+                        placeholder="Descreva a categoria"
+                        {...register('categoryOther')}
+                        error={errors.categoryOther?.message}
+                        fullWidth
+                        icon={Wrench}
+                    />
+                )}
 
                 <SGFInput
                     label="Data Agendada"
@@ -200,7 +251,7 @@ export function NewMaintenanceForm({ onSuccess, onCancel }: NewMaintenanceFormPr
                     icon={isSubmitting ? Loader2 : Save}
                     disabled={isSubmitting || vehiclesLoading}
                 >
-                    {isSubmitting ? 'Registrando...' : 'Registrar Manutenção'}
+                    {isSubmitting ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Registrar Manutenção'}
                 </SGFButton>
             </div>
         </form>

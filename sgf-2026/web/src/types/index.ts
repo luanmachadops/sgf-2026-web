@@ -1,13 +1,40 @@
+// Branding/identidade da prefeitura (tenant)
+export interface TenantBranding {
+    id: string;
+    slug: string;
+    name: string;
+    appName?: string;
+    loginEyebrow?: string;
+    logoUrl?: string;
+    sealUrl?: string;
+    photoUrl?: string;
+    primaryColor?: string;
+    darkColor?: string;
+    accentColor?: string;
+    cnpj?: string;
+    city?: string;
+    state?: string;
+    address?: string;
+    mayorName?: string;
+    reportFooter?: string;
+    status?: string;
+}
+
 // User types
 export interface User {
     id: string;
     email: string;
     name: string;
-    role: 'ADMIN' | 'MANAGER' | 'VIEWER';
+    role: 'ADMIN' | 'MANAGER' | 'VIEWER' | 'SUPERADMIN';
     departmentId?: string;
     departmentName?: string;
     createdAt: string;
     photoUrl?: string;
+    /** Definido apenas para 'secretário': trava o usuário à sua secretaria (escopo). */
+    departmentScopeId?: string;
+    /** Prefeitura (tenant) do usuário. */
+    tenantId?: string;
+    tenant?: TenantBranding;
 }
 
 export interface LoginResponse {

@@ -22,7 +22,7 @@ const ROLE_LABEL: Record<string, string> = { ADMIN: 'Administrador', MANAGER: 'G
 
 export default function Perfil() {
     const { setTitle, setDescription } = useHeader();
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const qc = useQueryClient();
     const fileRef = useRef<HTMLInputElement>(null);
 
@@ -68,7 +68,7 @@ export default function Perfil() {
         if (!isImageFile(file)) { toast.error('Selecione uma imagem válida.'); return; }
         try {
             setUploading(true);
-            const blob = await resizeAndConvertToWebP(file, 800);
+            const blob = await resizeAndConvertToWebP(file, 512);
             const fileName = `drivers/${user.id}-${Date.now()}.webp`;
             const { error } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
             if (error) throw error;
@@ -93,6 +93,7 @@ export default function Perfil() {
                 .eq('id', user.id);
             if (error) throw error;
             await qc.invalidateQueries({ queryKey: ['profile', 'me', user.id] });
+            await refreshUser(); // atualiza header/modal (foto, nome) na hora
             toast.success('Perfil atualizado!');
         } catch (err) {
             toast.error((err as { message?: string })?.message ?? 'Erro ao salvar o perfil.');

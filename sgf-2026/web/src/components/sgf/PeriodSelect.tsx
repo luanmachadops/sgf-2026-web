@@ -77,17 +77,23 @@ export function PeriodRangeFields({
     value,
     onChange,
     className,
+    fieldClassName,
+    align,
 }: {
     value: PeriodValue;
     onChange: (next: PeriodValue) => void;
     className?: string;
+    /** classes extras aplicadas a cada campo de data (ex.: para igualar a altura do listbox). */
+    fieldClassName?: string;
+    /** alinhamento do calendário. 'start' abre para a direita. */
+    align?: 'start' | 'center' | 'end';
 }) {
     if (value.preset !== 'custom') return null;
     return (
         <div className={['flex items-center justify-end gap-2', className].filter(Boolean).join(' ')}>
-            <DatePickerField label="Data inicial" value={value.from} onChange={(from) => onChange({ ...value, from })} />
+            <DatePickerField label="Data inicial" value={value.from} onChange={(from) => onChange({ ...value, from })} className={fieldClassName} align={align} />
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">até</span>
-            <DatePickerField label="Data final" value={value.to} onChange={(to) => onChange({ ...value, to })} />
+            <DatePickerField label="Data final" value={value.to} onChange={(to) => onChange({ ...value, to })} className={fieldClassName} align={align} />
         </div>
     );
 }

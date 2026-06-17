@@ -8,6 +8,7 @@ export interface SGFInputProps extends React.InputHTMLAttributes<HTMLInputElemen
   icon?: IconType;
   iconPosition?: 'left' | 'right';
   fullWidth?: boolean;
+  inputClassName?: string;
   onIconClick?: () => void;
 }
 
@@ -22,6 +23,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
       fullWidth = false,
       className = '',
       id,
+      inputClassName = '',
       onIconClick,
       ...props
     },
@@ -84,7 +86,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
           <input
             ref={ref}
             id={inputId}
-            className={`${baseInputStyles} ${stateStyles} ${iconStyles}`.trim().replace(/\s+/g, ' ')}
+            className={`${baseInputStyles} ${stateStyles} ${iconStyles} ${inputClassName}`.trim().replace(/\s+/g, ' ')}
             {...props}
           />
 

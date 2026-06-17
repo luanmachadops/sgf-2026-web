@@ -5,8 +5,9 @@ import { z } from 'zod';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { Loader2, Save, Camera, User, LockKeyhole } from '@/components/sgf/icons';
+import { Loader2, Save, Camera, User, LockKeyhole, Sparkles } from '@/components/sgf/icons';
 import { departmentsApi } from '@/lib/supabase-api';
+import { extractDriverFromCNH } from '@/lib/driverAI';
 import { toast } from 'sonner';
 import { isImageFile } from '@/lib/imageUtils';
 import { maskCPF, maskPhone } from '@/lib/utils';
@@ -35,6 +36,7 @@ const driverSchema = z.object({
         .max(14, 'CPF inválido')
         .refine((value) => value.replace(/\D/g, '').length === 11, 'CPF inválido'),
     registrationNumber: z.string().min(1, 'Matrícula é obrigatória'),
+    birthDate: z.string().optional(),
     phone: z.string().min(10, 'Telefone inválido'),
     email: z.string().email('E-mail inválido'),
     licenseNumber: z.string().min(1, 'Número da CNH é obrigatório'),
@@ -62,8 +64,36 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string }>>([]);
+    const [aiLoading, setAiLoading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cnhInputRef = useRef<HTMLInputElement>(null);
     const createDriverMutation = useCreateDriver();
+
+    const handleCnhExtract = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (cnhInputRef.current) cnhInputRef.current.value = '';
+        if (!file) return;
+        if (!isImageFile(file)) {
+            toast.error('Selecione uma imagem válida da CNH.');
+            return;
+        }
+        try {
+            setAiLoading(true);
+            toast.info('Lendo a CNH com IA...');
+            const d = await extractDriverFromCNH([file]);
+            if (d.name) setValue('name', String(d.name), { shouldValidate: true });
+            if (d.cpf) setValue('cpf', maskCPF(String(d.cpf)), { shouldValidate: true });
+            if (d.birthDate) setValue('birthDate', String(d.birthDate), { shouldValidate: true });
+            if (d.cnhNumber) setValue('licenseNumber', String(d.cnhNumber), { shouldValidate: true });
+            if (d.cnhCategory) setValue('licenseCategory', String(d.cnhCategory).toUpperCase(), { shouldValidate: true });
+            if (d.cnhExpiry) setValue('licenseExpiry', String(d.cnhExpiry), { shouldValidate: true });
+            toast.success('Dados da CNH preenchidos. Revise antes de salvar.');
+        } catch (err) {
+            toast.error((err as { message?: string })?.message ?? 'Não foi possível ler a CNH.');
+        } finally {
+            setAiLoading(false);
+        }
+    };
 
     const {
         register,
@@ -142,6 +172,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                 cnhNumber: data.licenseNumber.trim(),
                 cnhCategory: data.licenseCategory,
                 cnhExpiryDate: data.licenseExpiry,
+                birthDate: data.birthDate || undefined,
                 departmentId: data.departmentId,
                 phone: data.phone.replace(/\D/g, ''),
                 email: data.email.trim().toLowerCase(),
@@ -163,7 +194,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-[300px_1fr] gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-8">
                 {/* Left Column - Photo Upload */}
                 <div className="space-y-4">
                     <label className="block text-sm font-medium text-slate-700">
@@ -212,11 +243,36 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                             onChange={handlePhotoSelect}
                         />
                     </div>
+
+                    {/* Preenchimento automático via foto da CNH */}
+                    <div className="space-y-2">
+                        <SGFButton
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            icon={aiLoading ? Loader2 : Sparkles}
+                            disabled={aiLoading}
+                            onClick={() => cnhInputRef.current?.click()}
+                            className="w-full"
+                        >
+                            {aiLoading ? 'Lendo CNH...' : 'Ler CNH com IA'}
+                        </SGFButton>
+                        <p className="text-center text-xs text-slate-400">
+                            Envie a foto da CNH e a IA preenche os campos.
+                        </p>
+                        <input
+                            ref={cnhInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleCnhExtract}
+                        />
+                    </div>
                 </div>
 
                 {/* Right Column - Form Fields */}
                 <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <SGFInput
                             label="Nome Completo"
                             placeholder="João da Silva"
@@ -233,7 +289,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <SGFInput
                             label="Matrícula"
                             placeholder="MT001"
@@ -242,15 +298,22 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                             fullWidth
                         />
                         <SGFInput
+                            label="Data de Nascimento"
+                            type="date"
+                            {...register('birthDate')}
+                            error={errors.birthDate?.message}
+                            fullWidth
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <SGFInput
                             label="Telefone"
                             placeholder="(00) 00000-0000"
                             {...withMask(register('phone'), maskPhone)}
                             error={errors.phone?.message}
                             fullWidth
                         />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
                         <SGFInput
                             label="E-mail"
                             placeholder="email@exemplo.com"
@@ -259,16 +322,17 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                             error={errors.email?.message}
                             fullWidth
                         />
-                        <SGFInput
-                            label="Número da CNH"
-                            placeholder="12345678900"
-                            {...register('licenseNumber')}
-                            error={errors.licenseNumber?.message}
-                            fullWidth
-                        />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <SGFInput
+                        label="Número da CNH"
+                        placeholder="12345678900"
+                        {...register('licenseNumber')}
+                        error={errors.licenseNumber?.message}
+                        fullWidth
+                    />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Controller
                             name="licenseCategory"
                             control={control}
@@ -302,7 +366,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                         />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Controller
                             name="departmentId"
                             control={control}
@@ -314,6 +378,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                                     onChange={field.onChange}
                                     error={errors.departmentId?.message}
                                     placeholder="Selecione a secretaria"
+                                    disabled={Boolean(user?.departmentScopeId)}
                                     fullWidth
                                 />
                             )}
@@ -352,7 +417,7 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <SGFInput
                                 label="Senha inicial"
                                 type="password"

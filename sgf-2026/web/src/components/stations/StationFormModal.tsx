@@ -7,7 +7,7 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 import { Camera, Loader2, FileText, Plus, X, Download } from '@/components/sgf/icons';
 import { useCreateStation, useUpdateStation } from '@/hooks/useStations';
 import { supabase } from '@/lib/supabase';
-import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
+import { resizeAndConvertToWebP, isImageFile, prepareUpload } from '@/lib/imageUtils';
 import { maskCNPJ, maskPhone } from '@/lib/utils';
 import type { Tables } from '@/types/database.types';
 
@@ -133,9 +133,10 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
         if (!file) return;
         try {
             setUploadingDoc(true);
-            const safe = file.name.replace(/[^\w.\-]+/g, '_');
-            const fileName = `station-docs/${Date.now()}-${safe}`;
-            const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, file, { contentType: file.type || 'application/octet-stream', upsert: true });
+            const prepared = await prepareUpload(file, { maxSize: 1400, quality: 0.8 });
+            const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^\w.\-]+/g, '_');
+            const fileName = `station-docs/${Date.now()}-${safe}.${prepared.ext}`;
+            const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, prepared.blob, { contentType: prepared.contentType, upsert: true });
             if (upErr) throw upErr;
             const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
             setDocuments((prev) => [...prev, { name: file.name, url: publicUrl }]);
@@ -246,18 +247,19 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <SGFInput label="Nome" value={name} onChange={(e) => setName(e.target.value)} fullWidth autoFocus />
-                    <SGFInput label="Código" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} hint="Curto, único." fullWidth />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SGFInput
                         label="CNPJ"
                         value={cnpj}
                         onChange={(e) => handleCnpjChange(e.target.value)}
                         placeholder="00.000.000/0000-00"
-                        hint={cnpjLoading ? 'Buscando dados do CNPJ...' : 'Preenche automaticamente ao digitar os 14 dígitos.'}
+                        hint={cnpjLoading ? 'Buscando dados do CNPJ...' : 'Digite os 14 dígitos para preencher os dados automaticamente.'}
                         fullWidth
+                        autoFocus
                     />
+                    <SGFInput label="Nome" value={name} onChange={(e) => setName(e.target.value)} fullWidth />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <SGFInput label="Código" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} hint="Curto, único." fullWidth />
                     <SGFInput label="Telefone" value={phone} onChange={(e) => setPhone(maskPhone(e.target.value))} placeholder="(00) 00000-0000" fullWidth />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

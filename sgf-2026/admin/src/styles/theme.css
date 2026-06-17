@@ -1,0 +1,350 @@
+@custom-variant dark (&:is(.dark *));
+
+/* ============================================================= */
+/* TIPOGRAFIA — fonte única do app (Tailwind v4 lê via @theme)   */
+/* Padrão alinhado ao mobile: sans do sistema + Inter, ênfase    */
+/* em peso 600 e números tabulares para placas/hodômetro/valores */
+/* ============================================================= */
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Roboto Mono', 'JetBrains Mono',
+    Menlo, Consolas, monospace;
+  --default-font-family: var(--font-sans);
+}
+
+:root {
+  /* SGF 2026 Design System - Colors */
+  --sgf-dark: hsl(188, 49%, 12%);        /* #0F2B2F - Primary Dark Ocean */
+  --sgf-primary: hsl(160, 100%, 33%);    /* #00A86B - Emerald Green */
+  --sgf-light: hsl(161, 33%, 60%);       /* #70C4A8 - Mint Accent */
+  
+  --sgf-surface: #F8FAFC;                /* Light gray background */
+  --sgf-surface-elevated: #FFFFFF;       /* White cards */
+  
+  --sgf-text-primary: #1F2937;           /* Dark gray text */
+  --sgf-text-secondary: #6B7280;         /* Medium gray text */
+  --sgf-text-tertiary: #9CA3AF;          /* Light gray text */
+  
+  /* Status Colors */
+  --sgf-status-moving: #22C55E;          /* Green - Vehicle moving */
+  --sgf-status-idle: #3B82F6;            /* Blue - Vehicle idle/engine on */
+  --sgf-status-stopped: #9CA3AF;         /* Gray - Vehicle stopped */
+  --sgf-status-alert: #EF4444;           /* Red - Alert/Emergency */
+  --sgf-status-warning: #F59E0B;         /* Amber - Warning */
+  
+  /* Semantic Colors */
+  --sgf-success: #22C55E;
+  --sgf-error: #DC2626;
+  --sgf-warning: #F59E0B;
+  --sgf-info: #3B82F6;
+  
+  /* Original theme variables (keep for compatibility) */
+  --font-size: 14px;
+  --background: #F8FAFC;
+  --foreground: #1F2937;
+  --card: #ffffff;
+  --card-foreground: #1F2937;
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: hsl(160, 100%, 33%);
+  --primary-foreground: #ffffff;
+  --secondary: hsl(188, 49%, 12%);
+  --secondary-foreground: #ffffff;
+  --muted: #ececf0;
+  --muted-foreground: #717182;
+  --accent: hsl(161, 33%, 60%);
+  --accent-foreground: #1F2937;
+  --destructive: #DC2626;
+  --destructive-foreground: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --input: transparent;
+  --input-background: #f3f3f5;
+  --switch-background: #cbced4;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: hsl(160, 100%, 33%);
+  --chart-1: hsl(160, 100%, 33%);
+  --chart-2: hsl(161, 33%, 60%);
+  --chart-3: hsl(188, 49%, 12%);
+  --chart-4: #22C55E;
+  --chart-5: #3B82F6;
+  --radius: 0.75rem;
+  --sidebar: hsl(188, 49%, 12%);
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: hsl(160, 100%, 33%);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: hsl(188, 49%, 20%);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: hsl(188, 49%, 20%);
+  --sidebar-ring: hsl(160, 100%, 33%);
+  
+  /* ============================================= */
+  /* SGF DESIGN TOKENS (8px Grid System)          */
+  /* ============================================= */
+  
+  /* SPACING (8px base unit) */
+  --sgf-space-0: 0;
+  --sgf-space-1: 0.25rem;   /* 4px */
+  --sgf-space-2: 0.5rem;    /* 8px */
+  --sgf-space-3: 0.75rem;   /* 12px */
+  --sgf-space-4: 1rem;      /* 16px */
+  --sgf-space-5: 1.25rem;   /* 20px */
+  --sgf-space-6: 1.5rem;    /* 24px */
+  --sgf-space-8: 2rem;      /* 28px at 14px base */
+  --sgf-space-10: 2.5rem;   /* 35px at 14px base */
+  --sgf-space-12: 3rem;     /* 42px at 14px base */
+  --sgf-space-16: 4rem;     /* 56px at 14px base */
+  --sgf-space-20: 5rem;     /* 70px at 14px base */
+  
+  /* BORDER RADIUS (Refined - less exaggerated) */
+  --sgf-radius-xs: 0.25rem;    /* 4px - tiny elements */
+  --sgf-radius-sm: 0.375rem;   /* 6px - badges, tags */
+  --sgf-radius-md: 0.5rem;     /* 8px - small buttons */
+  --sgf-radius-base: 0.75rem;  /* 12px - inputs, selects */
+  --sgf-radius-lg: 1rem;       /* 16px - cards, modals */
+  --sgf-radius-xl: 1.25rem;    /* 20px - large panels */
+  --sgf-radius-full: 9999px;   /* Pills */
+  
+  /* COMPONENT-SPECIFIC TOKENS */
+  --sgf-card-radius: var(--sgf-radius-lg);
+  --sgf-card-padding: var(--sgf-space-6);
+  --sgf-card-padding-sm: var(--sgf-space-4);
+  --sgf-card-padding-lg: var(--sgf-space-8);
+  
+  --sgf-btn-radius: var(--sgf-radius-base);
+  --sgf-btn-padding-x: var(--sgf-space-4);
+  --sgf-btn-padding-y: var(--sgf-space-3);
+  --sgf-btn-padding-x-sm: var(--sgf-space-3);
+  --sgf-btn-padding-y-sm: var(--sgf-space-2);
+  --sgf-btn-padding-x-lg: var(--sgf-space-6);
+  --sgf-btn-padding-y-lg: var(--sgf-space-4);
+  
+  --sgf-input-radius: var(--sgf-radius-base);
+  --sgf-input-padding-x: var(--sgf-space-4);
+  --sgf-input-padding-y: 0.625rem;
+  
+  --sgf-select-radius: var(--sgf-radius-base);
+  --sgf-select-padding-x: var(--sgf-space-4);
+  --sgf-select-padding-y: 0.625rem;
+  
+  --sgf-badge-radius: var(--sgf-radius-sm);
+  --sgf-badge-padding-x: var(--sgf-space-2);
+  --sgf-badge-padding-y: var(--sgf-space-1);
+  
+  --sgf-table-cell-padding-x: var(--sgf-space-4);
+  --sgf-table-cell-padding-y: 0.625rem;   /* 10px - compact rows */
+  
+  --sgf-modal-radius: var(--sgf-radius-xl);
+  --sgf-modal-padding: var(--sgf-space-6);
+  
+  /* TYPOGRAPHY SCALE — resolved at 14px base */
+  --sgf-text-2xs: 0.714rem;   /* ~10px */
+  --sgf-text-xs: 0.786rem;    /* 11px  */
+  --sgf-text-sm: 0.857rem;    /* 12px  */
+  --sgf-text-base: 1rem;      /* 14px  */
+  --sgf-text-lg: 1.143rem;    /* 16px  */
+  --sgf-text-xl: 1.286rem;    /* 18px  */
+  --sgf-text-2xl: 1.571rem;   /* 22px  */
+  --sgf-text-3xl: 1.857rem;   /* 26px  */
+  --sgf-text-4xl: 2.286rem;   /* 32px  */
+  
+  /* FONT WEIGHTS */
+  --sgf-font-regular: 400;
+  --sgf-font-medium: 500;
+  --sgf-font-semibold: 600;
+  --sgf-font-bold: 700;
+  --sgf-font-black: 800;
+  
+  /* LINE HEIGHTS */
+  --sgf-leading-tight: 1.25;
+  --sgf-leading-snug: 1.375;
+  --sgf-leading-normal: 1.5;
+  --sgf-leading-relaxed: 1.625;
+  
+  /* SHADOWS (Refined) */
+  --sgf-shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+  --sgf-shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+  --sgf-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --sgf-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --sgf-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.08), 0 8px 10px -6px rgb(0 0 0 / 0.05);
+  
+  /* TRANSITIONS */
+  --sgf-transition-fast: 150ms ease;
+  --sgf-transition-base: 200ms ease;
+  --sgf-transition-slow: 300ms ease;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /**
+  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
+  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  */
+
+  html {
+    font-size: var(--font-size);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-weight: var(--sgf-font-regular);
+    letter-spacing: -0.01em;
+  }
+
+  /* Números tabulares (placas, hodômetro, valores) — espelha o "Mono" do mobile */
+  .tabular-nums,
+  code,
+  kbd,
+  samp,
+  pre {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+  }
+
+  h1 {
+    font-size: var(--sgf-text-3xl);
+    font-weight: var(--sgf-font-bold);
+    line-height: var(--sgf-leading-tight);
+    letter-spacing: -0.02em;
+  }
+
+  h2 {
+    font-size: var(--sgf-text-2xl);
+    font-weight: var(--sgf-font-semibold);
+    line-height: var(--sgf-leading-tight);
+    letter-spacing: -0.02em;
+  }
+
+  h3 {
+    font-size: var(--sgf-text-xl);
+    font-weight: var(--sgf-font-semibold);
+    line-height: var(--sgf-leading-snug);
+    letter-spacing: -0.01em;
+  }
+
+  h4 {
+    font-size: var(--sgf-text-lg);
+    font-weight: var(--sgf-font-semibold);
+    line-height: var(--sgf-leading-snug);
+  }
+
+  label {
+    font-size: var(--sgf-text-sm);
+    font-weight: var(--sgf-font-medium);
+    line-height: var(--sgf-leading-normal);
+  }
+
+  button {
+    font-family: var(--font-sans);
+    font-size: var(--sgf-text-base);
+    font-weight: var(--sgf-font-semibold);
+    line-height: var(--sgf-leading-normal);
+    letter-spacing: -0.01em;
+  }
+
+  input,
+  textarea,
+  select {
+    font-family: var(--font-sans);
+    font-size: var(--sgf-text-base);
+    font-weight: var(--sgf-font-regular);
+    line-height: var(--sgf-leading-normal);
+  }
+}

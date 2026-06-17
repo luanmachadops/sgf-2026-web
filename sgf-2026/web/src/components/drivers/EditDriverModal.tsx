@@ -5,8 +5,9 @@ import { Modal, ModalFooter } from '@/components/ui/Modal';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
-import { Camera, Loader2 } from '@/components/sgf/icons';
+import { Camera, Loader2, Sparkles } from '@/components/sgf/icons';
 import { departmentsApi, driversApi } from '@/lib/supabase-api';
+import { extractDriverFromCNH } from '@/lib/driverAI';
 import { supabase } from '@/lib/supabase';
 import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
 import { maskCPF, maskPhone } from '@/lib/utils';
@@ -37,6 +38,7 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [registrationNumber, setRegistrationNumber] = useState('');
+    const [birthDate, setBirthDate] = useState('');
     const [cnhNumber, setCnhNumber] = useState('');
     const [cnhCategory, setCnhCategory] = useState('');
     const [cnhExpiry, setCnhExpiry] = useState('');
@@ -47,8 +49,36 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
     const [shiftEnd, setShiftEnd] = useState('');
     const [photoUrl, setPhotoUrl] = useState('');
     const [isUploading, setIsUploading] = useState(false);
+    const [aiLoading, setAiLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cnhInputRef = useRef<HTMLInputElement>(null);
+
+    const handleCnhExtract = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (cnhInputRef.current) cnhInputRef.current.value = '';
+        if (!file) return;
+        if (!isImageFile(file)) {
+            toast.error('Selecione uma imagem válida da CNH.');
+            return;
+        }
+        try {
+            setAiLoading(true);
+            toast.info('Lendo a CNH com IA...');
+            const d = await extractDriverFromCNH([file]);
+            if (d.name) setFullName(String(d.name));
+            if (d.cpf) setCpf(maskCPF(String(d.cpf)));
+            if (d.birthDate) setBirthDate(String(d.birthDate));
+            if (d.cnhNumber) setCnhNumber(String(d.cnhNumber));
+            if (d.cnhCategory) setCnhCategory(String(d.cnhCategory).toUpperCase());
+            if (d.cnhExpiry) setCnhExpiry(String(d.cnhExpiry));
+            toast.success('Dados da CNH preenchidos. Revise antes de salvar.');
+        } catch (err) {
+            toast.error((err as { message?: string })?.message ?? 'Não foi possível ler a CNH.');
+        } finally {
+            setAiLoading(false);
+        }
+    };
 
     const { data: departments = [] } = useQuery({
         queryKey: ['departments', 'list-all'],
@@ -68,6 +98,7 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
         setEmail(driver.email ?? '');
         setPhone(maskPhone(driver.phone ?? ''));
         setRegistrationNumber(driver.registration_number ?? '');
+        setBirthDate(driver.birth_date ?? '');
         setCnhNumber(driver.cnh_number ?? '');
         setCnhCategory(driver.cnh_category ?? '');
         setCnhExpiry(driver.cnh_expiry ?? '');
@@ -96,7 +127,7 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
         }
         try {
             setIsUploading(true);
-            const optimizedBlob = await resizeAndConvertToWebP(file, 800);
+            const optimizedBlob = await resizeAndConvertToWebP(file, 512);
             const fileName = `drivers/${driver.id}-${Date.now()}.webp`;
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error('Sessão expirada. Faça login novamente.');
@@ -139,6 +170,7 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
             email: email.trim().toLowerCase() || null,
             phone: phone.replace(/\D/g, '') || null,
             registration_number: registrationNumber.trim() || null,
+            birth_date: birthDate || null,
             cnh_number: cnhNumber.trim() || null,
             cnh_category: cnhCategory || null,
             cnh_expiry: cnhExpiry || null,
@@ -221,6 +253,30 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
                     </div>
                 </div>
 
+                {/* Preencher/corrigir a partir da foto da CNH */}
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
+                    <p className="text-xs font-medium text-slate-600">
+                        Envie a foto da CNH para preencher ou corrigir os dados automaticamente.
+                    </p>
+                    <SGFButton
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        icon={aiLoading ? Loader2 : Sparkles}
+                        disabled={aiLoading}
+                        onClick={() => cnhInputRef.current?.click()}
+                    >
+                        {aiLoading ? 'Lendo CNH...' : 'Ler CNH com IA'}
+                    </SGFButton>
+                    <input
+                        ref={cnhInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleCnhExtract}
+                        className="hidden"
+                    />
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SGFInput
                         label="Nome completo"
@@ -253,13 +309,22 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
                     />
                 </div>
 
-                <SGFInput
-                    label="E-mail"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    fullWidth
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <SGFInput
+                        label="Data de nascimento"
+                        type="date"
+                        value={birthDate}
+                        onChange={(e) => setBirthDate(e.target.value)}
+                        fullWidth
+                    />
+                    <SGFInput
+                        label="E-mail"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        fullWidth
+                    />
+                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <SGFInput

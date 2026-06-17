@@ -10,7 +10,7 @@ import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { departmentsApi, vehiclesApi } from '@/lib/supabase-api';
 import { supabase } from '@/lib/supabase';
 import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
-import { extractVehicleFromImages } from '@/lib/vehicleAI';
+import { extractVehicleFromImages, VEHICLE_TYPES } from '@/lib/vehicleAI';
 import type { TablesInsert } from '@/types/database.types';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -135,7 +135,7 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
         defaultValues: {
             status: 'AVAILABLE',
             currentOdometer: 0,
-            year: new Date().getFullYear(),
+            year: '' as unknown as number,
             departmentId: user?.departmentId ?? '',
         },
     });
@@ -374,7 +374,21 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
                     {showMore && (
                         <div className="space-y-4 border-t border-slate-100 p-4">
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <SGFInput label="Tipo / Categoria" placeholder="Ex.: Hatch, Pickup, SUV" {...register('vehicleType')} error={errors.vehicleType?.message} fullWidth />
+                                <Controller
+                                    name="vehicleType"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <SGFSelect
+                                            label="Tipo / Categoria"
+                                            options={VEHICLE_TYPES.map((t) => ({ value: t, label: t }))}
+                                            value={field.value ?? ''}
+                                            onChange={field.onChange}
+                                            error={errors.vehicleType?.message}
+                                            placeholder="Selecione o tipo"
+                                            fullWidth
+                                        />
+                                    )}
+                                />
                                 <SGFInput label="Cor" placeholder="Ex.: Branco" {...register('color')} error={errors.color?.message} fullWidth />
                             </div>
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

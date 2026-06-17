@@ -23,20 +23,25 @@ import {
     Activity,
     Fuel,
     Wrench,
+    Building2,
 } from '@/components/sgf/icons';
 import { useHeader } from '@/contexts/HeaderContext';
+import { useBranding } from '@/contexts/BrandingContext';
 import {
     useDashboardKPIs,
+    useDashboardKpiTrends,
     useExpenseChart
 } from '@/hooks/useDashboard';
 import { formatCurrency } from '@/lib/utils';
 
 export default function Dashboard() {
     const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler } = useHeader();
+    const { branding } = useBranding();
     const [expensePeriod, setExpensePeriod] = useState<PeriodValue>(() => makePeriod('6'));
 
     // Real Data Hooks
     const { data: kpis, isLoading: isLoadingKPIs } = useDashboardKPIs();
+    const { data: trends } = useDashboardKpiTrends();
     const { data: expenseData, isLoading: isLoadingExpenses, isError: isErrorExpenses } = useExpenseChart(resolvePeriod(expensePeriod));
 
     useEffect(() => {
@@ -55,6 +60,24 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-6">
+            {/* Cabeçalho da Prefeitura (brasão + nome) */}
+            <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center ${branding.sealUrl || branding.logoUrl ? '' : 'overflow-hidden rounded-xl bg-[var(--sgf-dark)]'}`}>
+                    {branding.sealUrl || branding.logoUrl ? (
+                        <img src={branding.sealUrl || branding.logoUrl} alt={branding.name} className="h-full w-full object-contain" />
+                    ) : (
+                        <Building2 className="h-6 w-6 text-white" />
+                    )}
+                </div>
+                <div className="min-w-0">
+                    <h2 className="truncate text-lg font-bold text-slate-900">{branding.name}</h2>
+                    <p className="text-xs font-medium text-slate-500">
+                        {[branding.city ? `${branding.city}${branding.state ? '/' + branding.state : ''}` : '', branding.mayorName ? `Prefeito(a): ${branding.mayorName}` : '']
+                            .filter(Boolean).join('  •  ') || 'Gestão Pública de Frota'}
+                    </p>
+                </div>
+            </div>
+
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                 {/* KPIs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
@@ -65,7 +88,7 @@ export default function Dashboard() {
                         icon={Truck}
                         iconColor="text-emerald-500"
                         chartColor="#10b981"
-                        chartData={[]} // Placeholder for small bar chart in card
+                        chartData={trends?.activeFleet ?? []}
                     />
                     <SGFKPICard
                         title="Combustível (L)"
@@ -74,7 +97,7 @@ export default function Dashboard() {
                         icon={Fuel}
                         iconColor="text-blue-500"
                         chartColor="#3b82f6"
-                        chartData={[]}
+                        chartData={trends?.fuelLiters ?? []}
                     />
                     <SGFKPICard
                         title="Manutenção Prev."
@@ -83,7 +106,7 @@ export default function Dashboard() {
                         icon={Wrench}
                         iconColor="text-amber-500"
                         chartColor="#f59e0b"
-                        chartData={[]}
+                        chartData={trends?.maintenance ?? []}
                     />
                     <SGFKPICard
                         title="Total Rodado"
@@ -92,7 +115,7 @@ export default function Dashboard() {
                         icon={Activity}
                         iconColor="text-rose-500"
                         chartColor="#f43f5e"
-                        chartData={[]}
+                        chartData={trends?.distanceKm ?? []}
                     />
                 </div>
 

@@ -13,11 +13,13 @@ export interface CreateDriverPayload {
     cnhNumber: string;
     cnhCategory: string;
     cnhExpiryDate: string;
+    birthDate?: string;
     departmentId?: string;
     phone?: string;
     email?: string;
     status?: DriverWebStatus;
     password: string;
+    tenantId?: string | null;
 }
 
 export interface DriverAccessPayload {
@@ -91,7 +93,9 @@ export async function createDriver(payload: CreateDriverPayload) {
         throw new Error('Já existe um motorista com este CPF');
     }
 
-    const authEmail = payload.email?.trim().toLowerCase() || buildDriverAuthEmail(normalizedCpf);
+    // Identidade de login do motorista = SEMPRE o e-mail sintético do CPF (login por CPF).
+    // O e-mail "real" informado é só contato, gravado no profile.
+    const authEmail = buildDriverAuthEmail(normalizedCpf);
 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: authEmail,
@@ -101,6 +105,7 @@ export async function createDriver(payload: CreateDriverPayload) {
             cpf: normalizedCpf,
             full_name: payload.name,
             type: 'driver',
+            tenant_id: payload.tenantId ?? undefined,
         },
     });
 
@@ -120,10 +125,13 @@ export async function createDriver(payload: CreateDriverPayload) {
             cnh_number: payload.cnhNumber,
             cnh_category: payload.cnhCategory,
             cnh_expiry: payload.cnhExpiryDate,
+            birth_date: payload.birthDate || null,
             department_id: payload.departmentId || null,
+            ...(payload.tenantId ? { tenant_id: payload.tenantId } : {}),
             phone: payload.phone?.trim() || null,
             email: payload.email?.trim().toLowerCase() || null,
             driver_status: statusToDb(payload.status),
+            must_change_password: false,
         })
         .eq('id', authData.user.id)
         .select('*, departments(id, name)')
@@ -135,6 +143,86 @@ export async function createDriver(payload: CreateDriverPayload) {
     }
 
     return driver;
+}
+
+export interface PreRegisterDriverPayload {
+    cpf: string;
+    name: string;
+    registrationNumber?: string;
+    departmentId?: string;
+    tenantId?: string | null;
+}
+
+/**
+ * Pré-cadastro por CPF: cria o acesso com senha inicial = CPF e marca must_change_password.
+ * O motorista loga com CPF/CPF e é obrigado a trocar a senha e completar os dados no 1º acesso.
+ */
+export async function preRegisterDriver(payload: PreRegisterDriverPayload) {
+    const supabaseAdmin = getSupabaseAdmin();
+    const normalizedCpf = normalizeCpf(payload.cpf || '');
+    if (normalizedCpf.length !== 11) {
+        throw new Error(`CPF inválido: ${payload.cpf}`);
+    }
+    if (!payload.name?.trim()) {
+        throw new Error('Nome é obrigatório');
+    }
+
+    const { data: existing } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('cpf', normalizedCpf)
+        .maybeSingle();
+    if (existing) {
+        throw new Error('Já existe um motorista com este CPF');
+    }
+
+    const authEmail = buildDriverAuthEmail(normalizedCpf);
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: authEmail,
+        password: normalizedCpf, // senha inicial = CPF
+        email_confirm: true,
+        user_metadata: { cpf: normalizedCpf, full_name: payload.name, type: 'driver', tenant_id: payload.tenantId ?? undefined },
+    });
+    if (authError || !authData.user) {
+        throw new Error(authError?.message || 'Não foi possível criar o acesso do motorista');
+    }
+
+    const { data: driver, error: driverError } = await supabaseAdmin
+        .from('profiles')
+        .update({
+            full_name: payload.name.trim(),
+            cpf: normalizedCpf,
+            role: 'motorista',
+            registration_number: payload.registrationNumber?.trim() || null,
+            department_id: payload.departmentId || null,
+            ...(payload.tenantId ? { tenant_id: payload.tenantId } : {}),
+            driver_status: 'ativo',
+            must_change_password: true,
+        })
+        .eq('id', authData.user.id)
+        .select('*, departments(id, name)')
+        .single();
+
+    if (driverError) {
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        throw new Error(driverError.message);
+    }
+
+    return driver;
+}
+
+/** Pré-cadastro em lote (import de planilha). Retorna o que foi criado e os erros por linha. */
+export async function preRegisterDriversBulk(rows: PreRegisterDriverPayload[]) {
+    const result = { created: 0, errors: [] as { cpf: string; name: string; error: string }[] };
+    for (const row of rows) {
+        try {
+            await preRegisterDriver(row);
+            result.created += 1;
+        } catch (e) {
+            result.errors.push({ cpf: row.cpf, name: row.name, error: (e as Error).message });
+        }
+    }
+    return result;
 }
 
 // No banco unificado, todo motorista que existe na tabela já tem auth (id=auth.users.id).

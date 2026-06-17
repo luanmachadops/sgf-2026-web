@@ -15,6 +15,7 @@ interface AuthContextType {
     token: string | null;
     login: (email: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
+    refreshUser: () => Promise<void>;
     isLoading: boolean;
 }
 
@@ -55,9 +56,31 @@ function mapDbRole(dbRole: string | null | undefined): User['role'] {
     switch ((dbRole ?? '').toLowerCase()) {
         case 'admin': return 'ADMIN';
         case 'gestor': return 'MANAGER';
+        case 'secretario': return 'MANAGER'; // capacidades de gestor, porém escopado por secretaria (via RLS)
+        case 'superadmin': return 'SUPERADMIN';
         case 'motorista': return 'VIEWER';
         default: return 'VIEWER';
     }
+}
+
+type TenantRow = {
+    id: string; slug: string; name: string; app_name: string | null; login_eyebrow: string | null;
+    logo_url: string | null; seal_url: string | null; photo_url: string | null;
+    primary_color: string | null; dark_color: string | null; accent_color: string | null;
+    cnpj: string | null; city: string | null; state: string | null; address: string | null;
+    mayor_name: string | null; report_footer: string | null; status: string | null;
+};
+
+function mapTenant(t: TenantRow | null | undefined): import('@/types').TenantBranding | undefined {
+    if (!t) return undefined;
+    return {
+        id: t.id, slug: t.slug, name: t.name,
+        appName: t.app_name ?? undefined, loginEyebrow: t.login_eyebrow ?? undefined,
+        logoUrl: t.logo_url ?? undefined, sealUrl: t.seal_url ?? undefined, photoUrl: t.photo_url ?? undefined,
+        primaryColor: t.primary_color ?? undefined, darkColor: t.dark_color ?? undefined, accentColor: t.accent_color ?? undefined,
+        cnpj: t.cnpj ?? undefined, city: t.city ?? undefined, state: t.state ?? undefined, address: t.address ?? undefined,
+        mayorName: t.mayor_name ?? undefined, reportFooter: t.report_footer ?? undefined, status: t.status ?? undefined,
+    };
 }
 
 /**
@@ -67,12 +90,13 @@ function mapDbRole(dbRole: string | null | undefined): User['role'] {
 async function fetchUserProfile(authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }): Promise<User> {
     const { data: profile, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, department_id, created_at, departments(id, name)')
+        .select('id, full_name, email, role, department_id, tenant_id, created_at, photo_url, departments(id, name), tenants(id, slug, name, app_name, login_eyebrow, logo_url, seal_url, photo_url, primary_color, dark_color, accent_color, cnpj, city, state, address, mayor_name, report_footer, status)')
         .eq('id', authUser.id)
         .maybeSingle();
 
     if (profile && !error) {
         const dept = (profile as unknown as { departments?: { id: string; name: string } | null }).departments;
+        const tenant = mapTenant((profile as unknown as { tenants?: TenantRow | null }).tenants);
         return {
             id: profile.id,
             email: profile.email ?? authUser.email ?? '',
@@ -80,6 +104,10 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
             role: mapDbRole(profile.role),
             departmentId: profile.department_id || undefined,
             departmentName: dept?.name,
+            photoUrl: profile.photo_url || undefined,
+            departmentScopeId: profile.role === 'secretario' ? (profile.department_id || undefined) : undefined,
+            tenantId: (profile as unknown as { tenant_id?: string }).tenant_id || undefined,
+            tenant,
             createdAt: profile.created_at || new Date().toISOString(),
         };
     }
@@ -254,6 +282,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    // Recarrega o perfil do usuário logado (ex.: após trocar foto/nome no /perfil).
+    const refreshUser = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) return;
+        const userData = await fetchUserProfile(session.user);
+        setUser(userData);
+        persistAuthState(userData, session.access_token);
+    };
+
     const logout = async () => {
         // Clear local state immediately — don't let a hanging signOut block the user
         setUser(null);
@@ -269,7 +306,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+        <AuthContext.Provider value={{ user, token, login, logout, refreshUser, isLoading }}>
             {children}
         </AuthContext.Provider>
     );

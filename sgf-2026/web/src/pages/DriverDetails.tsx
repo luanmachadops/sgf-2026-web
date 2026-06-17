@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useMemo, useRef, useState } from 'react';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFButton } from '@/components/sgf/SGFButton';
@@ -18,10 +18,16 @@ import {
     Building2,
     Award,
     User,
+    CalendarClock,
+    LockKeyhole,
+    Car,
 } from '@/components/sgf/icons';
 import { EditDriverModal } from '@/components/drivers/EditDriverModal';
+import { DriverAccessForm } from '@/components/drivers/DriverAccessForm';
+import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
+import { Modal } from '@/components/ui/Modal';
 import type { Tables } from '@/types/database.types';
-import { formatDate, formatCPF, formatDistance, formatPhone, formatPlate } from '@/lib/utils';
+import { formatDate, formatDateTime, formatCPF, formatDistance, formatPhone, formatPlate } from '@/lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
 import { driversApi, tripsApi } from '@/lib/supabase-api';
 
@@ -44,9 +50,24 @@ function getLicenseStatus(expiryDate: string | null | undefined) {
     return { label: 'Regular', variant: 'success' as const };
 }
 
+function getDuration(startAt: string, endAt: string | null | undefined): string {
+    if (!endAt) return '—';
+    const diff = new Date(endAt).getTime() - new Date(startAt).getTime();
+    const minutes = Math.max(Math.round(diff / 60000), 0);
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours === 0) return `${mins}min`;
+    return `${hours}h ${mins}min`;
+}
+
 export default function DriverDetails() {
     const { id } = useParams<{ id: string }>();
+    const location = useLocation();
+    const backTo = (location.state as { backTo?: string } | null)?.backTo ?? '/motoristas';
     const [isEditOpen, setEditOpen] = useState(false);
+    const [isResetOpen, setResetOpen] = useState(false);
+    const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+    const tabsRef = useRef<HTMLDivElement>(null);
 
     const { data: driver, isLoading, isError } = useQuery({
         queryKey: ['driver', id],
@@ -71,13 +92,36 @@ export default function DriverDetails() {
         end_odometer: number | null;
         distance_km: number | null;
         destination: string;
-        vehicles?: { id: string; plate: string; brand: string; model: string } | null;
+        vehicles?: { id: string; plate: string; brand: string; model: string; photo_url: string | null } | null;
     };
 
     const tripColumns: SGFTableColumn<TripRow>[] = [
-        { header: 'Data', accessor: (r) => formatDate(r.start_at) },
+        { header: 'Início', accessor: (r) => `${formatDate(r.start_at)} - ${formatDate(r.start_at, 'HH:mm')}` },
+        { header: 'Fim', accessor: (r) => r.end_at ? `${formatDate(r.end_at)} - ${formatDate(r.end_at, 'HH:mm')}` : '—' },
+        { header: 'Duração', accessor: (r) => getDuration(r.start_at, r.end_at) },
         {
             header: 'Veículo',
+            accessor: (r) => {
+                const brand = r.vehicles?.brand || '';
+                const model = r.vehicles?.model || '';
+                const name = [brand, model].filter(Boolean).join(' ') || '—';
+                const photo = r.vehicles?.photo_url;
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {photo ? (
+                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200" />
+                        ) : (
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--sgf-primary)]/10 text-[var(--sgf-primary)]">
+                                <Car className="h-4 w-4" />
+                            </div>
+                        )}
+                        <span className="font-semibold text-slate-800 text-sm">{name}</span>
+                    </div>
+                );
+            },
+        },
+        {
+            header: 'Placa',
             accessor: (r) => <span className="font-mono">{r.vehicles?.plate ? formatPlate(r.vehicles.plate) : '—'}</span>,
         },
         { header: 'Km Inicial', accessor: (r) => r.start_odometer != null ? r.start_odometer.toLocaleString('pt-BR') : '—' },
@@ -96,8 +140,8 @@ export default function DriverDetails() {
     if (isError || !driver) {
         return (
             <div className="space-y-4">
-                <Link to="/motoristas">
-                    <SGFButton variant="ghost" size="sm" icon={ArrowLeft}>Voltar</SGFButton>
+                <Link to={backTo}>
+                    <SGFButton variant="ghost" size="sm" icon={ArrowLeft}><span className="hidden md:inline">Voltar</span></SGFButton>
                 </Link>
                 <SGFCard>
                     <p className="text-sm text-rose-600 font-medium">Motorista não encontrado.</p>
@@ -110,6 +154,8 @@ export default function DriverDetails() {
         id: string;
         full_name: string;
         cpf: string | null;
+        birth_date: string | null;
+        must_change_password: boolean | null;
         email: string | null;
         phone: string | null;
         cnh_number: string | null;
@@ -133,20 +179,25 @@ export default function DriverDetails() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4 min-w-0">
-                    <Link to="/motoristas">
-                        <SGFButton variant="ghost" size="sm" icon={ArrowLeft}>Voltar</SGFButton>
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    <Link to={backTo} className="shrink-0">
+                        <SGFButton variant="ghost" size="sm" icon={ArrowLeft}><span className="hidden md:inline">Voltar</span></SGFButton>
                     </Link>
                     <div className="min-w-0">
-                        <h1 className="text-2xl font-bold text-slate-900 truncate flex items-center gap-3">
+                        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate flex items-center gap-2">
                             {d.full_name}
-                            {d.on_duty ? <SGFBadge variant="info">Em serviço</SGFBadge> : null}
+                            {d.on_duty ? <SGFBadge variant="info" size="sm">Em serviço</SGFBadge> : null}
                         </h1>
                     </div>
                 </div>
-                <div className="flex shrink-0 justify-end">
-                    <SGFButton icon={Edit2} onClick={() => setEditOpen(true)}>Editar</SGFButton>
+                <div className="flex shrink-0 items-center gap-2">
+                    <SGFButton variant="secondary" icon={LockKeyhole} onClick={() => setResetOpen(true)} className="!h-[37px] !rounded-full">
+                        <span className="hidden sm:inline">Gerar nova senha</span>
+                    </SGFButton>
+                    <SGFButton icon={Edit2} onClick={() => setEditOpen(true)} className="!h-[37px] !rounded-full">
+                        <span className="hidden sm:inline">Editar</span>
+                    </SGFButton>
                 </div>
             </div>
 
@@ -176,7 +227,16 @@ export default function DriverDetails() {
             </div>
 
             {/* Tabs */}
-            <Tabs defaultValue="info" className="w-full">
+            <div ref={tabsRef} className="scroll-mt-28 w-full">
+            <Tabs
+                defaultValue="info"
+                className="w-full"
+                onValueChange={() => {
+                    setTimeout(() => {
+                        tabsRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    }, 50);
+                }}
+            >
                 <TabsList className="grid w-full grid-cols-2 lg:w-[300px] mx-auto bg-slate-100/50 p-1 rounded-xl">
                     <TabsTrigger value="info" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Info</TabsTrigger>
                     <TabsTrigger value="trips" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Viagens</TabsTrigger>
@@ -226,9 +286,16 @@ export default function DriverDetails() {
                                     {[
                                         { label: 'Nome completo', value: d.full_name },
                                         { label: 'CPF', value: formatCPF(d.cpf) || '—' },
+                                        { label: 'Nascimento', value: d.birth_date ? formatDate(d.birth_date) : '—', icon: CalendarClock },
                                         { label: 'Telefone', value: formatPhone(d.phone) || '—', icon: Phone },
                                         { label: 'E-mail', value: d.email ?? '—', icon: Mail },
                                         { label: 'Matrícula', value: d.registration_number ?? '—' },
+                                        {
+                                            label: 'Acesso ao app',
+                                            value: d.must_change_password
+                                                ? <SGFBadge variant="warning" size="sm">Aguardando 1º acesso</SGFBadge>
+                                                : <SGFBadge variant="success" size="sm">Acesso ativo</SGFBadge>
+                                        },
                                     ].map((item) => {
                                         const ItemIcon = item.icon;
                                         return (
@@ -283,22 +350,99 @@ export default function DriverDetails() {
                 </TabsContent>
 
                 <TabsContent value="trips">
-                    <div className="-mx-4 md:mx-0">
+                    {/* Cards (mobile) — design dedicado de viagens */}
+                    <div className="space-y-3 md:hidden">
+                        {trips.length === 0 ? (
+                            <div className="rounded-[18px] bg-white p-10 text-center text-sm text-slate-400 shadow-sm">
+                                Nenhuma viagem registrada para este motorista.
+                            </div>
+                        ) : (
+                            trips.map((row) => {
+                                const trip = row as unknown as TripRow;
+                                
+                                return (
+                                    <div
+                                        key={trip.id}
+                                        onClick={() => setSelectedTripId(trip.id)}
+                                        className="relative flex cursor-pointer items-center gap-3.5 overflow-hidden rounded-[18px] bg-white py-3.5 pl-4 pr-3.5 text-[#2F2F2F] shadow-sm transition-all duration-150 active:scale-[0.98] active:bg-slate-50"
+                                    >
+                                        <div className="flex h-[62px] w-[62px] shrink-0 flex-col items-center justify-center rounded-[14px] bg-[#E0E8E6] text-[#0F2B2F]">
+                                            <span className="text-[17px] font-black leading-none">
+                                                {trip.distance_km != null ? Math.round(Number(trip.distance_km)) : '—'}
+                                            </span>
+                                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mt-0.5">km</span>
+                                        </div>
+
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <p className="min-w-0 truncate text-[16px] font-bold leading-tight">
+                                                    {trip.destination || 'Sem destino'}
+                                                </p>
+                                                <span className="shrink-0 text-[11px] font-bold text-slate-400">
+                                                    {formatDate(trip.start_at)}
+                                                </span>
+                                            </div>
+                                            <div className="mt-1.5 grid grid-cols-2 text-[13.5px] leading-snug">
+                                                <div className="space-y-0.5 pr-3">
+                                                    <p className="truncate text-slate-700 font-semibold text-[13.5px]">
+                                                        {trip.vehicles ? `${trip.vehicles.brand} ${trip.vehicles.model}` : 'Veículo não informado'}
+                                                    </p>
+                                                    <p className="truncate font-mono text-[12px] text-slate-400">
+                                                        {trip.vehicles?.plate ? formatPlate(trip.vehicles.plate) : '—'}
+                                                    </p>
+                                                </div>
+                                                <div className="space-y-0.5 border-l border-slate-200 pl-3">
+                                                    <p className="truncate text-slate-600">
+                                                        Ini: {trip.start_odometer != null ? trip.start_odometer.toLocaleString('pt-BR') : '—'}
+                                                    </p>
+                                                    <p className="truncate text-slate-600">
+                                                        Fim: {trip.end_odometer != null ? trip.end_odometer.toLocaleString('pt-BR') : '—'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+
+                    {/* Tabela (desktop) */}
+                    <div className="-mx-4 hidden md:mx-0 md:block">
                         <SGFTable
                             columns={tripColumns}
                             data={trips as unknown as TripRow[]}
                             keyExtractor={(r) => r.id}
+                            onRowClick={(r) => setSelectedTripId(r.id)}
                             emptyMessage="Nenhuma viagem registrada para este motorista."
                         />
                     </div>
                 </TabsContent>
             </Tabs>
+            </div>
+
+            <TripDetailsModal tripId={selectedTripId} onClose={() => setSelectedTripId(null)} />
 
             <EditDriverModal
                 isOpen={isEditOpen}
                 onClose={() => setEditOpen(false)}
                 driver={driver as unknown as Tables<'profiles'>}
             />
+
+            <Modal
+                isOpen={isResetOpen}
+                onClose={() => setResetOpen(false)}
+                title="Gerar nova senha"
+                description="Defina uma nova senha de acesso para este motorista."
+                size="md"
+            >
+                <DriverAccessForm
+                    driver={driver}
+                    mode="reset"
+                    onSuccess={() => setResetOpen(false)}
+                    onCancel={() => setResetOpen(false)}
+                />
+            </Modal>
         </div>
     );
 }

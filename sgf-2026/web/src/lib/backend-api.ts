@@ -1,4 +1,5 @@
 import type { Tables } from '@/types/database.types';
+import { supabase } from './supabase';
 
 function isLocalHostname(hostname: string): boolean {
     return hostname === 'localhost' || hostname === '127.0.0.1';
@@ -49,10 +50,15 @@ class BackendApiError extends Error {
 async function request<T>(path: string, init: RequestInit): Promise<T> {
     const apiUrl = resolveApiUrl();
 
+    // Envia o token da sessão para a serverless validar quem está chamando (RBAC).
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
     const response = await fetch(`${apiUrl}${path}`, {
         ...init,
         headers: {
             'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...(init.headers || {}),
         },
     });
@@ -87,6 +93,7 @@ export interface CreateDriverRequest {
     cnhNumber: string;
     cnhCategory: string;
     cnhExpiryDate: string;
+    birthDate?: string;
     departmentId?: string;
     phone?: string;
     email?: string;
@@ -96,6 +103,18 @@ export interface CreateDriverRequest {
 
 export interface DriverAccessRequest {
     password: string;
+}
+
+export interface PreRegisterDriverRequest {
+    cpf: string;
+    name: string;
+    registrationNumber?: string;
+    departmentId?: string;
+}
+
+export interface BulkPreRegisterResult {
+    created: number;
+    errors: { cpf: string; name: string; error: string }[];
 }
 
 // "Driver" no banco unificado = profile com role='motorista'
@@ -125,6 +144,33 @@ export const driverAccessApi = {
         request<{ success: true }>(`/drivers/${driverId}/reset-password`, {
             method: 'POST',
             body: JSON.stringify(payload),
+        }),
+
+    preRegister: async (payload: PreRegisterDriverRequest): Promise<DriverWithDepartment> =>
+        request<DriverWithDepartment>('/drivers/pre-register', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        }),
+
+    preRegisterBulk: async (drivers: PreRegisterDriverRequest[]): Promise<BulkPreRegisterResult> =>
+        request<BulkPreRegisterResult>('/drivers/pre-register', {
+            method: 'POST',
+            body: JSON.stringify({ drivers }),
+        }),
+};
+
+export interface CreateSecretarioRequest {
+    name: string;
+    email: string;
+    password: string;
+    departmentId: string;
+}
+
+export const managerAccessApi = {
+    createSecretario: async (payload: CreateSecretarioRequest): Promise<DriverWithDepartment> =>
+        request<DriverWithDepartment>('/managers', {
+            method: 'POST',
+            body: JSON.stringify({ ...payload, role: 'secretario' }),
         }),
 };
 

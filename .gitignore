@@ -1,1 +1,3 @@
-sgf-2026-mobile/
+.claude/
+.DS_Store
+*.log

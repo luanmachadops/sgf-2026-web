@@ -192,18 +192,18 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
                     </div>
 
                     {/* Dados da viagem */}
-                    <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
+                    <div className="grid grid-cols-2 gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
                         <Info icon={Clock} label="Início" value={trip.start_at ? formatDateTime(trip.start_at) : '—'} />
                         <Info icon={Clock} label="Fim" value={trip.end_at ? formatDateTime(trip.end_at) : '—'} />
                         <Info icon={Clock} label="Duração" value={durationLabel(trip.start_at, trip.end_at)} />
                         <Info icon={Gauge} label="Km inicial" value={startKm.toLocaleString('pt-BR')} />
                         <Info icon={Gauge} label="Km final" value={endKm.toLocaleString('pt-BR')} />
                         <Info icon={Route} label="Distância" value={formatDistance(distance)} />
-                        <div className="sm:col-span-3">
+                        <div className="col-span-2 sm:col-span-3">
                             <Info icon={MapPin} label="Destino / finalidade" value={trip.destination || '—'} />
                         </div>
                         {trip.notes && (
-                            <div className="sm:col-span-3">
+                            <div className="col-span-2 sm:col-span-3">
                                 <Info icon={AlertTriangle} label="Observações" value={trip.notes} />
                             </div>
                         )}

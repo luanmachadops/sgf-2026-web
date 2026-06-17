@@ -1,5 +1,5 @@
 import React, { useRef, useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFButton } from '@/components/sgf/SGFButton';
@@ -21,8 +21,24 @@ import {
     Loader2,
     Route,
     Download,
+    Qr,
+    Sparkles,
+    ChevronLeft,
+    ChevronRight,
+    User,
 } from '@/components/sgf/icons';
 import { EditVehicleModal } from '@/components/vehicles/EditVehicleModal';
+import { VehicleAIModal } from '@/components/vehicles/VehicleAIModal';
+import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
+import { RefuelingDetailsModal } from '@/components/refuelings/RefuelingDetailsModal';
+import { MaintenanceDetailsModal } from '@/components/maintenances/MaintenanceDetailsModal';
+import { Modal } from '@/components/ui/Modal';
+import { PhotoViewer } from '@/components/ui/PhotoViewer';
+import { StyledQr } from '@/components/qr/StyledQr';
+import { downloadVehicleQr } from '@/lib/vehicleQr';
+import { vehicleDocumentsApi } from '@/lib/supabase-api';
+import { webToDbFuelType } from '@/lib/db-mapping';
+import type { ExtractWithPhotosResult } from '@/lib/vehicleAI';
 import { formatDate, formatDistance, formatCurrency, formatPlate, getStatusLabel, getStatusColor } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import {
@@ -49,15 +65,35 @@ type VehicleRow = VehicleRecord & {
 
 export default function VehicleDetails() {
     const { id } = useParams<{ id: string }>();
+    const location = useLocation();
+    const navigate = useNavigate();
+    const backTo = (location.state as { backTo?: string } | null)?.backTo ?? '/veiculos';
     const queryClient = useQueryClient();
     const [isUploading, setIsUploading] = useState(false);
     const [isEditOpen, setEditOpen] = useState(false);
+    const [isQrOpen, setQrOpen] = useState(false);
+    const [isAiOpen, setAiOpen] = useState(false);
+    const [viewer, setViewer] = useState<{ images: string[]; index: number } | null>(null);
+    const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+    const [selectedRefuelId, setSelectedRefuelId] = useState<string | null>(null);
+    const [selectedMaintId, setSelectedMaintId] = useState<string | null>(null);
+    const [photoIdx, setPhotoIdx] = useState(0);
+    const [uploadingMulti, setUploadingMulti] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const multiInputRef = useRef<HTMLInputElement>(null);
+    const tabsRef = useRef<HTMLDivElement>(null);
 
     // ── Veículo ────────────────────────────────────────────────────────────
     const { data: vehicle, isLoading: loadingVehicle, isError: errorVehicle } = useQuery({
         queryKey: ['vehicle', id],
         queryFn: () => vehiclesApi.getById(id!),
+        enabled: Boolean(id),
+    });
+
+    // ── Fotos/documentos deste veículo (placa, renavam, hodômetro, extras) ──
+    const { data: vehicleDocs = [] } = useQuery({
+        queryKey: ['vehicle', id, 'documents'],
+        queryFn: () => vehicleDocumentsApi.getByVehicle(id!),
         enabled: Boolean(id),
     });
 
@@ -94,6 +130,19 @@ export default function VehicleDetails() {
         const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         return trips.filter((t) => (t as { start_at: string }).start_at?.startsWith(monthKey)).length;
     }, [trips]);
+
+    // Fotos do veículo (carrossel): foto principal + documentos do tipo 'foto'.
+    const vehiclePhotos = useMemo(() => {
+        const urls: string[] = [];
+        if (vehicle?.photo_url) urls.push(vehicle.photo_url);
+        for (const d of vehicleDocs) {
+            if (d.doc_type === 'foto' && d.url && !urls.includes(d.url)) urls.push(d.url);
+        }
+        return urls;
+    }, [vehicle?.photo_url, vehicleDocs]);
+
+    // Documentos que NÃO são foto do veículo (placa, renavam, hodômetro, CRLV).
+    const otherDocs = useMemo(() => vehicleDocs.filter((d) => d.doc_type !== 'foto' && d.url), [vehicleDocs]);
 
     // ── Upload de foto ─────────────────────────────────────────────────────
     const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,6 +197,72 @@ export default function VehicleDetails() {
 
     const handlePhotoClick = () => fileInputRef.current?.click();
 
+    // Upload de VÁRIAS fotos do veículo (salvas como documentos do tipo 'foto').
+    const handleMultiPhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(event.target.files ?? []);
+        if (files.length === 0 || !vehicle) return;
+        setUploadingMulti(true);
+        try {
+            let firstUrl: string | null = null;
+            for (const file of files) {
+                if (!isImageFile(file)) continue;
+                const blob = await resizeAndConvertToWebP(file, 1000);
+                const fileName = `vehicles/${vehicle.id}/foto-${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
+                const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
+                if (upErr) throw upErr;
+                const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
+                await vehicleDocumentsApi.add({ vehicleId: vehicle.id, url: publicUrl, title: 'Foto do veículo', docType: 'foto' });
+                if (!firstUrl) firstUrl = publicUrl;
+            }
+            // Se o veículo ainda não tem foto principal, usa a primeira enviada.
+            if (firstUrl && !vehicle.photo_url) {
+                await vehiclesApi.update(vehicle.id, { photo_url: firstUrl } as never);
+            }
+            await queryClient.invalidateQueries({ queryKey: ['vehicle', id] });
+            await queryClient.invalidateQueries({ queryKey: ['vehicle', id, 'documents'] });
+            await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+            toast.success(`${files.length} foto(s) adicionada(s).`);
+        } catch (err) {
+            toast.error((err as { message?: string })?.message ?? 'Erro ao enviar as fotos.');
+        } finally {
+            setUploadingMulti(false);
+            if (multiInputRef.current) multiInputRef.current.value = '';
+        }
+    };
+
+    // Aplica o resultado da IA: atualiza campos do veículo + salva as fotos enviadas.
+    const handleAiResult = async (result: ExtractWithPhotosResult) => {
+        if (!id) return;
+        const d = result.data;
+        const updates: Record<string, unknown> = {};
+        if (d.plate) updates.plate = String(d.plate).toUpperCase();
+        if (d.brand) updates.brand = d.brand;
+        if (d.model) updates.model = d.model;
+        if (d.year) updates.year = d.year;
+        if (d.color) updates.color = d.color;
+        if (d.vehicleType) updates.vehicle_type = d.vehicleType;
+        if (d.renavam) updates.renavam = String(d.renavam);
+        if (d.chassis) updates.chassis = String(d.chassis);
+        if (d.tankCapacity) updates.tank_capacity = d.tankCapacity;
+        if (d.fuelType) updates.fuel_type = webToDbFuelType(d.fuelType);
+        if (d.odometer && d.odometer > 0) updates.current_odometer = d.odometer;
+        // Define a foto principal a partir da foto do veículo, se ainda não houver.
+        const mainPhoto = result.photos.find((p) => p.type === 'foto')?.url;
+        if (mainPhoto && !vehicle?.photo_url) updates.photo_url = mainPhoto;
+
+        if (Object.keys(updates).length > 0) {
+            await vehiclesApi.update(id, updates as never);
+        }
+        // Salva cada foto como documento do veículo (aparece na galeria).
+        const TITLES: Record<string, string> = { foto: 'Foto do veículo', placa: 'Placa', documento: 'Documento (CRLV)', hodometro: 'Hodômetro' };
+        for (const p of result.photos) {
+            await vehicleDocumentsApi.add({ vehicleId: id, url: p.url, title: TITLES[p.type] ?? 'Foto', docType: p.type });
+        }
+        queryClient.invalidateQueries({ queryKey: ['vehicle', id] });
+        queryClient.invalidateQueries({ queryKey: ['vehicle', id, 'documents'] });
+        queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+    };
+
     // ── Download do documento (PDF) ────────────────────────────────────────
     const handleDownloadDocument = () => {
         const url = (vehicle as { document_url?: string | null })?.document_url;
@@ -176,8 +291,8 @@ export default function VehicleDetails() {
     if (errorVehicle || !vehicle) {
         return (
             <div className="space-y-4">
-                <Link to="/veiculos">
-                    <SGFButton variant="ghost" size="sm" icon={ArrowLeft}>Voltar</SGFButton>
+                <Link to={backTo}>
+                    <SGFButton variant="ghost" size="sm" icon={ArrowLeft}><span className="hidden md:inline">Voltar</span></SGFButton>
                 </Link>
                 <SGFCard>
                     <p className="text-sm text-rose-600 font-medium">Veículo não encontrado.</p>
@@ -194,11 +309,29 @@ export default function VehicleDetails() {
         start_at: string; end_at: string | null;
         start_odometer: number | null; end_odometer: number | null;
         distance_km: number | null; destination: string;
-        drivers?: { id: string; name: string } | null;
+        drivers?: { id: string; name: string; photo_url?: string | null } | null;
     };
     const tripColumns: SGFTableColumn<TripRow>[] = [
         { header: 'Data', accessor: (r) => formatDate(r.start_at) },
-        { header: 'Motorista', accessor: (r) => r.drivers?.name ?? '—' },
+        {
+            header: 'Motorista',
+            accessor: (r) => {
+                const name = r.drivers?.name ?? '—';
+                const photo = r.drivers?.photo_url;
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {photo ? (
+                            <img src={photo} alt={name} className="h-6 w-6 shrink-0 rounded-full object-cover ring-1 ring-slate-200" />
+                        ) : (
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                                <User className="h-3 w-3" />
+                            </div>
+                        )}
+                        <span className="text-sm font-semibold text-slate-800">{name}</span>
+                    </div>
+                );
+            },
+        },
         { header: 'Km Inicial', accessor: (r) => r.start_odometer != null ? r.start_odometer.toLocaleString('pt-BR') : '—' },
         { header: 'Km Final', accessor: (r) => r.end_odometer != null ? r.end_odometer.toLocaleString('pt-BR') : '—' },
         { header: 'Distância', accessor: (r) => r.distance_km != null ? formatDistance(Number(r.distance_km)) : '—' },
@@ -212,6 +345,7 @@ export default function VehicleDetails() {
     };
     const refuelingColumns: SGFTableColumn<FuelRow>[] = [
         { header: 'Data', accessor: (r) => formatDate(r.created_at) },
+        { header: 'Posto', accessor: (r) => r.supplier_name || '—' },
         { header: 'Litros', accessor: (r) => `${Number(r.liters ?? 0).toLocaleString('pt-BR')} L` },
         { header: 'Valor', accessor: (r) => formatCurrency(Number(r.total_cost ?? 0)) },
         { header: 'Odômetro', accessor: (r) => r.odometer != null ? formatDistance(r.odometer) : '—' },
@@ -241,13 +375,13 @@ export default function VehicleDetails() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4 min-w-0">
-                    <Link to="/veiculos">
-                        <SGFButton variant="ghost" size="sm" icon={ArrowLeft}>Voltar</SGFButton>
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    <Link to={backTo} className="shrink-0">
+                        <SGFButton variant="ghost" size="sm" icon={ArrowLeft}><span className="hidden md:inline">Voltar</span></SGFButton>
                     </Link>
                     <div className="min-w-0">
-                        <h1 className="text-2xl font-bold text-slate-900 truncate">
+                        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate">
                             {v.brand} {v.model}
                             {v.plate && (
                                 <span className="font-normal text-slate-500"> - {formatPlate(v.plate)}</span>
@@ -255,9 +389,15 @@ export default function VehicleDetails() {
                         </h1>
                     </div>
                 </div>
-                <div className="flex shrink-0 justify-end">
-                    <SGFButton icon={Edit2} onClick={() => setEditOpen(true)}>
-                        Editar
+                <div className="flex shrink-0 items-center gap-2">
+                    <SGFButton variant="secondary" icon={Sparkles} onClick={() => setAiOpen(true)} className="!h-[37px] !rounded-full">
+                        <span className="hidden sm:inline">Preencher com IA</span>
+                    </SGFButton>
+                    <SGFButton variant="secondary" icon={Qr} onClick={() => setQrOpen(true)} className="!h-[37px] !rounded-full">
+                        <span className="hidden sm:inline">QR Code</span>
+                    </SGFButton>
+                    <SGFButton icon={Edit2} onClick={() => setEditOpen(true)} className="!h-[37px] !rounded-full">
+                        <span className="hidden sm:inline">Editar</span>
                     </SGFButton>
                 </div>
             </div>
@@ -288,7 +428,16 @@ export default function VehicleDetails() {
             </div>
 
             {/* Tabs */}
-            <Tabs defaultValue="info" className="w-full">
+            <div ref={tabsRef} className="scroll-mt-28 w-full">
+            <Tabs
+                defaultValue="info"
+                className="w-full"
+                onValueChange={() => {
+                    setTimeout(() => {
+                        tabsRef.current?.scrollIntoView({ behavior: 'smooth' });
+                    }, 50);
+                }}
+            >
                 <TabsList className="grid w-full grid-cols-4 lg:w-[400px] mx-auto bg-slate-100/50 p-1 rounded-xl">
                     <TabsTrigger value="info" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Info</TabsTrigger>
                     <TabsTrigger value="trips" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Viagens</TabsTrigger>
@@ -302,43 +451,90 @@ export default function VehicleDetails() {
                         <div className="lg:col-span-1">
                             <SGFCard>
                                 <div className="space-y-6">
+                                    {/* Carrossel de fotos do veículo */}
                                     <div className="aspect-[4/3] w-full bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-center overflow-hidden relative group shadow-inner">
-                                        {v.photo_url ? (
-                                            <img
-                                                src={v.photo_url}
-                                                alt={`${v.brand} ${v.model}`}
-                                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                            />
+                                        {vehiclePhotos.length > 0 ? (
+                                            <>
+                                                {(() => { const cur = Math.min(photoIdx, vehiclePhotos.length - 1); return (
+                                                    <img
+                                                        src={vehiclePhotos[cur]}
+                                                        alt={`${v.brand} ${v.model}`}
+                                                        onClick={() => setViewer({ images: vehiclePhotos, index: cur })}
+                                                        className="w-full h-full object-cover cursor-zoom-in transition-transform duration-700 group-hover:scale-105"
+                                                    />
+                                                ); })()}
+
+                                                {vehiclePhotos.length > 1 && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => setPhotoIdx((i) => (i - 1 + vehiclePhotos.length) % vehiclePhotos.length)}
+                                                            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/45 p-1.5 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/65"
+                                                            aria-label="Foto anterior"
+                                                        >
+                                                            <ChevronLeft className="h-5 w-5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setPhotoIdx((i) => (i + 1) % vehiclePhotos.length)}
+                                                            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/45 p-1.5 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/65"
+                                                            aria-label="Próxima foto"
+                                                        >
+                                                            <ChevronRight className="h-5 w-5" />
+                                                        </button>
+                                                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                                            {vehiclePhotos.map((_, i) => (
+                                                                <span key={i} className={`h-1.5 rounded-full transition-all ${i === Math.min(photoIdx, vehiclePhotos.length - 1) ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
+                                                            ))}
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </>
                                         ) : (
-                                            <div className="flex flex-col items-center justify-center text-slate-200">
-                                                <Car width={80} height={80} />
-                                                <p className="mt-4 text-sm font-medium text-slate-400">Sem foto disponível</p>
+                                            <div
+                                                className="flex flex-col items-center justify-center text-slate-300 cursor-pointer w-full h-full hover:bg-slate-100/60 transition-colors"
+                                                onClick={handlePhotoClick}
+                                            >
+                                                {isUploading ? <Loader2 width={40} height={40} className="animate-spin text-emerald-500" /> : <Camera width={44} height={44} />}
+                                                <p className="mt-3 text-sm font-semibold text-slate-400">{isUploading ? 'Enviando...' : 'Adicionar foto'}</p>
                                             </div>
                                         )}
 
-                                        <div
-                                            className="absolute inset-0 bg-[#0F2B2F]/40 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center cursor-pointer backdrop-blur-[2px]"
-                                            onClick={handlePhotoClick}
-                                        >
-                                            <SGFButton
-                                                variant="secondary"
-                                                size="sm"
-                                                icon={isUploading ? Loader2 : Camera}
-                                                disabled={isUploading}
-                                                className="shadow-xl"
-                                            >
-                                                {isUploading ? 'Enviando...' : 'Alterar Foto'}
-                                            </SGFButton>
-                                        </div>
-
-                                        <input
-                                            ref={fileInputRef}
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={handlePhotoUpload}
-                                            className="hidden"
-                                        />
+                                        <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
                                     </div>
+
+                                    {/* Adicionar várias fotos do veículo */}
+                                    <div>
+                                        <SGFButton
+                                            variant="secondary"
+                                            size="sm"
+                                            icon={uploadingMulti ? Loader2 : Camera}
+                                            disabled={uploadingMulti}
+                                            onClick={() => multiInputRef.current?.click()}
+                                            className="w-full"
+                                        >
+                                            {uploadingMulti ? 'Enviando...' : 'Adicionar fotos do veículo'}
+                                        </SGFButton>
+                                        <input ref={multiInputRef} type="file" accept="image/*" multiple onChange={handleMultiPhotoUpload} className="hidden" />
+                                    </div>
+
+                                    {/* Galeria de documentos (placa, renavam, hodômetro, CRLV) */}
+                                    {otherDocs.length > 0 && (
+                                        <div>
+                                            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">Placa, RENAVAM e hodômetro</p>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {otherDocs.map((doc) => (
+                                                    <button
+                                                        key={doc.id}
+                                                        onClick={() => setViewer({ images: [doc.url], index: 0 })}
+                                                        className="group/thumb relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                                                        title={doc.title}
+                                                    >
+                                                        <img src={doc.url} alt={doc.title} className="h-full w-full object-cover transition-transform duration-500 group-hover/thumb:scale-110" />
+                                                        <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-[9px] font-semibold text-white">{doc.title}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
 
 
@@ -420,6 +616,7 @@ export default function VehicleDetails() {
                             columns={tripColumns}
                             data={trips as unknown as TripRow[]}
                             keyExtractor={(r) => r.id}
+                            onRowClick={(r) => setSelectedTripId(r.id)}
                             emptyMessage="Nenhuma viagem registrada para este veículo."
                         />
                     </div>
@@ -431,6 +628,7 @@ export default function VehicleDetails() {
                             columns={refuelingColumns}
                             data={refuelings as unknown as FuelRow[]}
                             keyExtractor={(r) => r.id}
+                            onRowClick={(r) => setSelectedRefuelId(r.id)}
                             emptyMessage="Nenhum abastecimento registrado para este veículo."
                         />
                     </div>
@@ -442,17 +640,67 @@ export default function VehicleDetails() {
                             columns={maintenanceColumns}
                             data={maintenances}
                             keyExtractor={(r) => r.id}
+                            onRowClick={(r) => setSelectedMaintId(r.id)}
                             emptyMessage="Nenhuma ordem de serviço para este veículo."
                         />
                     </div>
                 </TabsContent>
             </Tabs>
+            </div>
 
             <EditVehicleModal
                 isOpen={isEditOpen}
                 onClose={() => setEditOpen(false)}
                 vehicle={v as unknown as Tables<'vehicles'>}
             />
+
+            <Modal
+                isOpen={isQrOpen}
+                onClose={() => setQrOpen(false)}
+                title="QR Code do veículo"
+                description="Aponte a câmera do app do motorista para vincular o veículo."
+                size="sm"
+            >
+                <div className="flex flex-col items-center gap-4">
+                    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                        {v.plate ? (
+                            <StyledQr value={v.plate} size={240} />
+                        ) : (
+                            <p className="px-8 py-12 text-sm text-slate-400">Veículo sem placa cadastrada.</p>
+                        )}
+                    </div>
+                    <div className="text-center">
+                        <p className="font-mono text-lg font-bold tracking-wide text-slate-900">{v.plate ? formatPlate(v.plate) : '—'}</p>
+                        <p className="text-xs text-slate-500">{v.brand} {v.model}</p>
+                    </div>
+                    <SGFButton
+                        icon={Download}
+                        onClick={() => v.plate && downloadVehicleQr(v.plate)}
+                        disabled={!v.plate}
+                        className="w-full"
+                    >
+                        Baixar QR Code (PNG)
+                    </SGFButton>
+                </div>
+            </Modal>
+
+            <VehicleAIModal
+                isOpen={isAiOpen}
+                onClose={() => setAiOpen(false)}
+                vehicleId={v.id}
+                onResult={handleAiResult}
+            />
+
+            <PhotoViewer
+                images={viewer?.images}
+                startIndex={viewer?.index ?? 0}
+                alt={`${v.brand} ${v.model}`}
+                onClose={() => setViewer(null)}
+            />
+
+            <TripDetailsModal tripId={selectedTripId} onClose={() => setSelectedTripId(null)} />
+            <RefuelingDetailsModal refuelingId={selectedRefuelId} onClose={() => setSelectedRefuelId(null)} />
+            <MaintenanceDetailsModal maintenanceId={selectedMaintId} onClose={() => setSelectedMaintId(null)} />
         </div>
     );
 }

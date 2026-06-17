@@ -10,7 +10,9 @@ import {
     exportReportToPDF,
     exportReportToExcel,
     type ReportFilters,
+    type ReportBranding,
 } from '@/lib/reportExport';
+import { useBranding } from '@/contexts/BrandingContext';
 import { toast } from 'sonner';
 
 const EMPTY_DATASET: ReportDataset = { columns: [], rows: [], kpis: [] };
@@ -34,6 +36,17 @@ export interface ReportViewerModalProps {
 type Row = Record<string, string | number>;
 
 export function ReportViewerModal({ isOpen, onClose, reportId, title, description }: ReportViewerModalProps) {
+    const { branding: tenantBranding } = useBranding();
+    const reportBranding: ReportBranding = useMemo(() => ({
+        name: tenantBranding.name,
+        logoUrl: tenantBranding.logoUrl,
+        sealUrl: tenantBranding.sealUrl,
+        city: tenantBranding.city,
+        state: tenantBranding.state,
+        cnpj: tenantBranding.cnpj,
+        mayorName: tenantBranding.mayorName,
+        reportFooter: tenantBranding.reportFooter,
+    }), [tenantBranding]);
     const [period, setPeriod] = useState('month');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
@@ -96,7 +109,7 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
             toast.warning('Sem dados para exportar.');
             return;
         }
-        exportReportToPDF({ reportTitle: title, reportDescription: description, dataset, filters });
+        exportReportToPDF({ reportTitle: title, reportDescription: description, dataset, filters, branding: reportBranding });
     };
 
     const handleExcel = async () => {
@@ -106,7 +119,7 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
         }
         try {
             setExporting('excel');
-            await exportReportToExcel({ reportTitle: title, reportDescription: description, dataset, filters });
+            await exportReportToExcel({ reportTitle: title, reportDescription: description, dataset, filters, branding: reportBranding });
             toast.success('Planilha Excel gerada com sucesso!');
         } catch (e) {
             console.error(e);

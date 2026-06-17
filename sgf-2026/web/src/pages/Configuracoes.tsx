@@ -3,9 +3,13 @@ import { toast } from 'sonner';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { DollarSign, Receipt, CheckCircle, Building2, AlertTriangle, Loader2 } from '@/components/sgf/icons';
+import { DollarSign, Receipt, CheckCircle, AlertTriangle, Loader2, Users } from '@/components/sgf/icons';
 import { useHeader } from '@/contexts/HeaderContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useAppSettings, useUpdateSettings } from '@/hooks/useSettings';
+import { NewSecretarioModal } from '@/components/settings/NewSecretarioModal';
+import { TenantIdentityCard } from '@/components/settings/TenantIdentityCard';
+import { ChangePasswordCard } from '@/components/settings/ChangePasswordCard';
 import { cn } from '@/lib/utils';
 
 const FUEL_MODE_OPTIONS = [
@@ -56,8 +60,10 @@ function ToggleRow({ title, desc, checked, onChange }: { title: string; desc: st
 
 export default function Configuracoes() {
     const { setTitle, setDescription } = useHeader();
+    const { user } = useAuth();
     const { data: settings } = useAppSettings();
     const update = useUpdateSettings();
+    const [showSecretario, setShowSecretario] = useState(false);
 
     const [fuelPriceMode, setFuelPriceMode] = useState<'contract' | 'free'>('free');
     const [orgName, setOrgName] = useState('');
@@ -100,21 +106,27 @@ export default function Configuracoes() {
 
     return (
         <div className="space-y-6 pb-4">
-            {/* Identidade */}
-            <SGFCard padding="lg" className="border border-slate-200/80">
-                <div className="mb-4 flex items-center gap-2">
-                    <Building2 className="h-5 w-5 text-slate-400" />
-                    <h3 className="text-lg font-semibold text-slate-900">Identidade</h3>
-                </div>
-                <SGFInput
-                    label="Nome do órgão / prefeitura"
-                    value={orgName}
-                    onChange={(e) => setOrgName(e.target.value)}
-                    placeholder="Ex.: Prefeitura Municipal de Tapejara"
-                    hint="Aparece nos relatórios e documentos exportados."
-                    fullWidth
-                />
-            </SGFCard>
+            {/* Acessos do painel — apenas administrador */}
+            {user?.role === 'ADMIN' && (
+                <SGFCard padding="lg" className="border border-slate-200/80">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                            <Users className="h-5 w-5 text-slate-400" />
+                            <div>
+                                <h3 className="text-lg font-semibold text-slate-900">Secretários (acesso ao painel)</h3>
+                                <p className="text-sm text-slate-500">Crie acessos restritos a uma secretaria específica.</p>
+                            </div>
+                        </div>
+                        <SGFButton onClick={() => setShowSecretario(true)}>Novo secretário</SGFButton>
+                    </div>
+                </SGFCard>
+            )}
+
+            {/* Identidade da Prefeitura (white-label) */}
+            <TenantIdentityCard />
+
+            {/* Segurança — alterar senha da própria conta */}
+            <ChangePasswordCard />
 
             {/* Precificação */}
             <SGFCard padding="lg" className="border border-slate-200/80">
@@ -208,6 +220,8 @@ export default function Configuracoes() {
                     {update.isPending ? 'Salvando...' : 'Salvar configurações'}
                 </SGFButton>
             </div>
+
+            <NewSecretarioModal isOpen={showSecretario} onClose={() => setShowSecretario(false)} />
         </div>
     );
 }

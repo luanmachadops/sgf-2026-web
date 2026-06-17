@@ -1,13 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { BrandingProvider } from '@/contexts/BrandingContext';
 import PrivateRoute from '@/components/auth/PrivateRoute';
 import MainLayout from '@/components/layout/MainLayout';
+import { Toaster } from '@/components/ui/sonner';
 
 // Pages
 import Login from '@/pages/Login';
 import Dashboard from '@/pages/Dashboard';
-import Showcase from '@/pages/Showcase';
 import MapPage from '@/pages/Map';
 import Vehicles from '@/pages/Vehicles';
 import VehicleDetails from '@/pages/VehicleDetails';
@@ -39,8 +40,10 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <Toaster richColors closeButton position="top-right" />
       <BrowserRouter>
         <AuthProvider>
+          <BrandingProvider>
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
@@ -49,7 +52,6 @@ function App() {
             <Route element={<PrivateRoute />}>
               <Route element={<MainLayout />}>
                 <Route path="/" element={<Dashboard />} />
-                <Route path="/design-system" element={<Showcase />} />
                 <Route path="/mapa" element={<MapPage />} />
                 <Route path="/veiculos" element={<Vehicles />} />
                 <Route path="/veiculos/:id" element={<VehicleDetails />} />
@@ -72,6 +74,7 @@ function App() {
             {/* Catch all */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </BrandingProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

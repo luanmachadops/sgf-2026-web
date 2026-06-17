@@ -50,7 +50,7 @@ type RefuelingWithRelations = Tables<'fuelings'> & {
     // Alias adicionado por decorateFueling (created_at → date).
     date?: string | null;
     vehicles?: { plate: string; brand?: string | null; model?: string | null; photo_url?: string | null } | null;
-    drivers?: { name: string } | null;
+    drivers?: { name: string; photo_url?: string | null } | null;
     station_relation?: { id: string; name: string; code: string | null } | null;
     workflow_status?: WorkflowStatus;
 };
@@ -62,6 +62,7 @@ type RefuelingRow = {
     vehicleModel: string;
     vehiclePhoto: string | null;
     driver: string;
+    driverPhoto: string | null;
     liters: number;
     cost: number;
     pricePerLiter: number;
@@ -129,6 +130,7 @@ export default function Refuelings() {
                 vehicleModel: vehicleModel || 'Sem veículo',
                 vehiclePhoto: row.vehicles?.photo_url ?? null,
                 driver: row.drivers?.name || 'Sem motorista',
+                driverPhoto: row.drivers?.photo_url ?? null,
                 liters,
                 cost,
                 pricePerLiter,
@@ -214,6 +216,7 @@ export default function Refuelings() {
         },
         {
             header: 'Ações',
+            sortable: false,
             accessor: (row) => (
                 <SGFButton variant="ghost" size="sm" icon={Eye} onClick={() => setSelectedRefueling(row)} />
             )
@@ -398,19 +401,35 @@ export default function Refuelings() {
                         <div className="grid gap-6 md:grid-cols-2">
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
-                                        <Car width={20} height={20} />
-                                    </div>
+                                    {selectedRefueling.vehiclePhoto ? (
+                                        <img
+                                            src={selectedRefueling.vehiclePhoto}
+                                            alt={selectedRefueling.vehicleModel}
+                                            className="h-10 w-10 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
+                                        />
+                                    ) : (
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                                            <Car width={20} height={20} />
+                                        </div>
+                                    )}
                                     <div>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Veículo</p>
-                                        <p className="font-bold text-slate-800">{selectedRefueling.vehicle}</p>
+                                        <p className="font-bold text-slate-800">{selectedRefueling.vehicleModel} ({selectedRefueling.vehicle})</p>
                                     </div>
                                 </div>
 
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
-                                        <User width={20} height={20} />
-                                    </div>
+                                    {selectedRefueling.driverPhoto ? (
+                                        <img
+                                            src={selectedRefueling.driverPhoto}
+                                            alt={selectedRefueling.driver}
+                                            className="h-10 w-10 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
+                                        />
+                                    ) : (
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                                            <User width={20} height={20} />
+                                        </div>
+                                    )}
                                     <div>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Motorista</p>
                                         <p className="font-bold text-slate-800">{selectedRefueling.driver}</p>
