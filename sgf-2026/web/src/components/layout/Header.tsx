@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Person, User } from '@/components/sgf/icons';
+import { Menu, Person, User, Bell } from '@/components/sgf/icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHeader } from '@/contexts/HeaderContext';
 import {
@@ -42,7 +42,16 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 </div>
             )}
 
-            <div className="flex items-center gap-[var(--sgf-space-4)] shrink-0">
+            <div className="flex items-center gap-[var(--sgf-space-3)] shrink-0">
+                <button
+                    type="button"
+                    title="Notificações"
+                    className="relative p-2 text-slate-500 hover:text-slate-800 hover:bg-black/5 rounded-full transition-colors shrink-0"
+                >
+                    <Bell className="h-5 w-5" />
+                    <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-[#E3E9E7]" />
+                </button>
+
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <button

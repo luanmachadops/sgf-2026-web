@@ -210,7 +210,7 @@ export default function MapPage() {
                                     <p className="text-xs text-gray-500 truncate">{vehicle.driver}</p>
                                 </div>
                                 <SGFBadge variant={getBadgeVariant(vehicle.status)} size="sm">
-                                    {vehicle.speed > 0 ? `${vehicle.speed} km/h` : '0 km/h'}
+                                    {vehicle.speed > 0 ? `${Math.round(vehicle.speed)} km/h` : '0 km/h'}
                                 </SGFBadge>
                             </div>
                         </div>
@@ -253,7 +253,7 @@ export default function MapPage() {
                                     <p className="text-sm text-gray-600">{vehicle.department}</p>
                                     <div className="mt-2 flex items-center gap-1">
                                         <Navigation className="h-4 w-4 text-[var(--sgf-primary)]" />
-                                        <span className="text-sm font-medium">{vehicle.speed} km/h</span>
+                                        <span className="text-sm font-medium">{Math.round(vehicle.speed)} km/h</span>
                                     </div>
                                 </div>
                             </Popup>

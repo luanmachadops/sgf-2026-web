@@ -16,7 +16,18 @@ interface Props {
     onClose: () => void;
 }
 
-const FUEL_OPTIONS = [
+/** Map DB fuel_type values to the label used in the authorization form. */
+const DB_FUEL_TO_LABEL: Record<string, string> = {
+    diesel: 'Diesel',
+    gasolina: 'Gasolina',
+    etanol: 'Etanol',
+    // UPPERCASE variants coming from decorateVehicle / webToDb mappings
+    DIESEL: 'Diesel',
+    GASOLINE: 'Gasolina',
+    ETHANOL: 'Etanol',
+};
+
+const ALL_FUEL_OPTIONS = [
     { value: '', label: 'Qualquer (motorista decide)' },
     { value: 'Gasolina', label: 'Gasolina' },
     { value: 'Etanol', label: 'Etanol' },
@@ -43,13 +54,6 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
         () => drivers.map((d) => ({ value: d.id, label: (d as { full_name?: string; name?: string }).full_name ?? d.name ?? 'Motorista' })),
         [drivers],
     );
-    const stationOptions = useMemo(
-        () => [
-            { value: '', label: 'Qualquer (motorista decide)' },
-            ...stations.map((s) => ({ value: s.id, label: `${s.name}${s.code ? ` (${s.code})` : ''}` })),
-        ],
-        [stations],
-    );
 
     const [vehicleId, setVehicleId] = useState('');
     const [driverId, setDriverId] = useState('');
@@ -59,6 +63,70 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
     const [notes, setNotes] = useState('');
     const [error, setError] = useState<string | null>(null);
 
+    // ── Derive fuel options based on selected vehicle ──────────────────
+    const selectedVehicle = useMemo(
+        () => vehicles.find((v) => v.id === vehicleId),
+        [vehicles, vehicleId],
+    );
+
+    const rawFuelType = selectedVehicle?.fuel_type as string | null | undefined;
+    const normalizedFuel = (rawFuelType ?? '').toLowerCase();
+    const isFlex = normalizedFuel === 'flex';
+    const isSpecific = !isFlex && !!DB_FUEL_TO_LABEL[rawFuelType ?? ''];
+    const specificLabel = isSpecific ? DB_FUEL_TO_LABEL[rawFuelType!] : null;
+
+    const allowedFuels = useMemo(() => {
+        if (!vehicleId || !rawFuelType) return null; // all allowed
+        if (isFlex) return ['Gasolina', 'Etanol'];
+        if (isSpecific && specificLabel) {
+            // Se for Diesel, pode ser que o posto tenha 'Diesel' ou 'Diesel S10' (baseado nas strings do admin)
+            if (specificLabel === 'Diesel') return ['Diesel', 'Diesel S10'];
+            return [specificLabel];
+        }
+        return null;
+    }, [vehicleId, rawFuelType, isFlex, isSpecific, specificLabel]);
+
+    const fuelOptions = useMemo(() => {
+        if (!vehicleId || !rawFuelType) return ALL_FUEL_OPTIONS;           // sem veículo → todas
+        if (isSpecific && specificLabel) return [{ value: specificLabel, label: specificLabel }]; // travado
+        if (isFlex) return [                                               // flex → só Gasolina/Etanol
+            { value: 'Gasolina', label: 'Gasolina' },
+            { value: 'Etanol', label: 'Etanol' },
+        ];
+        return ALL_FUEL_OPTIONS;                                           // qualquer outro caso
+    }, [vehicleId, rawFuelType, isSpecific, specificLabel, isFlex]);
+
+    const isFuelLocked = isSpecific && !!specificLabel;
+
+    const stationOptions = useMemo(() => {
+        const filteredStations = stations.filter(s => {
+            if (!allowedFuels) return true; // Veículo não selecionado ou sem restrição
+            const sFuels = s.fuel_types || [];
+            if (sFuels.length === 0) return false; // Posto sem combustíveis licitados não pode ser usado
+            return allowedFuels.some(f => sFuels.includes(f));
+        });
+
+        return [
+            { value: '', label: 'Qualquer (motorista decide)' },
+            ...filteredStations.map((s) => ({ value: s.id, label: `${s.name}${s.code ? ` (${s.code})` : ''}` })),
+        ];
+    }, [stations, allowedFuels]);
+
+    // Auto-set fuel and clear invalid station when vehicle changes
+    useEffect(() => {
+        // Clear station if the selected station is no longer in the valid options
+        if (stationId) {
+            const isValidStation = stationOptions.some(opt => opt.value === stationId);
+            if (!isValidStation) setStationId('');
+        }
+
+        if (!vehicleId || !rawFuelType) { setFuelType(''); return; }
+        if (isSpecific && specificLabel) { setFuelType(specificLabel); return; }
+        if (isFlex) { setFuelType(''); return; }                          // motorista decide entre Gasolina/Etanol
+        setFuelType('');
+    }, [vehicleId, rawFuelType, isSpecific, specificLabel, isFlex, stationOptions, stationId]);
+
+    // Reset all fields when modal opens
     useEffect(() => {
         if (!isOpen) return;
         setVehicleId('');
@@ -145,13 +213,26 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
                         fullWidth
                         icon={Fuel}
                     />
-                    <SGFSelect
-                        label="Combustível (opcional)"
-                        options={FUEL_OPTIONS}
-                        value={fuelType}
-                        onChange={setFuelType}
-                        fullWidth
-                    />
+                    <div>
+                        <SGFSelect
+                            label="Combustível"
+                            options={fuelOptions}
+                            value={fuelType}
+                            onChange={setFuelType}
+                            fullWidth
+                            disabled={isFuelLocked}
+                        />
+                        {isFuelLocked && (
+                            <p className="mt-1 text-xs text-amber-600 font-medium">
+                                🔒 Combustível definido pelo cadastro do veículo ({specificLabel})
+                            </p>
+                        )}
+                        {isFlex && (
+                            <p className="mt-1 text-xs text-blue-600 font-medium">
+                                ⛽ Veículo flex — selecione Gasolina ou Etanol
+                            </p>
+                        )}
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -193,3 +274,4 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
 }
 
 export default AuthorizeFuelingModal;
+

@@ -41,9 +41,15 @@ function getInitials(name: string) {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function getLicenseStatus(expiryDate: string, alertDays = 30) {
+function getLicenseStatus(expiryDate: string | null | undefined, alertDays = 30) {
+    if (!expiryDate) {
+        return { label: 'Sem data', variant: 'default' as const, urgent: false };
+    }
     const today = new Date();
     const expiry = parseISO(expiryDate);
+    if (isNaN(expiry.getTime())) {
+        return { label: 'Sem data', variant: 'default' as const, urgent: false };
+    }
     const daysUntilExpiry = differenceInDays(expiry, today);
 
     if (daysUntilExpiry < 0) {
