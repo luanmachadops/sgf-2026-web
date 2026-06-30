@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { apiUrl } from './apiBase';
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/database.types';
 
 export type Tenant = Tables<'tenants'>;
@@ -118,7 +119,7 @@ export const managersApi = {
   // Ações sensíveis via função serverless (service-role).
   action: async (body: Record<string, unknown>): Promise<{ ok: boolean }> => {
     const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch('/api/managers', {
+    const res = await fetch(apiUrl('managers'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
       body: JSON.stringify(body),
@@ -264,7 +265,7 @@ export async function provisionTenant(payload: {
   adminName: string; adminEmail: string; adminPassword: string;
 }): Promise<{ tenantId: string }> {
   const { data: { session } } = await supabase.auth.getSession();
-  const res = await fetch('/api/tenants/create', {
+  const res = await fetch(apiUrl('tenants/create'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
     body: JSON.stringify(payload),

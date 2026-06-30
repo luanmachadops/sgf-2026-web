@@ -1,8 +1,8 @@
 {
   "rewrites": [
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/admin", "destination": "https://sgf-admin-tap.vercel.app" },
+    { "source": "/admin/", "destination": "https://sgf-admin-tap.vercel.app" },
+    { "source": "/admin/(.*)", "destination": "https://sgf-admin-tap.vercel.app/$1" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

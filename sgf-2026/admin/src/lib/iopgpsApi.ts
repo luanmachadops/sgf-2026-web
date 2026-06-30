@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { apiUrl } from './apiBase';
 
 // NOTE: device_status / device_commands / iopgps_credentials ainda não estão no
 // database.types.ts gerado (rode `supabase gen types` após aplicar a migration
@@ -78,7 +79,7 @@ export const iopgpsApi = {
     tenant_id?: string | null; base_url?: string; appid: string; app_secret: string;
   }): Promise<void> => {
     const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch('/api/iopgps', {
+    const res = await fetch(apiUrl('iopgps'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
       body: JSON.stringify({ action: 'saveCredentials', ...payload }),
