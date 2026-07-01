@@ -54,7 +54,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await supabase.auth.signOut();
     setUserId(null); setEmail(null); setIsSuperadmin(false);
-    window.location.href = '/login';
+    // BASE_URL = '/admin/' em produção; garante o caminho certo sob o proxy.
+    window.location.href = `${import.meta.env.BASE_URL}login`;
   };
 
   return <Ctx.Provider value={{ userId, email, isSuperadmin, isLoading, login, logout }}>{children}</Ctx.Provider>;

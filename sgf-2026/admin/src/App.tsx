@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import {
-  LayoutDashboard, Building2, FileText, Receipt, Sparkle, Settings2, LogOut, User, Menu, X, Map, ShieldCheck,
+  LayoutDashboard, Building2, FileText, Receipt, Sparkle, Settings2, LogOut, User, Menu, X, Map, ShieldCheck, MapPin,
 } from './components/sgf/icons';
 import type { IconType } from './components/sgf/icons';
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Tenants from './pages/Tenants';
 import TenantDetail from './pages/TenantDetail';
@@ -14,6 +15,7 @@ import Contracts from './pages/Contracts';
 import AiUsage from './pages/AiUsage';
 import Settings from './pages/Settings';
 import Trackers from './pages/Trackers';
+import Iopgps from './pages/Iopgps';
 import Access from './pages/Access';
 
 type Item = { icon: IconType; label: string; path: string };
@@ -24,6 +26,7 @@ const SECTIONS: Section[] = [
     { icon: Building2, label: 'Prefeituras', path: '/prefeituras' },
     { icon: ShieldCheck, label: 'Gestão de Acessos', path: '/acessos' },
     { icon: Map, label: 'Rastreadores', path: '/rastreadores' },
+    { icon: MapPin, label: 'Monitoramento GPS', path: '/monitoramento' },
     { icon: FileText, label: 'Licitações & Contratos', path: '/contratos' },
     { icon: Receipt, label: 'Pagamentos', path: '/pagamentos' },
   ] },
@@ -146,14 +149,16 @@ function Private() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route element={<Private />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/prefeituras" element={<Tenants />} />
           <Route path="/prefeituras/:id" element={<TenantDetail />} />
           <Route path="/rastreadores" element={<Trackers />} />
+          <Route path="/monitoramento" element={<Iopgps />} />
           <Route path="/acessos" element={<Access />} />
           <Route path="/contratos" element={<Contracts />} />
           <Route path="/pagamentos" element={<Invoices />} />
