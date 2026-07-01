@@ -4,8 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 export default defineConfig({
-  // Servido sob /admin no mesmo domínio do gestor (proxy da Vercel).
-  base: '/admin/',
+  // Admin servido no próprio domínio (ex.: sgf-admin.vercel.app,
+  // futuramente admin.gestao2026.com). base padrão '/'.
   plugins: [react(), tailwindcss()],
   resolve: { alias: { '@': path.resolve(__dirname, './src') } },
   server: {
