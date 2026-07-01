@@ -6,6 +6,7 @@ import {
 } from './components/sgf/icons';
 import type { IconType } from './components/sgf/icons';
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Tenants from './pages/Tenants';
 import TenantDetail from './pages/TenantDetail';
@@ -151,6 +152,7 @@ export default function App() {
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route element={<Private />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/prefeituras" element={<Tenants />} />
