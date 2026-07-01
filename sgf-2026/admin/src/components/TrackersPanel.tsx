@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { trackersApi, tenantsApi, vehiclesApi, vehicleLabel, TRACKER_MODELS, type VehicleOption } from '@/lib/api';
+import { trackersApi, tenantsApi, vehiclesApi, TRACKER_MODELS, type VehicleOption } from '@/lib/api';
+import { VehiclePicker } from '@/components/VehiclePicker';
 import { Card, Button, Input } from '@/lib/ui';
 
 /** Painel de rastreadores. Se `tenantId` vier definido, fica preso à prefeitura (sem seletor). */
@@ -25,8 +26,6 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
     for (const v of vehicles) { const a = m.get(v.tenant_id) ?? []; a.push(v); m.set(v.tenant_id, a); }
     return m;
   }, [vehicles]);
-  const vLabel = useMemo(() => Object.fromEntries(vehicles.map((v) => [v.id, vehicleLabel(v)])), [vehicles]);
-
   const [f, setF] = useState({ tenant_id: tenantId ?? '', model: TRACKER_MODELS[0] as string, identifier: '', label: '', sim_number: '', vehicle_id: '' });
   const set = (p: Partial<typeof f>) => setF((c) => ({ ...c, ...p }));
   const formTenant = tenantId ?? f.tenant_id;
@@ -85,17 +84,15 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
             </select>
           </label>
           <Input label="Identificador (IMEI/ID)" value={f.identifier} onChange={(e) => set({ identifier: e.target.value })} placeholder="Ex.: 868xxxxxxxxxxx" />
-          <label className="block">
+          <label className="block sm:col-span-2 lg:col-span-1">
             <span className="mb-1 block text-xs font-semibold text-slate-500">Veículo</span>
-            <select
-              value={f.vehicle_id}
-              onChange={(e) => set({ vehicle_id: e.target.value })}
+            <VehiclePicker
+              vehicles={formVehicles}
+              value={f.vehicle_id || null}
+              onChange={(id) => set({ vehicle_id: id ?? '' })}
               disabled={!formTenant}
-              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50 disabled:text-slate-400"
-            >
-              <option value="">{formTenant ? 'Sem veículo (vincular depois)' : 'Selecione a prefeitura primeiro'}</option>
-              {formVehicles.map((v) => <option key={v.id} value={v.id}>{vehicleLabel(v)}</option>)}
-            </select>
+              emptyLabel={formTenant ? 'Buscar placa ou modelo…' : 'Selecione a prefeitura primeiro'}
+            />
           </label>
           <Input label="Apelido (opcional)" value={f.label} onChange={(e) => set({ label: e.target.value })} placeholder="Ex.: Caminhão 03" />
           <Input label="Nº do chip (opcional)" value={f.sim_number} onChange={(e) => set({ sim_number: e.target.value })} />
@@ -122,19 +119,13 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
                       <td className="px-5 py-3 font-mono text-slate-800">{t.identifier}</td>
                       <td className="px-5 py-3">{t.label ?? '—'}</td>
                       <td className="px-5 py-3">
-                        <select
-                          value={t.vehicle_id ?? ''}
-                          onChange={(e) => setVehicle.mutate({ id: t.id, vehicleId: e.target.value || null })}
-                          className="max-w-[220px] rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
-                          title={t.vehicle_id ? vLabel[t.vehicle_id] : 'Sem veículo'}
-                        >
-                          <option value="">Sem veículo</option>
-                          {/* garante que o veículo atual apareça mesmo se estiver fora da lista carregada */}
-                          {t.vehicle_id && !opts.some((v) => v.id === t.vehicle_id) && (
-                            <option value={t.vehicle_id}>{vLabel[t.vehicle_id] ?? 'Veículo vinculado'}</option>
-                          )}
-                          {opts.map((v) => <option key={v.id} value={v.id}>{vehicleLabel(v)}</option>)}
-                        </select>
+                        <VehiclePicker
+                          compact
+                          vehicles={opts}
+                          value={t.vehicle_id ?? null}
+                          onChange={(id) => setVehicle.mutate({ id: t.id, vehicleId: id })}
+                          emptyLabel="Vincular veículo"
+                        />
                       </td>
                       <td className="px-5 py-3">{t.model}</td>
                       <td className="px-5 py-3">{t.sim_number ?? '—'}</td>

@@ -155,21 +155,39 @@ export const trackersApi = {
   },
 };
 
-export interface VehicleOption { id: string; plate: string | null; brand: string | null; model: string | null; tenant_id: string }
+export interface VehicleOption {
+  id: string; plate: string | null; brand: string | null; model: string | null;
+  tenant_id: string; photo_url: string | null; departmentName: string | null;
+}
 
 export const vehiclesApi = {
   // Veículos cadastrados (para vincular a rastreadores). Escopo por prefeitura quando informado.
   list: async (tenantId?: string): Promise<VehicleOption[]> => {
-    let q = supabase.from('vehicles').select('id, plate, brand, model, tenant_id').order('plate');
+    let q = supabase.from('vehicles').select('id, plate, brand, model, tenant_id, photo_url, departments(name)').order('plate');
     if (tenantId) q = q.eq('tenant_id', tenantId);
     const { data, error } = await q;
-    return bail((data ?? []) as VehicleOption[], error);
+    const rows = bail(data ?? [], error);
+    return (rows as any[]).map((v) => ({
+      id: v.id, plate: v.plate, brand: v.brand, model: v.model, tenant_id: v.tenant_id,
+      photo_url: v.photo_url ?? null, departmentName: (v.departments as { name?: string } | null)?.name ?? null,
+    }));
   },
 };
 
+/** Placa formatada (ABC-1234 / ABC-1D23). */
+export function formatPlate(plate: string | null | undefined): string {
+  if (!plate) return '';
+  const c = plate.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+  if (c.length === 7) {
+    if (/[A-Z]{3}\d[A-Z]\d{2}/.test(c)) return c.replace(/([A-Z]{3})(\d)([A-Z])(\d{2})/, '$1-$2$3$4');
+    return c.replace(/([A-Z]{3})(\d{4})/, '$1-$2');
+  }
+  return plate;
+}
+
 export function vehicleLabel(v: VehicleOption): string {
   const model = [v.brand, v.model].filter(Boolean).join(' ');
-  return [v.plate, model].filter(Boolean).join(' — ') || 'Veículo sem placa';
+  return [formatPlate(v.plate), model].filter(Boolean).join(' — ') || 'Veículo sem placa';
 }
 
 export interface GlobalKpis {
