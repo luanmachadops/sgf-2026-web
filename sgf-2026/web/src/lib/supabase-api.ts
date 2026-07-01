@@ -677,60 +677,98 @@ export interface LiveVehicle {
     startAt: string | null;
 }
 
+type VehicleEmbed = { plate?: string | null; brand?: string | null; model?: string | null; photo_url?: string | null; departments?: { name?: string } | null } | null;
+
+function buildModel(v: VehicleEmbed): string {
+    return [v?.brand, v?.model].filter(Boolean).join(' ') || 'Veículo';
+}
+
 export const mapApi = {
-    // Veículos com posição real: viagens em andamento/problema + a última localização GPS de cada.
+    // Rastreamento contínuo: TODOS os veículos com rastreador (device_status, sinal do
+    // hardware IOPGPS) — mesmo sem viagem — enriquecidos com motorista/destino quando há
+    // viagem ativa. Veículos em viagem SEM rastreador caem no app do motorista (fallback).
     getLiveVehicles: async (): Promise<LiveVehicle[]> => {
-        const { data: trips, error } = await supabase
+        // 1) Viagens ativas -> motorista/destino (para enriquecer).
+        const { data: trips } = await supabase
             .from('trips')
             .select('id, status, vehicle_id, destination, start_at, vehicles(plate, brand, model, photo_url, departments(name)), profiles!trips_driver_id_fkey(full_name)')
             .in('status', ['andamento', 'problema']);
-        if (error) handleError(error);
-
         const activeTrips = trips ?? [];
-        if (activeTrips.length === 0) return [];
+        const tripByVehicle = new Map<string, (typeof activeTrips)[number]>();
+        for (const t of activeTrips) if (t.vehicle_id) tripByVehicle.set(t.vehicle_id, t);
 
-        const tripIds = activeTrips.map((t) => t.id);
-        const { data: locs, error: locErr } = await supabase
-            .from('trip_locations')
-            .select('trip_id, lat, lng, speed, recorded_at')
-            .in('trip_id', tripIds)
-            .order('recorded_at', { ascending: false });
-        if (locErr) handleError(locErr);
+        const byVehicle = new Map<string, LiveVehicle>();
 
-        // Última localização por viagem (a query já vem ordenada desc).
-        const latestByTrip = new Map<string, { lat: number; lng: number; speed: number | null; recorded_at: string }>();
-        for (const l of locs ?? []) {
-            if (!latestByTrip.has(l.trip_id)) {
-                latestByTrip.set(l.trip_id, l as { lat: number; lng: number; speed: number | null; recorded_at: string });
+        // 2) Sinal contínuo do hardware (device_status ainda não está nos tipos gerados).
+        const { data: statuses } = await (supabase as unknown as {
+            from: (t: string) => any;
+        }).from('device_status')
+            .select('vehicle_id, lat, lng, speed, online, gps_time, vehicles(plate, brand, model, photo_url, departments(name))')
+            .not('vehicle_id', 'is', null);
+
+        for (const s of (statuses ?? []) as any[]) {
+            if (s.lat == null || s.lng == null) continue;
+            const v = s.vehicles as VehicleEmbed;
+            const trip = tripByVehicle.get(s.vehicle_id);
+            const speed = Math.round(Number(s.speed ?? 0));
+            // offline = alerta (sem sinal); viagem com problema = alerta; senão movimento/parado.
+            const status: LiveVehicle['status'] =
+                trip?.status === 'problema' || s.online === false ? 'alert' : speed > 3 ? 'moving' : 'idle';
+            byVehicle.set(s.vehicle_id, {
+                id: s.vehicle_id,
+                plate: v?.plate ?? 'Sem placa',
+                driver: trip ? ((trip.profiles as { full_name?: string } | null)?.full_name ?? 'Sem motorista') : 'Sem viagem ativa',
+                department: v?.departments?.name ?? '—',
+                vehicleModel: buildModel(v),
+                photo: v?.photo_url ?? null,
+                lat: Number(s.lat),
+                lng: Number(s.lng),
+                speed,
+                status,
+                recordedAt: s.gps_time ?? null,
+                tripId: trip?.id ?? '',
+                destination: (trip as { destination?: string } | undefined)?.destination ?? '—',
+                startAt: (trip as { start_at?: string | null } | undefined)?.start_at ?? null,
+            });
+        }
+
+        // 3) Fallback: veículos em viagem SEM rastreador (posição do app do motorista).
+        const missing = activeTrips.filter((t) => t.vehicle_id && !byVehicle.has(t.vehicle_id));
+        if (missing.length > 0) {
+            const ids = missing.map((t) => t.id);
+            const { data: locs } = await supabase
+                .from('trip_locations')
+                .select('trip_id, lat, lng, speed, recorded_at')
+                .in('trip_id', ids)
+                .order('recorded_at', { ascending: false });
+            const latestByTrip = new Map<string, { lat: number; lng: number; speed: number | null; recorded_at: string }>();
+            for (const l of locs ?? []) if (!latestByTrip.has(l.trip_id)) latestByTrip.set(l.trip_id, l as any);
+            for (const t of missing) {
+                const loc = latestByTrip.get(t.id);
+                if (!loc) continue;
+                const v = t.vehicles as VehicleEmbed;
+                const speed = Math.round(Number(loc.speed ?? 0));
+                const status: LiveVehicle['status'] = t.status === 'problema' ? 'alert' : speed > 3 ? 'moving' : 'idle';
+                byVehicle.set(t.vehicle_id!, {
+                    id: t.vehicle_id!,
+                    plate: v?.plate ?? 'Sem placa',
+                    driver: (t.profiles as { full_name?: string } | null)?.full_name ?? 'Sem motorista',
+                    department: v?.departments?.name ?? '—',
+                    vehicleModel: buildModel(v),
+                    photo: v?.photo_url ?? null,
+                    lat: Number(loc.lat),
+                    lng: Number(loc.lng),
+                    speed,
+                    status,
+                    recordedAt: loc.recorded_at ?? null,
+                    tripId: t.id,
+                    destination: (t as { destination?: string }).destination ?? '—',
+                    startAt: (t as { start_at?: string | null }).start_at ?? null,
+                });
             }
         }
 
-        const result: LiveVehicle[] = [];
-        for (const t of activeTrips) {
-            const loc = latestByTrip.get(t.id);
-            if (!loc) continue; // sem posição registrada ainda
-            const v = t.vehicles as { plate?: string | null; brand?: string | null; model?: string | null; photo_url?: string | null; departments?: { name?: string } | null } | null;
-            const driver = (t.profiles as { full_name?: string } | null)?.full_name ?? 'Sem motorista';
-            const speed = Number(loc.speed ?? 0);
-            const status: LiveVehicle['status'] = t.status === 'problema' ? 'alert' : speed > 0 ? 'moving' : 'idle';
-            result.push({
-                id: t.vehicle_id ?? t.id,
-                plate: v?.plate ?? 'Sem placa',
-                driver,
-                department: v?.departments?.name ?? '—',
-                vehicleModel: [v?.brand, v?.model].filter(Boolean).join(' ') || 'Veículo',
-                photo: v?.photo_url ?? null,
-                lat: Number(loc.lat),
-                lng: Number(loc.lng),
-                speed,
-                status,
-                recordedAt: loc.recorded_at ?? null,
-                tripId: t.id,
-                destination: (t as { destination?: string }).destination ?? '—',
-                startAt: (t as { start_at?: string | null }).start_at ?? null,
-            });
-        }
-        return result;
+        return Array.from(byVehicle.values());
     },
 };
 

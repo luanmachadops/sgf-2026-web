@@ -151,7 +151,9 @@ export default function MapPage() {
             // veículo se moveu (sinal contínuo de GPS) — gatilho mais confiável
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_locations' }, scheduleRefetch)
             // posição atual por motorista (backup)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'live_positions' }, scheduleRefetch);
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'live_positions' }, scheduleRefetch)
+            // sinal contínuo do hardware (rastreadores IOPGPS), mesmo sem viagem
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'device_status' }, scheduleRefetch);
         channel.subscribe();
         return () => {
             if (refetchTimer.current) clearTimeout(refetchTimer.current);
@@ -257,7 +259,7 @@ export default function MapPage() {
                     <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2 custom-scrollbar">
                         {isLoading && <p className="px-3 py-8 text-center text-sm text-slate-400">Carregando veículos…</p>}
                         {!isLoading && filteredVehicles.length === 0 && (
-                            <p className="px-3 py-8 text-center text-sm text-slate-400">Nenhum veículo em operação no momento.</p>
+                            <p className="px-3 py-8 text-center text-sm text-slate-400">Nenhum veículo com rastreador ativo no momento.</p>
                         )}
                         {filteredVehicles.map((vehicle) => {
                             const isOn = hoveredId === vehicle.id || selectedVehicle === vehicle.id;
