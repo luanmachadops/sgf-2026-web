@@ -145,11 +145,32 @@ export const trackersApi = {
     const { error } = await supabase.from('trackers').update({ active, updated_at: new Date().toISOString() }).eq('id', id);
     bail(null, error);
   },
+  setVehicle: async (id: string, vehicleId: string | null): Promise<void> => {
+    const { error } = await supabase.from('trackers').update({ vehicle_id: vehicleId, updated_at: new Date().toISOString() }).eq('id', id);
+    bail(null, error);
+  },
   remove: async (id: string): Promise<void> => {
     const { error } = await supabase.from('trackers').delete().eq('id', id);
     bail(null, error);
   },
 };
+
+export interface VehicleOption { id: string; plate: string | null; brand: string | null; model: string | null; tenant_id: string }
+
+export const vehiclesApi = {
+  // Veículos cadastrados (para vincular a rastreadores). Escopo por prefeitura quando informado.
+  list: async (tenantId?: string): Promise<VehicleOption[]> => {
+    let q = supabase.from('vehicles').select('id, plate, brand, model, tenant_id').order('plate');
+    if (tenantId) q = q.eq('tenant_id', tenantId);
+    const { data, error } = await q;
+    return bail((data ?? []) as VehicleOption[], error);
+  },
+};
+
+export function vehicleLabel(v: VehicleOption): string {
+  const model = [v.brand, v.model].filter(Boolean).join(' ');
+  return [v.plate, model].filter(Boolean).join(' — ') || 'Veículo sem placa';
+}
 
 export interface GlobalKpis {
   tenants: number;
