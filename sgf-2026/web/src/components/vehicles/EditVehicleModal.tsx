@@ -8,7 +8,8 @@ import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { FileText, Plus, X, Download, Loader2, Camera } from '@/components/sgf/icons';
 import { departmentsApi, vehiclesApi } from '@/lib/supabase-api';
 import { supabase } from '@/lib/supabase';
-import { resizeAndConvertToWebP, isImageFile, prepareUpload } from '@/lib/imageUtils';
+import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
+import { uploadPrivateDoc } from '@/lib/docStorage';
 import type { Tables, TablesUpdate } from '@/types/database.types';
 
 // Mesma lista usada no cadastro (Novo Veículo). + "Outro" para digitar livre.
@@ -115,16 +116,9 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
         if (!file) return;
         try {
             setUploadingDoc(true);
-            const prepared = await prepareUpload(file, { maxSize: 1400, quality: 0.8 });
-            const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^\w.\-]+/g, '_');
-            const fileName = `vehicle-docs/${vehicle.id}-${Date.now()}-${safe}.${prepared.ext}`;
-            const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, prepared.blob, {
-                contentType: prepared.contentType,
-                upsert: true,
-            });
-            if (upErr) throw upErr;
-            const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
-            setDocumentUrl(publicUrl);
+            // Documento sensível → bucket PRIVADO, escopado por prefeitura. Guarda o path.
+            const path = await uploadPrivateDoc(file, 'vehicle-docs', (vehicle as { tenant_id?: string }).tenant_id ?? '', vehicle.id);
+            setDocumentUrl(path);
             toast.success('Documento anexado. Salve para confirmar.');
         } catch (err) {
             toast.error((err as { message?: string })?.message ?? 'Erro ao enviar o documento.');
