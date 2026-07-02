@@ -49,6 +49,7 @@ import {
     type VehicleRecord,
 } from '@/lib/supabase-api';
 import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
+import { resolveDocUrl } from '@/lib/docStorage';
 import { toast } from 'sonner';
 import type { Tables } from '@/types/database.types';
 
@@ -264,12 +265,20 @@ export default function VehicleDetails() {
     };
 
     // ── Download do documento (PDF) ────────────────────────────────────────
-    const handleDownloadDocument = () => {
-        const url = (vehicle as { document_url?: string | null })?.document_url;
-        if (!url) {
+    const handleDownloadDocument = async () => {
+        const stored = (vehicle as { document_url?: string | null })?.document_url;
+        if (!stored) {
             toast.error('Nenhum documento disponível para este veículo.');
             return;
         }
+        let url: string | null = null;
+        try {
+            url = await resolveDocUrl(stored); // gera URL assinada se for do bucket privado
+        } catch {
+            toast.error('Não foi possível abrir o documento.');
+            return;
+        }
+        if (!url) { toast.error('Não foi possível abrir o documento.'); return; }
         const link = document.createElement('a');
         link.href = url;
         link.download = `documento-${(vehicle as { plate?: string })?.plate ?? 'veiculo'}.pdf`;

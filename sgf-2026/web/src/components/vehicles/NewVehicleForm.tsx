@@ -10,6 +10,7 @@ import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { departmentsApi, vehiclesApi } from '@/lib/supabase-api';
 import { supabase } from '@/lib/supabase';
 import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
+import { uploadPrivateDoc } from '@/lib/docStorage';
 import { extractVehicleFromImages, VEHICLE_TYPES } from '@/lib/vehicleAI';
 import type { TablesInsert } from '@/types/database.types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -231,8 +232,9 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
                         await vehiclesApi.updatePhoto(created.id, url);
                     }
                     if (docFile) {
-                        const docUrl = await uploadImage(docFile, `${created.id}-doc`);
-                        await vehiclesApi.update(created.id, { document_url: docUrl } as never);
+                        // Documento sensível → bucket PRIVADO (path escopado por prefeitura).
+                        const docPath = await uploadPrivateDoc(docFile, 'vehicle-docs', user?.tenantId ?? '', created.id);
+                        await vehiclesApi.update(created.id, { document_url: docPath } as never);
                     }
                 } catch (err) {
                     console.error(err);
