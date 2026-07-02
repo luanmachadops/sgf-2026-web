@@ -12,12 +12,16 @@ import { RolesGuard } from './guards/roles.guard';
         PassportModule.register({ defaultStrategy: 'jwt' }),
         JwtModule.registerAsync({
             imports: [ConfigModule],
-            useFactory: async (configService: ConfigService) => ({
-                secret: configService.get<string>('JWT_SECRET') || 'sgf-2026-secret-key',
-                signOptions: {
-                    expiresIn: '8h', // RF-001: Sessão expira após 8 horas
-                },
-            }),
+            useFactory: async (configService: ConfigService) => {
+                const secret = configService.get<string>('JWT_SECRET');
+                if (!secret) throw new Error('JWT_SECRET não configurado — defina a variável de ambiente.');
+                return {
+                    secret,
+                    signOptions: {
+                        expiresIn: '8h', // RF-001: Sessão expira após 8 horas
+                    },
+                };
+            },
             inject: [ConfigService],
         }),
     ],

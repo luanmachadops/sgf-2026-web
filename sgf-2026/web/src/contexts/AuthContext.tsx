@@ -90,7 +90,7 @@ function mapTenant(t: TenantRow | null | undefined): import('@/types').TenantBra
 async function fetchUserProfile(authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }): Promise<User> {
     const { data: profile, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, department_id, tenant_id, created_at, photo_url, departments(id, name), tenants(id, slug, name, app_name, login_eyebrow, logo_url, seal_url, photo_url, primary_color, dark_color, accent_color, cnpj, city, state, address, mayor_name, report_footer, status)')
+        .select('id, full_name, email, role, department_id, tenant_id, created_at, photo_url, must_change_password, departments(id, name), tenants(id, slug, name, app_name, login_eyebrow, logo_url, seal_url, photo_url, primary_color, dark_color, accent_color, cnpj, city, state, address, mayor_name, report_footer, status)')
         .eq('id', authUser.id)
         .maybeSingle();
 
@@ -108,6 +108,7 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
             departmentScopeId: profile.role === 'secretario' ? (profile.department_id || undefined) : undefined,
             tenantId: (profile as unknown as { tenant_id?: string }).tenant_id || undefined,
             tenant,
+            mustChangePassword: (profile as unknown as { must_change_password?: boolean }).must_change_password === true,
             createdAt: profile.created_at || new Date().toISOString(),
         };
     }

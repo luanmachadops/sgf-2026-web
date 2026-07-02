@@ -57,19 +57,30 @@ export function resolveScopedDepartment(caller: Caller, requested?: string | nul
     return requested ?? undefined;
 }
 
-/** Para ações sobre um motorista específico: secretário só age sobre motoristas da sua pasta. */
+/**
+ * Para ações sobre um motorista específico:
+ * - admin/gestor: apenas motoristas do seu tenant (isolamento multi-prefeitura);
+ * - secretário: apenas motoristas da sua secretaria (dentro do seu tenant).
+ */
 export async function assertCanActOnDriver(caller: Caller, driverId: string): Promise<void> {
-    if (caller.role === 'admin' || caller.role === 'gestor') return;
-    if (caller.role !== 'secretario') {
+    if (!['admin', 'gestor', 'secretario'].includes(caller.role)) {
         const e: any = new Error('Sem permissão'); e.status = 403; throw e;
     }
     const admin = getSupabaseAdmin();
     const { data: driver } = await admin
         .from('profiles')
-        .select('department_id')
+        .select('tenant_id, department_id')
         .eq('id', driverId)
         .single();
-    if (!driver || driver.department_id !== caller.departmentId) {
+    if (!driver) {
+        const e: any = new Error('Motorista não encontrado'); e.status = 404; throw e;
+    }
+    // Isolamento por prefeitura (vale para todos os papéis de gestão).
+    if ((driver as any).tenant_id !== caller.tenantId) {
+        const e: any = new Error('Motorista fora da sua prefeitura'); e.status = 403; throw e;
+    }
+    // Secretário: além do tenant, restrito à própria secretaria.
+    if (caller.role === 'secretario' && driver.department_id !== caller.departmentId) {
         const e: any = new Error('Motorista fora da sua secretaria'); e.status = 403; throw e;
     }
 }
