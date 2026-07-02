@@ -73,6 +73,21 @@ export const iopgpsApi = {
     return data?.commandId ?? '';
   },
 
+  /** Detecta o dispositivo na IOPGPS pelo IMEI (modelo, nome, online, comandos suportados). */
+  detectDevice: async (imei: string, tenantId?: string | null): Promise<{
+    found: boolean; model?: string | null; deviceName?: string | null; wireless?: boolean; online?: boolean | null; instructions?: string | null; message?: string;
+  }> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(apiUrl('iopgps-device'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+      body: JSON.stringify({ imei, tenantId: tenantId ?? null }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.message || 'Falha ao consultar a IOPGPS');
+    return json;
+  },
+
   /** Salva/atualiza as credenciais da conta IOPGPS (global ou por prefeitura).
    *  Via serverless service-role (a tabela é bloqueada por RLS no cliente). */
   saveCredentials: async (payload: {
