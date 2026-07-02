@@ -7,10 +7,14 @@ import { JwtPayload } from './auth.service';
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
     constructor(private readonly configService: ConfigService) {
+        const secret = configService.get<string>('JWT_SECRET');
+        if (!secret) {
+            throw new Error('JWT_SECRET não configurado — defina a variável de ambiente.');
+        }
         super({
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
-            secretOrKey: configService.get<string>('JWT_SECRET') || 'sgf-2026-secret-key',
+            secretOrKey: secret,
         });
     }
 

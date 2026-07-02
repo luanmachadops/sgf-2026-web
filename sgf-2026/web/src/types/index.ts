@@ -28,6 +28,8 @@ export interface User {
     role: 'ADMIN' | 'MANAGER' | 'VIEWER' | 'SUPERADMIN';
     departmentId?: string;
     departmentName?: string;
+    /** Motorista pré-cadastrado com senha = CPF: precisa trocar antes de usar o sistema. */
+    mustChangePassword?: boolean;
     createdAt: string;
     photoUrl?: string;
     /** Definido apenas para 'secretário': trava o usuário à sua secretaria (escopo). */

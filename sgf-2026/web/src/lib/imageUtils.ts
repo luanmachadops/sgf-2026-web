@@ -119,6 +119,8 @@ export async function optimizeImageToFile(file: File, baseName: string, opts?: O
  * (para callers que nomeiam o arquivo como .webp).
  */
 export async function resizeAndConvertToWebP(file: File, maxSize: number = 1000): Promise<Blob> {
+    if (!file.type.startsWith('image/')) throw new Error('Selecione uma imagem válida.');
+    if (file.size > MAX_UPLOAD_BYTES) throw new Error(`Imagem muito grande (máx. ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB).`);
     const { canvas } = await drawResized(file, maxSize);
     const blob = await canvasToBlob(canvas, 'image/webp', 0.8);
     if (!blob) throw new Error('Falha ao converter a imagem para WebP.');
@@ -133,7 +135,18 @@ export function isImageFile(file: File): boolean {
  * Prepara um arquivo para upload: se for imagem, otimiza (WebP/JPEG, ≤maxSize);
  * caso contrário (PDF etc.), envia como está. Retorna blob + extensão + content-type.
  */
+/** Tamanho máximo de arquivo aceito (imagem é otimizada; documentos vão como estão). */
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
+
+/** Valida tipo (imagem ou PDF) e tamanho de um arquivo antes do upload. Lança em caso de erro. */
+export function validateUploadFile(file: File, maxBytes: number = MAX_UPLOAD_BYTES): void {
+    const okType = file.type.startsWith('image/') || file.type === 'application/pdf';
+    if (!okType) throw new Error('Tipo de arquivo não permitido. Envie uma imagem ou PDF.');
+    if (file.size > maxBytes) throw new Error(`Arquivo muito grande (máx. ${Math.round(maxBytes / 1024 / 1024)} MB).`);
+}
+
 export async function prepareUpload(file: File, opts?: OptimizeOptions): Promise<{ blob: Blob; ext: string; contentType: string }> {
+    validateUploadFile(file);
     if (isImageFile(file)) {
         const o = await optimizeImage(file, opts);
         return { blob: o.blob, ext: o.ext, contentType: o.contentType };
