@@ -8,7 +8,9 @@ export type Contract = Tables<'tenant_contracts'>;
 export type AiUsage = Tables<'ai_usage'>;
 export type AiLimit = Tables<'tenant_ai_limits'>;
 export type Tracker = Tables<'trackers'>;
-export const TRACKER_MODELS = ['SL48-4G'] as const;
+// Sugestões de modelos (o modelo real é detectado pela IOPGPS via IMEI e pode ser
+// qualquer aparelho suportado por eles — o campo aceita texto livre).
+export const TRACKER_MODELS = ['SL48', 'SL48-4G', 'SL46-4G', 'S5', 'S20', 'GT06N'] as const;
 
 function bail<T>(data: T, error: { message: string } | null): T {
   if (error) throw new Error(error.message);

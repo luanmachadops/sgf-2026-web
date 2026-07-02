@@ -2,8 +2,30 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { trackersApi, tenantsApi, vehiclesApi, TRACKER_MODELS, type VehicleOption } from '@/lib/api';
+import { iopgpsApi } from '@/lib/iopgpsApi';
 import { VehiclePicker } from '@/components/VehiclePicker';
-import { Card, Button, Input } from '@/lib/ui';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
+import { Camera } from '@/components/sgf/icons';
+import { Card, Button } from '@/lib/ui';
+
+// Estilo padrão dos campos (mesma altura/design do SGFInput) reutilizado em toda a página.
+const LABEL_CLS = 'mb-[var(--sgf-space-2)] block text-[var(--sgf-text-sm)] font-semibold text-[var(--sgf-text-primary)]';
+const FIELD_CLS = 'w-full h-11 rounded-[var(--sgf-input-radius)] border border-slate-200 bg-slate-50 px-[var(--sgf-input-padding-x)] text-[var(--sgf-text-sm)] transition-all placeholder:text-slate-400 focus:border-[var(--sgf-primary)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-500/10 disabled:opacity-50';
+
+/** Máscara de telefone BR: +55 (44) 99999-9999 (aceita fixo 8 dígitos). */
+function maskPhone(value: string): string {
+  let d = value.replace(/\D/g, '');
+  if (d.startsWith('55')) d = d.slice(2);
+  d = d.slice(0, 11);
+  if (d.length === 0) return '';
+  const ddd = d.slice(0, 2);
+  const rest = d.slice(2);
+  let s = `+55 (${ddd}`;
+  if (d.length >= 2) s += ') ';
+  if (rest) s += rest.length <= 8 ? rest.replace(/(\d{4})(\d{0,4})/, (_m, a, b) => (b ? `${a}-${b}` : a))
+    : `${rest.slice(0, 5)}-${rest.slice(5)}`;
+  return s.trimEnd();
+}
 
 /** Painel de rastreadores. Se `tenantId` vier definido, fica preso à prefeitura (sem seletor). */
 export function TrackersPanel({ tenantId }: { tenantId?: string }) {
@@ -26,20 +48,35 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
     for (const v of vehicles) { const a = m.get(v.tenant_id) ?? []; a.push(v); m.set(v.tenant_id, a); }
     return m;
   }, [vehicles]);
-  const [f, setF] = useState({ tenant_id: tenantId ?? '', model: TRACKER_MODELS[0] as string, identifier: '', label: '', sim_number: '', vehicle_id: '' });
+  const [f, setF] = useState({ tenant_id: tenantId ?? '', model: '' as string, identifier: '', label: '', sim_number: '', vehicle_id: '' });
   const set = (p: Partial<typeof f>) => setF((c) => ({ ...c, ...p }));
   const formTenant = tenantId ?? f.tenant_id;
   const formVehicles = formTenant ? (vehiclesByTenant.get(formTenant) ?? []) : [];
+  const [detected, setDetected] = useState<{ model: string | null; online: boolean | null } | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
+
+  // Detecta o modelo do aparelho na IOPGPS pelo IMEI e preenche automaticamente.
+  const detect = useMutation({
+    mutationFn: (imei: string) => iopgpsApi.detectDevice(imei.trim(), formTenant || null),
+    onSuccess: (r) => {
+      if (!r.found) { setDetected(null); toast.error(r.message || 'IMEI não encontrado na conta IOPGPS.'); return; }
+      setDetected({ model: r.model ?? null, online: r.online ?? null });
+      setF((c) => ({ ...c, model: r.model ?? c.model, label: c.label || (r.deviceName ?? '') }));
+      toast.success(`Modelo detectado: ${r.model ?? '—'}${r.online == null ? '' : r.online ? ' · online' : ' · offline'}`);
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
 
   const create = useMutation({
     mutationFn: () => trackersApi.create({
-      tenant_id: tenantId ?? f.tenant_id, model: f.model, identifier: f.identifier.trim(),
+      tenant_id: tenantId ?? f.tenant_id, model: f.model.trim() || 'SL48-4G', identifier: f.identifier.trim(),
       label: f.label.trim() || null, sim_number: f.sim_number.trim() || null,
       vehicle_id: f.vehicle_id || null, active: true,
     }),
     onSuccess: () => {
       toast.success('Rastreador cadastrado.');
-      setF({ tenant_id: tenantId ?? '', model: TRACKER_MODELS[0], identifier: '', label: '', sim_number: '', vehicle_id: '' });
+      setF({ tenant_id: tenantId ?? '', model: '', identifier: '', label: '', sim_number: '', vehicle_id: '' });
+      setDetected(null);
       qc.invalidateQueries({ queryKey: ['trackers'] });
     },
     onError: (e) => toast.error((e as Error).message),
@@ -66,26 +103,62 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
     <div className="space-y-5">
       <Card>
         <h2 className="mb-1 text-lg font-semibold text-slate-800">Cadastrar rastreador</h2>
-        <p className="mb-4 text-sm text-slate-500">Modelo <span className="font-semibold">SL48-4G</span>. Informe o identificador (IMEI/ID) e o veículo onde está instalado.</p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <p className="mb-4 text-sm text-slate-500">Informe o IMEI e clique em <span className="font-semibold">Detectar</span> — o modelo é identificado automaticamente na IOPGPS. Depois vincule ao veículo.</p>
+        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {!fixed && (
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-slate-500">Prefeitura</span>
-              <select value={f.tenant_id} onChange={(e) => set({ tenant_id: e.target.value, vehicle_id: '' })} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+              <span className={LABEL_CLS}>Prefeitura</span>
+              <select value={f.tenant_id} onChange={(e) => set({ tenant_id: e.target.value, vehicle_id: '' })} className={FIELD_CLS}>
                 <option value="">Selecione…</option>
                 {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </label>
           )}
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-slate-500">Modelo</span>
-            <select value={f.model} onChange={(e) => set({ model: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-              {TRACKER_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
+            <span className={LABEL_CLS}>Identificador (IMEI/ID)</span>
+            <div className="flex gap-2">
+              <input
+                value={f.identifier}
+                onChange={(e) => { set({ identifier: e.target.value }); setDetected(null); }}
+                placeholder="Ex.: 868xxxxxxxxxxx"
+                className={FIELD_CLS}
+              />
+              <button
+                type="button"
+                onClick={() => setScanOpen(true)}
+                title="Ler por câmera (código de barras/QR)"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--sgf-input-radius)] border border-slate-200 bg-slate-50 text-slate-600 transition hover:border-[var(--sgf-primary)] hover:text-[var(--sgf-primary)]"
+              >
+                <Camera className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => detect.mutate(f.identifier)}
+                disabled={f.identifier.trim().length < 6 || detect.isPending}
+                className="h-11 shrink-0 rounded-[var(--sgf-input-radius)] border border-[var(--sgf-primary)] px-3 text-xs font-semibold text-[var(--sgf-primary)] transition hover:bg-emerald-50 disabled:opacity-40"
+              >
+                {detect.isPending ? '…' : 'Detectar'}
+              </button>
+            </div>
           </label>
-          <Input label="Identificador (IMEI/ID)" value={f.identifier} onChange={(e) => set({ identifier: e.target.value })} placeholder="Ex.: 868xxxxxxxxxxx" />
+          <label className="block">
+            <span className={LABEL_CLS}>Modelo</span>
+            <input
+              list="tracker-models"
+              value={f.model}
+              onChange={(e) => set({ model: e.target.value })}
+              placeholder="Detectado pelo IMEI (ou digite)"
+              className={FIELD_CLS}
+            />
+            <datalist id="tracker-models">{TRACKER_MODELS.map((m) => <option key={m} value={m} />)}</datalist>
+            {detected && (
+              <span className="mt-1 block text-[11px] font-medium text-emerald-600">
+                Detectado na IOPGPS{detected.online == null ? '' : detected.online ? ' · online' : ' · offline'}
+              </span>
+            )}
+          </label>
           <label className="block sm:col-span-2 lg:col-span-1">
-            <span className="mb-1 block text-xs font-semibold text-slate-500">Veículo</span>
+            <span className={LABEL_CLS}>Veículo</span>
             <VehiclePicker
               vehicles={formVehicles}
               value={f.vehicle_id || null}
@@ -94,8 +167,14 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
               emptyLabel={formTenant ? 'Buscar placa ou modelo…' : 'Selecione a prefeitura primeiro'}
             />
           </label>
-          <Input label="Apelido (opcional)" value={f.label} onChange={(e) => set({ label: e.target.value })} placeholder="Ex.: Caminhão 03" />
-          <Input label="Nº do chip (opcional)" value={f.sim_number} onChange={(e) => set({ sim_number: e.target.value })} />
+          <label className="block">
+            <span className={LABEL_CLS}>Apelido (opcional)</span>
+            <input value={f.label} onChange={(e) => set({ label: e.target.value })} placeholder="Ex.: Caminhão 03" className={FIELD_CLS} />
+          </label>
+          <label className="block">
+            <span className={LABEL_CLS}>Nº do chip (opcional)</span>
+            <input value={f.sim_number} onChange={(e) => set({ sim_number: maskPhone(e.target.value) })} placeholder="+55 (44) 99999-9999" inputMode="numeric" className={FIELD_CLS} />
+          </label>
         </div>
         <div className="mt-4 flex justify-end">
           <Button disabled={!canSubmit || create.isPending} onClick={() => create.mutate()}>{create.isPending ? 'Salvando…' : 'Cadastrar'}</Button>
@@ -151,6 +230,18 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
           </div>
         )}
       </Card>
+
+      <BarcodeScanner
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onDetect={(value) => {
+          const imei = value.replace(/\s/g, '');
+          set({ identifier: imei });
+          setDetected(null);
+          setScanOpen(false);
+          if (imei.length >= 6) detect.mutate(imei);
+        }}
+      />
     </div>
   );
 }
