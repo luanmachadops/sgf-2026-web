@@ -1285,14 +1285,14 @@ export const settingsApi = {
         const { data, error } = await supabase
             .from('app_settings')
             .select(SETTINGS_COLS)
-            .eq('id', true)
+            .limit(1)
             .maybeSingle();
         if (error) handleError(error);
         return mapSettings(data as Record<string, unknown> | null);
     },
 
     update: async (patch: Partial<AppSettings>): Promise<AppSettings> => {
-        const payload: Record<string, unknown> = { id: true, updated_at: new Date().toISOString() };
+        const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
         if (patch.fuelPriceMode !== undefined) payload.fuel_price_mode = patch.fuelPriceMode;
         if (patch.orgName !== undefined) payload.org_name = patch.orgName || null;
         if (patch.cnhAlertDays !== undefined) payload.cnh_alert_days = patch.cnhAlertDays;
@@ -1301,7 +1301,7 @@ export const settingsApi = {
         if (patch.tankOverflowAlert !== undefined) payload.tank_overflow_alert = patch.tankOverflowAlert;
         const { data, error } = await supabase
             .from('app_settings')
-            .upsert(payload as TablesInsert<'app_settings'>, { onConflict: 'id' })
+            .upsert(payload as TablesInsert<'app_settings'>, { onConflict: 'tenant_id' })
             .select(SETTINGS_COLS)
             .single();
         if (error) handleError(error);
