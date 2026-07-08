@@ -11,6 +11,7 @@ import { extractDriverFromCNH } from '@/lib/driverAI';
 import { supabase } from '@/lib/supabase';
 import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
 import { maskCPF, maskPhone } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Tables, TablesUpdate } from '@/types/database.types';
 
 type Profile = Tables<'profiles'>;
@@ -32,6 +33,7 @@ function getInitials(name: string) {
 
 export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProps) {
     const queryClient = useQueryClient();
+    const { user } = useAuth();
 
     const [fullName, setFullName] = useState('');
     const [cpf, setCpf] = useState('');
@@ -62,10 +64,14 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
             toast.error('Selecione uma imagem válida da CNH.');
             return;
         }
+        if (!user?.tenantId) {
+            toast.error('Sem prefeitura definida para a leitura da CNH.');
+            return;
+        }
         try {
             setAiLoading(true);
             toast.info('Lendo a CNH com IA...');
-            const d = await extractDriverFromCNH([file]);
+            const d = await extractDriverFromCNH([file], user.tenantId);
             if (d.name) setFullName(String(d.name));
             if (d.cpf) setCpf(maskCPF(String(d.cpf)));
             if (d.birthDate) setBirthDate(String(d.birthDate));

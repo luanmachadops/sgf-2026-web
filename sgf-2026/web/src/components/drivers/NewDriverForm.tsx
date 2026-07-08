@@ -77,10 +77,14 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
             toast.error('Selecione uma imagem válida da CNH.');
             return;
         }
+        if (!user?.tenantId) {
+            toast.error('Sem prefeitura definida para a leitura da CNH.');
+            return;
+        }
         try {
             setAiLoading(true);
             toast.info('Lendo a CNH com IA...');
-            const d = await extractDriverFromCNH([file]);
+            const d = await extractDriverFromCNH([file], user.tenantId);
             if (d.name) setValue('name', String(d.name), { shouldValidate: true });
             if (d.cpf) setValue('cpf', maskCPF(String(d.cpf)), { shouldValidate: true });
             if (d.birthDate) setValue('birthDate', String(d.birthDate), { shouldValidate: true });

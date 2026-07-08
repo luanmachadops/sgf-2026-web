@@ -17,10 +17,11 @@ interface Props {
     isOpen: boolean;
     onClose: () => void;
     vehicleId: string;
+    tenantId: string;
     onResult: (result: ExtractWithPhotosResult) => Promise<void> | void;
 }
 
-export function VehicleAIModal({ isOpen, onClose, vehicleId, onResult }: Props) {
+export function VehicleAIModal({ isOpen, onClose, vehicleId, tenantId, onResult }: Props) {
     const [files, setFiles] = useState<Partial<Record<VehiclePhotoSlot, File>>>({});
     const [previews, setPreviews] = useState<Partial<Record<VehiclePhotoSlot, string>>>({});
     const [busy, setBusy] = useState(false);
@@ -42,9 +43,10 @@ export function VehicleAIModal({ isOpen, onClose, vehicleId, onResult }: Props) 
     const analyze = async () => {
         const slots = (Object.keys(files) as VehiclePhotoSlot[]).map((type) => ({ type, file: files[type]! }));
         if (slots.length === 0) { toast.error('Adicione ao menos uma foto.'); return; }
+        if (!tenantId) { toast.error('Sem prefeitura definida para o envio das fotos.'); return; }
         setBusy(true);
         try {
-            const result = await extractVehicleWithPhotos(slots, vehicleId);
+            const result = await extractVehicleWithPhotos(slots, vehicleId, tenantId);
             await onResult(result);
             toast.success('Dados extraídos e aplicados.');
             setFiles({}); setPreviews({});

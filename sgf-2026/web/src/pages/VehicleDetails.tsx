@@ -52,6 +52,8 @@ import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
 import { resolveDocUrl } from '@/lib/docStorage';
 import { toast } from 'sonner';
 import type { Tables } from '@/types/database.types';
+import { useAuth } from '@/contexts/AuthContext';
+import { VehicleChecklistsTab } from '@/components/vehicles/VehicleChecklistsTab';
 
 const FUEL_LABEL: Record<string, string> = {
     diesel: 'Diesel',
@@ -66,6 +68,7 @@ type VehicleRow = VehicleRecord & {
 
 export default function VehicleDetails() {
     const { id } = useParams<{ id: string }>();
+    const { user } = useAuth();
     const location = useLocation();
     const navigate = useNavigate();
     const backTo = (location.state as { backTo?: string } | null)?.backTo ?? '/veiculos';
@@ -143,7 +146,20 @@ export default function VehicleDetails() {
     }, [vehicle?.photo_url, vehicleDocs]);
 
     // Documentos que NÃO são foto do veículo (placa, renavam, hodômetro, CRLV).
+    // Esses documentos são sensíveis e podem estar salvos como PATH do bucket privado
+    // `documentos` (novos registros) ou como URL pública antiga — resolveDocUrl trata os dois casos.
     const otherDocs = useMemo(() => vehicleDocs.filter((d) => d.doc_type !== 'foto' && d.url), [vehicleDocs]);
+
+    const { data: resolvedOtherDocs = [] } = useQuery({
+        queryKey: ['vehicle', id, 'documents', 'resolved', otherDocs.map((d) => `${d.id}:${d.url}`).join('|')],
+        queryFn: async () => {
+            const resolved = await Promise.all(
+                otherDocs.map(async (d) => ({ ...d, resolvedUrl: await resolveDocUrl(d.url).catch(() => null) }))
+            );
+            return resolved.filter((d) => d.resolvedUrl);
+        },
+        enabled: otherDocs.length > 0,
+    });
 
     // ── Upload de foto ─────────────────────────────────────────────────────
     const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -447,11 +463,12 @@ export default function VehicleDetails() {
                     }, 50);
                 }}
             >
-                <TabsList className="grid w-full grid-cols-4 lg:w-[400px] mx-auto bg-slate-100/50 p-1 rounded-xl">
+                <TabsList className="grid w-full grid-cols-5 lg:w-[500px] mx-auto bg-slate-100/50 p-1 rounded-xl">
                     <TabsTrigger value="info" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Info</TabsTrigger>
                     <TabsTrigger value="trips" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Viagens</TabsTrigger>
                     <TabsTrigger value="refuelings" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Abaste.</TabsTrigger>
                     <TabsTrigger value="maintenances" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Manut.</TabsTrigger>
+                    <TabsTrigger value="checklists" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Checklists</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="info">
@@ -525,19 +542,19 @@ export default function VehicleDetails() {
                                         <input ref={multiInputRef} type="file" accept="image/*" multiple onChange={handleMultiPhotoUpload} className="hidden" />
                                     </div>
 
-                                    {/* Galeria de documentos (placa, renavam, hodômetro, CRLV) */}
-                                    {otherDocs.length > 0 && (
+                                    {/* Galeria de documentos (placa, renavam, hodômetro, CRLV) — bucket privado, URL assinada */}
+                                    {resolvedOtherDocs.length > 0 && (
                                         <div>
                                             <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">Placa, RENAVAM e hodômetro</p>
                                             <div className="grid grid-cols-3 gap-2">
-                                                {otherDocs.map((doc) => (
+                                                {resolvedOtherDocs.map((doc) => (
                                                     <button
                                                         key={doc.id}
-                                                        onClick={() => setViewer({ images: [doc.url], index: 0 })}
+                                                        onClick={() => setViewer({ images: [doc.resolvedUrl!], index: 0 })}
                                                         className="group/thumb relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
                                                         title={doc.title}
                                                     >
-                                                        <img src={doc.url} alt={doc.title} className="h-full w-full object-cover transition-transform duration-500 group-hover/thumb:scale-110" />
+                                                        <img src={doc.resolvedUrl!} alt={doc.title} className="h-full w-full object-cover transition-transform duration-500 group-hover/thumb:scale-110" />
                                                         <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1 py-0.5 text-[9px] font-semibold text-white">{doc.title}</span>
                                                     </button>
                                                 ))}
@@ -654,6 +671,10 @@ export default function VehicleDetails() {
                         />
                     </div>
                 </TabsContent>
+
+                <TabsContent value="checklists">
+                    <VehicleChecklistsTab vehicleId={v.id} />
+                </TabsContent>
             </Tabs>
             </div>
 
@@ -697,6 +718,7 @@ export default function VehicleDetails() {
                 isOpen={isAiOpen}
                 onClose={() => setAiOpen(false)}
                 vehicleId={v.id}
+                tenantId={user?.tenantId ?? ''}
                 onResult={handleAiResult}
             />
 

@@ -1,5 +1,9 @@
 import { supabase } from './supabase';
 import { resizeAndConvertToWebP } from './imageUtils';
+import { uploadPrivateDoc } from './docStorage';
+
+const DOC_BUCKET = 'documentos';
+const SIGNED_URL_TTL_SEC = 300;
 
 export interface ExtractedVehicle {
     plate?: string | null;
@@ -19,8 +23,13 @@ export interface ExtractedVehicle {
 
 export type VehiclePhotoSlot = 'foto' | 'placa' | 'documento' | 'hodometro';
 
+// Slots sensíveis (CRLV/placa/hodômetro) vão para o bucket PRIVADO e são salvos como PATH.
+// O slot `foto` (foto do veículo, exibida na UI) permanece no bucket público `fotos`.
+const SENSITIVE_SLOTS: VehiclePhotoSlot[] = ['placa', 'documento', 'hodometro'];
+
 export interface ExtractWithPhotosResult {
     data: ExtractedVehicle;
+    /** `url` é uma URL pública (slot `foto`) OU um path do bucket privado `documentos` (demais slots). */
     photos: { type: VehiclePhotoSlot; url: string }[];
 }
 
@@ -63,28 +72,44 @@ function normalizeExtracted(d: ExtractedVehicle): ExtractedVehicle {
 
 /**
  * Sobe fotos ROTULADAS (veículo, placa, CRLV, hodômetro), chama a IA e devolve
- * os dados extraídos + as URLs públicas de cada foto (para salvar como documentos).
+ * os dados extraídos + as referências de cada foto (para salvar como documentos).
+ *
+ * A foto do veículo (`foto`) vai para o bucket público `fotos` (URL pública, usada na UI).
+ * Placa, CRLV e hodômetro são documentos sensíveis: vão para o bucket privado `documentos`
+ * e o `url` retornado é na verdade um PATH — persista-o como está (não é uma URL pública).
  */
 export async function extractVehicleWithPhotos(
     slots: { type: VehiclePhotoSlot; file: File }[],
-    vehicleId?: string,
+    vehicleId: string | undefined,
+    tenantId: string,
 ): Promise<ExtractWithPhotosResult> {
     const valid = slots.filter((s) => s.file);
     if (valid.length === 0) throw new Error('Selecione ao menos uma foto.');
+    if (!tenantId) throw new Error('Sem prefeitura definida para o envio das fotos.');
 
     const photos: { type: VehiclePhotoSlot; url: string }[] = [];
+    const imagesForAI: string[] = [];
     for (const s of valid) {
-        const blob = await resizeAndConvertToWebP(s.file, 1000);
-        const dir = vehicleId ? `vehicles/${vehicleId}` : 'vehicles/ai';
-        const fileName = `${dir}/${s.type}-${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
-        const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
-        if (upErr) throw upErr;
-        const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
-        photos.push({ type: s.type, url: publicUrl });
+        if (SENSITIVE_SLOTS.includes(s.type)) {
+            const path = await uploadPrivateDoc(s.file, 'vehicles', tenantId, s.type);
+            photos.push({ type: s.type, url: path });
+            const { data, error } = await supabase.storage.from(DOC_BUCKET).createSignedUrl(path, SIGNED_URL_TTL_SEC);
+            if (error) throw error;
+            if (data?.signedUrl) imagesForAI.push(data.signedUrl);
+        } else {
+            const blob = await resizeAndConvertToWebP(s.file, 1000);
+            const dir = vehicleId ? `vehicles/${vehicleId}` : 'vehicles/ai';
+            const fileName = `${dir}/${s.type}-${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
+            const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
+            if (upErr) throw upErr;
+            const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
+            photos.push({ type: s.type, url: publicUrl });
+            imagesForAI.push(publicUrl);
+        }
     }
 
     const { data, error } = await supabase.functions.invoke('vehicle-ai-extract', {
-        body: { images: photos.map((p) => p.url) },
+        body: { images: imagesForAI },
     });
     if (error) {
         const ctx = (error as { context?: { body?: unknown } }).context;
@@ -99,34 +124,42 @@ export async function extractVehicleWithPhotos(
 /**
  * Envia as fotos (veículo, placa, documento) para a edge function que consulta a IA
  * (OpenRouter) e retorna os dados extraídos do veículo.
+ *
+ * Extração pura — não persiste nada. As imagens sobem para o bucket PRIVADO `documentos`
+ * numa pasta temporária escopada por prefeitura, uma URL assinada de curta duração é
+ * gerada só para a IA ler, e os objetos são removidos do storage em seguida.
  */
-export async function extractVehicleFromImages(files: File[]): Promise<ExtractedVehicle> {
+export async function extractVehicleFromImages(files: File[], tenantId: string): Promise<ExtractedVehicle> {
     const valid = files.filter(Boolean);
     if (valid.length === 0) throw new Error('Selecione ao menos uma foto.');
+    if (!tenantId) throw new Error('Sem prefeitura definida para o envio das fotos.');
 
-    // Otimiza e sobe as imagens (a IA recebe URLs públicas).
+    const paths: string[] = [];
     const urls: string[] = [];
-    for (const file of valid) {
-        const blob = await resizeAndConvertToWebP(file, 1000);
-        const fileName = `vehicles/ai/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
-        const { error: upErr } = await supabase.storage
-            .from('fotos')
-            .upload(fileName, blob, { contentType: 'image/webp', upsert: true });
-        if (upErr) throw upErr;
-        const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
-        urls.push(publicUrl);
-    }
+    try {
+        for (const file of valid) {
+            const path = await uploadPrivateDoc(file, 'ai-temp', tenantId, 'vehicle');
+            paths.push(path);
+            const { data, error } = await supabase.storage.from(DOC_BUCKET).createSignedUrl(path, SIGNED_URL_TTL_SEC);
+            if (error) throw error;
+            if (data?.signedUrl) urls.push(data.signedUrl);
+        }
 
-    const { data, error } = await supabase.functions.invoke('vehicle-ai-extract', {
-        body: { images: urls },
-    });
-    if (error) {
-        // Tenta extrair a mensagem detalhada do corpo da resposta.
-        const ctx = (error as { context?: { body?: unknown } }).context;
-        throw new Error((ctx as { body?: { error?: string } })?.body?.error ?? error.message ?? 'Falha na análise por IA.');
+        const { data, error } = await supabase.functions.invoke('vehicle-ai-extract', {
+            body: { images: urls },
+        });
+        if (error) {
+            // Tenta extrair a mensagem detalhada do corpo da resposta.
+            const ctx = (error as { context?: { body?: unknown } }).context;
+            throw new Error((ctx as { body?: { error?: string } })?.body?.error ?? error.message ?? 'Falha na análise por IA.');
+        }
+        if ((data as { error?: string })?.error) {
+            throw new Error((data as { error: string }).error);
+        }
+        return normalizeExtracted(((data as { data?: ExtractedVehicle })?.data ?? {}) as ExtractedVehicle);
+    } finally {
+        if (paths.length > 0) {
+            await supabase.storage.from(DOC_BUCKET).remove(paths).catch(() => { /* best-effort cleanup */ });
+        }
     }
-    if ((data as { error?: string })?.error) {
-        throw new Error((data as { error: string }).error);
-    }
-    return normalizeExtracted(((data as { data?: ExtractedVehicle })?.data ?? {}) as ExtractedVehicle);
 }

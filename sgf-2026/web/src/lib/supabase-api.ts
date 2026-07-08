@@ -1252,6 +1252,16 @@ export const checklistsApi = {
         if (error) handleError(error);
         return (data ?? []) as Tables<'checklists'>[];
     },
+
+    getItems: async (checklistId: string): Promise<Tables<'checklist_items'>[]> => {
+        const { data, error } = await supabase
+            .from('checklist_items')
+            .select('*')
+            .eq('checklist_id', checklistId)
+            .order('item_key', { ascending: true });
+        if (error) handleError(error);
+        return (data ?? []) as Tables<'checklist_items'>[];
+    },
 };
 
 // ========================================

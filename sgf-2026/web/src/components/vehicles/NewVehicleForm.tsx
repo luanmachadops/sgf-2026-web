@@ -161,10 +161,14 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
             toast.warning('Adicione ao menos uma foto (veículo, placa ou documento).');
             return;
         }
+        if (!user?.tenantId) {
+            toast.error('Sem prefeitura definida para o envio das fotos.');
+            return;
+        }
         try {
             setAiLoading(true);
             toast.info('Analisando imagens com IA...');
-            const d = await extractVehicleFromImages(files);
+            const d = await extractVehicleFromImages(files, user.tenantId);
 
             if (d.plate) setValue('plate', String(d.plate).toUpperCase(), { shouldValidate: true });
             if (d.brand) {

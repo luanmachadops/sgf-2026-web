@@ -101,7 +101,15 @@ o usuário aprovar (supabase functions deploy iopgps-sync --no-verify-jwt).
 
 ---
 
-## 🔴 T3 — Fluxos de negócio (mobile + banco + painel)
+## ✅ T3 — Fluxos de negócio (concluída em 2026-07-08)
+
+- **3.1** RPC `check_vehicle_conflict(uuid)` criada e **aplicada em produção** (migration `20260708_000001`); app passou a usá-la (PR appFrota #1). Detecção de conflito agora funciona sob RLS.
+- **3.2** CNH e CRLV/placa/hodômetro migrados para o bucket privado `documentos` (upload temp + signed URL nas extrações puras, com delete em finally; slots sensíveis persistidos como path e resolvidos via `resolveDocUrl`). A foto do veículo (`foto`) segue pública. Policy `documentos_tenant_all` já cobre authenticated por tenant — verificado.
+- **3.3** (app, PR #1) checklist agora grava `trip_id`; itens críticos **freios, pneus, luzes** em "atenção" bloqueiam a viagem e criam `service_order` (priority alta) — trigger `trg_notify_service_order` notifica o gestor. **Pendência de produto:** o template do app NÃO tem item "direção" (só oleo, pneus, agua, freios, luzes, geral); avaliar adicionar.
+- **3.4** Nova aba "Checklists" no detalhe do veículo (`VehicleChecklistsTab.tsx`) + `checklistsApi.getItems`.
+- **Pendências operacionais:** revisar/mergear o PR appFrota #1; redeploy das edge functions (`vehicle-ai-extract`/`driver-cnh-extract` não mudaram, mas `iopgps-sync` da T2 sim). Commit web: ver git log.
+
+### (referência) T3 — plano original
 
 **3.1 — Conflito de vínculo de veículo quebrado sob RLS** (repo appFrota: `src/lib/data.ts` ~435-479, 541-582)
 - Problema: `checkVehicleConflict`/`getTodayChecklist` precisam ver viagens de OUTROS motoristas, mas a policy `trips_select_own` esconde. Dois motoristas assumem o mesmo veículo sem aviso.
