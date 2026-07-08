@@ -49,9 +49,19 @@
 
 ---
 
-## 🔴 T2 — Correções nos endpoints (código local, sem DDL)
+## ✅ T2 — Correções nos endpoints (concluída em 2026-07-08)
 
-**Objetivo:** fechar os 4 buracos de autorização/autenticação dos endpoints.
+Todos os 4 itens implementados (typecheck web+admin ok). O que foi feito além do plano:
+o modal de pré-cadastro agora exibe as senhas provisórias UMA vez, com botões
+Copiar/Baixar CSV; o gate de motorista foi posto no `AuthContext.fetchUserProfile`
+(cobre login E restauração de sessão, inclusive o fallback sem profile row).
+**Pendência operacional:** redeploy da edge function alterada —
+`supabase functions deploy iopgps-sync --no-verify-jwt --project-ref kgxdrgbxpfoebzrphtqg`
+(aguardando aprovação do usuário). **Atenção mobile (T4):** a tela de primeiro acesso
+do app pode instruir "senha = CPF" — atualizar o texto para "senha provisória entregue
+pelo gestor".
+
+**Objetivo original:** fechar os 4 buracos de autorização/autenticação dos endpoints.
 
 **2.1 — IDOR cross-tenant nas credenciais IOPGPS** (`admin/api/iopgps-device.ts`)
 - Problema: linhas ~60-65 aceitam `tenantId` do body; `assertRole` (linhas 16-24) valida só o papel, nunca o tenant do chamador. E há fallback (linha ~34) que, sem credencial do tenant, pega **qualquer** credencial ativa do sistema.

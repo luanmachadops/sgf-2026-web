@@ -19,19 +19,23 @@ async function assertRole(req: any, admin: ReturnType<typeof getAdmin>, roles: s
   if (!token) throw Object.assign(new Error('Não autenticado'), { status: 401 });
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user) throw Object.assign(new Error('Sessão inválida'), { status: 401 });
-  const { data: profile } = await admin.from('profiles').select('role').eq('id', data.user.id).single();
+  const { data: profile } = await admin.from('profiles').select('role, tenant_id').eq('id', data.user.id).single();
   if (!profile || !roles.includes(profile.role)) throw Object.assign(new Error('Sem permissão'), { status: 403 });
+  return { userId: data.user.id, role: profile.role as string, tenantId: (profile.tenant_id as string | null) ?? null };
 }
 
 const md5 = (s: string) => createHash('md5').update(s).digest('hex');
 
 /** Obtém (e cacheia) um accessToken IOPGPS a partir da credencial salva. */
 async function iopgpsToken(admin: ReturnType<typeof getAdmin>, tenantId: string | null) {
-  const q = admin.from('iopgps_credentials').select('*').eq('active', true);
-  const { data: cred } = tenantId
-    ? await (q.eq('tenant_id', tenantId).maybeSingle())
-    : await (q.is('tenant_id', null).maybeSingle());
-  const row = cred ?? (await admin.from('iopgps_credentials').select('*').eq('active', true).limit(1).maybeSingle()).data;
+  // Credencial do tenant; se não houver, cai apenas na credencial GLOBAL (tenant_id NULL).
+  // Nunca usa credencial de outro tenant.
+  let row = tenantId
+    ? (await admin.from('iopgps_credentials').select('*').eq('active', true).eq('tenant_id', tenantId).maybeSingle()).data
+    : null;
+  if (!row) {
+    row = (await admin.from('iopgps_credentials').select('*').eq('active', true).is('tenant_id', null).maybeSingle()).data;
+  }
   if (!row) throw Object.assign(new Error('Credencial IOPGPS não configurada'), { status: 412 });
 
   const now = Date.now();
@@ -57,12 +61,14 @@ export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).json({ message: 'Method not allowed' }); }
   try {
     const admin = getAdmin();
-    await assertRole(req, admin, ['superadmin', 'admin', 'gestor']);
+    const caller = await assertRole(req, admin, ['superadmin', 'admin', 'gestor']);
     const b = parseBody(req);
     const imei = String(b.imei ?? '').trim();
     if (!imei) throw Object.assign(new Error('IMEI obrigatório'), { status: 400 });
 
-    const { token, baseUrl } = await iopgpsToken(admin, b.tenantId ?? null);
+    // Tenant SEMPRE derivado do chamador; só superadmin pode consultar outro tenant.
+    const tenantId = caller.role === 'superadmin' ? (b.tenantId ?? null) : caller.tenantId;
+    const { token, baseUrl } = await iopgpsToken(admin, tenantId);
     const r = await fetch(`${baseUrl}/api/device/type?imei=${encodeURIComponent(imei)}`, { headers: { accessToken: token } });
     const json: any = await r.json();
 

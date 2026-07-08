@@ -114,6 +114,8 @@ export interface PreRegisterDriverRequest {
 
 export interface BulkPreRegisterResult {
     created: number;
+    /** Senhas provisórias geradas — disponíveis SOMENTE nesta resposta. */
+    credentials: { cpf: string; name: string; tempPassword: string }[];
     errors: { cpf: string; name: string; error: string }[];
 }
 
@@ -146,8 +148,8 @@ export const driverAccessApi = {
             body: JSON.stringify(payload),
         }),
 
-    preRegister: async (payload: PreRegisterDriverRequest): Promise<DriverWithDepartment> =>
-        request<DriverWithDepartment>('/drivers/pre-register', {
+    preRegister: async (payload: PreRegisterDriverRequest): Promise<DriverWithDepartment & { tempPassword: string }> =>
+        request<DriverWithDepartment & { tempPassword: string }>('/drivers/pre-register', {
             method: 'POST',
             body: JSON.stringify(payload),
         }),

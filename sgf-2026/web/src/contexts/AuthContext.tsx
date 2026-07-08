@@ -95,6 +95,12 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
         .maybeSingle();
 
     if (profile && !error) {
+        // Motorista não tem acesso ao painel de gestão — encerra a sessão imediatamente.
+        // (A RLS já limita a escrita, mas sem este gate ele enxergaria a leitura do tenant.)
+        if (profile.role === 'motorista') {
+            void supabase.auth.signOut();
+            throw new Error('Este acesso é exclusivo do painel de gestão. Motoristas devem usar o aplicativo SGF Motorista.');
+        }
         const dept = (profile as unknown as { departments?: { id: string; name: string } | null }).departments;
         const tenant = mapTenant((profile as unknown as { tenants?: TenantRow | null }).tenants);
         return {
@@ -114,6 +120,12 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
     }
 
     // Fallback: usa auth metadata (sem profile row)
+    const metaType = authUser.user_metadata?.type as string | undefined;
+    const metaRole = (authUser.user_metadata?.role as string | undefined)?.toLowerCase();
+    if (metaType === 'driver' || metaRole === 'motorista') {
+        void supabase.auth.signOut();
+        throw new Error('Este acesso é exclusivo do painel de gestão. Motoristas devem usar o aplicativo SGF Motorista.');
+    }
     return {
         id: authUser.id,
         email: authUser.email || '',

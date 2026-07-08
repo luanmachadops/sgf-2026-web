@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { getSupabaseAdmin } from './supabase-admin.js';
 
 // Banco unificado: motorista vive em `public.profiles` com role='motorista'.
@@ -154,8 +155,20 @@ export interface PreRegisterDriverPayload {
 }
 
 /**
- * Pré-cadastro por CPF: cria o acesso com senha inicial = CPF e marca must_change_password.
- * O motorista loga com CPF/CPF e é obrigado a trocar a senha e completar os dados no 1º acesso.
+ * Senha provisória aleatória e legível (sem ambiguidade 0/O, 1/l), ex.: "K7RT-M2XP".
+ * Mostrada UMA vez ao gestor, que a entrega ao motorista.
+ */
+function generateTempPassword(): string {
+    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    const bytes = randomBytes(8);
+    const chars = Array.from(bytes, (b) => alphabet[b % alphabet.length]);
+    return `${chars.slice(0, 4).join('')}-${chars.slice(4).join('')}`;
+}
+
+/**
+ * Pré-cadastro por CPF: cria o acesso com senha provisória ALEATÓRIA e marca
+ * must_change_password. A senha é retornada uma única vez na resposta para o
+ * gestor entregar ao motorista, que é obrigado a trocá-la no 1º acesso.
  */
 export async function preRegisterDriver(payload: PreRegisterDriverPayload) {
     const supabaseAdmin = getSupabaseAdmin();
@@ -177,9 +190,10 @@ export async function preRegisterDriver(payload: PreRegisterDriverPayload) {
     }
 
     const authEmail = buildDriverAuthEmail(normalizedCpf);
+    const tempPassword = generateTempPassword();
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: authEmail,
-        password: normalizedCpf, // senha inicial = CPF
+        password: tempPassword,
         email_confirm: true,
         user_metadata: { cpf: normalizedCpf, full_name: payload.name, type: 'driver', tenant_id: payload.tenantId ?? undefined },
     });
@@ -208,16 +222,24 @@ export async function preRegisterDriver(payload: PreRegisterDriverPayload) {
         throw new Error(driverError.message);
     }
 
-    return driver;
+    return { ...driver, tempPassword };
 }
 
-/** Pré-cadastro em lote (import de planilha). Retorna o que foi criado e os erros por linha. */
+/**
+ * Pré-cadastro em lote (import de planilha). Retorna o que foi criado (com a senha
+ * provisória de cada motorista — exibida uma única vez) e os erros por linha.
+ */
 export async function preRegisterDriversBulk(rows: PreRegisterDriverPayload[]) {
-    const result = { created: 0, errors: [] as { cpf: string; name: string; error: string }[] };
+    const result = {
+        created: 0,
+        credentials: [] as { cpf: string; name: string; tempPassword: string }[],
+        errors: [] as { cpf: string; name: string; error: string }[],
+    };
     for (const row of rows) {
         try {
-            await preRegisterDriver(row);
+            const driver = await preRegisterDriver(row);
             result.created += 1;
+            result.credentials.push({ cpf: normalizeCpf(row.cpf), name: row.name, tempPassword: driver.tempPassword });
         } catch (e) {
             result.errors.push({ cpf: row.cpf, name: row.name, error: (e as Error).message });
         }

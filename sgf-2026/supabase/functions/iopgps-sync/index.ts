@@ -14,6 +14,8 @@ Deno.serve(async (req) => {
 
   // Autorização: aceita o segredo do cron (x-cron-secret, guardado em app_config)
   // OU um usuário autenticado com papel de gestão (botão "Sincronizar agora").
+  // Escopo: cron e superadmin sincronizam TODOS os tenants; gestor/admin, só o próprio.
+  let scopeTenantId: string | null = null;
   try {
     const provided = req.headers.get('x-cron-secret');
     let cronOk = false;
@@ -22,7 +24,11 @@ Deno.serve(async (req) => {
       cronOk = !!cfg && cfg.value === provided;
     }
     if (!cronOk) {
-      await requireRole(db, req, ['superadmin', 'admin', 'gestor']);
+      const caller = await requireRole(db, req, ['superadmin', 'admin', 'gestor']);
+      if (caller.role !== 'superadmin') {
+        if (!caller.tenantId) throw Object.assign(new Error('Perfil sem tenant'), { status: 403 });
+        scopeTenantId = caller.tenantId;
+      }
     }
   } catch (e) {
     const status = (e as { status?: number })?.status ?? 401;
@@ -32,10 +38,12 @@ Deno.serve(async (req) => {
   try {
     // Rastreadores ativos (com ou sem veículo). device_status cobre todos;
     // live_positions só é alimentado quando há veículo + viagem ativa.
-    const { data: trackers, error } = await db
+    let trackersQuery = db
       .from('trackers')
       .select('id, identifier, tenant_id, vehicle_id, active')
       .eq('active', true);
+    if (scopeTenantId) trackersQuery = trackersQuery.eq('tenant_id', scopeTenantId);
+    const { data: trackers, error } = await trackersQuery;
     if (error) throw error;
 
     // Agrupa por tenant.
