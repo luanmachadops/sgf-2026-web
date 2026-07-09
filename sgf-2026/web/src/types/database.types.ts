@@ -1012,13 +1012,18 @@ export type Database = {
           admin_note: string | null
           approved_at: string | null
           approved_by: string | null
+          budget: number | null
           category: string
+          checklist_id: string | null
+          completed_at: string | null
+          cost: number | null
           created_at: string
           description: string | null
           driver_id: string
           id: string
           odometer: number | null
           priority: Database["public"]["Enums"]["issue_severity"]
+          repair_shop: string | null
           status: Database["public"]["Enums"]["service_order_status"]
           tenant_id: string
           vehicle_id: string | null
@@ -1027,13 +1032,18 @@ export type Database = {
           admin_note?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          budget?: number | null
           category: string
+          checklist_id?: string | null
+          completed_at?: string | null
+          cost?: number | null
           created_at?: string
           description?: string | null
           driver_id: string
           id?: string
           odometer?: number | null
           priority?: Database["public"]["Enums"]["issue_severity"]
+          repair_shop?: string | null
           status?: Database["public"]["Enums"]["service_order_status"]
           tenant_id?: string
           vehicle_id?: string | null
@@ -1042,13 +1052,18 @@ export type Database = {
           admin_note?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          budget?: number | null
           category?: string
+          checklist_id?: string | null
+          completed_at?: string | null
+          cost?: number | null
           created_at?: string
           description?: string | null
           driver_id?: string
           id?: string
           odometer?: number | null
           priority?: Database["public"]["Enums"]["issue_severity"]
+          repair_shop?: string | null
           status?: Database["public"]["Enums"]["service_order_status"]
           tenant_id?: string
           vehicle_id?: string | null
@@ -1059,6 +1074,13 @@ export type Database = {
             columns: ["approved_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_orders_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "checklists"
             referencedColumns: ["id"]
           },
           {
