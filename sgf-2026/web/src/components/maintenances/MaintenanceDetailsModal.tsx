@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Modal } from '@/components/ui/Modal';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
-import { Wrench, Car, User, Gauge, Calendar, FileText } from '@/components/sgf/icons';
+import { Wrench, Car, User, Gauge, Calendar, FileText, Building2, DollarSign } from '@/components/sgf/icons';
 import { maintenancesApi } from '@/lib/supabase-api';
-import { formatDate, getStatusLabel, getStatusColor } from '@/lib/utils';
+import { formatDate, formatCurrency, getStatusLabel, getStatusColor } from '@/lib/utils';
 import type { Tables } from '@/types/database.types';
 
 interface Props {
@@ -45,6 +45,15 @@ export function MaintenanceDetailsModal({ maintenanceId, onClose }: Props) {
                         </SGFBadge>
                     </div>
 
+                    {m.budget != null && m.cost != null && (
+                        <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                            <span className="text-xs font-semibold text-slate-500">Orçado {formatCurrency(Number(m.budget))} · Custo final {formatCurrency(Number(m.cost))}</span>
+                            <SGFBadge variant={Number(m.cost) <= Number(m.budget) ? 'success' : 'error'} size="sm">
+                                {Number(m.cost) <= Number(m.budget) ? 'Dentro do orçamento' : 'Orçamento estourado'}
+                            </SGFBadge>
+                        </div>
+                    )}
+
                     {m.description && (
                         <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
                             <p className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400"><FileText className="h-3.5 w-3.5" /> Descrição</p>
@@ -59,7 +68,11 @@ export function MaintenanceDetailsModal({ maintenanceId, onClose }: Props) {
                             { icon: Gauge, label: 'Odômetro', value: m.odometer != null ? `${Number(m.odometer).toLocaleString('pt-BR')} km` : '—' },
                             { icon: Calendar, label: 'Aberta em', value: formatDate(m.created_at) },
                             { icon: Wrench, label: 'Prioridade', value: PRIORITY_LABEL[m.priority] ?? m.priority },
+                            ...(m.repair_shop ? [{ icon: Building2, label: 'Oficina', value: m.repair_shop }] : []),
+                            ...(m.budget != null ? [{ icon: DollarSign, label: 'Orçamento', value: formatCurrency(Number(m.budget)) }] : []),
+                            ...(m.cost != null ? [{ icon: DollarSign, label: 'Custo final', value: formatCurrency(Number(m.cost)) }] : []),
                             ...(m.approved_at ? [{ icon: Calendar, label: 'Aprovada em', value: formatDate(m.approved_at) }] : []),
+                            ...(m.completed_at ? [{ icon: Calendar, label: 'Concluída em', value: formatDate(m.completed_at) }] : []),
                         ].map((it) => {
                             const I = it.icon;
                             return (

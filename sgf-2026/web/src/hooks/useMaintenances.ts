@@ -52,13 +52,17 @@ export function useApproveMaintenance() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ id, approvedBy, notes }: {
+        mutationFn: ({ id, approvedBy, repairShop, budget, notes }: {
             id: string;
             approvedBy: string;
+            repairShop: string;
+            budget?: number | null;
             notes?: string;
-        }) => maintenancesApi.approve(id, approvedBy, notes),
+        }) => maintenancesApi.approve(id, approvedBy, { repairShop, budget, notes }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['maintenances'] });
+            queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+            queryClient.invalidateQueries({ queryKey: ['map', 'live-vehicles'] });
         },
     });
 }
@@ -71,6 +75,22 @@ export function useRejectMaintenance() {
             maintenancesApi.reject(id, reason),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['maintenances'] });
+            queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+            queryClient.invalidateQueries({ queryKey: ['map', 'live-vehicles'] });
+        },
+    });
+}
+
+export function useCompleteMaintenance() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, cost, adminNote }: { id: string; cost: number; adminNote?: string }) =>
+            maintenancesApi.complete(id, cost, adminNote),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['maintenances'] });
+            queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+            queryClient.invalidateQueries({ queryKey: ['map', 'live-vehicles'] });
         },
     });
 }

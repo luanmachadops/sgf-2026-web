@@ -382,6 +382,25 @@ export default function VehicleDetails() {
         { header: 'Data', accessor: (r) => formatDate(r.created_at) },
         { header: 'Categoria', accessor: (r) => r.category ?? '—' },
         { header: 'Descrição', accessor: (r) => r.description ?? '—' },
+        { header: 'Oficina', accessor: (r) => r.repair_shop ?? '—' },
+        {
+            header: 'Orçado × Custo',
+            accessor: (r) => {
+                const budget = r.budget != null ? Number(r.budget) : null;
+                const cost = r.cost != null ? Number(r.cost) : null;
+                if (budget == null && cost == null) return '—';
+                return (
+                    <div className="flex items-center gap-1.5">
+                        <span>{budget != null ? formatCurrency(budget) : '—'} / {cost != null ? formatCurrency(cost) : '—'}</span>
+                        {budget != null && cost != null && (
+                            <SGFBadge variant={cost <= budget ? 'success' : 'error'} size="sm">
+                                {cost <= budget ? 'OK' : 'Estourou'}
+                            </SGFBadge>
+                        )}
+                    </div>
+                );
+            },
+        },
         { header: 'Prioridade', accessor: (r) => r.priority ?? '—' },
         {
             header: 'Status',

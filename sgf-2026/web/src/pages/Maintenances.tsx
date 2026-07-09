@@ -6,6 +6,8 @@ import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { PeriodPresetSelect, PeriodRangeFields, makePeriod, type PeriodValue } from '@/components/sgf/PeriodSelect';
 import { Modal } from '@/components/ui/Modal';
+import { SGFInput } from '@/components/sgf/SGFInput';
+import { SGFTextarea } from '@/components/sgf/SGFTextarea';
 import {
     Plus,
     Wrench,
@@ -16,8 +18,10 @@ import {
     Calendar,
     FileText,
     ShieldCheck,
+    Building2,
+    DollarSign,
 } from '@/components/sgf/icons';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatCurrency } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { cn } from '@/lib/utils';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
@@ -28,6 +32,7 @@ import {
     useApproveMaintenance,
     useRejectMaintenance,
     useUpdateMaintenance,
+    useCompleteMaintenance,
 } from '@/hooks/useMaintenances';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -86,6 +91,11 @@ type MaintItem = {
     odometer: number | null;
     priority: string; // baixa | media | alta
     status: string; // status do banco
+    repairShop: string | null;
+    budget: number | null;
+    cost: number | null;
+    approvedAt: string | null;
+    completedAt: string | null;
 };
 
 function mapRow(r: ServiceOrderRow): MaintItem {
@@ -104,6 +114,11 @@ function mapRow(r: ServiceOrderRow): MaintItem {
         odometer: r.odometer ?? null,
         priority: r.priority ?? 'media',
         status: r.status ?? 'pendente',
+        repairShop: r.repair_shop ?? null,
+        budget: r.budget != null ? Number(r.budget) : null,
+        cost: r.cost != null ? Number(r.cost) : null,
+        approvedAt: r.approved_at ?? null,
+        completedAt: r.completed_at ?? null,
     };
 }
 
@@ -115,6 +130,12 @@ export default function Maintenances() {
     const [editMaintenance, setEditMaintenance] = useState<MaintItem | null>(null);
     const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
     const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('6'));
+    const [approveTarget, setApproveTarget] = useState<MaintItem | null>(null);
+    const [approveRepairShop, setApproveRepairShop] = useState('');
+    const [approveBudget, setApproveBudget] = useState('');
+    const [completeTarget, setCompleteTarget] = useState<MaintItem | null>(null);
+    const [completeCost, setCompleteCost] = useState('');
+    const [completeNote, setCompleteNote] = useState('');
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const { user } = useAuth();
 
@@ -122,6 +143,7 @@ export default function Maintenances() {
     const approve = useApproveMaintenance();
     const reject = useRejectMaintenance();
     const update = useUpdateMaintenance();
+    const complete = useCompleteMaintenance();
 
     useEffect(() => {
         setTitle('Manutenções');
@@ -209,6 +231,33 @@ export default function Maintenances() {
         { header: 'Secretaria', sortable: true, sortType: 'text', sortValue: (m) => m.department, accessor: (m) => m.department || '—' },
         { header: 'Categoria', sortable: true, sortType: 'text', sortValue: (m) => m.category, accessor: (m) => m.category || '—' },
         {
+            header: 'Oficina',
+            sortable: true,
+            sortType: 'text',
+            sortValue: (m) => m.repairShop ?? '',
+            accessor: (m) => m.repairShop || '—',
+        },
+        {
+            header: 'Orçado × Custo',
+            accessor: (m) => {
+                if (m.budget == null && m.cost == null) return '—';
+                return (
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-slate-600">
+                            {m.budget != null ? formatCurrency(m.budget) : '—'}
+                            {' / '}
+                            {m.cost != null ? formatCurrency(m.cost) : '—'}
+                        </span>
+                        {m.budget != null && m.cost != null && (
+                            <SGFBadge variant={m.cost <= m.budget ? 'success' : 'error'} size="sm">
+                                {m.cost <= m.budget ? 'OK' : 'Estourou'}
+                            </SGFBadge>
+                        )}
+                    </div>
+                );
+            },
+        },
+        {
             header: 'Descrição',
             sortable: true,
             sortType: 'text',
@@ -251,13 +300,58 @@ export default function Maintenances() {
     const inProgressCount = maintenances.filter((m) => m.status === 'em_execucao' || m.status === 'aprovada').length;
     const completedCount = maintenances.filter((m) => m.status === 'concluida').length;
 
-    const handleApprove = (id: string) => {
-        if (!user?.id) return;
+    const openApproveModal = (item: MaintItem) => {
+        setApproveRepairShop(item.repairShop ?? '');
+        setApproveBudget(item.budget != null ? String(item.budget) : '');
+        setApproveTarget(item);
+    };
+
+    const handleConfirmApprove = () => {
+        if (!user?.id || !approveTarget) return;
+        if (!approveRepairShop.trim()) {
+            toast.error('Informe a oficina/local do conserto.');
+            return;
+        }
         approve.mutate(
-            { id, approvedBy: user.id },
             {
-                onSuccess: () => { toast.success('Manutenção aprovada.'); setSelectedMaintenance(null); },
+                id: approveTarget.id,
+                approvedBy: user.id,
+                repairShop: approveRepairShop.trim(),
+                budget: approveBudget.trim() ? Number(approveBudget) : null,
+            },
+            {
+                onSuccess: () => {
+                    toast.success('Manutenção aprovada.');
+                    setApproveTarget(null);
+                    setSelectedMaintenance(null);
+                },
                 onError: () => toast.error('Erro ao aprovar manutenção.'),
+            }
+        );
+    };
+
+    const openCompleteModal = (item: MaintItem) => {
+        setCompleteCost(item.cost != null ? String(item.cost) : '');
+        setCompleteNote('');
+        setCompleteTarget(item);
+    };
+
+    const handleConfirmComplete = () => {
+        if (!completeTarget) return;
+        const costValue = Number(completeCost);
+        if (!completeCost.trim() || Number.isNaN(costValue) || costValue < 0) {
+            toast.error('Informe o custo final do serviço.');
+            return;
+        }
+        complete.mutate(
+            { id: completeTarget.id, cost: costValue, adminNote: completeNote.trim() || undefined },
+            {
+                onSuccess: () => {
+                    toast.success('Serviço concluído.');
+                    setCompleteTarget(null);
+                    setSelectedMaintenance(null);
+                },
+                onError: () => toast.error('Erro ao concluir serviço.'),
             }
         );
     };
@@ -529,18 +623,23 @@ export default function Maintenances() {
                                     <SGFButton variant="ghost" className="text-rose-600 hover:bg-rose-50" loading={reject.isPending} onClick={() => selectedMaintenance && handleReject(selectedMaintenance.id)}>
                                         Rejeitar
                                     </SGFButton>
-                                    <SGFButton variant="primary" loading={approve.isPending} onClick={() => selectedMaintenance && handleApprove(selectedMaintenance.id)}>
+                                    <SGFButton variant="primary" onClick={() => selectedMaintenance && openApproveModal(selectedMaintenance)}>
                                         Aprovar
                                     </SGFButton>
                                 </>
                             )}
                             {selectedMaintenance?.status === 'aprovada' && (
-                                <SGFButton variant="primary" loading={update.isPending} onClick={() => selectedMaintenance && handleSetStatus(selectedMaintenance.id, 'em_execucao')}>
-                                    Iniciar Execução
-                                </SGFButton>
+                                <>
+                                    <SGFButton variant="outline" loading={update.isPending} onClick={() => selectedMaintenance && handleSetStatus(selectedMaintenance.id, 'em_execucao')}>
+                                        Iniciar Execução
+                                    </SGFButton>
+                                    <SGFButton variant="primary" onClick={() => selectedMaintenance && openCompleteModal(selectedMaintenance)}>
+                                        Concluir Serviço
+                                    </SGFButton>
+                                </>
                             )}
                             {selectedMaintenance?.status === 'em_execucao' && (
-                                <SGFButton variant="primary" loading={update.isPending} onClick={() => selectedMaintenance && handleSetStatus(selectedMaintenance.id, 'concluida')}>
+                                <SGFButton variant="primary" onClick={() => selectedMaintenance && openCompleteModal(selectedMaintenance)}>
                                     Concluir Serviço
                                 </SGFButton>
                             )}
@@ -638,8 +737,156 @@ export default function Maintenances() {
                                 "{selectedMaintenance.description}"
                             </p>
                         </div>
+
+                        {/* Oficina / orçamento / custo final — só aparece após aprovação */}
+                        {(selectedMaintenance.repairShop || selectedMaintenance.budget != null || selectedMaintenance.cost != null) && (
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {selectedMaintenance.repairShop && (
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-teal-50 text-teal-600 rounded-xl">
+                                            <Building2 width={20} height={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Oficina / local do conserto</p>
+                                            <p className="font-bold text-slate-900">{selectedMaintenance.repairShop}</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {(selectedMaintenance.budget != null || selectedMaintenance.cost != null) && (
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                                            <DollarSign width={20} height={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Orçamento × Custo final</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-bold text-slate-900">
+                                                    {selectedMaintenance.budget != null ? formatCurrency(selectedMaintenance.budget) : '—'}
+                                                    {' → '}
+                                                    {selectedMaintenance.cost != null ? formatCurrency(selectedMaintenance.cost) : '—'}
+                                                </p>
+                                                {selectedMaintenance.budget != null && selectedMaintenance.cost != null && (
+                                                    <SGFBadge variant={selectedMaintenance.cost <= selectedMaintenance.budget ? 'success' : 'error'} size="sm">
+                                                        {selectedMaintenance.cost <= selectedMaintenance.budget ? 'Dentro do orçamento' : 'Orçamento estourado'}
+                                                    </SGFBadge>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {selectedMaintenance.approvedAt && (
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+                                            <Calendar width={20} height={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Aprovada em</p>
+                                            <p className="font-bold text-slate-900">{formatDate(selectedMaintenance.approvedAt)}</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {selectedMaintenance.completedAt && (
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                                            <CheckCircle width={20} height={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Concluída em</p>
+                                            <p className="font-bold text-slate-900">{formatDate(selectedMaintenance.completedAt)}</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
+            </Modal>
+
+            {/* Modal de Aprovação — oficina/orçamento */}
+            <Modal
+                isOpen={!!approveTarget}
+                onClose={() => setApproveTarget(null)}
+                title="Aprovar Ordem de Serviço"
+                description="Informe a oficina de destino e, se possível, o orçamento previsto."
+                size="sm"
+                footer={
+                    <div className="flex w-full justify-end gap-2">
+                        <SGFButton variant="ghost" onClick={() => setApproveTarget(null)}>Cancelar</SGFButton>
+                        <SGFButton variant="primary" loading={approve.isPending} onClick={handleConfirmApprove}>
+                            Confirmar Aprovação
+                        </SGFButton>
+                    </div>
+                }
+            >
+                <div className="space-y-4">
+                    <SGFInput
+                        label="Oficina / local do conserto"
+                        placeholder="Ex: Oficina Central Ltda"
+                        value={approveRepairShop}
+                        onChange={(e) => setApproveRepairShop(e.target.value)}
+                        icon={Building2}
+                        fullWidth
+                    />
+                    <SGFInput
+                        label="Orçamento (R$)"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        placeholder="Ex: 850.00"
+                        value={approveBudget}
+                        onChange={(e) => setApproveBudget(e.target.value)}
+                        icon={DollarSign}
+                        hint="Opcional, mas recomendado para acompanhar o custo final."
+                        fullWidth
+                    />
+                </div>
+            </Modal>
+
+            {/* Modal de Conclusão — custo final */}
+            <Modal
+                isOpen={!!completeTarget}
+                onClose={() => setCompleteTarget(null)}
+                title="Concluir Serviço"
+                description="Informe o custo final do serviço realizado."
+                size="sm"
+                footer={
+                    <div className="flex w-full justify-end gap-2">
+                        <SGFButton variant="ghost" onClick={() => setCompleteTarget(null)}>Cancelar</SGFButton>
+                        <SGFButton variant="primary" loading={complete.isPending} onClick={handleConfirmComplete}>
+                            Confirmar Conclusão
+                        </SGFButton>
+                    </div>
+                }
+            >
+                <div className="space-y-4">
+                    {completeTarget?.budget != null && (
+                        <p className="text-xs font-medium text-slate-500">
+                            Orçamento previsto: <span className="font-bold text-slate-700">{formatCurrency(completeTarget.budget)}</span>
+                        </p>
+                    )}
+                    <SGFInput
+                        label="Custo final (R$)"
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        placeholder="Ex: 920.00"
+                        value={completeCost}
+                        onChange={(e) => setCompleteCost(e.target.value)}
+                        icon={DollarSign}
+                        fullWidth
+                    />
+                    <SGFTextarea
+                        label="Observação (opcional)"
+                        placeholder="Detalhes do serviço realizado..."
+                        value={completeNote}
+                        onChange={(e) => setCompleteNote(e.target.value)}
+                        fullWidth
+                        rows={3}
+                    />
+                </div>
             </Modal>
         </div>
     );

@@ -5,7 +5,7 @@ import L from 'leaflet';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { Modal } from '@/components/ui/Modal';
-import { Car, Navigation, Search, User, Building2, MapPin, Clock, AlertTriangle } from '@/components/sgf/icons';
+import { Car, Navigation, Search, User, Building2, MapPin, Clock, AlertTriangle, Wrench } from '@/components/sgf/icons';
 import { cn, formatDateTime } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { supabase } from '@/lib/supabase';
@@ -25,6 +25,7 @@ const STATUS_STYLE: Record<LiveVehicle['status'], { color: string; svg: string }
     moving: { color: '#22C55E', svg: '<path d="M3 11l19-9-9 19-2-8-8-2z"/>' },                 // seta de navegação
     idle:   { color: '#3B82F6', svg: '<path d="M5 11l1.5-4.5h11L19 11v5h-1v1a1 1 0 01-2 0v-1H7.5v1a1 1 0 01-2 0v-1h-1v-5zm2.2-3.3L6.4 10h11.2l-.8-2.3H7.2zM7 12.5a1.2 1.2 0 100 2.4 1.2 1.2 0 000-2.4zm10 0a1.2 1.2 0 100 2.4 1.2 1.2 0 000-2.4z"/>' }, // carro
     alert:  { color: '#EF4444', svg: '<path d="M12 3l10 17H2L12 3z"/>' },                       // triângulo de alerta
+    manutencao: { color: '#F59E0B', svg: '<path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3l4 4-2.7 2.7-4-4C.9 6.8 1.3 9.8 3.3 11.8c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2-2c.4-.4.4-1 0-1.4z"/>' }, // chave inglesa
 };
 
 /**
@@ -60,7 +61,13 @@ function createMarkerIcon(status: LiveVehicle['status'], photo?: string | null) 
 }
 
 const DEFAULT_CENTER: [number, number] = [-15.7939, -47.8828];
-const getBadgeVariant = (status: string): any => status;
+const getBadgeVariant = (status: string): any => (status === 'manutencao' ? 'warning' : status);
+const STATUS_LABEL: Record<LiveVehicle['status'], string> = {
+    moving: 'Em movimento',
+    idle: 'Parado',
+    alert: 'Alerta',
+    manutencao: 'Em manutenção',
+};
 
 /** "2h 15min" desde o início da viagem. */
 function elapsedSince(iso: string | null): string {
@@ -86,21 +93,28 @@ function VehicleCardBody({ v }: { v: LiveVehicle }) {
                     </div>
                 )}
                 <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-bold text-white backdrop-blur-sm">
-                    {v.speed} km/h
+                    {v.status === 'manutencao' ? 'Oficina' : `${v.speed} km/h`}
                 </span>
             </div>
             <div className="p-3">
                 <div className="flex items-center justify-between gap-2">
                     <p className="truncate text-sm font-bold text-slate-900">{v.vehicleModel}</p>
                     <SGFBadge variant={getBadgeVariant(v.status)} size="sm">
-                        {v.status === 'moving' ? 'Em movimento' : v.status === 'alert' ? 'Alerta' : 'Parado'}
+                        {STATUS_LABEL[v.status]}
                     </SGFBadge>
                 </div>
                 <p className="mt-0.5 font-mono text-xs font-semibold tracking-wide text-slate-500">{v.plate}</p>
                 <div className="mt-2 space-y-1.5">
-                    <div className="flex items-center gap-2 text-xs text-slate-600">
-                        <User className="h-3.5 w-3.5 text-slate-400" /> {v.driver}
-                    </div>
+                    {v.status === 'manutencao' ? (
+                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                            <Wrench className="h-3.5 w-3.5 text-amber-500" />
+                            Em manutenção{v.repairShop ? ` — ${v.repairShop}` : ''}
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-xs text-slate-600">
+                            <User className="h-3.5 w-3.5 text-slate-400" /> {v.driver}
+                        </div>
+                    )}
                     <div className="flex items-center gap-2 text-xs text-slate-600">
                         <Building2 className="h-3.5 w-3.5 text-slate-400" /> {v.department}
                     </div>
@@ -185,6 +199,11 @@ export default function MapPage() {
 
     const active = selectedVehicle ? vehicles.find((v) => v.id === selectedVehicle) ?? null : null;
 
+    // Só entram no mapa (marcador) veículos com posição conhecida; em manutenção sem
+    // rastreador ainda aparecem na lista/contadores, só não têm marcador.
+    const mappableVehicles = filteredVehicles.filter((v): v is LiveVehicle & { lat: number; lng: number } => v.lat != null && v.lng != null);
+    const mapCenter = mappableVehicles[0] ? [mappableVehicles[0].lat, mappableVehicles[0].lng] as [number, number] : DEFAULT_CENTER;
+
     return (
         <div className="flex flex-col h-[calc(100dvh-11rem)] min-h-[420px] gap-3 overflow-hidden">
             {/* Estilos dos marcadores animados + tooltip-card */}
@@ -233,12 +252,13 @@ export default function MapPage() {
                             />
                         </div>
 
-                        <div className="grid w-full grid-cols-4 gap-1 rounded-xl bg-slate-100/50 p-1">
+                        <div className="grid w-full grid-cols-5 gap-1 rounded-xl bg-slate-100/50 p-1">
                             {[
                                 { value: 'all', label: 'Todos', count: vehicles.length },
                                 { value: 'moving', label: 'Movim.', count: statusCounts.moving || 0 },
                                 { value: 'idle', label: 'Parado', count: statusCounts.idle || 0 },
                                 { value: 'alert', label: 'Alerta', count: statusCounts.alert || 0 },
+                                { value: 'manutencao', label: 'Manut.', count: statusCounts.manutencao || 0 },
                             ].map((t) => {
                                 const isActive = statusFilter === t.value;
                                 return (
@@ -282,7 +302,8 @@ export default function MapPage() {
                                                 'w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden ring-2',
                                                 vehicle.status === 'moving' && 'bg-emerald-100 text-emerald-600 ring-emerald-300',
                                                 vehicle.status === 'idle' && 'bg-blue-100 text-blue-600 ring-blue-300',
-                                                vehicle.status === 'alert' && 'bg-red-100 text-red-600 ring-red-300'
+                                                vehicle.status === 'alert' && 'bg-red-100 text-red-600 ring-red-300',
+                                                vehicle.status === 'manutencao' && 'bg-amber-100 text-amber-600 ring-amber-300'
                                             )}
                                         >
                                             {vehicle.photo ? (
@@ -293,16 +314,24 @@ export default function MapPage() {
                                                     loading="lazy"
                                                     className="h-full w-full object-cover"
                                                 />
+                                            ) : vehicle.status === 'moving' ? (
+                                                <Navigation className="h-5 w-5" />
+                                            ) : vehicle.status === 'alert' ? (
+                                                <AlertTriangle className="h-5 w-5" />
+                                            ) : vehicle.status === 'manutencao' ? (
+                                                <Wrench className="h-5 w-5" />
                                             ) : (
-                                                vehicle.status === 'moving' ? <Navigation className="h-5 w-5" /> : vehicle.status === 'alert' ? <AlertTriangle className="h-5 w-5" /> : <Car className="h-5 w-5" />
+                                                <Car className="h-5 w-5" />
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="font-bold text-sm text-gray-900">{vehicle.plate}</p>
-                                            <p className="text-xs text-gray-500 truncate">{vehicle.driver}</p>
+                                            <p className="text-xs text-gray-500 truncate">
+                                                {vehicle.status === 'manutencao' ? (vehicle.repairShop || 'Em manutenção') : vehicle.driver}
+                                            </p>
                                         </div>
                                         <SGFBadge variant={getBadgeVariant(vehicle.status)} size="sm">
-                                            {vehicle.speed > 0 ? `${vehicle.speed} km/h` : '0 km/h'}
+                                            {vehicle.status === 'manutencao' ? 'Manutenção' : vehicle.speed > 0 ? `${vehicle.speed} km/h` : '0 km/h'}
                                         </SGFBadge>
                                     </div>
                                 </div>
@@ -317,9 +346,9 @@ export default function MapPage() {
                     padding="none"
                 >
                     <MapContainer
-                        key={filteredVehicles.length > 0 ? 'loaded' : 'empty'}
-                        center={filteredVehicles[0] ? [filteredVehicles[0].lat, filteredVehicles[0].lng] : DEFAULT_CENTER}
-                        zoom={filteredVehicles[0] ? 13 : 4}
+                        key={mappableVehicles.length > 0 ? 'loaded' : 'empty'}
+                        center={mapCenter}
+                        zoom={mappableVehicles[0] ? 13 : 4}
                         style={{ height: '100%', width: '100%' }}
                         className="h-full w-full"
                     >
@@ -327,7 +356,7 @@ export default function MapPage() {
                             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                         />
-                        {filteredVehicles.map((vehicle) => (
+                        {mappableVehicles.map((vehicle) => (
                             <Marker
                                 key={vehicle.id}
                                 position={[vehicle.lat, vehicle.lng]}
@@ -362,6 +391,17 @@ export default function MapPage() {
                             <VehicleCardBody v={active} />
                         </div>
 
+                        {active.status === 'manutencao' ? (
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                                <div className="flex items-center gap-1.5 text-amber-500">
+                                    <Wrench className="h-3.5 w-3.5" />
+                                    <span className="text-[10px] font-bold uppercase tracking-[0.12em]">Em manutenção</span>
+                                </div>
+                                <p className="mt-1.5 text-sm font-semibold text-amber-900">
+                                    {active.repairShop ? `Oficina: ${active.repairShop}` : 'Oficina ainda não informada'}
+                                </p>
+                            </div>
+                        ) : (
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
                                 <div className="flex items-center gap-1.5 text-slate-400">
@@ -385,6 +425,7 @@ export default function MapPage() {
                                 <p className="mt-1.5 truncate text-sm font-semibold text-slate-800" title={active.destination}>{active.destination}</p>
                             </div>
                         </div>
+                        )}
                     </div>
                 )}
             </Modal>

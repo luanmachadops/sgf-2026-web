@@ -666,15 +666,18 @@ export interface LiveVehicle {
     department: string;
     vehicleModel: string;
     photo: string | null;
-    lat: number;
-    lng: number;
+    lat: number | null;
+    lng: number | null;
     speed: number;
-    status: 'moving' | 'idle' | 'alert';
+    status: 'moving' | 'idle' | 'alert' | 'manutencao';
     recordedAt: string | null;
     // Viagem associada (para o modal de detalhes)
     tripId: string;
     destination: string;
     startAt: string | null;
+    // Preenchido quando o veículo está em manutenção (status='manutencao') e há
+    // uma O.S. aberta (aprovada/em_execucao) com oficina definida.
+    repairShop: string | null;
 }
 
 type VehicleEmbed = { plate?: string | null; brand?: string | null; model?: string | null; photo_url?: string | null; departments?: { name?: string } | null } | null;
@@ -729,6 +732,7 @@ export const mapApi = {
                 tripId: trip?.id ?? '',
                 destination: (trip as { destination?: string } | undefined)?.destination ?? '—',
                 startAt: (trip as { start_at?: string | null } | undefined)?.start_at ?? null,
+                repairShop: null,
             });
         }
 
@@ -764,7 +768,59 @@ export const mapApi = {
                     tripId: t.id,
                     destination: (t as { destination?: string }).destination ?? '—',
                     startAt: (t as { start_at?: string | null }).start_at ?? null,
+                    repairShop: null,
                 });
+            }
+        }
+
+        // 4) Veículos em manutenção (vehicles.status='manutencao') — sempre exibidos,
+        // mesmo sem sinal de rastreador, para não "sumirem" do mapa/legenda enquanto na oficina.
+        const { data: maintVehicles } = await supabase
+            .from('vehicles')
+            .select('id, plate, brand, model, photo_url, status, departments(name)')
+            .eq('status', 'manutencao');
+
+        if (maintVehicles && maintVehicles.length > 0) {
+            const maintIds = maintVehicles.map((v) => v.id);
+            // Oficina da O.S. aberta mais recente (aprovada/em_execucao) por veículo.
+            const { data: openOrders } = await supabase
+                .from('service_orders')
+                .select('vehicle_id, repair_shop, status, approved_at')
+                .in('vehicle_id', maintIds)
+                .in('status', ['aprovada', 'em_execucao'])
+                .order('approved_at', { ascending: false });
+            const repairShopByVehicle = new Map<string, string | null>();
+            for (const o of openOrders ?? []) {
+                if (o.vehicle_id && !repairShopByVehicle.has(o.vehicle_id)) {
+                    repairShopByVehicle.set(o.vehicle_id, o.repair_shop ?? null);
+                }
+            }
+
+            for (const v of maintVehicles) {
+                const existing = byVehicle.get(v.id);
+                const repairShop = repairShopByVehicle.get(v.id) ?? null;
+                if (existing) {
+                    // Já tem posição (rastreador/viagem) — só sobrescreve o status/oficina.
+                    byVehicle.set(v.id, { ...existing, status: 'manutencao', repairShop });
+                } else {
+                    byVehicle.set(v.id, {
+                        id: v.id,
+                        plate: v.plate ?? 'Sem placa',
+                        driver: 'Em manutenção',
+                        department: (v.departments as { name?: string } | null)?.name ?? '—',
+                        vehicleModel: buildModel(v as VehicleEmbed),
+                        photo: v.photo_url ?? null,
+                        lat: null,
+                        lng: null,
+                        speed: 0,
+                        status: 'manutencao',
+                        recordedAt: null,
+                        tripId: '',
+                        destination: '—',
+                        startAt: null,
+                        repairShop,
+                    });
+                }
             }
         }
 
@@ -1186,13 +1242,16 @@ export const maintenancesApi = {
         return data as Tables<'service_orders'>;
     },
 
-    approve: async (id: string, approvedBy: string, _notes?: string) => {
+    approve: async (id: string, approvedBy: string, opts?: { repairShop: string; budget?: number | null; notes?: string }) => {
         const { data, error } = await supabase
             .from('service_orders')
             .update({
                 status: 'aprovada',
                 approved_by: approvedBy,
                 approved_at: new Date().toISOString(),
+                ...(opts?.repairShop ? { repair_shop: opts.repairShop } : {}),
+                ...(opts?.budget !== undefined ? { budget: opts.budget } : {}),
+                ...(opts?.notes ? { admin_note: opts.notes } : {}),
             })
             .eq('id', id)
             .select()
@@ -1207,6 +1266,23 @@ export const maintenancesApi = {
             .update({
                 status: 'rejeitada',
                 admin_note: reason,
+            })
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) handleError(error);
+        return data;
+    },
+
+    // Conclui a O.S. (aprovada ou em_execucao → concluida), registrando o custo final.
+    complete: async (id: string, cost: number, adminNote?: string) => {
+        const { data, error } = await supabase
+            .from('service_orders')
+            .update({
+                status: 'concluida',
+                cost,
+                completed_at: new Date().toISOString(),
+                ...(adminNote ? { admin_note: adminNote } : {}),
             })
             .eq('id', id)
             .select()
