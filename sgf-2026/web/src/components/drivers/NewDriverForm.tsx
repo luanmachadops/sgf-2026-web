@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { Loader2, Save, Camera, User, LockKeyhole, Sparkles } from '@/components/sgf/icons';
+import { Loader2, Save, LockKeyhole, Sparkles } from '@/components/sgf/icons';
 import { departmentsApi } from '@/lib/supabase-api';
 import { extractDriverFromCNH } from '@/lib/driverAI';
 import { toast } from 'sonner';
@@ -61,11 +61,8 @@ interface NewDriverFormProps {
 
 export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
     const { user } = useAuth();
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string }>>([]);
     const [aiLoading, setAiLoading] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const cnhInputRef = useRef<HTMLInputElement>(null);
     const createDriverMutation = useCreateDriver();
 
@@ -148,25 +145,6 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
 
     const isSubmitting = isFormSubmitting;
 
-    const handlePhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        if (!isImageFile(file)) {
-            toast.error('Por favor, selecione um arquivo de imagem válido');
-            return;
-        }
-
-        setSelectedFile(file);
-
-        // create preview
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setPhotoPreview(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-    };
-
     const onSubmit = async (data: DriverFormInput) => {
         try {
             await createDriverMutation.mutateAsync({
@@ -184,10 +162,6 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
                 password: data.password,
             });
 
-            if (selectedFile) {
-                toast.warning('O upload de foto para motoristas ainda não está disponível nesta versão.');
-            }
-
             toast.success('Motorista cadastrado com sucesso!');
             onSuccess();
         } catch (error: any) {
@@ -199,55 +173,8 @@ export function NewDriverForm({ onSuccess, onCancel }: NewDriverFormProps) {
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-8">
-                {/* Left Column - Photo Upload */}
+                {/* Left Column - Leitura de CNH */}
                 <div className="space-y-4">
-                    <label className="block text-sm font-medium text-slate-700">
-                        Foto do Motorista
-                    </label>
-                    <div
-                        className={`
-                            relative aspect-square w-full rounded-2xl border-2 border-dashed
-                            flex flex-col items-center justify-center cursor-pointer overflow-hidden transition-all
-                            ${photoPreview
-                                ? 'border-emerald-500/50 bg-emerald-50/30'
-                                : 'border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/30'
-                            }
-                        `}
-                        onClick={() => fileInputRef.current?.click()}
-                    >
-                        {photoPreview ? (
-                            <>
-                                <img
-                                    src={photoPreview}
-                                    alt="Preview"
-                                    className="absolute inset-0 w-full h-full object-cover"
-                                />
-                                <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <Camera className="w-8 h-8 text-white" />
-                                </div>
-                            </>
-                        ) : (
-                            <div className="text-center p-4">
-                                <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3">
-                                    <User width={24} height={24} />
-                                </div>
-                                <p className="text-sm font-medium text-slate-700">
-                                    Clique para enviar
-                                </p>
-                                <p className="text-xs text-slate-500 mt-1">
-                                    JPG, PNG ou WebP
-                                </p>
-                            </div>
-                        )}
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handlePhotoSelect}
-                        />
-                    </div>
-
                     {/* Preenchimento automático via foto da CNH */}
                     <div className="space-y-2">
                         <SGFButton

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { SGFButton } from '@/components/sgf/SGFButton';
@@ -65,7 +65,6 @@ function fmtDateTime(iso?: string | null) {
 
 export default function Infracoes() {
     const { setTitle, setDescription, setHeaderAction } = useHeader();
-    const queryClient = useQueryClient();
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
@@ -76,34 +75,16 @@ export default function Infracoes() {
         queryFn: () => infractionsApi.getAll({ status: statusFilter || undefined, search: searchTerm || undefined }),
     });
 
-    const [importing, setImporting] = useState(false);
-
-    const handleImportDetran = useCallback(async () => {
-        try {
-            setImporting(true);
-            await infractionsApi.importFromDetran('');
-            toast.success('Multas importadas do DETRAN.');
-            queryClient.invalidateQueries({ queryKey: ['infractions'] });
-        } catch (e) {
-            toast.warning((e as { message?: string })?.message ?? 'Erro ao importar do DETRAN.');
-        } finally {
-            setImporting(false);
-        }
-    }, [queryClient]);
-
     useEffect(() => {
         setTitle('Infrações');
         setDescription('Consulta de multas e indicação do condutor responsável.');
         setHeaderAction(
             <div className="flex flex-wrap items-center justify-end gap-2">
-                <SGFButton variant="secondary" icon={Download} loading={importing} onClick={handleImportDetran} className="!rounded-full !h-[37px]">
-                    Importar do DETRAN
-                </SGFButton>
                 <SGFButton icon={Plus} onClick={() => setShowAddModal(true)} className="!rounded-full !h-[37px]">Nova infração</SGFButton>
             </div>
         );
         return () => setHeaderAction(null);
-    }, [setTitle, setDescription, setHeaderAction, handleImportDetran, importing]);
+    }, [setTitle, setDescription, setHeaderAction]);
 
     const list = infractions as InfractionRow[];
     const pendingCount = list.filter((i) => i.status === 'pendente').length;

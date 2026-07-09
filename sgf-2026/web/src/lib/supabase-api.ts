@@ -912,12 +912,6 @@ export const infractionsApi = {
         if (error) handleError(error);
         return data as Tables<'infractions'>;
     },
-
-    // Integração DETRAN (placeholder): consulta multas por CNPJ.
-    // A integração real entra aqui (edge function com credenciais do órgão).
-    importFromDetran: async (_cnpj: string): Promise<{ imported: number }> => {
-        throw new Error('Integração com o DETRAN ainda não configurada. Lance as infrações manualmente por enquanto.');
-    },
 };
 
 // ========================================
@@ -2267,87 +2261,6 @@ export const userProfileApi = {
             handleError(error);
         }
         return data as Tables<'profiles'>;
-    },
-};
-
-// ========================================
-// EDGE FUNCTIONS
-// ========================================
-
-export interface RefuelingValidationInput {
-    vehicle_id: string;
-    driver_id: string;
-    odometer: number;
-    liters: number;
-    total_cost: number;
-    fuel_type: string;
-    supplier_name: string;
-}
-
-export interface RefuelingValidationResult {
-    is_valid: boolean;
-    anomalies: string[];
-    risk_score: number;
-    km_per_liter: number | null;
-}
-
-export interface TripAnomaly {
-    trip_id: string;
-    type: string;
-    severity: 'LOW' | 'MEDIUM' | 'HIGH';
-    description: string;
-}
-
-export interface TripAnomalyResult {
-    summary: {
-        totalTripsAnalyzed: number;
-        totalAnomalies: number;
-        tripsWithAnomalies: number;
-        bySeverity: { HIGH: number; MEDIUM: number; LOW: number };
-        byType: Record<string, number>;
-    };
-    anomalies: TripAnomaly[];
-}
-
-export const edgeFunctionsApi = {
-    /**
-     * Fetches dashboard KPIs computed server-side with service_role access.
-     * Supports department-scoped data for MANAGER role.
-     */
-    getDashboardKPIs: async () => {
-        const { data, error } = await supabase.functions.invoke('dashboard-kpis', {
-            method: 'POST',
-        });
-        if (error) throw new SupabaseApiError(error.message || 'Edge function error');
-        return data;
-    },
-
-    /**
-     * Validates a refueling entry against anti-fraud rules.
-     * Returns a risk score (0-100) and list of detected anomalies.
-     */
-    validateRefueling: async (input: RefuelingValidationInput): Promise<RefuelingValidationResult> => {
-        const { data, error } = await supabase.functions.invoke('validate-refueling', {
-            body: input,
-        });
-        if (error) throw new SupabaseApiError(error.message || 'Edge function error');
-        return data as RefuelingValidationResult;
-    },
-
-    /**
-     * Scans trips for anomalies (odometer regression, overlapping trips, etc.)
-     * and auto-flags problematic trips in the database.
-     */
-    detectTripAnomalies: async (filters?: {
-        days?: number;
-        vehicle_id?: string;
-        driver_id?: string;
-    }): Promise<TripAnomalyResult> => {
-        const { data, error } = await supabase.functions.invoke('detect-trip-anomalies', {
-            body: filters || {},
-        });
-        if (error) throw new SupabaseApiError(error.message || 'Edge function error');
-        return data as TripAnomalyResult;
     },
 };
 
