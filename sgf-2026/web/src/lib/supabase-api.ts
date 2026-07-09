@@ -912,12 +912,6 @@ export const infractionsApi = {
         if (error) handleError(error);
         return data as Tables<'infractions'>;
     },
-
-    // Integração DETRAN (placeholder): consulta multas por CNPJ.
-    // A integração real entra aqui (edge function com credenciais do órgão).
-    importFromDetran: async (_cnpj: string): Promise<{ imported: number }> => {
-        throw new Error('Integração com o DETRAN ainda não configurada. Lance as infrações manualmente por enquanto.');
-    },
 };
 
 // ========================================
