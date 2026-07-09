@@ -2,75 +2,61 @@
 
 > **Este arquivo é a fonte da verdade do projeto.**
 > Leia-o completamente antes de qualquer ação.
-> Consulte-o sempre que tiver dúvidas sobre arquitetura, padrões ou decisões.
+> Para o estado atual das tarefas de produção (o que falta, prompts prontos,
+> decisões pendentes), leia também `sgf-2026/PRODUCAO.md`.
 
 ---
 
 ## 🎯 VISÃO GERAL DO PROJETO
 
-**SGF 2026** (Sistema de Gestão de Frotas Municipal) é uma plataforma para controle de frotas de prefeituras, focado no setor de obras/garagem.
+**SGF 2026** (Sistema de Gestão de Frotas Municipal) é uma plataforma para
+controle de frotas de prefeituras. **Não há backend próprio (NestJS) nem app
+mobile em Flutter** — essa era uma arquitetura antiga, abandonada.
 
-### Componentes do Sistema
+### Componentes reais do sistema
 
-| Componente | Tecnologia | Porta | Descrição |
-|------------|------------|-------|-----------|
-| `backend/` | NestJS + TypeScript | 3000 | API REST |
-| `web/` | React + Vite + TypeScript | 5173 | Painel do Gestor |
-| `mobile/` | Flutter | - | App do Motorista |
-| `database` | PostgreSQL + PostGIS | 5432 | Banco de dados |
+| Componente | Onde | Stack |
+|---|---|---|
+| Painel do gestor | `sgf-2026/web` | React + Vite + TypeScript, Tailwind puro. Fala direto com o Supabase (client) + algumas rotas serverless da Vercel em `sgf-2026/web/api` |
+| Painel superadmin | `sgf-2026/admin` | React + Vite + TypeScript, serverless em `sgf-2026/admin/api` |
+| App do motorista | Repo separado: https://github.com/luanmachadops/appFrota | **React Native / Expo** (não é Flutter) |
+| Banco | Supabase (projeto `kgxdrgbxpfoebzrphtqg`, `FrotaMunicipal`, sa-east-1) | Postgres 17, multi-tenant via RLS (tabela `tenants`, coluna `tenant_id` em praticamente todas as tabelas) |
+| Edge functions | `sgf-2026/supabase/functions` | Ex.: `iopgps-command`, `iopgps-history`, `iopgps-sync` (integração com rastreadores IOPGPS). Outras podem existir só deployadas — conferir `supabase/functions/README.md` e o painel do Supabase antes de assumir que uma function não existe |
 
-### Estrutura de Pastas
+Não confie de olho neste documento sozinho para saber o que está deployado —
+edge functions podem ter sido criadas direto no painel do Supabase sem passar
+pelo repo. Sempre confirme com `supabase functions list` ou pelo MCP do
+Supabase antes de assumir que uma function existe (ou não existe).
+
+### Estrutura de pastas (real)
 
 ```
-sgf-2026/
-├── CLAUDE.md            # ← VOCÊ ESTÁ AQUI
-├── README.md
-├── docker-compose.yml
-├── backend/
-│   ├── src/
-│   │   ├── main.ts
-│   │   ├── app.module.ts
-│   │   ├── config/
-│   │   ├── common/
-│   │   │   ├── decorators/
-│   │   │   ├── filters/
-│   │   │   ├── guards/
-│   │   │   └── interceptors/
-│   │   └── modules/
-│   │       ├── auth/
-│   │       ├── users/
-│   │       ├── drivers/
-│   │       ├── vehicles/
-│   │       ├── trips/
-│   │       ├── refuelings/
-│   │       ├── maintenances/
-│   │       ├── checklists/
-│   │       ├── departments/
-│   │       └── dashboard/
-│   ├── prisma/          # ou typeorm/
-│   └── test/
-├── web/
-│   ├── src/
-│   │   ├── main.tsx
-│   │   ├── App.tsx
-│   │   ├── components/
-│   │   │   ├── ui/
-│   │   │   ├── layout/
-│   │   │   └── features/
-│   │   ├── features/
-│   │   ├── hooks/
-│   │   ├── lib/
-│   │   ├── stores/
-│   │   └── types/
-│   └── public/
-└── mobile/
-    └── lib/
-        ├── main.dart
-        ├── app/
-        ├── core/
-        ├── features/
-        └── shared/
+AppFrota-web/               # monorepo (branch main)
+├── CLAUDE.md                # ← você está aqui
+├── sgf-2026/
+│   ├── PRODUCAO.md          # plano de go-live: tarefas, prompts prontos, decisões pendentes
+│   ├── web/                 # painel do gestor
+│   │   ├── src/
+│   │   │   ├── pages/       # uma página por rota (Dashboard, Vehicles, Drivers, Trips, ...)
+│   │   │   ├── components/  # componentes de UI (prefixo SGF*) e por domínio (drivers/, settings/, ...)
+│   │   │   ├── contexts/    # AuthContext, HeaderContext
+│   │   │   ├── hooks/       # ex.: useDrivers, useRealtimeSync
+│   │   │   ├── lib/         # supabase.ts (client), supabase-api.ts (queries), backend-api.ts (chama web/api)
+│   │   │   └── types/       # database.types.ts gerado do Supabase
+│   │   └── api/             # funções serverless da Vercel (ex.: drivers/pre-register.ts)
+│   ├── admin/                # painel superadmin (mesma stack de web/)
+│   │   ├── src/
+│   │   └── api/
+│   ├── supabase/
+│   │   ├── functions/        # edge functions versionadas
+│   │   └── migrations/       # migrations SQL aplicadas em produção
+│   └── database/             # scripts/schema de referência (se houver)
+└── (app do motorista fica em repo separado: appFrota)
 ```
+
+Não existe `sgf-2026/backend/` (era um NestJS morto, removido). Não existe
+diretório `mobile/` em Flutter — o app do motorista é Expo/React Native, em
+repositório próprio.
 
 ---
 
@@ -111,647 +97,115 @@ sgf-2026/
 - **Labels:** Medium, 12px
 - **Mobile mínimo:** 16px
 
-### Aplicação das Cores
+### Regras de UI
 
-| Elemento | Cor | Código |
-|----------|-----|--------|
-| Sidebar/Header | Primary Dark | `#0F2B2F` |
-| Botões primários | Primary Green | `#00A86B` |
-| Botões hover | Light Accent | `#70C4A8` |
-| Background página | Surface | `#F5F7F9` |
-| Cards | White | `#FFFFFF` |
-| Botão secundário | Borda Primary Green | `border: #00A86B` |
-| Links | Primary Green | `#00A86B` |
-| Ícones ativos | Primary Green | `#00A86B` |
-| Ícones inativos | Text Secondary | `#6B7280` |
+- Tailwind puro — **não usar** bibliotecas de componentes prontas (Material UI, Chakra, etc.).
+- Componentes reutilizáveis do painel usam o prefixo `SGF*` (`SGFButton`, `SGFCard`, `SGFTable`, `SGFInput`, `SGFSelect`, `SGFBadge`, `SGFKPICard`, `SGFToolbar`, ícones em `@/components/sgf/icons`).
 
 ---
 
 ## 🗄️ BANCO DE DADOS
 
-### Entidades e Relacionamentos
+- Postgres via Supabase, **multi-tenant por RLS**: quase toda tabela tem
+  `tenant_id`, resolvido no banco por `get_user_tenant_id()`. Nunca escreva
+  queries que ignorem RLS assumindo que o cliente vai filtrar por tenant.
+- Papéis (`profiles.role`): `superadmin`, `admin`, `gestor`, `secretario`,
+  `motorista`.
+- Storage: bucket `fotos` (público, sem listagem) e `documentos` (privado,
+  acesso via URL assinada — usar o padrão de `web/src/lib/docStorage.ts`).
+- Fluxo real de manutenção usa a tabela `service_orders` (criadas a partir de
+  checklist crítico ou solicitação manual). A tabela `maintenances` existe no
+  schema mas está morta (0 rows) — não assuma que é a fonte de manutenções
+  reais sem checar `PRODUCAO.md`.
+- Tipos TypeScript do banco: gerados em `web/src/types/database.types.ts` via
+  `npx supabase gen types typescript --project-id kgxdrgbxpfoebzrphtqg --schema public`.
+  Rode esse comando (documentado em `PRODUCAO.md`) sempre que o schema mudar,
+  em vez de editar o arquivo à mão.
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│ departments │────<│   vehicles  │────<│    trips    │
-└─────────────┘     └─────────────┘     └─────────────┘
-       │                   │                   │
-       │            ┌──────┴──────┐           │
-       │            │             │           │
-       ▼            ▼             ▼           ▼
-┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-│   drivers   │  │ refuelings  │  │ checklists  │
-└─────────────┘  └─────────────┘  └─────────────┘
-       │                │
-       │                │
-       ▼                ▼
-┌─────────────┐  ┌─────────────┐
-│    users    │  │maintenances │
-│   (painel)  │  └─────────────┘
-└─────────────┘
-```
-
-### Schema Principal
-
-```sql
--- DEPARTMENTS (Secretarias)
-departments (
-  id UUID PK,
-  name VARCHAR(100) NOT NULL,
-  code VARCHAR(20) UNIQUE,
-  created_at TIMESTAMP
-)
-
--- VEHICLES (Veículos)
-vehicles (
-  id UUID PK,
-  plate VARCHAR(10) UNIQUE NOT NULL,      -- ABC-1234 ou ABC1D23
-  renavam VARCHAR(11),
-  chassis VARCHAR(17),
-  brand VARCHAR(50) NOT NULL,
-  model VARCHAR(50) NOT NULL,
-  year INTEGER NOT NULL,
-  color VARCHAR(30),
-  fuel_type ENUM('DIESEL','GASOLINE','ETHANOL','FLEX') NOT NULL,
-  tank_capacity DECIMAL(5,2) NOT NULL,    -- Litros
-  current_odometer INTEGER NOT NULL DEFAULT 0,
-  expected_km_per_liter DECIMAL(4,2),     -- Para validação
-  department_id UUID FK,
-  status ENUM('AVAILABLE','IN_USE','MAINTENANCE','INACTIVE') DEFAULT 'AVAILABLE',
-  qr_code_hash VARCHAR(64) UNIQUE NOT NULL,
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP
-)
-
--- DRIVERS (Motoristas)
-drivers (
-  id UUID PK,
-  cpf VARCHAR(11) UNIQUE NOT NULL,
-  name VARCHAR(100) NOT NULL,
-  registration_number VARCHAR(20),         -- Matrícula
-  cnh_number VARCHAR(11) NOT NULL,
-  cnh_category VARCHAR(5) NOT NULL,        -- A, B, C, D, E, AB...
-  cnh_expiry_date DATE NOT NULL,
-  department_id UUID FK,
-  phone VARCHAR(20),
-  email VARCHAR(100),
-  password_hash VARCHAR(255) NOT NULL,
-  score DECIMAL(3,2) DEFAULT 5.00,         -- 0.00 a 5.00
-  status ENUM('ACTIVE','INACTIVE','SUSPENDED') DEFAULT 'ACTIVE',
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP
-)
-
--- TRIPS (Viagens)
-trips (
-  id UUID PK,
-  vehicle_id UUID FK NOT NULL,
-  driver_id UUID FK NOT NULL,
-  destination TEXT NOT NULL,
-  estimated_distance_km DECIMAL(8,2),
-  actual_distance_km DECIMAL(8,2),
-  estimated_duration_min INTEGER,
-  actual_duration_min INTEGER,
-  start_odometer INTEGER NOT NULL,
-  end_odometer INTEGER,
-  start_time TIMESTAMP NOT NULL,
-  end_time TIMESTAMP,
-  start_lat DECIMAL(10,8),
-  start_lng DECIMAL(11,8),
-  end_lat DECIMAL(10,8),
-  end_lng DECIMAL(11,8),
-  status ENUM('IN_PROGRESS','COMPLETED','CANCELLED') DEFAULT 'IN_PROGRESS',
-  has_anomaly BOOLEAN DEFAULT FALSE,
-  anomaly_reason TEXT,
-  created_at TIMESTAMP
-)
-
--- REFUELINGS (Abastecimentos)
-refuelings (
-  id UUID PK,
-  vehicle_id UUID FK NOT NULL,
-  driver_id UUID FK NOT NULL,
-  trip_id UUID FK,                         -- NULL se fora de viagem
-  liters DECIMAL(6,2) NOT NULL,
-  total_cost DECIMAL(10,2) NOT NULL,
-  price_per_liter DECIMAL(5,3),            -- Calculado
-  odometer INTEGER NOT NULL,
-  fuel_type VARCHAR(20) NOT NULL,
-  supplier_name VARCHAR(100),
-  photo_dashboard_url TEXT NOT NULL,
-  photo_receipt_url TEXT NOT NULL,
-  lat DECIMAL(10,8),
-  lng DECIMAL(11,8),
-  km_per_liter DECIMAL(5,2),               -- Calculado
-  has_anomaly BOOLEAN DEFAULT FALSE,
-  anomaly_type ENUM('ODOMETER_REGRESSION','EXCESSIVE_CONSUMPTION','CAPACITY_EXCEEDED','LOCATION_MISMATCH'),
-  validated_at TIMESTAMP,
-  validated_by UUID FK,
-  created_at TIMESTAMP
-)
-
--- MAINTENANCES (Manutenções)
-maintenances (
-  id UUID PK,
-  vehicle_id UUID FK NOT NULL,
-  requested_by UUID FK,                    -- Driver
-  type ENUM('PREVENTIVE','CORRECTIVE','EMERGENCY') NOT NULL,
-  category ENUM('MECHANICAL','ELECTRICAL','TIRES','BODY') NOT NULL,
-  description TEXT NOT NULL,
-  urgency INTEGER CHECK(1-5) DEFAULT 3,
-  status ENUM('PENDING','APPROVED','REJECTED','IN_PROGRESS','AWAITING_PARTS','COMPLETED') DEFAULT 'PENDING',
-  estimated_cost DECIMAL(10,2),
-  actual_cost DECIMAL(10,2),
-  start_date TIMESTAMP,
-  end_date TIMESTAMP,
-  service_provider VARCHAR(100),
-  notes TEXT,
-  photos JSON,                             -- Array de URLs
-  approved_by UUID FK,
-  approved_at TIMESTAMP,
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP
-)
-
--- CHECKLISTS
-checklists (
-  id UUID PK,
-  vehicle_id UUID FK NOT NULL,
-  driver_id UUID FK NOT NULL,
-  trip_id UUID FK,
-  type ENUM('PRE_TRIP','POST_TRIP') NOT NULL,
-  has_issues BOOLEAN DEFAULT FALSE,
-  blocked_trip BOOLEAN DEFAULT FALSE,
-  completed_at TIMESTAMP NOT NULL,
-  items JSON NOT NULL,                     -- Array de {item, status, notes, photo}
-  created_at TIMESTAMP
-)
-
--- USERS (Usuários do Painel)
-users (
-  id UUID PK,
-  email VARCHAR(100) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  name VARCHAR(100) NOT NULL,
-  role ENUM('ADMIN','MANAGER','VIEWER') NOT NULL,
-  department_id UUID FK,
-  is_active BOOLEAN DEFAULT TRUE,
-  last_login TIMESTAMP,
-  created_at TIMESTAMP,
-  updated_at TIMESTAMP
-)
-
--- POSITION_LOGS (Rastreamento GPS)
-position_logs (
-  id BIGSERIAL PK,
-  trip_id UUID FK NOT NULL,
-  vehicle_id UUID FK NOT NULL,
-  lat DECIMAL(10,8) NOT NULL,
-  lng DECIMAL(11,8) NOT NULL,
-  speed_kmh DECIMAL(5,2),
-  heading DECIMAL(5,2),
-  accuracy_meters DECIMAL(6,2),
-  recorded_at TIMESTAMP NOT NULL,
-  created_at TIMESTAMP
-)
-
--- TRIP_STOPS (Paradas durante viagem)
-trip_stops (
-  id UUID PK,
-  trip_id UUID FK NOT NULL,
-  type ENUM('MEAL','LOADING','EMERGENCY','PERSONAL') NOT NULL,
-  start_time TIMESTAMP NOT NULL,
-  end_time TIMESTAMP,
-  lat DECIMAL(10,8),
-  lng DECIMAL(11,8),
-  notes TEXT,
-  created_at TIMESTAMP
-)
-```
-
-### Índices Importantes
-
-```sql
-CREATE INDEX idx_vehicles_department ON vehicles(department_id);
-CREATE INDEX idx_vehicles_status ON vehicles(status);
-CREATE INDEX idx_drivers_department ON drivers(department_id);
-CREATE INDEX idx_drivers_cpf ON drivers(cpf);
-CREATE INDEX idx_trips_vehicle ON trips(vehicle_id);
-CREATE INDEX idx_trips_driver ON trips(driver_id);
-CREATE INDEX idx_trips_status ON trips(status);
-CREATE INDEX idx_trips_dates ON trips(start_time, end_time);
-CREATE INDEX idx_refuelings_vehicle ON refuelings(vehicle_id);
-CREATE INDEX idx_refuelings_anomaly ON refuelings(has_anomaly);
-CREATE INDEX idx_maintenances_vehicle ON maintenances(vehicle_id);
-CREATE INDEX idx_maintenances_status ON maintenances(status);
-CREATE INDEX idx_position_logs_trip ON position_logs(trip_id, recorded_at);
-```
+Antes de propor uma migration (DDL), leia `sgf-2026/PRODUCAO.md` —
+mudanças de schema em produção exigem aprovação explícita do usuário.
 
 ---
 
-## 🔌 API ENDPOINTS
+## 🔌 ACESSO A DADOS
 
-### Autenticação
+Não há uma API REST própria com rotas fixas (`/api/vehicles`, `/api/drivers`,
+etc.) como em versões antigas deste documento. Os dois padrões reais são:
 
-```
-POST   /api/auth/login              # Login usuário painel
-POST   /api/auth/driver/login       # Login motorista
-POST   /api/auth/refresh            # Renovar token
-POST   /api/auth/logout             # Invalidar sessão
-```
+1. **Client Supabase direto** (a maioria das leituras/escritas): queries e
+   mutations centralizadas em `web/src/lib/supabase-api.ts` (e equivalente em
+   `admin/src/lib/`), respeitando RLS.
+2. **Serverless functions da Vercel**, para operações que precisam de
+   `service_role` ou lógica que não pode rodar no client (ex.: pré-cadastro de
+   motorista com senha provisória): `web/api/**` e `admin/api/**`, chamadas
+   pelo client via `web/src/lib/backend-api.ts`.
 
-### Veículos
-
-```
-GET    /api/vehicles                # Listar (paginado, filtros)
-GET    /api/vehicles/:id            # Detalhes
-POST   /api/vehicles                # Criar
-PUT    /api/vehicles/:id            # Atualizar
-DELETE /api/vehicles/:id            # Soft delete
-POST   /api/vehicles/scan           # Buscar por QR Code hash
-GET    /api/vehicles/:id/history    # Histórico completo
-GET    /api/vehicles/:id/stats      # Estatísticas
-```
-
-### Motoristas
-
-```
-GET    /api/drivers                 # Listar
-GET    /api/drivers/:id             # Detalhes
-POST   /api/drivers                 # Criar
-PUT    /api/drivers/:id             # Atualizar
-DELETE /api/drivers/:id             # Soft delete
-GET    /api/drivers/:id/trips       # Viagens do motorista
-GET    /api/drivers/:id/stats       # Estatísticas
-GET    /api/drivers/expiring-cnh    # CNHs vencendo
-```
-
-### Viagens
-
-```
-GET    /api/trips                   # Listar
-GET    /api/trips/:id               # Detalhes
-POST   /api/trips/start             # Iniciar viagem
-PUT    /api/trips/:id/stop          # Registrar parada
-PUT    /api/trips/:id/resume        # Retomar viagem
-PUT    /api/trips/:id/finish        # Finalizar viagem
-GET    /api/trips/:id/route         # Rota percorrida (GPS points)
-GET    /api/trips/active            # Viagens em andamento
-```
-
-### Abastecimentos
-
-```
-GET    /api/refuelings              # Listar
-GET    /api/refuelings/:id          # Detalhes
-POST   /api/refuelings              # Registrar
-PUT    /api/refuelings/:id/validate # Validar (gestor)
-PUT    /api/refuelings/:id/reject   # Rejeitar (gestor)
-GET    /api/refuelings/anomalies    # Listar anomalias
-GET    /api/refuelings/pending      # Pendentes validação
-```
-
-### Manutenções
-
-```
-GET    /api/maintenances            # Listar
-GET    /api/maintenances/:id        # Detalhes
-POST   /api/maintenances            # Solicitar
-PUT    /api/maintenances/:id        # Atualizar
-PUT    /api/maintenances/:id/approve    # Aprovar
-PUT    /api/maintenances/:id/reject     # Rejeitar
-PUT    /api/maintenances/:id/start      # Iniciar serviço
-PUT    /api/maintenances/:id/complete   # Concluir
-GET    /api/maintenances/pending    # Pendentes
-```
-
-### Checklists
-
-```
-GET    /api/checklists/templates    # Templates por tipo de veículo
-POST   /api/checklists              # Submeter checklist
-GET    /api/checklists/:id          # Detalhes
-GET    /api/checklists/vehicle/:id  # Por veículo
-```
-
-### Dashboard
-
-```
-GET    /api/dashboard/kpis          # KPIs principais
-GET    /api/dashboard/map-data      # Dados do mapa (posições)
-GET    /api/dashboard/alerts        # Alertas ativos
-GET    /api/dashboard/recent-activity   # Atividade recente
-GET    /api/dashboard/charts/fuel   # Dados gráfico combustível
-GET    /api/dashboard/charts/departments  # Dados por secretaria
-```
-
-### Relatórios
-
-```
-GET    /api/reports/fuel            # Relatório combustível
-GET    /api/reports/trips           # Relatório viagens
-GET    /api/reports/maintenances    # Relatório manutenções
-GET    /api/reports/anomalies       # Relatório anomalias
-POST   /api/reports/export          # Exportar (PDF/Excel)
-```
-
-### Upload
-
-```
-POST   /api/upload/image            # Upload de imagem
-DELETE /api/upload/:filename        # Remover arquivo
-```
+Edge functions do Supabase (`supabase/functions/`) cobrem integrações
+externas (IOPGPS) e tarefas que precisam rodar fora do Vercel/client, alcançáveis
+via `supabase.functions.invoke(...)`. Antes de adicionar uma chamada a uma edge
+function, confirme que ela existe e está deployada — várias já foram removidas
+por não terem consumidor real (ver T5 em `PRODUCAO.md`).
 
 ---
 
-## 📱 TELAS DO APP MOBILE
+## 📱 APP DO MOTORISTA
 
-### Navegação Principal
+Vive em repositório separado (https://github.com/luanmachadops/appFrota),
+**Expo/React Native**, não Flutter. Se for necessário alterar o app, clone
+esse repo à parte; ele tem seu próprio `CLAUDE.md`.
 
-```
-BottomNavigationBar (4 tabs):
-├── 🏠 Home (index 0)
-├── 🚗 Viagens (index 1)
-├── ⛽ Serviços (index 2)
-└── 👤 Perfil (index 3)
-```
-
-### Árvore de Telas
-
-```
-App
-├── SplashScreen
-├── LoginScreen
-│
-├── MainShell (com BottomNav)
-│   │
-│   ├── HomeTab
-│   │   ├── HomeScreen
-│   │   │   ├── → ScanQRScreen
-│   │   │   │   └── → ManualSearchScreen (fallback)
-│   │   │   ├── → ChecklistScreen
-│   │   │   │   └── → ChecklistItemDetail (se problema)
-│   │   │   ├── → DestinationScreen
-│   │   │   └── → TripInProgressScreen
-│   │   │       ├── → StopModal
-│   │   │       └── → TripSummaryScreen
-│   │   │
-│   │   └── Atalhos para:
-│   │       ├── → RefuelingScreen
-│   │       ├── → MaintenanceRequestScreen
-│   │       └── → TripHistoryScreen
-│   │
-│   ├── TripsTab
-│   │   ├── TripListScreen
-│   │   └── → TripDetailScreen
-│   │
-│   ├── ServicesTab
-│   │   ├── ServicesMenuScreen
-│   │   ├── → RefuelingScreen (3 steps)
-│   │   │   ├── Step1: RefuelingDataScreen
-│   │   │   ├── Step2: DashboardPhotoScreen
-│   │   │   ├── Step3: ReceiptPhotoScreen
-│   │   │   └── Step4: RefuelingConfirmScreen
-│   │   ├── → MaintenanceRequestScreen
-│   │   └── → ServiceHistoryScreen
-│   │
-│   └── ProfileTab
-│       ├── ProfileScreen
-│       ├── → EditProfileScreen
-│       ├── → CNHDetailScreen
-│       └── → SettingsScreen
-│
-└── Modals/Dialogs
-    ├── ConfirmationDialog
-    ├── ErrorDialog
-    ├── SuccessDialog
-    └── LoadingOverlay
-```
-
-### Estados das Telas
-
-```dart
-// HomeScreen estados
-enum HomeState {
-  noVehicle,      // Mostrar botão "Vincular Veículo"
-  vehicleLinked,  // Mostrar info do veículo + "Iniciar Viagem"
-  tripInProgress, // Mostrar "Ver Viagem Atual"
-}
-
-// TripInProgressScreen estados
-enum TripState {
-  moving,         // Em movimento
-  stopped,        // Parada registrada
-}
-```
+Fluxo resumido (para contexto ao mexer no painel/backend que o afeta):
+login por CPF → seleciona veículo (QR/placa) → checklist pré-viagem → viagem
+com rastreamento GPS → encerramento. Itens críticos do checklist (freios,
+pneus, luzes) bloqueiam a viagem e geram `service_order`.
 
 ---
 
-## 🖥️ TELAS DO PAINEL WEB
+## 🖥️ TELAS DO PAINEL WEB (`sgf-2026/web`)
 
-### Menu da Sidebar
-
-```
-📊 Dashboard        /dashboard
-🗺️ Mapa            /map
-─────────────────
-🚗 Veículos        /vehicles
-👤 Motoristas      /drivers
-─────────────────
-🛣️ Viagens         /trips
-⛽ Abastecimentos  /refuelings
-🔧 Manutenções     /maintenances
-─────────────────
-📈 Relatórios      /reports
-⚙️ Configurações   /settings
-```
-
-### Árvore de Rotas
-
-```
-/
-├── /login
-│
-├── /dashboard
-│
-├── /map
-│
-├── /vehicles
-│   ├── /vehicles (lista)
-│   ├── /vehicles/new (modal ou página)
-│   ├── /vehicles/:id (detalhes)
-│   └── /vehicles/:id/edit (modal)
-│
-├── /drivers
-│   ├── /drivers (lista)
-│   ├── /drivers/new
-│   ├── /drivers/:id (detalhes)
-│   └── /drivers/:id/edit
-│
-├── /trips
-│   ├── /trips (lista)
-│   └── /trips/:id (detalhes com mapa)
-│
-├── /refuelings
-│   ├── /refuelings (lista)
-│   └── /refuelings/:id (detalhes + validação)
-│
-├── /maintenances
-│   ├── /maintenances (kanban ou lista)
-│   └── /maintenances/:id (detalhes + ações)
-│
-├── /reports
-│   └── /reports (grid de tipos)
-│
-└── /settings
-    ├── /settings/general
-    ├── /settings/maintenance
-    ├── /settings/alerts
-    ├── /settings/checklists
-    └── /settings/users
-```
-
-### Componentes Compartilhados
-
-```
-components/
-├── ui/
-│   ├── Button.tsx          # Variantes: primary, secondary, danger, ghost
-│   ├── Input.tsx           # Com label, error, helper text
-│   ├── Select.tsx
-│   ├── Checkbox.tsx
-│   ├── Card.tsx
-│   ├── Modal.tsx
-│   ├── Table.tsx           # Com sorting, pagination
-│   ├── Badge.tsx           # Status badges
-│   ├── Avatar.tsx
-│   ├── Tooltip.tsx
-│   ├── Toast.tsx
-│   ├── Spinner.tsx
-│   ├── EmptyState.tsx
-│   └── Skeleton.tsx
-│
-├── layout/
-│   ├── Sidebar.tsx
-│   ├── Header.tsx
-│   ├── PageContainer.tsx
-│   └── Breadcrumb.tsx
-│
-└── features/
-    ├── KPICard.tsx
-    ├── DataTable.tsx       # Tabela genérica com filtros
-    ├── VehicleMarker.tsx
-    ├── StatusBadge.tsx
-    └── PhotoViewer.tsx
-```
+Páginas reais em `web/src/pages/`: `Dashboard`, `Map`, `Vehicles`,
+`VehicleDetails`, `Drivers`, `DriverDetails`, `Trips`, `Refuelings`,
+`Maintenances`, `Infracoes`, `Departments`, `Stations`, `Reports`,
+`Configuracoes`, `Perfil`, `Login`. A lista de rotas ativas está em
+`web/src/App.tsx` — confira lá antes de assumir uma rota deste documento
+como existente; páginas podem ser adicionadas/removidas sem que este arquivo
+seja atualizado no mesmo commit.
 
 ---
 
 ## ✅ REGRAS DE NEGÓCIO
 
-### Vinculação de Veículo
+### Vinculação de veículo / conflito
 
-```
-1. Motorista escaneia QR Code
-2. Sistema verifica se veículo está AVAILABLE
-3. Se sim: vincula e muda status para IN_USE
-4. Se não: mostra erro com motivo
-5. Apenas 1 motorista pode estar vinculado por vez
-6. Gestor pode forçar desvinculação (emergência)
-```
+- Motorista escaneia QR Code ou busca por placa/código.
+- RPC `check_vehicle_conflict(uuid)` detecta se outro motorista já está em
+  viagem com o veículo; app oferece confirmação/takeover.
 
 ### Checklist
 
 ```
-ITENS CRÍTICOS (bloqueiam viagem):
-- Freios
-- Pneus
-- Direção
-- Luzes obrigatórias
+ITENS DO TEMPLATE ATUAL: óleo, pneus, água, freios, luzes, condições gerais
+ITENS CRÍTICOS (bloqueiam viagem): freios, pneus, luzes
+  (não há item "direção" hoje — avaliar adicionar, ver T3 em PRODUCAO.md)
 
-SE item crítico = PROBLEMA:
+SE item crítico = "atenção":
   → Bloquear início de viagem
-  → Gerar O.S. automática
-  → Notificar gestor
+  → Gerar service_order automática (priority alta)
+  → Notificar gestor (trigger trg_notify_service_order)
 ```
 
-### Abastecimento — Validações
+### Abastecimento
 
-```python
-# Regra 1: Odômetro não pode regredir
-if novo_odometro < ultimo_odometro:
-    anomaly = "ODOMETER_REGRESSION"
+- Registro com fotos (requisição, dashboard, recibo, opcional) e workflow de
+  aprovação pelo gestor no painel.
 
-# Regra 2: Litros não podem exceder tanque
-if litros > veiculo.tank_capacity * 1.1:  # 10% tolerância
-    anomaly = "CAPACITY_EXCEEDED"
+### Alertas / notificações
 
-# Regra 3: Consumo dentro da faixa
-km_desde_ultimo = novo_odometro - ultimo_odometro_abastecimento
-km_por_litro = km_desde_ultimo / litros
-esperado = veiculo.expected_km_per_liter
-
-if km_por_litro < esperado * 0.7 or km_por_litro > esperado * 1.3:
-    anomaly = "EXCESSIVE_CONSUMPTION"
-
-# Regra 4: Localização compatível (se em viagem)
-if em_viagem and distancia_da_rota > 5km:
-    anomaly = "LOCATION_MISMATCH"
-```
-
-### Viagem — Anomalias
-
-```python
-# Desvio de distância
-desvio = abs(distancia_real - distancia_estimada) / distancia_estimada
-if desvio > 0.20:  # 20%
-    flag_anomaly = True
-    reason = f"Desvio de {desvio*100:.0f}% da rota estimada"
-```
-
-### Alertas Automáticos
-
-```
-| Tipo                    | Condição                  | Ação                    |
-|-------------------------|---------------------------|-------------------------|
-| CNH_EXPIRING            | 30 dias antes             | Notificar motorista     |
-| CNH_EXPIRED             | Data passou               | Bloquear motorista      |
-| MAINTENANCE_DUE         | Km ou tempo atingido      | Gerar O.S. preventiva   |
-| VEHICLE_IDLE            | Parado > 30min ligado     | Notificar gestor        |
-| ANOMALY_DETECTED        | Qualquer anomalia         | Flag + notificar gestor |
-| TRIP_DEVIATION          | Fora da rota > 5km        | Notificar gestor        |
-```
-
----
-
-## 🧪 DADOS DE TESTE
-
-### Seeds Padrão
-
-```
-DEPARTMENTS:
-- Secretaria de Obras
-- Secretaria de Saúde
-- Secretaria de Educação
-- Gabinete do Prefeito
-
-VEHICLES (10):
-- ABC-1234, Fiat Strada, 2022, Diesel, Obras
-- DEF-5678, VW Saveiro, 2021, Flex, Obras
-- GHI-9012, Ford Ranger, 2023, Diesel, Obras
-- ... (mais 7)
-
-DRIVERS (5):
-- João Silva, CPF 12345678901, CNH C
-- Maria Santos, CPF 23456789012, CNH B
-- Pedro Lima, CPF 34567890123, CNH D
-- ... (mais 2)
-
-USERS (3):
-- admin@prefeitura.gov.br, ADMIN
-- gestor@obras.gov.br, MANAGER
-- viewer@obras.gov.br, VIEWER
-```
+- CNH vencendo/vencida, veículo com problema, viagem em andamento fora do
+  padrão, etc. — verifique o estado real em `web/src/lib/supabase-api.ts`
+  (seção NOTIFICATIONS) e nas triggers do banco antes de assumir um alerta
+  como implementado; regras específicas evoluem rápido e este documento não
+  tenta listá-las todas.
 
 ---
 
@@ -762,178 +216,25 @@ USERS (3):
 ```
 ❌ Mudar as cores do design system
 ❌ Usar bibliotecas de UI prontas (Material UI, Chakra) — use Tailwind puro
-❌ Criar rotas fora do padrão estabelecido
-❌ Ignorar validações de negócio
-❌ Salvar senhas sem hash
-❌ Expor dados sensíveis na API
+❌ Assumir que existe uma API REST própria (não existe — ver "Acesso a dados")
+❌ Aplicar DDL em produção sem aprovação explícita do usuário
+❌ Revogar EXECUTE das funções helper de RLS (is_admin, get_user_tenant_id, sgf_role, ...) de `authenticated` — as policies dependem delas
+❌ Ignorar RLS / multi-tenant ao escrever queries novas
 ❌ Fazer upload sem validar tipo de arquivo
-❌ Permitir SQL injection (use sempre ORM)
-❌ Esquecer paginação em listagens
 ❌ Deixar console.log em produção
+❌ Commitar/pushar/abrir PR sem o usuário pedir explicitamente
 ```
 
 ### SEMPRE FAÇA
 
 ```
-✅ Validar entrada em TODOS os endpoints
-✅ Retornar erros padronizados (código, mensagem)
-✅ Usar transações para operações múltiplas
-✅ Logar ações importantes (audit)
+✅ Ler sgf-2026/PRODUCAO.md antes de tarefas de produção — é o registro vivo do que falta e do que já foi feito
+✅ Validar entrada em todas as rotas serverless (web/api, admin/api)
 ✅ Tratar loading e error states no frontend
-✅ Testar fluxos críticos manualmente
-✅ Manter consistência de nomenclatura
-✅ Documentar decisões não óbvias
-✅ Usar tipos TypeScript (nunca `any`)
-✅ Fazer commit após cada feature funcional
-```
-
----
-
-## 📝 PADRÕES DE CÓDIGO
-
-### Backend (NestJS)
-
-```typescript
-// Controllers: sempre validar DTO
-@Post()
-async create(@Body() dto: CreateVehicleDto) {
-  return this.vehiclesService.create(dto);
-}
-
-// Services: lógica de negócio aqui
-async create(dto: CreateVehicleDto): Promise<Vehicle> {
-  // Validações de negócio
-  // Operações de banco
-  // Retorno tipado
-}
-
-// DTOs: sempre com class-validator
-export class CreateVehicleDto {
-  @IsString()
-  @Length(7, 8)
-  plate: string;
-
-  @IsEnum(FuelType)
-  fuelType: FuelType;
-}
-
-// Responses padronizadas
-{
-  success: true,
-  data: { ... },
-  meta: { total, page, limit }
-}
-
-// Errors padronizados
-{
-  success: false,
-  error: {
-    code: "VEHICLE_NOT_FOUND",
-    message: "Veículo não encontrado"
-  }
-}
-```
-
-### Frontend (React)
-
-```typescript
-// Componentes: sempre tipados
-interface ButtonProps {
-  variant?: 'primary' | 'secondary' | 'danger';
-  size?: 'sm' | 'md' | 'lg';
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  loading?: boolean;
-}
-
-export function Button({ variant = 'primary', ...props }: ButtonProps) {
-  // ...
-}
-
-// Hooks customizados para lógica
-function useVehicles(filters: VehicleFilters) {
-  return useQuery({
-    queryKey: ['vehicles', filters],
-    queryFn: () => api.vehicles.list(filters),
-  });
-}
-
-// Stores com Zustand
-interface AuthStore {
-  user: User | null;
-  token: string | null;
-  login: (credentials: Credentials) => Promise<void>;
-  logout: () => void;
-}
-```
-
-### Mobile (Flutter)
-
-```dart
-// Widgets: sempre const quando possível
-class VehicleCard extends StatelessWidget {
-  const VehicleCard({
-    super.key,
-    required this.vehicle,
-    this.onTap,
-  });
-
-  final Vehicle vehicle;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    // ...
-  }
-}
-
-// Models: com fromJson/toJson
-class Vehicle {
-  final String id;
-  final String plate;
-  // ...
-
-  factory Vehicle.fromJson(Map<String, dynamic> json) {
-    return Vehicle(
-      id: json['id'],
-      plate: json['plate'],
-    );
-  }
-}
-
-// Providers: separar estado da UI
-class TripProvider extends ChangeNotifier {
-  Trip? _currentTrip;
-  bool _isLoading = false;
-
-  Trip? get currentTrip => _currentTrip;
-  bool get isLoading => _isLoading;
-
-  Future<void> startTrip(StartTripDto dto) async {
-    _isLoading = true;
-    notifyListeners();
-    // ...
-  }
-}
-```
-
----
-
-## 🔄 FLUXO DE DESENVOLVIMENTO
-
-```
-1. Ler este CLAUDE.md completamente
-2. Verificar o que já foi implementado
-3. Implementar uma feature por vez
-4. Testar manualmente
-5. Commitar com mensagem descritiva
-6. Passar para próxima feature
-
-ORDEM SUGERIDA:
-Backend  → Auth → Vehicles → Drivers → Trips → Refuelings → Maintenances → Dashboard
-Web      → Layout → Auth → Dashboard → Vehicles → Drivers → (resto)
-Mobile   → Auth → Home → QR/Checklist → Trip → Refueling → (resto)
+✅ Rodar `npx tsc --noEmit` em web (e admin, se tocado) depois de mudanças
+✅ Confirmar com grep que algo não tem chamadores antes de remover
+✅ Usar tipos TypeScript (nunca `any` sem necessidade real)
+✅ Fazer commits separados por mudança lógica, com mensagem descritiva
 ```
 
 ---
@@ -941,30 +242,26 @@ Mobile   → Auth → Home → QR/Checklist → Trip → Refueling → (resto)
 ## 📞 COMANDOS ÚTEIS
 
 ```bash
-# Backend
-cd backend
-npm run start:dev          # Rodar em dev
-npm run migration:generate # Gerar migration
-npm run migration:run      # Rodar migrations
-npm run seed               # Popular banco
+# Web (painel do gestor)
+cd sgf-2026/web
+npm run dev
+npx tsc --noEmit -p tsconfig.app.json
 
-# Web
-cd web
-npm run dev                # Rodar em dev
-npm run build              # Build produção
+# Admin (superadmin)
+cd sgf-2026/admin
+npm run dev
+npx tsc --noEmit
 
-# Mobile
-cd mobile
-flutter run                # Rodar em device/emulador
-flutter build apk          # Build Android
+# Tipos do banco
+npx supabase gen types typescript --project-id kgxdrgbxpfoebzrphtqg --schema public > sgf-2026/web/src/types/database.types.ts
 
-# Docker
-docker-compose up -d       # Subir tudo
-docker-compose logs -f     # Ver logs
-docker-compose down        # Parar tudo
+# Edge functions (deploy manual)
+supabase functions deploy <slug> --project-ref kgxdrgbxpfoebzrphtqg
+
+# App mobile (repo separado)
+git clone https://github.com/luanmachadops/appFrota && cd appFrota && npm i && npx expo start
 ```
 
 ---
 
-**Última atualização:** Janeiro 2026
-**Mantenedor:** Equipe SGF
+**Última atualização:** 2026-07-08 (reescrito para refletir a arquitetura real — ver `sgf-2026/PRODUCAO.md` T5).
