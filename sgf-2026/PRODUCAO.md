@@ -160,7 +160,15 @@ Typecheck em tudo, commits separados por item, atualize PRODUCAO.md.
 
 ---
 
-## 🟠 T4 — Push notifications + produto
+## ✅ T4 — Push notifications + produto (concluída em 2026-07-09)
+
+- **4.1 Push de ponta a ponta — FEITO:** `eas init` rodado (projeto `@luandebarrosmachado/sgf-frota`, projectId `d7cd3a45-36ff-4113-95e6-cb25adf98147` em `app.json → extra.eas.projectId`; `eas.json` criado com perfis development/preview/production). Backend protegido com abordagem melhor que a planejada: o secret é gerado DENTRO do Postgres e vive na tabela privada `app_secrets` (RLS sem policies; anon/authenticated sem grants) — nunca saiu do banco. O trigger `tg_notifications_push` lê de lá e envia `x-webhook-secret`; a `send-push` v2 (deployada 2026-07-09 via MCP) valida contra a mesma tabela, com fallback para a env `PUSH_WEBHOOK_SECRET`. Migration `20260708_000002_push_webhook_secret.sql` (aplicada em produção). **Testado em produção:** secret errado → 401; correto → 200. Falta só: dev build (`npx eas build --profile development`) + login para o 1º token cair em `push_tokens`.
+- **4.2 White-label — DECIDIDO (a):** app genérico "SGF Frota" (slug `sgf-frota`, bundle/package `br.com.sgf.frota`), branding via tenant após login. Textos "Prefeitura de Tapejara" substituídos por `tenant?.name` (app, branch `fix/t4-mobile-hardening`).
+- **4.3 Mobile — FEITO** (branch `fix/t4-mobile-hardening` no appFrota): `access_blocked` checado no login/restauração com tela de bloqueio (`a635f09`); `findVehicleByCode` sanitizado contra injeção PostgREST (`877f2d3`); gráfico de manutenção com dados reais de `service_orders` (`992cacc`) — e coluna `service_orders.cost numeric(12,2)` criada em produção (migration `service_orders_cost`, 2026-07-09) para custos reais; versão via `Constants.expoConfig` (`c30eeca`); textos do tenant (`e6ea225`). Obs.: não existia texto "senha = CPF" no app.
+- **Deploy `iopgps-sync` v3 (fix T2) FEITO em 2026-07-09 via MCP** — a correção de escopo por tenant estava só na branch da auditoria; agora está em produção e na main.
+- Pendente: apagar a function órfã `notify-push` do deploy (aprovado pelo usuário; sem ferramenta MCP para delete — fazer via dashboard ou `supabase functions delete notify-push --project-ref kgxdrgbxpfoebzrphtqg`).
+
+### (referência) T4 — plano original
 
 **4.1 — Push de ponta a ponta**
 - Estado: `push_tokens` = 0 rows. No app falta `extra.eas.projectId` no `app.json` (e `eas.json` não existe) → `src/lib/notifications.ts:43-49` sempre retorna null. No backend, o trigger `tg_notifications_push` chama a function `send-push` (aberta, `verify_jwt=false`, sem secret!). A `notify-push` (melhor versão) está órfã.
@@ -212,19 +220,24 @@ Commits separados, PR no repo do app, atualize PRODUCAO.md.
 
 ## 🟡 T5 — Limpeza e consistência (baixo risco, alto valor de manutenção)
 
-- Remover `backend/` (NestJS morto — nada o referencia; `web/src/lib/backend-api.ts` usa as serverless da Vercel).
-- Remover `edgeFunctionsApi` de `web/src/lib/supabase-api.ts:2308-2336` (chama functions `dashboard-kpis`, `validate-refueling`, `detect-trip-anomalies` que não existem; zero chamadores).
-- Decidir: dropar tabela `maintenances` (0 rows) e o listener em `web/src/hooks/useRealtimeSync.ts:13-27`, ou implementar preventivas nela.
-- Página para `issues` (2 rows gravadas pelo app, nenhuma página lê) — ou remover do app.
-- `importFromDetran` é stub com throw (`supabase-api.ts:918-920`) — esconder o botão ou implementar.
-- Campo de foto do `NewDriverForm.tsx:183-185` não salva (só toast) — implementar upload ou remover o campo.
-- Reescrever `CLAUDE.md` (descreve NestJS ativo, Flutter, schema divergente do real — desinforma agentes).
-- Decidir destino de `web/android/` (Capacitor) e `web/dist/` versionados.
-- Habilitar `strict: true` em `web/tsconfig.app.json` (admin já é strict) — pode ser gradual.
-- Mensagens de erro cruas do Postgres nos endpoints → mapear para mensagens genéricas.
-- CORS `*` nas edge functions IOPGPS → restringir a domínios de produção.
-- Limite no import em lote (`web/api/drivers/pre-register.ts:28-35`).
-- Adicionar Sentry (web + app).
+**Itens sem DDL e sem decisão pendente — concluídos em 2026-07-08, branch `chore/t5-limpeza`, commits separados:**
+
+- ✅ Remover `backend/` (NestJS morto) — confirmado via grep que nada em web/, admin/, supabase/ referenciava `sgf-2026/backend/` (só `backend-api.ts`, a lib de serverless da Vercel, que é outra coisa). Commit `cfff15c`.
+- ✅ Remover `edgeFunctionsApi` de `web/src/lib/supabase-api.ts` (chamava `dashboard-kpis`, `validate-refueling`, `detect-trip-anomalies`, que não existem; zero chamadores confirmados via grep). Commit `7e406d9`.
+- ✅ `importFromDetran` (stub com throw) — removido o botão "Importar do DETRAN" em `Infracoes.tsx` e o stub em `supabase-api.ts`. Commit `53e2e7f`.
+- ✅ Campo de foto do `NewDriverForm.tsx` que não salvava (só toast de aviso) — removido; a leitura de CNH por IA foi mantida (funciona). Commit `6d2054a`.
+- ✅ Limite no import em lote (`web/api/drivers/pre-register.ts`) — `MAX_BULK_DRIVERS = 200`, com erro claro (400) quando excedido. Commit `da548fc`.
+- ✅ Reescrever `CLAUDE.md` refletindo a arquitetura real (React+Vite+TS, serverless Vercel, Supabase multi-tenant, app do motorista Expo em repo separado — nada de NestJS/Flutter). Commit `889835b`.
+
+**Itens que exigem decisão do usuário ou DDL — NÃO executados nesta rodada:**
+
+- Decidir: dropar tabela `maintenances` (0 rows) e o listener em `web/src/hooks/useRealtimeSync.ts:13-27`, ou implementar preventivas nela. (DDL — pedir aprovação.)
+- Página para `issues` (2 rows gravadas pelo app, nenhuma página lê) — ou remover do app. (Decisão de produto: criar página vs. remover captura no app.)
+- Decidir destino de `web/android/` (Capacitor) e `web/dist/` versionados. (Decisão do usuário.)
+- Habilitar `strict: true` em `web/tsconfig.app.json` (admin já é strict) — pode ser gradual, mas é uma mudança ampla que provavelmente quebra o build até ser corrigida arquivo a arquivo; não é uma limpeza pontual.
+- Mensagens de erro cruas do Postgres nos endpoints → mapear para mensagens genéricas. (Requer decidir o mapeamento/format de erro — não é remoção simples.)
+- CORS `*` nas edge functions IOPGPS → restringir a domínios de produção. (Precisa da lista de domínios de produção aprovada pelo usuário.)
+- Adicionar Sentry (web + app). (Requer conta/DSN do Sentry — decisão/credencial do usuário.)
 
 **PROMPT PRONTO (T5):**
 ```

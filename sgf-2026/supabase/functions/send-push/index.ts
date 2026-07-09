@@ -3,13 +3,24 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // Envia Expo Push para os tokens do destinatário de uma notificação.
 // Chamada pelo trigger do banco (pg_net) no INSERT de notifications.
 // verify_jwt=false: a chamada vem do banco, sem JWT de usuário.
-// Proteção opcional por segredo compartilhado (PUSH_WEBHOOK_SECRET).
+// Proteção: segredo compartilhado obrigatório, lido de app_secrets
+// (tabela privada — RLS sem policies, service role bypassa) ou, se
+// definido, da env PUSH_WEBHOOK_SECRET. Migration: push_webhook_secret.
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const WEBHOOK_SECRET = Deno.env.get('PUSH_WEBHOOK_SECRET'); // opcional
+const ENV_SECRET = Deno.env.get('PUSH_WEBHOOK_SECRET'); // opcional, tem precedência
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+let cachedSecret: string | null | undefined;
+async function getSecret(): Promise<string | null> {
+  if (ENV_SECRET) return ENV_SECRET;
+  if (cachedSecret !== undefined) return cachedSecret;
+  const { data } = await admin.from('app_secrets').select('value').eq('name', 'PUSH_WEBHOOK_SECRET').maybeSingle();
+  cachedSecret = (data?.value as string | undefined) ?? null;
+  return cachedSecret;
+}
 
 type Notif = {
   id: string;
@@ -24,8 +35,9 @@ type Notif = {
 
 Deno.serve(async (req) => {
   try {
-    // Segredo compartilhado (se configurado no ambiente da função).
-    if (WEBHOOK_SECRET && req.headers.get('x-webhook-secret') !== WEBHOOK_SECRET) {
+    // Segredo compartilhado obrigatório quando configurado (env ou app_secrets).
+    const secret = await getSecret();
+    if (secret && req.headers.get('x-webhook-secret') !== secret) {
       return new Response('unauthorized', { status: 401 });
     }
 
