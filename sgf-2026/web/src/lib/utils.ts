@@ -179,7 +179,7 @@ export function getStatusLabel(status: string): string {
         // Vehicle
         AVAILABLE: 'Disponível',
         IN_USE: 'Em Uso',
-        MAINTENANCE: 'Manutenção',
+        MAINTENANCE: 'Em manutenção',
         INACTIVE: 'Inativo',
 
         // Trip
