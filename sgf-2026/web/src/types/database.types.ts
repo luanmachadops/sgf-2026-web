@@ -55,6 +55,42 @@ export type Database = {
           },
         ]
       }
+      app_config: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
+      app_secrets: {
+        Row: {
+          created_at: string
+          name: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          name: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          name?: string
+          value?: string
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           cnh_alert_days: number
@@ -111,7 +147,7 @@ export type Database = {
           {
             foreignKeyName: "app_settings_tenant_id_fkey"
             columns: ["tenant_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -280,6 +316,229 @@ export type Database = {
           },
         ]
       }
+      device_alarms: {
+        Row: {
+          acknowledged: boolean
+          alarm_code: string | null
+          alarm_type: string
+          created_at: string
+          device_alarm_id: string
+          gps_time: string | null
+          id: string
+          imei: string
+          lat: number | null
+          lng: number | null
+          raw: Json | null
+          speed: number | null
+          tenant_id: string
+          tracker_id: string | null
+          vehicle_id: string | null
+        }
+        Insert: {
+          acknowledged?: boolean
+          alarm_code?: string | null
+          alarm_type: string
+          created_at?: string
+          device_alarm_id: string
+          gps_time?: string | null
+          id?: string
+          imei: string
+          lat?: number | null
+          lng?: number | null
+          raw?: Json | null
+          speed?: number | null
+          tenant_id: string
+          tracker_id?: string | null
+          vehicle_id?: string | null
+        }
+        Update: {
+          acknowledged?: boolean
+          alarm_code?: string | null
+          alarm_type?: string
+          created_at?: string
+          device_alarm_id?: string
+          gps_time?: string | null
+          id?: string
+          imei?: string
+          lat?: number | null
+          lng?: number | null
+          raw?: Json | null
+          speed?: number | null
+          tenant_id?: string
+          tracker_id?: string | null
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_alarms_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_alarms_tracker_id_fkey"
+            columns: ["tracker_id"]
+            isOneToOne: false
+            referencedRelation: "trackers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_alarms_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      device_commands: {
+        Row: {
+          command: string
+          command_id: string | null
+          created_at: string
+          id: string
+          imei: string
+          issued_by: string | null
+          responded_at: string | null
+          response: string | null
+          status: string
+          tenant_id: string
+          tracker_id: string | null
+          vehicle_id: string | null
+        }
+        Insert: {
+          command: string
+          command_id?: string | null
+          created_at?: string
+          id?: string
+          imei: string
+          issued_by?: string | null
+          responded_at?: string | null
+          response?: string | null
+          status?: string
+          tenant_id: string
+          tracker_id?: string | null
+          vehicle_id?: string | null
+        }
+        Update: {
+          command?: string
+          command_id?: string | null
+          created_at?: string
+          id?: string
+          imei?: string
+          issued_by?: string | null
+          responded_at?: string | null
+          response?: string | null
+          status?: string
+          tenant_id?: string
+          tracker_id?: string | null
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_commands_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_commands_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_commands_tracker_id_fkey"
+            columns: ["tracker_id"]
+            isOneToOne: false
+            referencedRelation: "trackers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_commands_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      device_status: {
+        Row: {
+          course: number | null
+          fix_source: string | null
+          gps_time: string | null
+          ignition: boolean | null
+          imei: string
+          lat: number | null
+          lng: number | null
+          online: boolean | null
+          speed: number | null
+          tenant_id: string
+          tracker_id: string
+          updated_at: string
+          vehicle_id: string | null
+          voltage: number | null
+        }
+        Insert: {
+          course?: number | null
+          fix_source?: string | null
+          gps_time?: string | null
+          ignition?: boolean | null
+          imei: string
+          lat?: number | null
+          lng?: number | null
+          online?: boolean | null
+          speed?: number | null
+          tenant_id: string
+          tracker_id: string
+          updated_at?: string
+          vehicle_id?: string | null
+          voltage?: number | null
+        }
+        Update: {
+          course?: number | null
+          fix_source?: string | null
+          gps_time?: string | null
+          ignition?: boolean | null
+          imei?: string
+          lat?: number | null
+          lng?: number | null
+          online?: boolean | null
+          speed?: number | null
+          tenant_id?: string
+          tracker_id?: string
+          updated_at?: string
+          vehicle_id?: string | null
+          voltage?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_status_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_status_tracker_id_fkey"
+            columns: ["tracker_id"]
+            isOneToOne: true
+            referencedRelation: "trackers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_status_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fuel_stations: {
         Row: {
           address: string | null
@@ -362,6 +621,7 @@ export type Database = {
           created_at: string
           driver_id: string | null
           fuel_type: string | null
+          full_tank: boolean
           has_anomaly: boolean | null
           id: string
           km_per_liter: number | null
@@ -390,6 +650,7 @@ export type Database = {
           created_at?: string
           driver_id?: string | null
           fuel_type?: string | null
+          full_tank?: boolean
           has_anomaly?: boolean | null
           id?: string
           km_per_liter?: number | null
@@ -418,6 +679,7 @@ export type Database = {
           created_at?: string
           driver_id?: string | null
           fuel_type?: string | null
+          full_tank?: boolean
           has_anomaly?: boolean | null
           id?: string
           km_per_liter?: number | null
@@ -609,6 +871,53 @@ export type Database = {
           },
         ]
       }
+      iopgps_credentials: {
+        Row: {
+          access_token: string | null
+          active: boolean
+          app_secret: string
+          appid: string
+          base_url: string
+          created_at: string
+          id: string
+          tenant_id: string | null
+          token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          active?: boolean
+          app_secret: string
+          appid: string
+          base_url?: string
+          created_at?: string
+          id?: string
+          tenant_id?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          active?: boolean
+          app_secret?: string
+          appid?: string
+          base_url?: string
+          created_at?: string
+          id?: string
+          tenant_id?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "iopgps_credentials_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       issues: {
         Row: {
           created_at: string
@@ -682,11 +991,17 @@ export type Database = {
       }
       live_positions: {
         Row: {
+          battery: number | null
+          course: number | null
           driver_id: string
+          fix_source: string | null
           heading: number | null
+          ignition: boolean | null
           is_active: boolean
           lat: number
           lng: number
+          online: boolean | null
+          source: string
           speed: number | null
           tenant_id: string
           trip_id: string | null
@@ -694,11 +1009,17 @@ export type Database = {
           vehicle_id: string | null
         }
         Insert: {
+          battery?: number | null
+          course?: number | null
           driver_id: string
+          fix_source?: string | null
           heading?: number | null
+          ignition?: boolean | null
           is_active?: boolean
           lat: number
           lng: number
+          online?: boolean | null
+          source?: string
           speed?: number | null
           tenant_id?: string
           trip_id?: string | null
@@ -706,11 +1027,17 @@ export type Database = {
           vehicle_id?: string | null
         }
         Update: {
+          battery?: number | null
+          course?: number | null
           driver_id?: string
+          fix_source?: string | null
           heading?: number | null
+          ignition?: boolean | null
           is_active?: boolean
           lat?: number
           lng?: number
+          online?: boolean | null
+          source?: string
           speed?: number | null
           tenant_id?: string
           trip_id?: string | null
@@ -1012,13 +1339,18 @@ export type Database = {
           admin_note: string | null
           approved_at: string | null
           approved_by: string | null
+          budget: number | null
           category: string
+          checklist_id: string | null
+          completed_at: string | null
+          cost: number | null
           created_at: string
           description: string | null
           driver_id: string
           id: string
           odometer: number | null
           priority: Database["public"]["Enums"]["issue_severity"]
+          repair_shop: string | null
           status: Database["public"]["Enums"]["service_order_status"]
           tenant_id: string
           vehicle_id: string | null
@@ -1027,13 +1359,18 @@ export type Database = {
           admin_note?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          budget?: number | null
           category: string
+          checklist_id?: string | null
+          completed_at?: string | null
+          cost?: number | null
           created_at?: string
           description?: string | null
           driver_id: string
           id?: string
           odometer?: number | null
           priority?: Database["public"]["Enums"]["issue_severity"]
+          repair_shop?: string | null
           status?: Database["public"]["Enums"]["service_order_status"]
           tenant_id?: string
           vehicle_id?: string | null
@@ -1042,13 +1379,18 @@ export type Database = {
           admin_note?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          budget?: number | null
           category?: string
+          checklist_id?: string | null
+          completed_at?: string | null
+          cost?: number | null
           created_at?: string
           description?: string | null
           driver_id?: string
           id?: string
           odometer?: number | null
           priority?: Database["public"]["Enums"]["issue_severity"]
+          repair_shop?: string | null
           status?: Database["public"]["Enums"]["service_order_status"]
           tenant_id?: string
           vehicle_id?: string | null
@@ -1059,6 +1401,13 @@ export type Database = {
             columns: ["approved_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_orders_checklist_id_fkey"
+            columns: ["checklist_id"]
+            isOneToOne: false
+            referencedRelation: "checklists"
             referencedColumns: ["id"]
           },
           {
@@ -1405,6 +1754,8 @@ export type Database = {
           end_odometer_photo_url: string | null
           estimated_distance_km: number | null
           id: string
+          is_retroactive: boolean
+          justification: string | null
           notes: string | null
           start_at: string
           start_odometer: number | null
@@ -1423,6 +1774,8 @@ export type Database = {
           end_odometer_photo_url?: string | null
           estimated_distance_km?: number | null
           id?: string
+          is_retroactive?: boolean
+          justification?: string | null
           notes?: string | null
           start_at?: string
           start_odometer?: number | null
@@ -1441,6 +1794,8 @@ export type Database = {
           end_odometer_photo_url?: string | null
           estimated_distance_km?: number | null
           id?: string
+          is_retroactive?: boolean
+          justification?: string | null
           notes?: string | null
           start_at?: string
           start_odometer?: number | null
@@ -1631,6 +1986,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_vehicle_conflict: {
+        Args: { p_vehicle_id: string }
+        Returns: {
+          driver_name: string
+          in_use: boolean
+        }[]
+      }
+      delete_own_account: { Args: never; Returns: undefined }
       get_tenant_branding: {
         Args: { p_slug: string }
         Returns: {
@@ -1645,6 +2008,16 @@ export type Database = {
           seal_url: string
           slug: string
           status: string
+        }[]
+      }
+      get_unregistered_movements: {
+        Args: never
+        Returns: {
+          event_count: number
+          first_seen: string
+          last_seen: string
+          plate: string
+          vehicle_id: string
         }[]
       }
       get_user_current_vehicle_id: { Args: never; Returns: string }
@@ -1662,12 +2035,25 @@ export type Database = {
           p_entity_id?: string
           p_entity_type?: string
           p_link?: string
+          p_tenant?: string
           p_title: string
           p_type: string
         }
         Returns: number
       }
       notify_cnh_expiring: { Args: never; Returns: undefined }
+      notify_fleet_managers: {
+        Args: {
+          p_body: string
+          p_entity_id: string
+          p_entity_type: string
+          p_link: string
+          p_tenant_id: string
+          p_title: string
+          p_type: string
+        }
+        Returns: undefined
+      }
       notify_users: {
         Args: {
           p_body: string
@@ -1684,6 +2070,8 @@ export type Database = {
         Args: { p_platform?: string; p_token: string }
         Returns: undefined
       }
+      sgf_role: { Args: never; Returns: string }
+      sgf_tenant: { Args: never; Returns: string }
       unregister_push_token: { Args: { p_token: string }; Returns: undefined }
     }
     Enums: {
