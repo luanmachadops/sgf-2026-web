@@ -254,9 +254,9 @@ do PRODUCAO.md. Typecheck após cada commit.
 
 - [ ] T2, T3, T4 concluídas e testadas manualmente (login gestor, login motorista, viagem completa com checklist, abastecimento com workflow, push recebido)
 - [ ] Upgrade Supabase para Pro (leaked passwords, backups, sem pausa por inatividade)
-- [ ] Deploy das edge functions alteradas (`supabase functions deploy <slug>`; `--no-verify-jwt` para send-push e iopgps-sync)
+- [x] Deploy das edge functions alteradas — send-push v2 e iopgps-sync v3 deployadas via MCP em 2026-07-09
 - [ ] Variáveis Vercel conferidas (web e admin) + domínios de produção no CORS
-- [ ] `admin/.env.example` sem URL real do projeto
+- [x] `admin/.env.example` sem URL real do projeto (placeholder aplicado em 2026-07-09)
 - [ ] Teste multi-tenant: gestor do tenant 2 salva configurações, não vê dados do tenant 1
 - [ ] IOPGPS testado com rastreador físico (assinatura auth pendente de confirmação)
 - [ ] Publicação do app (EAS build) conforme decisão white-label
