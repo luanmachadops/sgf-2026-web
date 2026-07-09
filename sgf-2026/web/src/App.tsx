@@ -17,6 +17,7 @@ import DriverDetails from '@/pages/DriverDetails';
 import Trips from '@/pages/Trips';
 import Refuelings from '@/pages/Refuelings';
 import Maintenances from '@/pages/Maintenances';
+import Checklists from '@/pages/Checklists';
 import Reports from '@/pages/Reports';
 import Infracoes from '@/pages/Infracoes';
 import Configuracoes from '@/pages/Configuracoes';
@@ -60,6 +61,7 @@ function App() {
                 <Route path="/viagens" element={<Trips />} />
                 <Route path="/abastecimentos" element={<Refuelings />} />
                 <Route path="/manutencoes" element={<Maintenances />} />
+                <Route path="/checklists" element={<Checklists />} />
                 <Route path="/infracoes" element={<Infracoes />} />
                 <Route path="/relatorios" element={<Reports />} />
                 <Route path="/secretarias" element={<Departments />} />
