@@ -1220,6 +1220,24 @@ export const maintenancesApi = {
 // CHECKLISTS
 // ========================================
 
+// Registro de checklist com os joins usados na página "Checklists" do painel:
+// veículo (+ secretaria), motorista e a contagem de itens não-ok.
+export type ChecklistListRecord = Tables<'checklists'> & {
+    vehicles?: {
+        id: string;
+        plate: string | null;
+        brand: string | null;
+        model: string | null;
+        photo_url: string | null;
+        department_id: string | null;
+        departments?: { id: string; name: string } | null;
+    } | null;
+    profiles?: { id: string; full_name: string } | null;
+    checklist_items?: { id: string; item_key: string; label: string; state: Enums<'checklist_state'> }[];
+    /** service_orders.id já aberta a partir deste checklist (se houver). */
+    service_orders?: { id: string; status: Enums<'service_order_status'> }[] | null;
+};
+
 export const checklistsApi = {
     getAll: async (filters?: {
         vehicleId?: string;
@@ -1245,6 +1263,46 @@ export const checklistsApi = {
         const { data, error } = await query;
         if (error) handleError(error);
         return (data ?? []) as Tables<'checklists'>[];
+    },
+
+    /**
+     * Listagem paginada para a página "Checklists" do gestor: todos os checklists
+     * de todos os veículos do tenant, com veículo + secretaria + motorista + itens
+     * (para contar problemas) e a O.S. já vinculada (se houver).
+     */
+    getAllList: async (filters?: {
+        from?: string;
+        to?: string;
+        departmentId?: string;
+        page?: number;
+        limit?: number;
+    }): Promise<ChecklistListRecord[]> => {
+        // Filtrar por secretaria exige join `!inner` com vehicles — do contrário o
+        // PostgREST ignora o filtro no nível do registro pai (só filtra o objeto aninhado).
+        const vehiclesJoin = filters?.departmentId ? 'vehicles!inner' : 'vehicles';
+        let query = supabase
+            .from('checklists')
+            .select(
+                `*,
+                ${vehiclesJoin}(id, plate, brand, model, photo_url, department_id, departments(id, name)),
+                profiles!checklists_driver_id_fkey(id, full_name),
+                checklist_items(id, item_key, label, state),
+                service_orders(id, status)`
+            )
+            .order('created_at', { ascending: false });
+
+        if (filters?.from) query = query.gte('created_at', filters.from);
+        if (filters?.to) query = query.lte('created_at', filters.to);
+        if (filters?.departmentId) query = query.eq('vehicles.department_id', filters.departmentId);
+        if (filters?.page !== undefined && filters?.limit) {
+            const from = filters.page * filters.limit;
+            const to = from + filters.limit - 1;
+            query = query.range(from, to);
+        }
+
+        const { data, error } = await query;
+        if (error) handleError(error);
+        return (data ?? []) as unknown as ChecklistListRecord[];
     },
 
     getItems: async (checklistId: string): Promise<Tables<'checklist_items'>[]> => {
