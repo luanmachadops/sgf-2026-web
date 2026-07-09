@@ -3,9 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { Modal } from '@/components/ui/Modal';
-import { Clipboard, User, Calendar, CheckCircle, AlertTriangle, Loader2 } from '@/components/sgf/icons';
+import { Clipboard, User, Calendar, CheckCircle, Loader2 } from '@/components/sgf/icons';
 import { checklistsApi } from '@/lib/supabase-api';
 import { formatDateTime } from '@/lib/utils';
+import { ChecklistItemsList } from '@/components/checklists/ChecklistItemsList';
 import type { Tables } from '@/types/database.types';
 
 interface Props {
@@ -18,18 +19,6 @@ type ChecklistRow = Tables<'checklists'> & {
 };
 
 type ChecklistItemRow = Tables<'checklist_items'>;
-
-const STATE_LABEL: Record<string, string> = {
-    ok: 'OK',
-    atencao: 'Atenção',
-    pendente: 'Pendente',
-};
-
-const STATE_BADGE: Record<string, 'success' | 'warning' | 'error'> = {
-    ok: 'success',
-    atencao: 'warning',
-    pendente: 'error',
-};
 
 export function VehicleChecklistsTab({ vehicleId }: Props) {
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -49,7 +38,6 @@ export function VehicleChecklistsTab({ vehicleId }: Props) {
     const rows = checklists as unknown as ChecklistRow[];
     const selected = rows.find((c) => c.id === selectedId) ?? null;
     const itemRows = items as ChecklistItemRow[];
-    const problemItems = itemRows.filter((i) => i.state !== 'ok');
 
     if (isLoading) {
         return (
@@ -113,37 +101,7 @@ export function VehicleChecklistsTab({ vehicleId }: Props) {
                 description={selected ? `${formatDateTime(selected.created_at)} — ${selected.profiles?.full_name ?? '—'}` : undefined}
                 size="md"
             >
-                {itemsLoading ? (
-                    <div className="flex items-center justify-center py-10">
-                        <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
-                    </div>
-                ) : itemRows.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-slate-400">Nenhum item registrado neste checklist.</p>
-                ) : (
-                    <div className="space-y-4">
-                        {problemItems.length > 0 && (
-                            <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
-                                <AlertTriangle className="h-5 w-5 shrink-0 text-rose-600" />
-                                <p className="text-sm font-semibold text-rose-700">
-                                    {problemItems.length} {problemItems.length === 1 ? 'item precisa' : 'itens precisam'} de atenção.
-                                </p>
-                            </div>
-                        )}
-                        <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
-                            {itemRows.map((item) => (
-                                <div
-                                    key={item.id}
-                                    className={`flex items-center justify-between gap-3 px-4 py-3 ${item.state !== 'ok' ? 'bg-rose-50/40' : ''}`}
-                                >
-                                    <span className="text-sm font-medium text-slate-700">{item.label}</span>
-                                    <SGFBadge variant={STATE_BADGE[item.state] ?? 'default'}>
-                                        {STATE_LABEL[item.state] ?? item.state}
-                                    </SGFBadge>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                <ChecklistItemsList items={itemRows} loading={itemsLoading} />
             </Modal>
         </div>
     );
