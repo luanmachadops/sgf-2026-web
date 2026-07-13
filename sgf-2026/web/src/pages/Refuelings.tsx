@@ -4,6 +4,7 @@ import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { Modal } from '@/components/ui/Modal';
+import { PhotoViewer } from '@/components/ui/PhotoViewer';
 import {
     Fuel,
     Eye,
@@ -74,6 +75,10 @@ type RefuelingRow = {
     hasAnomaly: boolean;
     workflowStatus: WorkflowStatus;
     maxLiters: number | null;
+    fullTank: boolean | null;
+    photoRequisition: string | null;
+    photoDashboard: string | null;
+    photoReceipt: string | null;
 };
 
 export default function Refuelings() {
@@ -82,6 +87,7 @@ export default function Refuelings() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showAuthorizeModal, setShowAuthorizeModal] = useState(false);
     const [selectedRefueling, setSelectedRefueling] = useState<RefuelingRow | null>(null);
+    const [photoViewer, setPhotoViewer] = useState<{ images: string[]; index: number } | null>(null);
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const { user } = useAuth();
     const validateMutation = useValidateRefueling();
@@ -142,6 +148,10 @@ export default function Refuelings() {
                 hasAnomaly: Boolean(row.has_anomaly),
                 workflowStatus: (row.workflow_status as WorkflowStatus) ?? 'lancado_direto',
                 maxLiters: row.max_liters ?? null,
+                fullTank: (row.full_tank as boolean | null) ?? null,
+                photoRequisition: row.photo_requisition_url ?? null,
+                photoDashboard: row.photo_dashboard_url ?? null,
+                photoReceipt: row.photo_receipt_url ?? null,
             };
         });
     }, [rawRefuelings]);
@@ -379,42 +389,58 @@ export default function Refuelings() {
                     </div>
                 }
             >
-                {selectedRefueling && (
+                {selectedRefueling && (() => {
+                    const badge = workflowBadge(selectedRefueling.workflowStatus);
+                    const proofs = [
+                        { url: selectedRefueling.photoRequisition, label: 'Requisição do posto' },
+                        { url: selectedRefueling.photoDashboard, label: 'Painel / Hodômetro' },
+                        { url: selectedRefueling.photoReceipt, label: 'Cupom fiscal' },
+                    ].filter((p): p is { url: string; label: string } => !!p.url);
+                    return (
                     <div className="space-y-6">
-                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                            <div className="flex items-center gap-3">
+                        {/* Faixa de status */}
+                        <div className="flex items-center justify-between gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                            <div className="flex items-center gap-3 min-w-0">
                                 <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-100">
-                                    <Fuel className="h-5 w-5 text-blue-500" />
+                                    <Fuel className="h-5 w-5 text-emerald-500" />
                                 </div>
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Status de Validação</p>
-                                    <p className={cn("font-bold", selectedRefueling.isValidated ? "text-emerald-600" : "text-amber-600")}>
-                                        {selectedRefueling.isValidated ? 'Validado' : 'Aguardando Validação'}
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Status do abastecimento</p>
+                                    <p className="font-bold text-slate-800 truncate">
+                                        {selectedRefueling.date ? formatDate(selectedRefueling.date) : '—'}
+                                        {selectedRefueling.station ? ` · ${selectedRefueling.station}` : ''}
                                     </p>
                                 </div>
                             </div>
-                            {selectedRefueling.hasAnomaly && (
-                                <SGFBadge variant="warning">Anomalia Detectada</SGFBadge>
-                            )}
+                            <div className="flex items-center gap-2 shrink-0">
+                                {selectedRefueling.hasAnomaly && <SGFBadge variant="warning">Anomalia</SGFBadge>}
+                                <SGFBadge variant={badge.variant}>{badge.label}</SGFBadge>
+                            </div>
                         </div>
 
                         <div className="grid gap-6 md:grid-cols-2">
+                            {/* Identificação */}
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3">
                                     {selectedRefueling.vehiclePhoto ? (
                                         <img
                                             src={selectedRefueling.vehiclePhoto}
                                             alt={selectedRefueling.vehicleModel}
-                                            className="h-10 w-10 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
+                                            className="h-12 w-16 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
                                         />
                                     ) : (
-                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                                            <Car width={20} height={20} />
+                                        <div className="flex h-12 w-16 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                                            <Car width={22} height={22} />
                                         </div>
                                     )}
-                                    <div>
+                                    <div className="min-w-0">
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Veículo</p>
-                                        <p className="font-bold text-slate-800">{selectedRefueling.vehicleModel} ({selectedRefueling.vehicle})</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-bold text-slate-800 truncate">{selectedRefueling.vehicleModel}</p>
+                                            <span className="font-mono font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs whitespace-nowrap">
+                                                {formatPlate(selectedRefueling.vehicle)}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -423,10 +449,10 @@ export default function Refuelings() {
                                         <img
                                             src={selectedRefueling.driverPhoto}
                                             alt={selectedRefueling.driver}
-                                            className="h-10 w-10 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
+                                            className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
                                         />
                                     ) : (
-                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
                                             <User width={20} height={20} />
                                         </div>
                                     )}
@@ -442,23 +468,39 @@ export default function Refuelings() {
                                     </div>
                                     <div>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Odômetro</p>
-                                        <p className="font-bold text-slate-800">{selectedRefueling.odometer.toLocaleString()} km</p>
+                                        <p className="font-bold text-slate-800">{selectedRefueling.odometer.toLocaleString('pt-BR')} km</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
+                                        <Fuel width={20} height={20} />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Abastecimento</p>
+                                        <p className="font-bold text-slate-800">
+                                            {selectedRefueling.fullTank === true ? 'Tanque completo' : selectedRefueling.fullTank === false ? 'Parcial' : 'Não informado'}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
 
+                            {/* Resumo financeiro */}
                             <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resumo Financeiro</p>
                                     <div className="px-2 py-0.5 bg-white rounded-lg border border-slate-200 text-[10px] font-bold text-slate-500">
-                                        {selectedRefueling.fuelType}
+                                        {selectedRefueling.fuelType || '—'}
                                     </div>
                                 </div>
 
                                 <div className="space-y-3">
                                     <div className="flex justify-between items-center text-sm">
                                         <span className="text-slate-500">Quantidade</span>
-                                        <span className="font-bold text-slate-800">{selectedRefueling.liters.toFixed(1)} L</span>
+                                        <span className="font-bold text-slate-800">
+                                            {selectedRefueling.liters.toFixed(1)} L
+                                            {selectedRefueling.maxLiters ? <span className="font-medium text-slate-400"> / até {Number(selectedRefueling.maxLiters).toFixed(1)} L</span> : null}
+                                        </span>
                                     </div>
                                     <div className="flex justify-between items-center text-sm">
                                         <span className="text-slate-500">Preço p/ Litro</span>
@@ -477,11 +519,42 @@ export default function Refuelings() {
                                             "font-black text-lg",
                                             (selectedRefueling.consumption || 0) > 8 ? "text-emerald-600" : "text-amber-600"
                                         )}>
-                                            {selectedRefueling.consumption ? `${selectedRefueling.consumption.toFixed(1)} km/L` : '-'}
+                                            {selectedRefueling.consumption ? `${selectedRefueling.consumption.toFixed(1)} km/L` : '—'}
                                         </span>
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Comprovantes enviados pelo motorista */}
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Comprovantes</p>
+                                {proofs.length > 0 && (
+                                    <p className="text-[11px] font-semibold text-slate-400">{proofs.length} foto{proofs.length > 1 ? 's' : ''} · clique para ampliar</p>
+                                )}
+                            </div>
+                            {proofs.length === 0 ? (
+                                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+                                    <p className="text-sm font-medium text-slate-400">Nenhuma foto anexada pelo motorista.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                    {proofs.map((p, i) => (
+                                        <button
+                                            key={p.label}
+                                            type="button"
+                                            onClick={() => setPhotoViewer({ images: proofs.map((x) => x.url), index: i })}
+                                            className="group relative aspect-video overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                                        >
+                                            <img src={p.url} alt={p.label} className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                                            <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-black/0 px-2.5 pb-1.5 pt-5 text-left text-[11px] font-semibold text-white">
+                                                {p.label}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         {selectedRefueling.hasAnomaly && (
@@ -493,8 +566,10 @@ export default function Refuelings() {
                             </div>
                         )}
                     </div>
-                )}
+                    );
+                })()}
             </Modal>
+            <PhotoViewer images={photoViewer?.images} startIndex={photoViewer?.index ?? 0} onClose={() => setPhotoViewer(null)} />
 
             <Modal
                 isOpen={showAddModal}
