@@ -34,7 +34,7 @@ export function PhotoViewer({ src, images, startIndex = 0, alt, onClose }: Photo
     const many = list.length > 1;
 
     return createPortal(
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
+        <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in" onClick={onClose}>
             <button onClick={onClose} className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20" aria-label="Fechar">
                 <X className="h-6 w-6" />
             </button>
