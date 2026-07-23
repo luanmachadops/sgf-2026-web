@@ -47,7 +47,7 @@ async function logUsage(tenantId: string | null, usage: Record<string, unknown> 
   try {
     await admin().from('ai_usage').insert({
       tenant_id: tenantId,
-      feature: 'vehicle',
+      feature: 'vehicle-import',
       model: MODEL,
       tokens_in: Number(usage?.prompt_tokens ?? 0),
       tokens_out: Number(usage?.completion_tokens ?? 0),
@@ -56,44 +56,43 @@ async function logUsage(tenantId: string | null, usage: Record<string, unknown> 
   } catch { /* nunca quebra a resposta por causa do log */ }
 }
 
-const SYSTEM_PROMPT = `Você é um especialista em identificação de veículos do mercado BRASILEIRO a partir de imagens.
-Você recebe até 4 fotos: (1) o veículo, (2) a placa, (3) o documento (CRLV), (4) o hodômetro/painel.
-Extraia e deduza o máximo de informações usando seu conhecimento sobre marcas/modelos/anos brasileiros.
+const SYSTEM_PROMPT = `Você é um especialista em organizar cadastros de frota do setor público BRASILEIRO.
+Recebe TEXTO BRUTO extraído de um PDF, relatório, e-mail ou lista colada (colunas podem estar separadas por espaços, tabulações, ";" ou "|"; pode haver cabeçalhos, rodapés, números de página e linhas de total que devem ser IGNORADOS).
+Sua tarefa: identificar CADA veículo e devolver uma linha estruturada por veículo.
 
-REGRAS DE IDIOMA (OBRIGATÓRIO):
-- Responda TODOS os campos de texto em PORTUGUÊS DO BRASIL. NUNCA em inglês.
-- "color": nome da cor em português (ex.: Branco, Prata, Cinza, Preto, Vermelho, Azul, Verde, Amarelo, Marrom, Bege, Dourado, Laranja, Vinho). Ex.: white→Branco, silver→Prata, gray/grey→Cinza, black→Preto.
+REGRAS:
+- Devolva TODOS os campos de texto em PORTUGUÊS DO BRASIL.
+- "brand" = apenas a marca/montadora (ex.: Fiat, Volkswagen, Chevrolet, Mercedes-Benz). Normalize abreviações: VW→Volkswagen, GM→Chevrolet, M.BENZ→Mercedes-Benz.
+- "model" = apenas o modelo, SEM a marca (ex.: de "VW/SAVEIRO CS" → model "Saveiro CS"). Se vier duplicado ("VOLARE V8 VOLARE V8"), deixe uma vez só.
+- "plate" = placa no formato original (ABC1D23 ou ABC-1234). Se não houver placa clara, use null.
+- "year" = ano de fabricação/modelo (número). Se houver "2020/2021", use o maior (modelo).
+- "color" = cor em português (Branco, Prata, Cinza, Preto, Vermelho, Azul, Verde, Amarelo, etc.), ou null.
+- "fuel" = um de: "Gasolina", "Etanol", "Diesel", "Flex", "GNV". Álcool/Gasolina = "Flex". Se não souber, null.
+- "department" = secretaria/lotação/setor, se aparecer, senão null.
+- "tankCapacity" = capacidade do tanque em litros (número), só se estiver EXPLÍCITA no texto; senão null (o sistema estima depois).
+- "odometer" = quilometragem/hodômetro total em km (número inteiro, sem pontos), se aparecer; senão null.
+- "renavam" = número do RENAVAM se aparecer, senão null.
+- "chassis" = chassi/VIN se aparecer, senão null.
+- NÃO invente placas, RENAVAM ou chassi. Campos ausentes = null.
+- Ignore linhas que claramente NÃO são veículos (títulos, "Total:", "Página X de Y", assinaturas).
 
-REGRA DE TIPO ("vehicleType") — use EXATAMENTE um destes valores em português:
-  "Hatch", "Sedan", "SUV", "Picape", "Furgão", "Van", "Minivan", "Ônibus", "Micro-ônibus", "Caminhão", "Motocicleta", "Trator", "Máquina", "Outro".
-Guia por modelos comuns no Brasil:
-- Picape (caçamba aberta): Fiat Strada, Fiat Toro, VW Saveiro, Chevrolet Montana, Chevrolet S10, Toyota Hilux, Ford Ranger, Mitsubishi L200, Nissan Frontier, VW Amarok.
-- Furgão (carga fechado peq/médio): Fiat Fiorino, Fiat Doblo Cargo, Renault Kangoo, VW Express.
-- Van (passageiros/carga grande): Mercedes Sprinter, Renault Master, Fiat Ducato, Iveco Daily, Peugeot Boxer.
-- Hatch (5 portas compacto): VW Gol, VW Polo, Chevrolet Onix, Hyundai HB20, Fiat Argo, Fiat Mobi, Renault Kwid, Ford Ka, Honda Fit.
-- Sedan (3 volumes): VW Voyage, VW Virtus, Onix Plus/Prisma, HB20S, Fiat Cronos, Toyota Corolla, Honda Civic, Nissan Versa.
-- SUV: Jeep Renegade/Compass, VW T-Cross/Nivus, Hyundai Creta, Renault Duster, Honda HR-V, Chevrolet Tracker.
-- Caminhão: Mercedes Accelo/Atego/Axor, VW Constellation/Delivery, Volvo, Scania, Iveco Tector.
-- Ônibus / Micro-ônibus: Marcopolo, Comil, chassis de ônibus.
-Na dúvida Picape x Furgão: caçamba ABERTA = Picape; compartimento FECHADO = Furgão. Se não souber, use "Outro".
-
-REGRA DO ODÔMETRO ("odometer"):
-- Se houver foto do painel/hodômetro, leia o valor TOTAL do odômetro (quilometragem do veículo) e retorne como número inteiro em km, SEM pontos/vírgulas. Ignore o hodômetro PARCIAL (trip A/B). Se não houver foto do painel ou não for legível, retorne null.
-
-Responda APENAS com um JSON válido (sem markdown, sem texto extra) neste formato exato:
+Responda APENAS com um JSON válido (sem markdown, sem texto extra) neste formato EXATO:
 {
-  "plate": string|null,            // placa, formato ABC1D23 ou ABC-1234
-  "brand": string|null,            // marca (ex: Fiat)
-  "model": string|null,            // modelo (ex: Argo)
-  "year": number|null,             // ano de fabricação/modelo
-  "color": string|null,            // cor EM PORTUGUÊS (ex: Branco)
-  "fuelType": "GASOLINE"|"ETHANOL"|"DIESEL"|"FLEX"|null,
-  "tankCapacity": number|null,     // litros (estimado pelo modelo se necessário)
-  "vehicleType": string|null,      // um dos valores da lista acima, em português
-  "renavam": string|null,          // do documento, se visível
-  "chassis": string|null,          // chassi/VIN, se visível
-  "odometer": number|null,         // km total lido do painel (inteiro), ou null
-  "confidence": number             // 0 a 1
+  "vehicles": [
+    {
+      "plate": string|null,
+      "brand": string|null,
+      "model": string|null,
+      "year": number|null,
+      "color": string|null,
+      "fuel": "Gasolina"|"Etanol"|"Diesel"|"Flex"|"GNV"|null,
+      "department": string|null,
+      "tankCapacity": number|null,
+      "odometer": number|null,
+      "renavam": string|null,
+      "chassis": string|null
+    }
+  ]
 }`;
 
 Deno.serve(async (req: Request) => {
@@ -111,15 +110,27 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json().catch(() => ({}));
-    const images: string[] = (body.images ?? []).filter((u: unknown) => typeof u === 'string' && u);
-    if (images.length === 0) {
-      return new Response(JSON.stringify({ error: 'Envie ao menos uma imagem.' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
+    const text: string = typeof body.text === 'string' ? body.text : '';
+    const images: string[] = Array.isArray(body.images)
+      ? (body.images as unknown[]).filter((u): u is string => typeof u === 'string' && !!u).slice(0, 15)
+      : [];
+
+    if (!text.trim() && images.length === 0) {
+      return new Response(JSON.stringify({ error: 'Envie o texto extraído do arquivo ou as imagens das páginas.' }), { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } });
     }
 
-    const content: unknown[] = [
-      { type: 'text', text: 'Analise as imagens do veículo (e do painel, se houver) e retorne o JSON solicitado, com TODOS os textos em português do Brasil.' },
-      ...images.map((url) => ({ type: 'image_url', image_url: { url } })),
-    ];
+    // Monta a mensagem do usuário: por texto (PDF/lista com texto) OU por imagens (PDF digitalizado/scanner).
+    let userContent: unknown;
+    if (images.length > 0) {
+      userContent = [
+        { type: 'text', text: 'Estas são as páginas de um documento de frota (possivelmente digitalizado). Leia por reconhecimento visual (OCR) e organize os veículos no JSON solicitado.' },
+        ...images.map((url) => ({ type: 'image_url', image_url: { url } })),
+      ];
+    } else {
+      const MAX_CHARS = 60000;
+      const clipped = text.length > MAX_CHARS ? text.slice(0, MAX_CHARS) : text;
+      userContent = `Organize os veículos deste conteúdo:\n\n${clipped}`;
+    }
 
     const aiRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -127,13 +138,13 @@ Deno.serve(async (req: Request) => {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://sgf-2026.local',
-        'X-Title': 'SGF 2026 - Identificação de veículo',
+        'X-Title': 'SGF 2026 - Importação de veículos',
       },
       body: JSON.stringify({
         model: MODEL,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content },
+          { role: 'user', content: userContent },
         ],
         temperature: 0.1,
         response_format: { type: 'json_object' },
@@ -157,7 +168,11 @@ Deno.serve(async (req: Request) => {
       parsed = m ? JSON.parse(m[0]) : {};
     }
 
-    return new Response(JSON.stringify({ data: parsed }), { headers: { ...CORS, 'Content-Type': 'application/json' } });
+    const vehicles = Array.isArray((parsed as { vehicles?: unknown }).vehicles)
+      ? (parsed as { vehicles: unknown[] }).vehicles
+      : [];
+
+    return new Response(JSON.stringify({ data: vehicles }), { headers: { ...CORS, 'Content-Type': 'application/json' } });
   } catch (e) {
     return new Response(JSON.stringify({ error: (e as Error).message ?? 'Erro inesperado.' }), { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } });
   }

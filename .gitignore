@@ -1,3 +1,10 @@
 .claude/
 .DS_Store
 *.log
+
+# IDE
+.idea/
+
+# Scripts locais da máquina (caminhos absolutos)
+new.sh
+new2.sh

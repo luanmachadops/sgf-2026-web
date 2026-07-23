@@ -33,7 +33,18 @@ export default function NotificationBell() {
 
     const handleClick = (n: NotificationRecord) => {
         if (!n.read) markRead(n.id);
-        if (n.link) navigate(n.link);
+        
+        let targetLink = n.link;
+        if (!targetLink && n.entity_id) {
+            targetLink = `/map?vehicleId=${n.entity_id}`;
+        } else if (targetLink?.includes('/vehicle-details?id=')) {
+            const vehicleId = targetLink.split('id=')[1];
+            targetLink = `/map?vehicleId=${vehicleId}`;
+        }
+
+        if (targetLink) {
+            navigate(targetLink);
+        }
     };
 
     return (

@@ -12,6 +12,7 @@ import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
 import { formatPlate } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppSettings } from '@/hooks/useSettings';
+import { getStationUnavailableReason } from '@/lib/stationStatus';
 
 // Slot de foto: faz upload ao selecionar e devolve a URL pública.
 function PhotoUpload({ label, hint, url, onChange }: { label: string; hint: string; url: string; onChange: (u: string) => void }) {
@@ -84,10 +85,27 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
         queryKey: ['vehicles', 'form-list'],
         queryFn: () => vehiclesApi.getAll(),
     });
+    // Busca todos os postos (inclusive inativos) para listá-los desabilitados/opacos em vez de escondê-los.
     const { data: stations = [] } = useQuery({
-        queryKey: ['stations', 'form-list'],
-        queryFn: () => stationsApi.getAll({ activeOnly: true }),
+        queryKey: ['stations', 'form-list', { activeOnly: false }],
+        queryFn: () => stationsApi.getAll(),
     });
+
+    const stationOptions = useMemo(
+        () => [
+            { value: '', label: 'Outro / livre' },
+            ...stations.map((s) => {
+                const unavailable = getStationUnavailableReason(s);
+                return {
+                    value: s.id,
+                    label: `${s.name}${s.code ? ` (${s.code})` : ''}${unavailable ? ` — ${unavailable}` : ''}`,
+                    disabled: !!unavailable,
+                    disabledReason: unavailable ?? undefined,
+                };
+            }),
+        ],
+        [stations],
+    );
 
     const [vehicleId, setVehicleId] = useState('');
     const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -183,6 +201,12 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
         setError(null);
 
         if (!vehicleId) return setError('Selecione o veículo.');
+        // Bloqueio definitivo (sem opção de confirmar): posto inativo ou com licitação vencida.
+        if (stationId) {
+            const chosenStation = stations.find((s) => s.id === stationId);
+            const unavailable = chosenStation ? getStationUnavailableReason(chosenStation) : null;
+            if (unavailable) return setError(`Não é possível abastecer neste posto: ${unavailable}.`);
+        }
         // Bloqueio: posto sem licitação para este combustível exige confirmação explícita.
         if (noContractForFuel && !askConfirm) { setAskConfirm(true); return; }
         if (!user?.id) return setError('Sessão expirada. Faça login novamente.');
@@ -272,10 +296,7 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
                 />
                 <SGFSelect
                     label="Posto"
-                    options={[
-                        { value: '', label: 'Outro / livre' },
-                        ...stations.map((s) => ({ value: s.id, label: `${s.name}${s.code ? ` (${s.code})` : ''}` })),
-                    ]}
+                    options={stationOptions}
                     value={stationId}
                     onChange={(val) => setStationId(val)}
                     placeholder="Selecione o posto..."

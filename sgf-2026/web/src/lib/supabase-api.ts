@@ -678,6 +678,9 @@ export interface LiveVehicle {
     // Preenchido quando o veículo está em manutenção (status='manutencao') e há
     // uma O.S. aberta (aprovada/em_execucao) com oficina definida.
     repairShop: string | null;
+    // Dados do rastreador IOPGPS
+    online?: boolean | null;
+    ignition?: boolean | null;
 }
 
 type VehicleEmbed = { plate?: string | null; brand?: string | null; model?: string | null; photo_url?: string | null; departments?: { name?: string } | null } | null;
@@ -702,11 +705,11 @@ export const mapApi = {
 
         const byVehicle = new Map<string, LiveVehicle>();
 
-        // 2) Sinal contínuo do hardware (device_status ainda não está nos tipos gerados).
+        // 2) Sinal contínuo do hardware (device_status da integração IOPGPS).
         const { data: statuses } = await (supabase as unknown as {
             from: (t: string) => any;
         }).from('device_status')
-            .select('vehicle_id, lat, lng, speed, online, gps_time, vehicles(plate, brand, model, photo_url, departments(name))')
+            .select('vehicle_id, lat, lng, speed, online, ignition, gps_time, vehicles(plate, brand, model, photo_url, departments(name))')
             .not('vehicle_id', 'is', null);
 
         for (const s of (statuses ?? []) as any[]) {
@@ -714,9 +717,10 @@ export const mapApi = {
             const v = s.vehicles as VehicleEmbed;
             const trip = tripByVehicle.get(s.vehicle_id);
             const speed = Math.round(Number(s.speed ?? 0));
+            const isOnline = s.online !== false;
             // offline = alerta (sem sinal); viagem com problema = alerta; senão movimento/parado.
             const status: LiveVehicle['status'] =
-                trip?.status === 'problema' || s.online === false ? 'alert' : speed > 3 ? 'moving' : 'idle';
+                trip?.status === 'problema' || !isOnline ? 'alert' : speed > 3 ? 'moving' : 'idle';
             byVehicle.set(s.vehicle_id, {
                 id: s.vehicle_id,
                 plate: v?.plate ?? 'Sem placa',
@@ -733,6 +737,8 @@ export const mapApi = {
                 destination: (trip as { destination?: string } | undefined)?.destination ?? '—',
                 startAt: (trip as { start_at?: string | null } | undefined)?.start_at ?? null,
                 repairShop: null,
+                online: isOnline,
+                ignition: s.ignition ?? null,
             });
         }
 

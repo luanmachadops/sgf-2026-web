@@ -16,7 +16,8 @@ const SLOTS: { type: VehiclePhotoSlot; label: string; hint: string }[] = [
 interface Props {
     isOpen: boolean;
     onClose: () => void;
-    vehicleId: string;
+    /** Ausente no cadastro de um veículo novo (as fotos vão para uma pasta temporária). */
+    vehicleId?: string;
     tenantId: string;
     onResult: (result: ExtractWithPhotosResult) => Promise<void> | void;
 }

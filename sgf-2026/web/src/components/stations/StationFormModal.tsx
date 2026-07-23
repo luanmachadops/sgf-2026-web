@@ -7,13 +7,13 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 import { Camera, Loader2, FileText, Plus, X, Download } from '@/components/sgf/icons';
 import { useCreateStation, useUpdateStation } from '@/hooks/useStations';
 import { supabase } from '@/lib/supabase';
-import { resizeAndConvertToWebP, isImageFile, prepareUpload } from '@/lib/imageUtils';
+import { resizeAndConvertToWebP, isImageFile, prepareDocumentUpload, formatFileSize, DOCUMENT_ACCEPT } from '@/lib/imageUtils';
 import { maskCNPJ, maskPhone } from '@/lib/utils';
 import type { Tables } from '@/types/database.types';
 
 const FUEL_OPTIONS = ['Gasolina', 'Etanol', 'Diesel', 'GNV', 'Diesel S10'];
 
-type StationDoc = { name: string; url: string };
+type StationDoc = { name: string; url: string; size?: number; uploadedAt?: string };
 
 interface Props {
     isOpen: boolean;
@@ -129,24 +129,36 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
     };
 
     const uploadDoc = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        try {
-            setUploadingDoc(true);
-            const prepared = await prepareUpload(file, { maxSize: 1400, quality: 0.8 });
-            const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^\w.\-]+/g, '_');
-            const fileName = `station-docs/${Date.now()}-${safe}.${prepared.ext}`;
-            const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, prepared.blob, { contentType: prepared.contentType, upsert: true });
-            if (upErr) throw upErr;
-            const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
-            setDocuments((prev) => [...prev, { name: file.name, url: publicUrl }]);
-            toast.success('Documento anexado. Salve para confirmar.');
-        } catch (err) {
-            toast.error((err as { message?: string })?.message ?? 'Erro ao enviar o documento.');
-        } finally {
-            setUploadingDoc(false);
-            if (docInputRef.current) docInputRef.current.value = '';
+        const files = Array.from(e.target.files ?? []);
+        if (files.length === 0) return;
+        setUploadingDoc(true);
+        const anexados: StationDoc[] = [];
+        const falhas: string[] = [];
+
+        for (const file of files) {
+            try {
+                const prepared = await prepareDocumentUpload(file, { maxSize: 1400, quality: 0.8 });
+                const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^\w.\-]+/g, '_');
+                const fileName = `station-docs/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}.${prepared.ext}`;
+                const { error: upErr } = await supabase.storage
+                    .from('fotos')
+                    .upload(fileName, prepared.blob, { contentType: prepared.contentType, upsert: true });
+                if (upErr) throw upErr;
+                const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
+                anexados.push({ name: file.name, url: publicUrl, size: file.size, uploadedAt: new Date().toISOString() });
+            } catch (err) {
+                falhas.push((err as { message?: string })?.message ?? `Falha em "${file.name}".`);
+            }
         }
+
+        if (anexados.length > 0) {
+            setDocuments((prev) => [...prev, ...anexados]);
+            toast.success(`${anexados.length} documento(s) anexado(s). Clique em "Salvar alterações" para confirmar.`);
+        }
+        falhas.forEach((f) => toast.error(f, { duration: 8000 }));
+
+        setUploadingDoc(false);
+        if (docInputRef.current) docInputRef.current.value = '';
     };
 
     const createMut = useCreateStation();
@@ -279,24 +291,35 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
                 {/* Documentos (licitação, contrato, etc.) */}
                 <div className="rounded-2xl border border-slate-200 p-4 space-y-3">
                     <div className="flex items-center justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                             <h4 className="text-sm font-bold text-slate-700">Documentos</h4>
-                            <p className="text-xs text-slate-400">Licitação, contrato e outros (PDF, imagem, etc.).</p>
+                            <p className="text-xs text-slate-400">Licitação, contrato, ata — PDF, Word, Excel, ZIP ou imagem (até 10 MB cada).</p>
                         </div>
                         <SGFButton type="button" variant="secondary" size="sm" icon={uploadingDoc ? Loader2 : Plus} disabled={uploadingDoc} onClick={() => docInputRef.current?.click()}>
                             {uploadingDoc ? 'Enviando...' : 'Anexar'}
                         </SGFButton>
-                        <input ref={docInputRef} type="file" onChange={uploadDoc} className="hidden" />
+                        <input ref={docInputRef} type="file" multiple accept={DOCUMENT_ACCEPT} onChange={uploadDoc} className="hidden" />
                     </div>
                     {documents.length === 0 ? (
-                        <p className="text-sm text-slate-400">Nenhum documento anexado.</p>
+                        <button
+                            type="button"
+                            onClick={() => docInputRef.current?.click()}
+                            className="flex w-full flex-col items-center gap-1.5 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/60 py-6 text-center transition hover:border-emerald-400 hover:bg-emerald-50/30"
+                        >
+                            <FileText className="h-6 w-6 text-slate-300" />
+                            <span className="text-sm font-semibold text-slate-600">Clique para anexar documentos</span>
+                            <span className="text-xs text-slate-400">Você pode selecionar vários de uma vez</span>
+                        </button>
                     ) : (
                         <ul className="space-y-2">
                             {documents.map((doc, i) => (
                                 <li key={`${doc.url}-${i}`} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                                     <FileText className="h-4 w-4 shrink-0 text-slate-400" />
-                                    <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{doc.name}</span>
-                                    <a href={doc.url} target="_blank" rel="noopener noreferrer" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-emerald-600" title="Baixar">
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-sm text-slate-700">{doc.name}</p>
+                                        {doc.size != null && <p className="text-[11px] text-slate-400">{formatFileSize(doc.size)}</p>}
+                                    </div>
+                                    <a href={doc.url} target="_blank" rel="noopener noreferrer" className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-emerald-600" title="Abrir/baixar">
                                         <Download className="h-4 w-4" />
                                     </a>
                                     <button type="button" onClick={() => setDocuments((prev) => prev.filter((_, idx) => idx !== i))} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-rose-600" title="Remover">

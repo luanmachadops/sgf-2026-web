@@ -22,13 +22,11 @@ import {
     Route,
     Download,
     Qr,
-    Sparkles,
     ChevronLeft,
     ChevronRight,
     User,
 } from '@/components/sgf/icons';
 import { EditVehicleModal } from '@/components/vehicles/EditVehicleModal';
-import { VehicleAIModal } from '@/components/vehicles/VehicleAIModal';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
 import { RefuelingDetailsModal } from '@/components/refuelings/RefuelingDetailsModal';
 import { MaintenanceDetailsModal } from '@/components/maintenances/MaintenanceDetailsModal';
@@ -37,8 +35,6 @@ import { PhotoViewer } from '@/components/ui/PhotoViewer';
 import { StyledQr } from '@/components/qr/StyledQr';
 import { downloadVehicleQr } from '@/lib/vehicleQr';
 import { vehicleDocumentsApi } from '@/lib/supabase-api';
-import { webToDbFuelType } from '@/lib/db-mapping';
-import type { ExtractWithPhotosResult } from '@/lib/vehicleAI';
 import { formatDate, formatDistance, formatCurrency, formatPlate, getStatusLabel, getStatusColor } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import {
@@ -52,7 +48,6 @@ import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
 import { resolveDocUrl } from '@/lib/docStorage';
 import { toast } from 'sonner';
 import type { Tables } from '@/types/database.types';
-import { useAuth } from '@/contexts/AuthContext';
 import { VehicleChecklistsTab } from '@/components/vehicles/VehicleChecklistsTab';
 
 const FUEL_LABEL: Record<string, string> = {
@@ -68,7 +63,6 @@ type VehicleRow = VehicleRecord & {
 
 export default function VehicleDetails() {
     const { id } = useParams<{ id: string }>();
-    const { user } = useAuth();
     const location = useLocation();
     const navigate = useNavigate();
     const backTo = (location.state as { backTo?: string } | null)?.backTo ?? '/veiculos';
@@ -76,7 +70,6 @@ export default function VehicleDetails() {
     const [isUploading, setIsUploading] = useState(false);
     const [isEditOpen, setEditOpen] = useState(false);
     const [isQrOpen, setQrOpen] = useState(false);
-    const [isAiOpen, setAiOpen] = useState(false);
     const [viewer, setViewer] = useState<{ images: string[]; index: number } | null>(null);
     const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
     const [selectedRefuelId, setSelectedRefuelId] = useState<string | null>(null);
@@ -247,39 +240,6 @@ export default function VehicleDetails() {
         }
     };
 
-    // Aplica o resultado da IA: atualiza campos do veículo + salva as fotos enviadas.
-    const handleAiResult = async (result: ExtractWithPhotosResult) => {
-        if (!id) return;
-        const d = result.data;
-        const updates: Record<string, unknown> = {};
-        if (d.plate) updates.plate = String(d.plate).toUpperCase();
-        if (d.brand) updates.brand = d.brand;
-        if (d.model) updates.model = d.model;
-        if (d.year) updates.year = d.year;
-        if (d.color) updates.color = d.color;
-        if (d.vehicleType) updates.vehicle_type = d.vehicleType;
-        if (d.renavam) updates.renavam = String(d.renavam);
-        if (d.chassis) updates.chassis = String(d.chassis);
-        if (d.tankCapacity) updates.tank_capacity = d.tankCapacity;
-        if (d.fuelType) updates.fuel_type = webToDbFuelType(d.fuelType);
-        if (d.odometer && d.odometer > 0) updates.current_odometer = d.odometer;
-        // Define a foto principal a partir da foto do veículo, se ainda não houver.
-        const mainPhoto = result.photos.find((p) => p.type === 'foto')?.url;
-        if (mainPhoto && !vehicle?.photo_url) updates.photo_url = mainPhoto;
-
-        if (Object.keys(updates).length > 0) {
-            await vehiclesApi.update(id, updates as never);
-        }
-        // Salva cada foto como documento do veículo (aparece na galeria).
-        const TITLES: Record<string, string> = { foto: 'Foto do veículo', placa: 'Placa', documento: 'Documento (CRLV)', hodometro: 'Hodômetro' };
-        for (const p of result.photos) {
-            await vehicleDocumentsApi.add({ vehicleId: id, url: p.url, title: TITLES[p.type] ?? 'Foto', docType: p.type });
-        }
-        queryClient.invalidateQueries({ queryKey: ['vehicle', id] });
-        queryClient.invalidateQueries({ queryKey: ['vehicle', id, 'documents'] });
-        queryClient.invalidateQueries({ queryKey: ['vehicles'] });
-    };
-
     // ── Download do documento (PDF) ────────────────────────────────────────
     const handleDownloadDocument = async () => {
         const stored = (vehicle as { document_url?: string | null })?.document_url;
@@ -434,9 +394,6 @@ export default function VehicleDetails() {
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                    <SGFButton variant="secondary" icon={Sparkles} onClick={() => setAiOpen(true)} className="!h-[37px] !rounded-full">
-                        <span className="hidden sm:inline">Preencher com IA</span>
-                    </SGFButton>
                     <SGFButton variant="secondary" icon={Qr} onClick={() => setQrOpen(true)} className="!h-[37px] !rounded-full">
                         <span className="hidden sm:inline">QR Code</span>
                     </SGFButton>
@@ -732,14 +689,6 @@ export default function VehicleDetails() {
                     </SGFButton>
                 </div>
             </Modal>
-
-            <VehicleAIModal
-                isOpen={isAiOpen}
-                onClose={() => setAiOpen(false)}
-                vehicleId={v.id}
-                tenantId={user?.tenantId ?? ''}
-                onResult={handleAiResult}
-            />
 
             <PhotoViewer
                 images={viewer?.images}

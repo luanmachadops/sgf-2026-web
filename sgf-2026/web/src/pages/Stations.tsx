@@ -12,6 +12,8 @@ import {
     Calendar,
     ArrowSync,
     Loader2,
+    FileText,
+    Download,
 } from '@/components/sgf/icons';
 import {
     Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer,
@@ -35,6 +37,8 @@ const FUEL_COLORS: Record<string, string> = {
     'Diesel S10': '#14B8A6',
     Outros: '#94A3B8',
 };
+
+type StationDoc = { name: string; url: string; size?: number; uploadedAt?: string };
 
 function ContractBadge({ end, alertDays = 30 }: { end: string | null; alertDays?: number }) {
     if (!end) return <SGFBadge variant="default">Sem data</SGFBadge>;
@@ -182,6 +186,24 @@ function StationDetailPage({ stationId }: { stationId: string }) {
     const [editOpen, setEditOpen] = useState(false);
 
     const { data: detail, isLoading } = useStationDetail(stationId);
+    const { data: appSettings } = useAppSettings();
+    const priceMode = appSettings?.fuelPriceMode ?? 'free';
+
+    // Preços da licitação e documentos cadastrados no posto (exibidos em cards próprios).
+    const fuelPriceEntries = useMemo(() => {
+        const prices = (detail?.station as { fuel_prices?: Record<string, number> } | undefined)?.fuel_prices ?? {};
+        return Object.entries(prices).filter(([, v]) => Number(v) > 0) as [string, number][];
+    }, [detail]);
+
+    const missingPriceFuels = useMemo(() => {
+        const prices = (detail?.station as { fuel_prices?: Record<string, number> } | undefined)?.fuel_prices ?? {};
+        return (detail?.station.fuel_types ?? []).filter((f) => !(Number(prices[f]) > 0));
+    }, [detail]);
+
+    const stationDocs = useMemo(
+        () => ((detail?.station as unknown as { documents?: StationDoc[] } | undefined)?.documents ?? []) as StationDoc[],
+        [detail],
+    );
 
     useEffect(() => {
         setHeaderAction(
@@ -315,6 +337,94 @@ function StationDetailPage({ stationId }: { stationId: string }) {
                             </div>
                         )}
                     </div>
+                </SGFCard>
+            </div>
+
+            {/* Preços da licitação + Documentos */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <SGFCard>
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Preços da licitação</p>
+                            <p className="text-sm text-slate-500">Valores enviados aos apps dos motoristas.</p>
+                        </div>
+                        {priceMode === 'contract' ? (
+                            <SGFBadge variant="info">Modo licitação ativo</SGFBadge>
+                        ) : (
+                            <SGFBadge variant="default">Modo preço livre</SGFBadge>
+                        )}
+                    </div>
+
+                    {fuelPriceEntries.length === 0 ? (
+                        <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
+                            Nenhum preço de licitação cadastrado. Use “Editar” para informar o valor por litro.
+                        </p>
+                    ) : (
+                        <>
+                            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                {fuelPriceEntries.map(([fuel, price]) => (
+                                    <div key={fuel} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                        <div className="flex items-center gap-1.5">
+                                            <span
+                                                className="h-2 w-2 shrink-0 rounded-full"
+                                                style={{ backgroundColor: FUEL_COLORS[fuel] ?? FUEL_COLORS.Outros }}
+                                            />
+                                            <p className="truncate text-[10px] font-bold uppercase tracking-widest text-slate-400">{fuel}</p>
+                                        </div>
+                                        <p className="mt-1 text-lg font-black text-slate-900">{formatCurrency(price)}</p>
+                                        <p className="text-[11px] font-medium text-slate-400">por litro</p>
+                                    </div>
+                                ))}
+                            </div>
+                            {missingPriceFuels.length > 0 && (
+                                <p className="mt-3 text-xs text-amber-600">
+                                    Sem preço definido para: <strong>{missingPriceFuels.join(', ')}</strong>.
+                                </p>
+                            )}
+                        </>
+                    )}
+                </SGFCard>
+
+                <SGFCard>
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Documentos</p>
+                            <p className="text-sm text-slate-500">Licitação, contrato e anexos do posto.</p>
+                        </div>
+                        <SGFBadge variant={stationDocs.length > 0 ? 'success' : 'default'}>
+                            {stationDocs.length} arquivo(s)
+                        </SGFBadge>
+                    </div>
+
+                    {stationDocs.length === 0 ? (
+                        <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
+                            Nenhum documento anexado. Use “Editar” para anexar o edital, o contrato ou a ata.
+                        </p>
+                    ) : (
+                        <ul className="mt-4 space-y-2">
+                            {stationDocs.map((doc, i) => (
+                                <li key={`${doc.url}-${i}`}>
+                                    <a
+                                        href={doc.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 transition hover:border-emerald-300 hover:bg-emerald-50/40"
+                                    >
+                                        <div className="rounded-xl bg-slate-100 p-2 text-slate-500">
+                                            <FileText className="h-4 w-4" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="truncate text-sm font-semibold text-slate-800">{doc.name}</p>
+                                            {doc.uploadedAt && (
+                                                <p className="text-[11px] text-slate-400">Anexado em {formatDate(doc.uploadedAt)}</p>
+                                            )}
+                                        </div>
+                                        <Download className="h-4 w-4 shrink-0 text-emerald-500" />
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </SGFCard>
             </div>
 

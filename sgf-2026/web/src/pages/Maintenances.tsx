@@ -13,13 +13,13 @@ import {
     Wrench,
     Clock,
     CheckCircle,
-    AlertTriangle,
     Car,
     Calendar,
     FileText,
     ShieldCheck,
     Building2,
     DollarSign,
+    User,
 } from '@/components/sgf/icons';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
@@ -97,6 +97,32 @@ type MaintItem = {
     approvedAt: string | null;
     completedAt: string | null;
 };
+
+/** Item de informação do modal de detalhes (ícone + rótulo + valor), padrão dos demais modais. */
+function DetailInfo({
+    icon: Icon,
+    label,
+    value,
+    hint,
+}: {
+    icon: typeof Car;
+    label: string;
+    value: string;
+    hint?: string;
+}) {
+    return (
+        <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-slate-100 p-2.5 text-slate-600">
+                <Icon width={20} height={20} />
+            </div>
+            <div className="min-w-0">
+                <p className="mb-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
+                <p className="truncate font-bold text-slate-800">{value}</p>
+                {hint && <p className="truncate text-xs font-medium text-slate-500">{hint}</p>}
+            </div>
+        </div>
+    );
+}
 
 function mapRow(r: ServiceOrderRow): MaintItem {
     const v = r.vehicles;
@@ -664,143 +690,112 @@ export default function Maintenances() {
             >
                 {selectedMaintenance && (
                     <div className="space-y-6">
-                        <div className="flex items-center justify-between p-4 bg-slate-100 rounded-2xl border border-slate-200">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-200">
-                                    <Clock className="h-5 w-5 text-slate-500" />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Status Atual</p>
-                                    <p className="font-bold text-slate-900">{statusColumns.find(c => c.id === selectedMaintenance.status)?.label ?? selectedMaintenance.status}</p>
-                                </div>
+                        {/* Cabeçalho: abertura + status e prioridade */}
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <p className="text-sm text-slate-500">
+                                Aberta em {formatDate(selectedMaintenance.date)}
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <SGFBadge variant={STATUS_BADGE[selectedMaintenance.status]?.variant ?? 'default'}>
+                                    {STATUS_BADGE[selectedMaintenance.status]?.label ?? selectedMaintenance.status}
+                                </SGFBadge>
+                                <SGFBadge variant={priorityColors[selectedMaintenance.priority]} size="sm">
+                                    Prioridade {priorityLabels[selectedMaintenance.priority]}
+                                </SGFBadge>
                             </div>
-                            <SGFBadge variant={priorityColors[selectedMaintenance.priority]}>
-                                Prioridade {priorityLabels[selectedMaintenance.priority]}
-                            </SGFBadge>
                         </div>
 
                         <div className="grid gap-6 md:grid-cols-2">
+                            {/* Dados da solicitação */}
                             <div className="space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
-                                        <Car width={20} height={20} />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Veículo</p>
-                                        <p className="font-bold text-slate-900">{selectedMaintenance.vehicleLabel}</p>
-                                        <p className="text-xs font-medium text-slate-600">{selectedMaintenance.plate} · {selectedMaintenance.department}</p>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                                        <Calendar width={20} height={20} />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Abertura</p>
-                                        <p className="font-bold text-slate-900">{formatDate(selectedMaintenance.date)}</p>
-                                    </div>
-                                </div>
+                                <DetailInfo
+                                    icon={Car}
+                                    label="Veículo"
+                                    value={selectedMaintenance.vehicleLabel}
+                                    hint={`${selectedMaintenance.plate} · ${selectedMaintenance.department}`}
+                                />
+                                <DetailInfo icon={User} label="Motorista solicitante" value={selectedMaintenance.driver} />
+                                <DetailInfo icon={Wrench} label="Categoria" value={selectedMaintenance.category} />
                             </div>
 
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
-                                        <Wrench width={20} height={20} />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Categoria</p>
-                                        <div className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 w-fit">
-                                            {selectedMaintenance.category}
-                                        </div>
-                                    </div>
+                            {/* Painel de execução e custos */}
+                            <div className="space-y-3 self-start rounded-3xl border border-slate-100 bg-slate-50 p-5">
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="whitespace-nowrap text-[10px] font-bold uppercase tracking-widest text-slate-400">Custos do serviço</p>
+                                    {selectedMaintenance.budget != null && selectedMaintenance.cost != null && (
+                                        <SGFBadge variant={selectedMaintenance.cost <= selectedMaintenance.budget ? 'success' : 'error'} size="sm">
+                                            {selectedMaintenance.cost <= selectedMaintenance.budget ? 'Dentro do orçamento' : 'Orçamento estourado'}
+                                        </SGFBadge>
+                                    )}
                                 </div>
 
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
-                                        <AlertTriangle width={20} height={20} />
+                                {!selectedMaintenance.repairShop && selectedMaintenance.budget == null && selectedMaintenance.cost == null ? (
+                                    <div className="flex items-center gap-2.5 py-2 text-sm text-slate-400">
+                                        <Building2 className="h-4 w-4 shrink-0" />
+                                        <span>Oficina e orçamento são definidos na aprovação da O.S.</span>
                                     </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Motorista solicitante</p>
-                                        <p className="font-bold text-slate-900">{selectedMaintenance.driver}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-5 bg-slate-100 rounded-2xl border border-slate-200 space-y-2">
-                            <div className="flex items-center gap-2 mb-2">
-                                <FileText className="h-4 w-4 text-slate-500" />
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Descrição detalhada</span>
-                            </div>
-                            <p className="text-sm text-slate-700 leading-relaxed font-medium italic">
-                                "{selectedMaintenance.description}"
-                            </p>
-                        </div>
-
-                        {/* Oficina / orçamento / custo final — só aparece após aprovação */}
-                        {(selectedMaintenance.repairShop || selectedMaintenance.budget != null || selectedMaintenance.cost != null) && (
-                            <div className="grid gap-4 md:grid-cols-2">
-                                {selectedMaintenance.repairShop && (
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 bg-teal-50 text-teal-600 rounded-xl">
-                                            <Building2 width={20} height={20} />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Oficina / local do conserto</p>
-                                            <p className="font-bold text-slate-900">{selectedMaintenance.repairShop}</p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {(selectedMaintenance.budget != null || selectedMaintenance.cost != null) && (
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
-                                            <DollarSign width={20} height={20} />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Orçamento × Custo final</p>
-                                            <div className="flex items-center gap-2">
-                                                <p className="font-bold text-slate-900">
-                                                    {selectedMaintenance.budget != null ? formatCurrency(selectedMaintenance.budget) : '—'}
-                                                    {' → '}
-                                                    {selectedMaintenance.cost != null ? formatCurrency(selectedMaintenance.cost) : '—'}
-                                                </p>
-                                                {selectedMaintenance.budget != null && selectedMaintenance.cost != null && (
-                                                    <SGFBadge variant={selectedMaintenance.cost <= selectedMaintenance.budget ? 'success' : 'error'} size="sm">
-                                                        {selectedMaintenance.cost <= selectedMaintenance.budget ? 'Dentro do orçamento' : 'Orçamento estourado'}
-                                                    </SGFBadge>
-                                                )}
+                                ) : (
+                                    <>
+                                        {selectedMaintenance.repairShop && (
+                                            <div className="flex items-start justify-between gap-3 text-sm">
+                                                <span className="shrink-0 text-slate-500">Oficina</span>
+                                                <span className="text-right font-bold text-slate-800">{selectedMaintenance.repairShop}</span>
                                             </div>
+                                        )}
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-slate-500">Orçamento</span>
+                                            <span className="font-bold text-slate-800">
+                                                {selectedMaintenance.budget != null ? formatCurrency(selectedMaintenance.budget) : '—'}
+                                            </span>
                                         </div>
-                                    </div>
+                                        <div className="flex items-center justify-between border-t border-slate-200 pt-2">
+                                            <span className="font-bold text-slate-500">Custo final</span>
+                                            <span
+                                                className={cn(
+                                                    'text-xl font-black',
+                                                    selectedMaintenance.cost == null
+                                                        ? 'text-slate-300'
+                                                        : selectedMaintenance.budget != null && selectedMaintenance.cost > selectedMaintenance.budget
+                                                            ? 'text-rose-600'
+                                                            : 'text-emerald-600'
+                                                )}
+                                            >
+                                                {selectedMaintenance.cost != null ? formatCurrency(selectedMaintenance.cost) : '—'}
+                                            </span>
+                                        </div>
+                                    </>
                                 )}
 
-                                {selectedMaintenance.approvedAt && (
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                                            <Calendar width={20} height={20} />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Aprovada em</p>
-                                            <p className="font-bold text-slate-900">{formatDate(selectedMaintenance.approvedAt)}</p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {selectedMaintenance.completedAt && (
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
-                                            <CheckCircle width={20} height={20} />
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-0.5">Concluída em</p>
-                                            <p className="font-bold text-slate-900">{formatDate(selectedMaintenance.completedAt)}</p>
-                                        </div>
+                                {(selectedMaintenance.approvedAt || selectedMaintenance.completedAt) && (
+                                    <div className="space-y-1.5 border-t border-slate-200 pt-3">
+                                        {selectedMaintenance.approvedAt && (
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="flex items-center gap-1.5 text-slate-500">
+                                                    <ShieldCheck className="h-3.5 w-3.5" /> Aprovada em
+                                                </span>
+                                                <span className="font-semibold text-slate-700">{formatDate(selectedMaintenance.approvedAt)}</span>
+                                            </div>
+                                        )}
+                                        {selectedMaintenance.completedAt && (
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="flex items-center gap-1.5 text-slate-500">
+                                                    <CheckCircle className="h-3.5 w-3.5" /> Concluída em
+                                                </span>
+                                                <span className="font-semibold text-slate-700">{formatDate(selectedMaintenance.completedAt)}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
-                        )}
+                        </div>
+
+                        {/* Descrição */}
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                            <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                <FileText className="h-3.5 w-3.5" /> Descrição
+                            </p>
+                            <p className="text-sm leading-relaxed text-slate-700">{selectedMaintenance.description}</p>
+                        </div>
                     </div>
                 )}
             </Modal>

@@ -5,11 +5,14 @@ import { Modal, ModalFooter } from '@/components/ui/Modal';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
-import { FileText, Plus, X, Download, Loader2, Camera } from '@/components/sgf/icons';
-import { departmentsApi, vehiclesApi } from '@/lib/supabase-api';
+import { FileText, Plus, X, Download, Loader2, Camera, Sparkles } from '@/components/sgf/icons';
+import { departmentsApi, vehiclesApi, vehicleDocumentsApi } from '@/lib/supabase-api';
 import { supabase } from '@/lib/supabase';
 import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
 import { uploadPrivateDoc } from '@/lib/docStorage';
+import { VehicleAIModal } from '@/components/vehicles/VehicleAIModal';
+import { useAuth } from '@/contexts/AuthContext';
+import type { ExtractWithPhotosResult } from '@/lib/vehicleAI';
 import type { Tables, TablesUpdate } from '@/types/database.types';
 
 // Mesma lista usada no cadastro (Novo Veículo). + "Outro" para digitar livre.
@@ -30,6 +33,8 @@ export interface EditVehicleModalProps {
 
 export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalProps) {
     const queryClient = useQueryClient();
+    const { user } = useAuth();
+    const [aiOpen, setAiOpen] = useState(false);
 
     const [plate, setPlate] = useState('');
     const [brandSelect, setBrandSelect] = useState('');
@@ -149,6 +154,50 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
         }
     };
 
+    /**
+     * Aplica o que a IA extraiu nos CAMPOS do formulário (não salva sozinho —
+     * o gestor revisa e confirma em "Salvar alterações"). As fotos enviadas já
+     * ficam anexadas ao veículo, pois ele já existe.
+     */
+    const handleAiResult = async (result: ExtractWithPhotosResult) => {
+        const d = result.data;
+        if (d.plate) setPlate(String(d.plate).toUpperCase());
+        if (d.brand) {
+            const known = (KNOWN_BRANDS as readonly string[]).includes(d.brand);
+            setBrandSelect(known ? d.brand : OTHER_BRAND_VALUE);
+            setBrand(d.brand);
+        }
+        if (d.model) setModel(d.model);
+        if (d.year) setYear(String(d.year));
+        if (d.color) setColor(d.color);
+        if (d.vehicleType) setVehicleType(d.vehicleType);
+        if (d.renavam) setRenavam(String(d.renavam));
+        if (d.chassis) setChassis(String(d.chassis));
+        if (d.tankCapacity) setTankCapacity(String(d.tankCapacity));
+        if (d.fuelType) setFuelType(d.fuelType);
+        if (d.odometer && d.odometer > 0) setCurrentOdometer(String(d.odometer));
+
+        // Foto principal: só assume a da IA se ainda não houver uma definida.
+        const mainPhoto = result.photos.find((p) => p.type === 'foto')?.url;
+        if (mainPhoto && !photoUrl) setPhotoUrl(mainPhoto);
+
+        // Guarda as fotos na galeria do veículo (placa, CRLV e hodômetro vão para o bucket privado).
+        const TITLES: Record<string, string> = {
+            foto: 'Foto do veículo', placa: 'Placa', documento: 'Documento (CRLV)', hodometro: 'Hodômetro',
+        };
+        try {
+            for (const p of result.photos) {
+                await vehicleDocumentsApi.add({
+                    vehicleId: vehicle.id, url: p.url, title: TITLES[p.type] ?? 'Foto', docType: p.type,
+                });
+            }
+            await queryClient.invalidateQueries({ queryKey: ['vehicle', vehicle.id, 'documents'] });
+        } catch (err) {
+            console.warn('Falha ao anexar as fotos da IA:', err);
+            toast.warning('Campos preenchidos, mas houve erro ao anexar alguma foto.');
+        }
+    };
+
     const updateMutation = useMutation({
         mutationFn: (payload: TablesUpdate<'vehicles'>) => vehiclesApi.update(vehicle.id, payload),
     });
@@ -214,6 +263,21 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
             )}
         >
             <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Preenchimento automático por IA a partir de fotos */}
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                    <div className="min-w-0">
+                        <h4 className="flex items-center gap-1.5 text-sm font-bold text-emerald-900">
+                            <Sparkles className="h-4 w-4 text-emerald-600" /> Preencher com IA
+                        </h4>
+                        <p className="text-xs text-emerald-700/80">
+                            Envie fotos do veículo, placa, CRLV e hodômetro — a IA preenche os campos abaixo para você revisar.
+                        </p>
+                    </div>
+                    <SGFButton type="button" variant="secondary" size="sm" icon={Sparkles} onClick={() => setAiOpen(true)}>
+                        Usar IA
+                    </SGFButton>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SGFInput
                         label="Placa"
@@ -398,6 +462,14 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
                     </div>
                 )}
             </form>
+
+            <VehicleAIModal
+                isOpen={aiOpen}
+                onClose={() => setAiOpen(false)}
+                vehicleId={vehicle.id}
+                tenantId={user?.tenantId ?? ''}
+                onResult={handleAiResult}
+            />
         </Modal>
     );
 }

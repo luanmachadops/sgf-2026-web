@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Car, Fuel, Plus, Wrench } from '@/components/sgf/icons';
+import { Car, FileSpreadsheet, Fuel, Plus, Wrench } from '@/components/sgf/icons';
 import { Modal } from '@/components/ui/Modal';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFButton } from '@/components/sgf/SGFButton';
@@ -10,6 +10,7 @@ import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { NewVehicleForm } from '@/components/vehicles/NewVehicleForm';
+import { ImportVehiclesModal } from '@/components/vehicles/ImportVehiclesModal';
 import { useHeader } from '@/contexts/HeaderContext';
 import { departmentsApi } from '@/lib/supabase-api';
 import { formatDistance, formatPlate, getStatusColor, getStatusLabel } from '@/lib/utils';
@@ -46,6 +47,7 @@ export default function Vehicles() {
     const [statusFilter, setStatusFilter] = useState('');
     const [departmentFilter, setDepartmentFilter] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
 
     const { data: departments = [] } = useQuery({
         queryKey: ['departments'],
@@ -63,9 +65,19 @@ export default function Vehicles() {
         setDescription('Cadastro e gestão dos veículos da frota municipal.');
 
         setHeaderAction(
-            <SGFButton onClick={() => setShowAddModal(true)} icon={Plus} className="!rounded-full !h-[37px]">
-                Novo Veículo
-            </SGFButton>
+            <div className="flex items-center gap-2">
+                <SGFButton
+                    variant="outline"
+                    onClick={() => setShowImportModal(true)}
+                    icon={FileSpreadsheet}
+                    className="!rounded-full !h-[37px] !border-slate-200 hover:!bg-slate-50"
+                >
+                    Importar Planilha
+                </SGFButton>
+                <SGFButton onClick={() => setShowAddModal(true)} icon={Plus} className="!rounded-full !h-[37px]">
+                    Novo Veículo
+                </SGFButton>
+            </div>
         );
 
         return () => {
@@ -325,6 +337,12 @@ export default function Vehicles() {
                     onCancel={() => setShowAddModal(false)}
                 />
             </Modal>
+
+            <ImportVehiclesModal
+                isOpen={showImportModal}
+                onClose={() => setShowImportModal(false)}
+                existingVehicles={vehicles}
+            />
         </div>
     );
 }

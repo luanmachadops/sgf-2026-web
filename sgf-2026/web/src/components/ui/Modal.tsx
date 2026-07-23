@@ -12,6 +12,8 @@ export interface ModalProps {
     size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
     showCloseButton?: boolean;
     footer?: React.ReactNode;
+    /** Use the page surface background (#F5F7F9) instead of white */
+    surfaceBg?: boolean;
 }
 
 function Modal({
@@ -23,6 +25,7 @@ function Modal({
     size = 'md',
     showCloseButton = true,
     footer,
+    surfaceBg = false,
 }: ModalProps) {
     // Fechar com ESC.
     useEffect(() => {
@@ -49,6 +52,7 @@ function Modal({
         md: 'max-w-lg',
         lg: 'max-w-2xl',
         xl: 'max-w-4xl',
+        '2xl': 'max-w-6xl',
         full: 'max-w-7xl',
     };
 
@@ -65,14 +69,15 @@ function Modal({
         >
             <div
                 className={cn(
-                    'relative flex max-h-[90dvh] w-full flex-col bg-white shadow-[var(--sgf-shadow-xl)]',
+                    'relative flex max-h-[90dvh] w-full flex-col shadow-[var(--sgf-shadow-xl)]',
+                    surfaceBg ? 'bg-[#F5F7F9]' : 'bg-white',
                     'rounded-[var(--sgf-modal-radius)]',
                     sizes[size]
                 )}
             >
                 {/* Header */}
                 {(title || showCloseButton) && (
-                    <div className="flex shrink-0 items-start justify-between border-b border-slate-100 p-[var(--sgf-modal-padding)]">
+                    <div className={cn("flex shrink-0 items-start justify-between p-[var(--sgf-modal-padding)]", surfaceBg ? "border-b border-black/5" : "border-b border-slate-100")}>
                         <div>
                             {title && (
                                 <h2 className="text-[var(--sgf-text-xl)] font-[var(--sgf-font-semibold)] text-slate-900">{title}</h2>
@@ -97,7 +102,7 @@ function Modal({
 
                 {/* Footer */}
                 {footer && (
-                    <div className="flex shrink-0 items-center justify-end gap-[var(--sgf-space-3)] border-t border-slate-100 bg-slate-50/50 px-[var(--sgf-modal-padding)] py-[var(--sgf-space-4)] rounded-b-[var(--sgf-modal-radius)]">
+                    <div className={cn("flex shrink-0 items-center justify-end gap-[var(--sgf-space-3)] px-[var(--sgf-modal-padding)] py-[var(--sgf-space-4)] rounded-b-[var(--sgf-modal-radius)]", surfaceBg ? "border-t border-black/5 bg-[#F5F7F9]" : "border-t border-slate-100 bg-slate-50/50")}>
                         {footer}
                     </div>
                 )}
@@ -116,7 +121,7 @@ export function ModalFooter({ children, className }: ModalFooterProps) {
     return (
         <div
             className={cn(
-                'flex items-center justify-end gap-[var(--sgf-space-3)] border-t border-slate-100 bg-slate-50/50 px-[var(--sgf-modal-padding)] py-[var(--sgf-space-4)]',
+                'flex items-center justify-end gap-[var(--sgf-space-3)] w-full',
                 className
             )}
         >

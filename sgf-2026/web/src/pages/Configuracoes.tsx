@@ -108,16 +108,16 @@ export default function Configuracoes() {
         <div className="space-y-6 pb-4">
             {/* Acessos do painel — apenas administrador */}
             {user?.role === 'ADMIN' && (
-                <SGFCard padding="lg" className="border border-slate-200/80">
+                <SGFCard padding="lg" className="border border-slate-200/80 space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
                             <Users className="h-5 w-5 text-slate-400" />
                             <div>
                                 <h3 className="text-lg font-semibold text-slate-900">Secretários (acesso ao painel)</h3>
-                                <p className="text-sm text-slate-500">Crie acessos restritos a uma secretaria específica.</p>
+                                <p className="text-sm text-slate-500">Gerencie os secretários e acessos restritos de cada secretaria.</p>
                             </div>
                         </div>
-                        <SGFButton onClick={() => setShowSecretario(true)}>Novo secretário</SGFButton>
+                        <SGFButton onClick={() => setShowSecretario(true)} className="!rounded-full">Novo secretário</SGFButton>
                     </div>
                 </SGFCard>
             )}

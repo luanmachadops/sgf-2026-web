@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
@@ -10,6 +10,7 @@ import { stationsApi, vehiclesApi } from '@/lib/supabase-api';
 import { useCreateFuelAuthorization } from '@/hooks/useRefuelings';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatPlate } from '@/lib/utils';
+import { getStationUnavailableReason } from '@/lib/stationStatus';
 
 interface Props {
     isOpen: boolean;
@@ -29,33 +30,52 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
     const createAuth = useCreateFuelAuthorization();
 
     const { data: vehicles = [] } = useQuery({ queryKey: ['vehicles', 'all'], queryFn: () => vehiclesApi.getAll() });
-    const { data: stations = [] } = useQuery({ queryKey: ['stations', { activeOnly: true }], queryFn: () => stationsApi.getAll({ activeOnly: true }) });
+    // Busca todos os postos (inclusive inativos) para poder listá-los desabilitados/opacos em vez de escondê-los.
+    const { data: stations = [] } = useQuery({ queryKey: ['stations', { activeOnly: false }], queryFn: () => stationsApi.getAll() });
 
-    const vehicleOptions = useMemo(
-        () => vehicles.map((v) => ({
-            value: v.id,
-            label: `${formatPlate(v.plate) || v.unit_code} — ${v.brand ?? ''} ${v.model ?? ''}`.trim(),
-        })),
-        [vehicles],
-    );
     const stationOptions = useMemo(
         () => [
             { value: '', label: 'Qualquer (motorista decide)' },
-            ...stations.map((s) => ({ value: s.id, label: `${s.name}${s.code ? ` (${s.code})` : ''}` })),
+            ...stations.map((s) => {
+                const unavailable = getStationUnavailableReason(s);
+                return {
+                    value: s.id,
+                    label: `${s.name}${s.code ? ` (${s.code})` : ''}${unavailable ? ` — ${unavailable}` : ''}`,
+                    disabled: !!unavailable,
+                    disabledReason: unavailable ?? undefined,
+                };
+            }),
         ],
         [stations],
     );
 
     const [vehicleId, setVehicleId] = useState('');
+    const [vehicleSearch, setVehicleSearch] = useState('');
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const suggestionsRef = useRef<HTMLDivElement>(null);
+
     const [stationId, setStationId] = useState('');
     const [fuelType, setFuelType] = useState('');
     const [maxLiters, setMaxLiters] = useState('');
     const [notes, setNotes] = useState('');
     const [error, setError] = useState<string | null>(null);
 
+    const selectedVehicle = useMemo(() => vehicles.find((v) => v.id === vehicleId), [vehicles, vehicleId]);
+
+    const filteredVehicles = useMemo(() => {
+        const search = vehicleSearch.toLowerCase().trim();
+        if (!search) return vehicles;
+        return vehicles.filter(
+            (v) =>
+                (v.plate || '').toLowerCase().includes(search) ||
+                (v.brand || '').toLowerCase().includes(search) ||
+                (v.model || '').toLowerCase().includes(search) ||
+                (v.unit_code || '').toLowerCase().includes(search)
+        );
+    }, [vehicles, vehicleSearch]);
+
     // Combustível segue o veículo: específico → trava; flex → só Gasolina/Etanol.
     const FUEL_BY_VEHICLE: Record<string, string> = { DIESEL: 'Diesel', GASOLINE: 'Gasolina', ETHANOL: 'Etanol' };
-    const selectedVehicle = useMemo(() => vehicles.find((v) => v.id === vehicleId), [vehicles, vehicleId]);
     const vFuel = String((selectedVehicle as { fuel_type?: string } | undefined)?.fuel_type ?? '').toUpperCase();
     const lockedFuel = FUEL_BY_VEHICLE[vFuel]; // undefined quando flex/desconhecido
     const isFlex = vFuel === 'FLEX';
@@ -70,6 +90,17 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
         return FUEL_OPTIONS;
     }, [lockedFuel, isFlex]);
 
+    // Fecha a lista de sugestões ao clicar fora
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+                setShowSuggestions(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     // Ao trocar o veículo: trava no combustível dele (ou limpa, no flex/sem veículo).
     useEffect(() => {
         setFuelType(lockedFuel ?? '');
@@ -78,6 +109,8 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
     useEffect(() => {
         if (!isOpen) return;
         setVehicleId('');
+        setVehicleSearch('');
+        setShowSuggestions(false);
         setStationId('');
         setFuelType('');
         setMaxLiters('');
@@ -91,6 +124,12 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
 
         if (!vehicleId) return setError('Selecione o veículo.');
         if (!user?.id) return setError('Sessão inválida — faça login novamente.');
+
+        if (stationId) {
+            const chosenStation = stations.find((s) => s.id === stationId);
+            const unavailable = chosenStation ? getStationUnavailableReason(chosenStation) : null;
+            if (unavailable) return setError(`Não é possível autorizar neste posto: ${unavailable}.`);
+        }
 
         try {
             await createAuth.mutateAsync({
@@ -129,15 +168,101 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
             )}
         >
             <form onSubmit={handleSubmit} className="space-y-4">
-                <SGFSelect
-                    label="Veículo"
-                    options={vehicleOptions}
-                    value={vehicleId}
-                    onChange={setVehicleId}
-                    placeholder="Selecione o veículo..."
-                    fullWidth
-                    icon={Car}
-                />
+                {/* Seleção do Veículo com fotos (list box idêntico ao de Infrações) */}
+                {selectedVehicle ? (
+                    <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-3.5 animate-in fade-in duration-200">
+                        {selectedVehicle.photo_url ? (
+                            <img
+                                src={selectedVehicle.photo_url}
+                                alt={`${selectedVehicle.brand} ${selectedVehicle.model}`}
+                                className="h-12 w-12 shrink-0 rounded-xl object-cover border border-slate-100 shadow-sm"
+                            />
+                        ) : (
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                                <Car className="h-6 w-6" />
+                            </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                            <p className="font-mono text-base font-bold text-slate-900">
+                                {formatPlate(selectedVehicle.plate) || selectedVehicle.unit_code}
+                            </p>
+                            <p className="text-xs font-semibold text-slate-700">
+                                {selectedVehicle.brand} {selectedVehicle.model}
+                            </p>
+                            {selectedVehicle.departments?.name && (
+                                <p className="text-[11px] text-slate-400">{selectedVehicle.departments.name}</p>
+                            )}
+                        </div>
+                        <SGFButton
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="!text-rose-600 !border-rose-200 hover:!bg-rose-50 !rounded-full shrink-0"
+                            onClick={() => {
+                                setVehicleId('');
+                                setVehicleSearch('');
+                            }}
+                        >
+                            Alterar veículo
+                        </SGFButton>
+                    </div>
+                ) : (
+                    <div className="relative" ref={suggestionsRef}>
+                        <SGFInput
+                            label="Veículo"
+                            value={vehicleSearch}
+                            onChange={(e) => {
+                                setVehicleSearch(e.target.value);
+                                setShowSuggestions(true);
+                            }}
+                            onFocus={() => setShowSuggestions(true)}
+                            placeholder="Buscar por placa ou modelo..."
+                            fullWidth
+                            icon={Car}
+                        />
+                        {showSuggestions && filteredVehicles.length > 0 && (
+                            <div className="absolute z-[3000] left-0 right-0 top-full mt-1.5 max-h-60 overflow-y-auto rounded-2xl border border-slate-100 bg-white p-1.5 shadow-lg custom-scrollbar">
+                                {filteredVehicles.map((v) => (
+                                    <button
+                                        key={v.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setVehicleId(v.id);
+                                            setShowSuggestions(false);
+                                        }}
+                                        className="flex w-full items-center gap-3 rounded-full px-3 py-2 text-left hover:bg-emerald-50 transition-colors cursor-pointer"
+                                    >
+                                        {v.photo_url ? (
+                                            <img
+                                                src={v.photo_url}
+                                                alt={`${v.brand} ${v.model}`}
+                                                className="h-8 w-8 shrink-0 rounded-full object-cover border border-slate-100"
+                                            />
+                                        ) : (
+                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                                                <Car className="h-4.5 w-4.5" />
+                                            </div>
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-mono text-sm font-bold text-slate-900">
+                                                {formatPlate(v.plate) || v.unit_code}
+                                                {v.departments?.name && (
+                                                    <span className="ml-2 font-sans text-xs font-normal text-slate-400">
+                                                        · {v.departments.name}
+                                                    </span>
+                                                )}
+                                            </p>
+                                            <p className="text-xs text-slate-500 truncate">
+                                                {v.brand} {v.model}
+                                            </p>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <p className="-mt-1 flex items-center gap-1.5 text-xs text-slate-500">
                     <User className="h-3.5 w-3.5 text-slate-400" />
                     Sem motorista: a autorização aparece para quem estiver com este veículo no app.

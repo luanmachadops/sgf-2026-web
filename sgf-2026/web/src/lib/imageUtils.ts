@@ -155,6 +155,42 @@ export async function prepareUpload(file: File, opts?: OptimizeOptions): Promise
     return { blob: file, ext, contentType: file.type || 'application/octet-stream' };
 }
 
+/**
+ * Anexos de documentos (licitação, contrato, ata, planilha de preços…).
+ * Bem mais permissivo que `validateUploadFile`, que só aceita imagem/PDF —
+ * documentos de licitação costumam vir em Word, Excel, ZIP ou assinados (.p7s).
+ */
+export const DOCUMENT_ACCEPT =
+    '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.rtf,.odt,.ods,.zip,.rar,.7z,.p7s,.xml,image/*';
+
+const DOC_EXT_ALLOWLIST = [
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'rtf', 'odt', 'ods',
+    'zip', 'rar', '7z', 'p7s', 'xml',
+    'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp', 'tif', 'tiff',
+];
+
+export function validateDocumentFile(file: File, maxBytes: number = MAX_UPLOAD_BYTES): void {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    const okType = file.type.startsWith('image/') || DOC_EXT_ALLOWLIST.includes(ext);
+    if (!okType) {
+        throw new Error(`Tipo de arquivo não suportado (.${ext || '?'}). Envie PDF, Word, Excel, imagem ou ZIP.`);
+    }
+    if (file.size > maxBytes) {
+        throw new Error(`"${file.name}" tem ${formatFileSize(file.size)} — o limite é ${Math.round(maxBytes / 1024 / 1024)} MB.`);
+    }
+}
+
+/** Prepara um anexo de documento: imagem é otimizada; os demais sobem como estão. */
+export async function prepareDocumentUpload(file: File, opts?: OptimizeOptions): Promise<{ blob: Blob; ext: string; contentType: string }> {
+    validateDocumentFile(file);
+    if (isImageFile(file)) {
+        const o = await optimizeImage(file, opts);
+        return { blob: o.blob, ext: o.ext, contentType: o.contentType };
+    }
+    const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+    return { blob: file, ext, contentType: file.type || 'application/octet-stream' };
+}
+
 export function formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;

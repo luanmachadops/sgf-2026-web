@@ -1,15 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { MapContainer, TileLayer, Marker, Tooltip } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
-import { Modal } from '@/components/ui/Modal';
+import { VehicleMapDetailModal } from '@/components/vehicles/VehicleMapDetailModal';
 import { Car, Navigation, Search, User, Building2, MapPin, Clock, AlertTriangle, Wrench } from '@/components/sgf/icons';
-import { cn, formatDateTime } from '@/lib/utils';
+import { cn, formatDateTime, formatPlate } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { supabase } from '@/lib/supabase';
-import { mapApi, type LiveVehicle } from '@/lib/supabase-api';
+import { mapApi, departmentsApi, type LiveVehicle } from '@/lib/supabase-api';
+import { SGFSelect } from '@/components/sgf/SGFSelect';
 import 'leaflet/dist/leaflet.css';
 
 // Fix for default marker icons in Leaflet with Vite
@@ -124,12 +126,26 @@ function VehicleCardBody({ v }: { v: LiveVehicle }) {
     );
 }
 
+function MapFlyController({ target }: { target: [number, number] | null }) {
+    const map = useMap();
+    useEffect(() => {
+        if (target) {
+            map.flyTo(target, 16, { animate: true, duration: 1.2 });
+        }
+    }, [map, target]);
+    return null;
+}
+
 export default function MapPage() {
+    const [searchParams] = useSearchParams();
+    const urlVehicleId = searchParams.get('vehicleId') || searchParams.get('vehicle_id') || searchParams.get('id');
+
     const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null);
     const [hoveredId, setHoveredId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [mobileView, setMobileView] = useState<'map' | 'list'>('map');
+    const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
     const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler } = useHeader();
 
     const queryClient = useQueryClient();
@@ -143,6 +159,21 @@ export default function MapPage() {
         refetchInterval: 15_000,
         refetchIntervalInBackground: true,
     });
+
+    // Ao abrir o mapa via link com vehicleId (ex.: vindo de notificação), foca e abre os detalhes do veículo
+    useEffect(() => {
+        if (urlVehicleId && vehicles.length > 0) {
+            const found = vehicles.find(
+                (v) => v.id === urlVehicleId || v.plate?.toUpperCase() === urlVehicleId.toUpperCase()
+            );
+            if (found) {
+                setSelectedVehicle(found.id);
+                if (found.lat != null && found.lng != null) {
+                    setFlyTarget([found.lat, found.lng]);
+                }
+            }
+        }
+    }, [urlVehicleId, vehicles]);
 
     // Realtime: qualquer mudança em live_positions (viagem iniciou / veículo se moveu /
     // viagem encerrou) atualiza o mapa SEM recarregar a página. Debounce p/ coalescer rajadas.
@@ -179,17 +210,47 @@ export default function MapPage() {
     useEffect(() => {
         setTitle('Mapa');
         setDescription('Localização dos veículos em operação, atualizada em tempo real.');
-        setSearchPlaceholder('Pesquisar veículo ou motorista...');
+        setSearchPlaceholder('Pesquisar placa, modelo ou motorista...');
         setSearchHandler((term: string) => setSearchTerm(term));
         return () => { setSearchHandler(() => { }); };
     }, [setTitle, setDescription, setSearchPlaceholder, setSearchHandler]);
 
+    const [departmentFilter, setDepartmentFilter] = useState('all');
+
+    const { data: departmentsList = [] } = useQuery({
+        queryKey: ['departments', 'all'],
+        queryFn: () => departmentsApi.getAll(),
+    });
+
+    const departmentOptions = useMemo(() => {
+        const set = new Set<string>();
+        departmentsList.forEach((d) => { if (d.name) set.add(d.name); });
+        vehicles.forEach((v) => { if (v.department && v.department !== '—') set.add(v.department); });
+        return Array.from(set).sort();
+    }, [departmentsList, vehicles]);
+
+    const departmentSelectOptions = useMemo(
+        () => [
+            { value: 'all', label: 'Todas as secretarias' },
+            ...departmentOptions.map((dept) => ({
+                value: dept,
+                label: dept,
+            })),
+        ],
+        [departmentOptions]
+    );
+
     const filteredVehicles = vehicles.filter((v) => {
         const matchesSearch =
             v.plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            v.driver.toLowerCase().includes(searchTerm.toLowerCase());
+            v.driver.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            v.vehicleModel.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesStatus = statusFilter === 'all' || v.status === statusFilter;
-        return matchesSearch && matchesStatus;
+        const matchesDepartment =
+            departmentFilter === 'all' ||
+            v.department === departmentFilter ||
+            (v.department && v.department.toLowerCase() === departmentFilter.toLowerCase());
+        return matchesSearch && matchesStatus && matchesDepartment;
     });
 
     const statusCounts = vehicles.reduce((acc, v) => {
@@ -247,10 +308,26 @@ export default function MapPage() {
                                 type="text"
                                 value={searchTerm}
                                 onChange={(event) => setSearchTerm(event.target.value)}
-                                placeholder="Buscar placa ou motorista..."
-                                className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm font-medium text-slate-700 shadow-[var(--sgf-shadow-xs)] transition-all placeholder:text-slate-400 hover:border-[var(--sgf-primary)]/50 hover:bg-slate-50/50 focus:border-[var(--sgf-primary)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[var(--sgf-primary)]/10"
+                                placeholder="Buscar placa, modelo ou motorista..."
+                                className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm font-medium text-slate-700 shadow-none transition-all placeholder:text-slate-400 hover:border-emerald-500/50 hover:bg-slate-50/50 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-500/10"
                             />
                         </div>
+
+                        {/* Filtro de Secretaria */}
+                        <SGFSelect
+                            value={departmentFilter}
+                            onChange={setDepartmentFilter}
+                            options={departmentSelectOptions}
+                            placeholder="Todas as secretarias"
+                            icon={Building2}
+                            triggerClassName={cn(
+                                '!rounded-full !py-2.5 !px-4 !text-sm !font-medium !shadow-none transition-all',
+                                departmentFilter !== 'all'
+                                    ? '!border-emerald-500 !ring-4 !ring-emerald-500/15 !bg-white !text-slate-900 !font-semibold'
+                                    : '!border-slate-200 hover:!border-emerald-500/50 hover:!bg-slate-50/50'
+                            )}
+                            fullWidth
+                        />
 
                         <div className="grid w-full grid-cols-5 gap-1 rounded-xl bg-slate-100/50 p-1">
                             {[
@@ -325,7 +402,15 @@ export default function MapPage() {
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-bold text-sm text-gray-900">{vehicle.plate}</p>
+                                            <p className="font-bold text-sm text-gray-900 truncate flex items-center gap-1.5">
+                                                <span className="font-mono">{formatPlate(vehicle.plate) || vehicle.plate}</span>
+                                                {vehicle.vehicleModel && (
+                                                    <>
+                                                        <span className="text-slate-300 font-normal">·</span>
+                                                        <span className="font-sans text-sm font-semibold text-slate-700 truncate">{vehicle.vehicleModel}</span>
+                                                    </>
+                                                )}
+                                            </p>
                                             <p className="text-xs text-gray-500 truncate">
                                                 {vehicle.status === 'manutencao' ? (vehicle.repairShop || 'Em manutenção') : vehicle.driver}
                                             </p>
@@ -352,6 +437,7 @@ export default function MapPage() {
                         style={{ height: '100%', width: '100%' }}
                         className="h-full w-full"
                     >
+                        <MapFlyController target={flyTarget} />
                         <TileLayer
                             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -378,57 +464,13 @@ export default function MapPage() {
                 </SGFCard>
             </div>
 
-            {/* Modal de detalhes da viagem (ao clicar) */}
-            <Modal
+            {/* Modal de detalhes do veículo (ao clicar no marcador ou lista) */}
+            <VehicleMapDetailModal
+                vehicle={active}
                 isOpen={!!active}
                 onClose={() => setSelectedVehicle(null)}
-                title={active ? `${active.vehicleModel} • ${active.plate}` : ''}
-                size="md"
-            >
-                {active && (
-                    <div className="space-y-4">
-                        <div className="overflow-hidden rounded-2xl border border-slate-200">
-                            <VehicleCardBody v={active} />
-                        </div>
-
-                        {active.status === 'manutencao' ? (
-                            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
-                                <div className="flex items-center gap-1.5 text-amber-500">
-                                    <Wrench className="h-3.5 w-3.5" />
-                                    <span className="text-[10px] font-bold uppercase tracking-[0.12em]">Em manutenção</span>
-                                </div>
-                                <p className="mt-1.5 text-sm font-semibold text-amber-900">
-                                    {active.repairShop ? `Oficina: ${active.repairShop}` : 'Oficina ainda não informada'}
-                                </p>
-                            </div>
-                        ) : (
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
-                                <div className="flex items-center gap-1.5 text-slate-400">
-                                    <Clock className="h-3.5 w-3.5" />
-                                    <span className="text-[10px] font-bold uppercase tracking-[0.12em]">Início</span>
-                                </div>
-                                <p className="mt-1.5 text-sm font-semibold text-slate-800">{formatDateTime(active.startAt)}</p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
-                                <div className="flex items-center gap-1.5 text-slate-400">
-                                    <Clock className="h-3.5 w-3.5" />
-                                    <span className="text-[10px] font-bold uppercase tracking-[0.12em]">Tempo</span>
-                                </div>
-                                <p className="mt-1.5 text-sm font-semibold text-slate-800">{elapsedSince(active.startAt)}</p>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
-                                <div className="flex items-center gap-1.5 text-slate-400">
-                                    <MapPin className="h-3.5 w-3.5" />
-                                    <span className="text-[10px] font-bold uppercase tracking-[0.12em]">Destino</span>
-                                </div>
-                                <p className="mt-1.5 truncate text-sm font-semibold text-slate-800" title={active.destination}>{active.destination}</p>
-                            </div>
-                        </div>
-                        )}
-                    </div>
-                )}
-            </Modal>
+                onFocusMap={(lat, lng) => setFlyTarget([lat, lng])}
+            />
         </div>
     );
 }

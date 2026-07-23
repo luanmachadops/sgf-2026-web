@@ -7,6 +7,10 @@ export interface SGFSelectOption {
   value: string;
   label: string;
   icon?: React.ElementType;
+  /** Opção visível mas não selecionável (ex.: posto inativo ou com licitação vencida). */
+  disabled?: boolean;
+  /** Motivo exibido ao tentar selecionar uma opção desabilitada. */
+  disabledReason?: string;
 }
 
 export interface SGFSelectProps {
@@ -108,10 +112,10 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleSelect = (optionValue: string) => {
-      if (disabled) return;
-      setInternalValue(optionValue);
-      onChange?.(optionValue);
+    const handleSelect = (option: SGFSelectOption) => {
+      if (disabled || option.disabled) return;
+      setInternalValue(option.value);
+      onChange?.(option.value);
       setIsOpen(false);
     };
 
@@ -180,16 +184,21 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
               {options.map((option) => (
                 <div
                   key={option.value}
-                  onClick={() => handleSelect(option.value)}
+                  onClick={() => handleSelect(option)}
+                  title={option.disabled ? option.disabledReason : undefined}
                   className={cn(
-                    'relative flex w-full cursor-pointer select-none items-center',
+                    'relative flex w-full select-none items-center',
                     'rounded-full py-1.5 px-3',
                     'text-sm leading-tight outline-none',
                     'transition-all duration-[var(--sgf-transition-fast)]',
-                    'hover:bg-emerald-50 hover:text-emerald-900',
-                    currentValue === option.value
-                      ? 'bg-emerald-50/80 text-emerald-700 font-bold'
-                      : 'text-slate-600 font-medium'
+                    option.disabled
+                      ? 'opacity-40 cursor-not-allowed text-slate-400'
+                      : cn(
+                          'cursor-pointer hover:bg-emerald-50 hover:text-emerald-900',
+                          currentValue === option.value
+                            ? 'bg-emerald-50/80 text-emerald-700 font-bold'
+                            : 'text-slate-600 font-medium'
+                        )
                   )}
                 >
                   <span className="flex-1 flex items-center gap-2.5 truncate">

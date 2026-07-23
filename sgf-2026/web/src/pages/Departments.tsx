@@ -15,9 +15,11 @@ import {
     ShieldAlert,
     Users,
     UserSquare2,
+    User,
     Wrench,
 } from '@/components/sgf/icons';
 import { DepartmentFormModal } from '@/components/departments/DepartmentFormModal';
+import { NewSecretarioModal } from '@/components/settings/NewSecretarioModal';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
 import { RefuelingDetailsModal } from '@/components/refuelings/RefuelingDetailsModal';
 import { MaintenanceDetailsModal } from '@/components/maintenances/MaintenanceDetailsModal';
@@ -197,6 +199,7 @@ function DepartmentOverviewPage() {
     const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler, setHeaderAction } = useHeader();
     const [searchTerm, setSearchTerm] = useState('');
     const [isFormOpen, setFormOpen] = useState(false);
+    const [isSecretarioOpen, setSecretarioOpen] = useState(false);
 
     const { data = [], isLoading } = useQuery({
         queryKey: ['departments', 'operational-overview'],
@@ -220,9 +223,14 @@ function DepartmentOverviewPage() {
         setSearchPlaceholder('Pesquisar secretaria ou código...');
         setSearchHandler((term) => setSearchTerm(term.trim().toLowerCase()));
         setHeaderAction(
-            <SGFButton variant="primary" onClick={() => setFormOpen(true)} icon={Plus} className="!rounded-full !h-[37px]">
-                Nova secretaria
-            </SGFButton>
+            <div className="flex items-center gap-2">
+                <SGFButton variant="outline" onClick={() => setSecretarioOpen(true)} icon={User} className="!rounded-full !h-[37px] !border-slate-200 hover:!bg-slate-50">
+                    Novo secretário
+                </SGFButton>
+                <SGFButton variant="primary" onClick={() => setFormOpen(true)} icon={Plus} className="!rounded-full !h-[37px]">
+                    Nova secretaria
+                </SGFButton>
+            </div>
         );
         return () => {
             setSearchHandler(() => { });
@@ -389,6 +397,7 @@ function DepartmentOverviewPage() {
             </div>
 
             <DepartmentFormModal isOpen={isFormOpen} onClose={() => setFormOpen(false)} />
+            <NewSecretarioModal isOpen={isSecretarioOpen} onClose={() => setSecretarioOpen(false)} />
         </div>
     );
 }
@@ -408,6 +417,7 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
     const navigate = useNavigate();
     const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler, setHeaderAction } = useHeader();
     const [isEditOpen, setEditOpen] = useState(false);
+    const [isSecretarioOpen, setSecretarioOpen] = useState(false);
     const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
     const [selectedRefuelId, setSelectedRefuelId] = useState<string | null>(null);
     const [selectedMaintId, setSelectedMaintId] = useState<string | null>(null);
@@ -726,9 +736,14 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                     {detail && (
-                        <SGFButton variant="secondary" icon={Pencil} onClick={() => setEditOpen(true)} className="!h-[37px] !rounded-full">
-                            <span className="hidden sm:inline">Editar</span>
-                        </SGFButton>
+                        <>
+                            <SGFButton variant="outline" icon={User} onClick={() => setSecretarioOpen(true)} className="!h-[37px] !rounded-full">
+                                <span className="hidden sm:inline">Novo Secretário</span>
+                            </SGFButton>
+                            <SGFButton variant="secondary" icon={Pencil} onClick={() => setEditOpen(true)} className="!h-[37px] !rounded-full">
+                                <span className="hidden sm:inline">Editar</span>
+                            </SGFButton>
+                        </>
                     )}
                 </div>
             </div>
@@ -1232,6 +1247,7 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
             <TripDetailsModal tripId={selectedTripId} onClose={() => setSelectedTripId(null)} />
             <RefuelingDetailsModal refuelingId={selectedRefuelId} onClose={() => setSelectedRefuelId(null)} />
             <MaintenanceDetailsModal maintenanceId={selectedMaintId} onClose={() => setSelectedMaintId(null)} />
+            <NewSecretarioModal isOpen={isSecretarioOpen} onClose={() => setSecretarioOpen(false)} defaultDepartmentId={departmentId} />
         </div>
     );
 }

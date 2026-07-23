@@ -7,7 +7,7 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const MODEL = Deno.env.get('OPENROUTER_MODEL') ?? 'google/gemini-2.5-flash-lite';
+const MODEL = Deno.env.get('OPENROUTER_MODEL') ?? 'google/gemini-3.6-flash';
 
 function admin() {
   return createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {

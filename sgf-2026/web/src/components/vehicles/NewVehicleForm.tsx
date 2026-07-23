@@ -1,17 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Loader2, Save, Camera, Sparkles, X, ChevronDown } from '@/components/sgf/icons';
+import { Loader2, Save, Sparkles, ChevronDown } from '@/components/sgf/icons';
 import { toast } from 'sonner';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
-import { departmentsApi, vehiclesApi } from '@/lib/supabase-api';
-import { supabase } from '@/lib/supabase';
-import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
-import { uploadPrivateDoc } from '@/lib/docStorage';
-import { extractVehicleFromImages, VEHICLE_TYPES } from '@/lib/vehicleAI';
+import { departmentsApi, vehiclesApi, vehicleDocumentsApi } from '@/lib/supabase-api';
+import { VEHICLE_TYPES, type ExtractWithPhotosResult } from '@/lib/vehicleAI';
+import { VehicleAIModal } from '@/components/vehicles/VehicleAIModal';
 import type { TablesInsert } from '@/types/database.types';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -46,79 +44,16 @@ interface NewVehicleFormProps {
     onCancel: () => void;
 }
 
-// ── Slot de foto (câmera ou galeria, só imagem) ────────────────────────────
-function PhotoSlot({
-    label, hint, file, onSelect, onClear,
-}: {
-    label: string; hint: string; file: File | null;
-    onSelect: (f: File) => void; onClear: () => void;
-}) {
-    const inputRef = useRef<HTMLInputElement>(null);
-    const [preview, setPreview] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (!file) { setPreview(null); return; }
-        const reader = new FileReader();
-        reader.onloadend = () => setPreview(reader.result as string);
-        reader.readAsDataURL(file);
-    }, [file]);
-
-    return (
-        <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-slate-600">{label}</label>
-            <div
-                onClick={() => inputRef.current?.click()}
-                className={
-                    'relative aspect-[4/3] w-full cursor-pointer overflow-hidden rounded-xl border-2 border-dashed transition-all flex items-center justify-center ' +
-                    (preview ? 'border-emerald-400 bg-emerald-50/30' : 'border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/20')
-                }
-            >
-                {preview ? (
-                    <>
-                        <img src={preview} alt={label} className="absolute inset-0 h-full w-full object-cover" />
-                        <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onClear(); }}
-                            className="absolute right-1.5 top-1.5 rounded-full bg-black/50 p-1 text-white hover:bg-black/70"
-                        >
-                            <X className="h-3.5 w-3.5" />
-                        </button>
-                    </>
-                ) : (
-                    <div className="px-2 text-center">
-                        <Camera className="mx-auto h-6 w-6 text-slate-300" />
-                        <p className="mt-1 text-[11px] font-medium text-slate-500">{hint}</p>
-                    </div>
-                )}
-                <input
-                    ref={inputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (!f) return;
-                        if (!isImageFile(f)) { toast.error('Selecione uma imagem válida.'); return; }
-                        onSelect(f);
-                        if (inputRef.current) inputRef.current.value = '';
-                    }}
-                />
-            </div>
-        </div>
-    );
-}
-
 export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
     const { user } = useAuth();
     const [departmentOptions, setDepartmentOptions] = useState<Array<{ value: string; label: string }>>([]);
     const [isUploading, setIsUploading] = useState(false);
-    const [aiLoading, setAiLoading] = useState(false);
     const [brandSelect, setBrandSelect] = useState<string>('');
     const [showMore, setShowMore] = useState(false);
 
-    const [vehicleFile, setVehicleFile] = useState<File | null>(null);
-    const [plateFile, setPlateFile] = useState<File | null>(null);
-    const [docFile, setDocFile] = useState<File | null>(null);
+    const [aiOpen, setAiOpen] = useState(false);
+    // Fotos já enviadas pela IA — aplicadas ao veículo assim que ele é criado.
+    const [aiPhotos, setAiPhotos] = useState<ExtractWithPhotosResult['photos']>([]);
 
     const brandOptions = useMemo(
         () => [
@@ -155,53 +90,30 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
 
     const isSubmitting = isFormSubmitting || isUploading;
 
-    const handleAiExtract = async () => {
-        const files = [vehicleFile, plateFile, docFile].filter(Boolean) as File[];
-        if (files.length === 0) {
-            toast.warning('Adicione ao menos uma foto (veículo, placa ou documento).');
-            return;
+    /** Aplica o que a IA extraiu nos campos do formulário (o gestor revisa antes de salvar). */
+    const handleAiResult = (result: ExtractWithPhotosResult) => {
+        const d = result.data;
+        if (d.plate) setValue('plate', String(d.plate).toUpperCase(), { shouldValidate: true });
+        if (d.brand) {
+            const known = (KNOWN_BRANDS as readonly string[]).includes(d.brand);
+            setBrandSelect(known ? d.brand : OTHER_BRAND_VALUE);
+            setValue('brand', d.brand, { shouldValidate: true });
         }
-        if (!user?.tenantId) {
-            toast.error('Sem prefeitura definida para o envio das fotos.');
-            return;
-        }
-        try {
-            setAiLoading(true);
-            toast.info('Analisando imagens com IA...');
-            const d = await extractVehicleFromImages(files, user.tenantId);
+        if (d.model) setValue('model', d.model, { shouldValidate: true });
+        if (d.year) setValue('year', d.year, { shouldValidate: true });
+        if (d.fuelType) setValue('fuelType', d.fuelType, { shouldValidate: true });
+        if (d.tankCapacity) setValue('tankCapacity', d.tankCapacity, { shouldValidate: true });
+        if (d.vehicleType) setValue('vehicleType', d.vehicleType);
+        if (d.color) setValue('color', d.color);
+        if (d.renavam) setValue('renavam', String(d.renavam));
+        if (d.chassis) setValue('chassis', String(d.chassis));
+        if (d.odometer && d.odometer > 0) setValue('currentOdometer', d.odometer, { shouldValidate: true });
 
-            if (d.plate) setValue('plate', String(d.plate).toUpperCase(), { shouldValidate: true });
-            if (d.brand) {
-                const known = (KNOWN_BRANDS as readonly string[]).includes(d.brand);
-                setBrandSelect(known ? d.brand : OTHER_BRAND_VALUE);
-                setValue('brand', d.brand, { shouldValidate: true });
-            }
-            if (d.model) setValue('model', d.model, { shouldValidate: true });
-            if (d.year) setValue('year', d.year, { shouldValidate: true });
-            if (d.fuelType) setValue('fuelType', d.fuelType, { shouldValidate: true });
-            if (d.tankCapacity) setValue('tankCapacity', d.tankCapacity, { shouldValidate: true });
-            if (d.vehicleType) setValue('vehicleType', d.vehicleType);
-            if (d.color) setValue('color', d.color);
-            if (d.renavam) setValue('renavam', String(d.renavam));
-            if (d.chassis) setValue('chassis', String(d.chassis));
+        // Abre a sanfona se a IA preencheu algum campo de documentação/identificação.
+        if (d.vehicleType || d.color || d.renavam || d.chassis) setShowMore(true);
 
-            // Abre a sanfona se a IA preencheu algum campo de documentação/identificação.
-            if (d.vehicleType || d.color || d.renavam || d.chassis) setShowMore(true);
-
-            toast.success('Dados preenchidos pela IA. Revise antes de salvar.');
-        } catch (e) {
-            toast.error((e as { message?: string })?.message ?? 'Não foi possível extrair os dados.');
-        } finally {
-            setAiLoading(false);
-        }
-    };
-
-    const uploadImage = async (file: File, prefix: string): Promise<string> => {
-        const blob = await resizeAndConvertToWebP(file, 1000);
-        const fileName = `vehicles/${prefix}-${Date.now()}.webp`;
-        const { error } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
-        if (error) throw error;
-        return supabase.storage.from('fotos').getPublicUrl(fileName).data.publicUrl;
+        // As fotos já subiram; ficam guardadas para vincular ao veículo recém-criado.
+        setAiPhotos(result.photos);
     };
 
     const onSubmit = async (data: VehicleFormInput) => {
@@ -228,21 +140,28 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
 
             const created = await vehiclesApi.create(payload);
 
-            if (vehicleFile || docFile) {
+            // Vincula ao veículo recém-criado as fotos que a IA já havia enviado.
+            if (aiPhotos.length > 0) {
                 setIsUploading(true);
                 try {
-                    if (vehicleFile) {
-                        const url = await uploadImage(vehicleFile, created.id);
-                        await vehiclesApi.updatePhoto(created.id, url);
-                    }
-                    if (docFile) {
-                        // Documento sensível → bucket PRIVADO (path escopado por prefeitura).
-                        const docPath = await uploadPrivateDoc(docFile, 'vehicle-docs', user?.tenantId ?? '', created.id);
-                        await vehiclesApi.update(created.id, { document_url: docPath } as never);
+                    const mainPhoto = aiPhotos.find((p) => p.type === 'foto')?.url;
+                    if (mainPhoto) await vehiclesApi.updatePhoto(created.id, mainPhoto);
+
+                    // O CRLV fica no bucket privado — guardamos o path como documento do veículo.
+                    const crlv = aiPhotos.find((p) => p.type === 'documento')?.url;
+                    if (crlv) await vehiclesApi.update(created.id, { document_url: crlv } as never);
+
+                    const TITLES: Record<string, string> = {
+                        foto: 'Foto do veículo', placa: 'Placa', documento: 'Documento (CRLV)', hodometro: 'Hodômetro',
+                    };
+                    for (const p of aiPhotos) {
+                        await vehicleDocumentsApi.add({
+                            vehicleId: created.id, url: p.url, title: TITLES[p.type] ?? 'Foto', docType: p.type,
+                        });
                     }
                 } catch (err) {
                     console.error(err);
-                    toast.warning('Veículo criado, mas houve erro ao enviar alguma imagem.');
+                    toast.warning('Veículo criado, mas houve erro ao anexar alguma foto.');
                 } finally {
                     setIsUploading(false);
                 }
@@ -257,22 +176,24 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* Fotos + IA */}
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h4 className="text-sm font-bold text-slate-700">Fotos do veículo</h4>
-                        <p className="text-xs text-slate-400">Tire fotos ou escolha da galeria. A IA preenche os campos automaticamente.</p>
-                    </div>
-                    <SGFButton type="button" variant="secondary" size="sm" icon={aiLoading ? Loader2 : Sparkles} disabled={aiLoading} onClick={handleAiExtract}>
-                        {aiLoading ? 'Analisando...' : 'Preencher com IA'}
-                    </SGFButton>
+            {/* Preenchimento automático por IA a partir de fotos */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                <div className="min-w-0">
+                    <h4 className="flex items-center gap-1.5 text-sm font-bold text-emerald-900">
+                        <Sparkles className="h-4 w-4 text-emerald-600" /> Preencher com IA
+                    </h4>
+                    <p className="text-xs text-emerald-700/80">
+                        Envie fotos do veículo, placa, CRLV e hodômetro — a IA preenche os campos abaixo para você revisar.
+                    </p>
+                    {aiPhotos.length > 0 && (
+                        <p className="mt-1 text-xs font-semibold text-emerald-700">
+                            {aiPhotos.length} foto(s) anexada(s) — serão salvas junto com o veículo.
+                        </p>
+                    )}
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <PhotoSlot label="Foto do veículo" hint="Toque para foto/galeria" file={vehicleFile} onSelect={setVehicleFile} onClear={() => setVehicleFile(null)} />
-                    <PhotoSlot label="Foto da placa" hint="Para ler a placa" file={plateFile} onSelect={setPlateFile} onClear={() => setPlateFile(null)} />
-                    <PhotoSlot label="Foto do documento" hint="CRLV (RENAVAM, chassi)" file={docFile} onSelect={setDocFile} onClear={() => setDocFile(null)} />
-                </div>
+                <SGFButton type="button" variant="secondary" size="sm" icon={Sparkles} onClick={() => setAiOpen(true)}>
+                    Usar IA
+                </SGFButton>
             </div>
 
             {/* Campos */}
@@ -415,6 +336,13 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
                     {isSubmitting ? 'Salvando...' : 'Cadastrar Veículo'}
                 </SGFButton>
             </div>
+
+            <VehicleAIModal
+                isOpen={aiOpen}
+                onClose={() => setAiOpen(false)}
+                tenantId={user?.tenantId ?? ''}
+                onResult={handleAiResult}
+            />
         </form>
     );
 }

@@ -14,25 +14,27 @@
   isolation: isolate;
 }
 
-/* Scrollbar customizada: track transparente (sem preenchimento branco) + thumb sutil */
+/* Scrollbar customizada: track visível + thumb verde SGF destacado */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+  scrollbar-color: #00A86B #F1F5F9;
 }
 .custom-scrollbar::-webkit-scrollbar {
   width: 8px;
-  height: 8px;
+  height: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(148, 163, 184, 0.4);
+  background: #F1F5F9;
   border-radius: 9999px;
 }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #00A86B;
+  border-radius: 9999px;
+  border: 2px solid #F1F5F9;
+}
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(100, 116, 139, 0.6);
+  background-color: #0F2B2F;
 }
 .custom-scrollbar::-webkit-scrollbar-corner {
-  background: transparent;
+  background: #F1F5F9;
 }
