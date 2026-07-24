@@ -94,6 +94,13 @@ export const driverRegistrationPublicApi = {
     validateInvite: (token: string) =>
         invoke<RegistrationInvite>({ action: 'validate_invite', token }),
 
+    checkCpf: (token: string, cpf: string) =>
+        invoke<{ valid: boolean; available: boolean }>({
+            action: 'check_cpf',
+            token,
+            cpf,
+        }),
+
     async uploadCnh(token: string, file: File, side: 'front' | 'back' = 'front') {
         const signed = await invoke<{ path: string; token: string }>({
             action: 'create_upload',

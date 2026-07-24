@@ -10,6 +10,7 @@ import {
     FileText,
     Lock,
     ShieldCheck,
+    Sparkles,
 } from '@/components/sgf/icons';
 import {
     driverRegistrationPublicApi,
@@ -34,6 +35,8 @@ type FormState = {
 
 type Protocol = { requestId: string; trackingToken: string; token: string };
 type RegistrationStatus = 'pending' | 'needs_correction' | 'approved' | 'rejected';
+type CpfStatus = 'idle' | 'checking' | 'available' | 'duplicate' | 'invalid' | 'error';
+type DocumentStage = 'idle' | 'uploading' | 'analyzing';
 
 const PROTOCOL_KEY = 'sgf.driver-registration.protocol';
 const EMPTY_FORM: FormState = {
@@ -61,6 +64,20 @@ function formatCpf(value: string) {
         .replace(/^(\d{3})(\d)/, '$1.$2')
         .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
         .replace(/\.(\d{3})(\d)/, '.$1-$2');
+}
+
+function validCpf(value: string) {
+    const raw = digits(value);
+    if (!/^\d{11}$/.test(raw) || /^(\d)\1{10}$/.test(raw)) return false;
+    const calculateDigit = (length: number) => {
+        let sum = 0;
+        for (let index = 0; index < length; index += 1) {
+            sum += Number(raw[index]) * (length + 1 - index);
+        }
+        const result = (sum * 10) % 11;
+        return result === 10 ? 0 : result;
+    };
+    return calculateDigit(9) === Number(raw[9]) && calculateDigit(10) === Number(raw[10]);
 }
 
 function formatPhone(value: string) {
@@ -91,6 +108,9 @@ export default function Convite() {
     const [protocol, setProtocol] = useState<Protocol | null>(null);
     const [status, setStatus] = useState<RegistrationStatus>('pending');
     const [managerNote, setManagerNote] = useState<string | null>(null);
+    const [cpfStatus, setCpfStatus] = useState<CpfStatus>('idle');
+    const [cpfCheckAttempt, setCpfCheckAttempt] = useState(0);
+    const [documentStage, setDocumentStage] = useState<DocumentStage>('idle');
 
     const primary = invite?.tenant.primary_color || '#00A86B';
     const appName = invite?.tenant.app_name || 'Frota Municipal';
@@ -160,6 +180,41 @@ export default function Convite() {
         };
     }, [photoUrl]);
 
+    useEffect(() => {
+        const cpf = digits(form.cpf);
+        let active = true;
+
+        if (cpf.length === 0) {
+            setCpfStatus('idle');
+            return undefined;
+        }
+        if (cpf.length < 11) {
+            setCpfStatus('idle');
+            return undefined;
+        }
+        if (!validCpf(cpf)) {
+            setCpfStatus('invalid');
+            return undefined;
+        }
+
+        setCpfStatus('checking');
+        const timer = window.setTimeout(() => {
+            void driverRegistrationPublicApi.checkCpf(token, cpf)
+                .then((result) => {
+                    if (!active) return;
+                    setCpfStatus(result.valid && result.available ? 'available' : 'duplicate');
+                })
+                .catch(() => {
+                    if (active) setCpfStatus('error');
+                });
+        }, 350);
+
+        return () => {
+            active = false;
+            window.clearTimeout(timer);
+        };
+    }, [cpfCheckAttempt, form.cpf, token]);
+
     const setField = (field: keyof FormState, value: string) => {
         setForm((current) => ({ ...current, [field]: value }));
         setError('');
@@ -192,22 +247,27 @@ export default function Convite() {
 
         setPhotoUrl(URL.createObjectURL(file));
         setBusy(true);
+        setDocumentStage('uploading');
         setError('');
         try {
             const path = await driverRegistrationPublicApi.uploadCnh(token, file);
             setCnhPath(path);
+            setDocumentStage('analyzing');
             try {
                 const extracted = await driverRegistrationPublicApi.extractCnh(token, [path]);
                 applyExtraction(extracted);
             } catch {
                 setError('A foto foi enviada, mas a leitura automática não conseguiu preencher tudo. Você poderá digitar os dados.');
             }
+            setStep(2);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         } catch (cause) {
             setPhotoUrl('');
             setCnhPath('');
             setError((cause as Error).message);
         } finally {
             setBusy(false);
+            setDocumentStage('idle');
             event.target.value = '';
         }
     };
@@ -225,6 +285,18 @@ export default function Convite() {
             }
             if (digits(form.cpf).length !== 11) {
                 setError('Informe um CPF válido.');
+                return;
+            }
+            if (cpfStatus === 'checking') {
+                setError('Aguarde a verificação do CPF.');
+                return;
+            }
+            if (cpfStatus === 'duplicate') {
+                setError('Este CPF já possui cadastro. Entre em contato com o gestor.');
+                return;
+            }
+            if (cpfStatus !== 'available') {
+                setError('Confirme um CPF válido e disponível antes de avançar.');
                 return;
             }
             if (digits(form.cnhNumber).length < 9 || !form.cnhCategory || !form.cnhExpiry) {
@@ -420,11 +492,12 @@ export default function Convite() {
                                 className="sr-only"
                             />
                         </label>
-                        {busy && (
-                            <div className="flex items-center justify-center gap-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
-                                <Spinner small /> Enviando e lendo os dados…
+                        {documentStage === 'uploading' && (
+                            <div role="status" className="flex items-center justify-center gap-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+                                <Spinner small /> Enviando sua CNH com segurança…
                             </div>
                         )}
+                        {documentStage === 'analyzing' && <AiDocumentAnalysis primary={primary} />}
                         {!busy && cnhPath && (
                             <div className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
                                 <CheckCircle className="h-5 w-5" /> CNH enviada de forma privada. Você revisará os dados na próxima etapa.
@@ -444,7 +517,22 @@ export default function Convite() {
                         </div>
                         <Field label="Nome completo" value={form.fullName} onChange={(value) => setField('fullName', value)} autoComplete="name" />
                         <div className="grid gap-4 sm:grid-cols-2">
-                            <Field label="CPF" value={form.cpf} onChange={(value) => setField('cpf', formatCpf(value))} inputMode="numeric" autoComplete="off" />
+                            <div>
+                                <Field
+                                    label="CPF"
+                                    value={form.cpf}
+                                    onChange={(value) => {
+                                        setCpfStatus('idle');
+                                        setField('cpf', formatCpf(value));
+                                    }}
+                                    inputMode="numeric"
+                                    autoComplete="off"
+                                />
+                                <CpfFeedback
+                                    status={cpfStatus}
+                                    onRetry={() => setCpfCheckAttempt((current) => current + 1)}
+                                />
+                            </div>
                             <Field label="Data de nascimento" type="date" value={form.birthDate} onChange={(value) => setField('birthDate', value)} />
                         </div>
                         <div className="grid gap-4 sm:grid-cols-3">
@@ -472,7 +560,7 @@ export default function Convite() {
                                 id="department"
                                 value={form.departmentId}
                                 onChange={(event) => setField('departmentId', event.target.value)}
-                                className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                                className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-base text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 sm:text-sm"
                             >
                                 <option value="">Selecione sua secretaria</option>
                                 {invite?.departments.map((department) => (
@@ -569,7 +657,7 @@ export default function Convite() {
                     <button
                         type="button"
                         onClick={goNext}
-                        disabled={busy}
+                        disabled={busy || (step === 2 && cpfStatus !== 'available')}
                         className="mt-5 flex h-14 w-full items-center justify-center gap-2 rounded-2xl text-base font-bold text-white shadow-lg transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
                         style={{ backgroundColor: primary }}
                     >
@@ -616,6 +704,66 @@ function SectionIcon({ children, primary }: { children: React.ReactNode; primary
     );
 }
 
+function AiDocumentAnalysis({ primary }: { primary: string }) {
+    return (
+        <div
+            role="status"
+            aria-live="polite"
+            className="relative overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-teal-50 px-5 py-6"
+        >
+            <div className="absolute -right-12 -top-12 h-32 w-32 animate-pulse rounded-full bg-emerald-200/40 blur-2xl" />
+            <div className="absolute -bottom-16 -left-10 h-36 w-36 animate-pulse rounded-full bg-teal-200/40 blur-2xl [animation-delay:500ms]" />
+            <div className="relative flex items-center gap-4">
+                <div className="relative flex h-16 w-16 shrink-0 items-center justify-center">
+                    <span className="absolute inset-0 animate-ping rounded-full border border-emerald-300 opacity-50" />
+                    <span className="absolute inset-2 animate-pulse rounded-full bg-white shadow-lg" />
+                    <Sparkles className="relative h-7 w-7 animate-pulse" style={{ color: primary }} />
+                </div>
+                <div className="min-w-0">
+                    <p className="font-bold text-slate-900">Analisando documento com IA</p>
+                    <p className="mt-1 text-sm leading-5 text-slate-500">
+                        Estamos identificando nome, CPF, número e validade da CNH.
+                    </p>
+                    <div className="mt-3 flex items-center gap-1.5" aria-hidden="true">
+                        {[0, 1, 2, 3, 4].map((item) => (
+                            <span
+                                key={item}
+                                className="h-1.5 w-7 animate-pulse rounded-full bg-emerald-300"
+                                style={{ animationDelay: `${item * 160}ms` }}
+                            />
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function CpfFeedback({ status, onRetry }: { status: CpfStatus; onRetry: () => void }) {
+    if (status === 'idle') return null;
+    const presentation = {
+        checking: { text: 'Verificando CPF…', className: 'text-slate-500', icon: <Spinner small /> },
+        available: { text: 'CPF válido e disponível.', className: 'text-emerald-700', icon: <CheckCircle className="h-4 w-4" /> },
+        duplicate: { text: 'Este CPF já possui cadastro. Procure o gestor.', className: 'text-red-700', icon: <AlertCircle className="h-4 w-4" /> },
+        invalid: { text: 'CPF inválido. Confira os números digitados.', className: 'text-red-700', icon: <AlertCircle className="h-4 w-4" /> },
+        error: { text: 'Não foi possível verificar agora. Confira sua conexão.', className: 'text-amber-700', icon: <AlertCircle className="h-4 w-4" /> },
+    }[status];
+
+    return (
+        <div className={`mt-2 flex flex-wrap items-center gap-2 text-sm font-medium ${presentation.className}`}>
+            <p role="status" aria-live="polite" className="flex items-center gap-2">
+                {presentation.icon}
+                {presentation.text}
+            </p>
+            {status === 'error' && (
+                <button type="button" onClick={onRetry} className="font-bold underline underline-offset-2">
+                    Tentar novamente
+                </button>
+            )}
+        </div>
+    );
+}
+
 type FieldProps = {
     label: string;
     value: string;
@@ -642,7 +790,7 @@ function Field({
                 onChange={(event) => onChange(event.target.value)}
                 inputMode={inputMode}
                 autoComplete={autoComplete}
-                className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+                className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 sm:text-sm"
             />
         </label>
     );

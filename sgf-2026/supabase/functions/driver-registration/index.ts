@@ -176,6 +176,24 @@ async function validateInvite(body: Json) {
   return response({ data: await invitePresentation(invite) });
 }
 
+async function checkCpf(body: Json) {
+  const invite = await getInvite(body.token);
+  if (!invite) return response({ error: "Convite inválido, expirado ou já utilizado." }, 404);
+  const cpf = digits(body.cpf);
+  if (!validCpf(cpf)) {
+    return response({ data: { valid: false, available: false } });
+  }
+  const { data, error } = await admin()
+    .from("profiles")
+    .select("id")
+    .eq("tenant_id", invite.tenant_id)
+    .eq("cpf", cpf)
+    .limit(1)
+    .maybeSingle();
+  if (error) return response({ error: "Não foi possível verificar o CPF agora." }, 500);
+  return response({ data: { valid: true, available: !data } });
+}
+
 async function createUpload(body: Json) {
   const invite = await getInvite(body.token);
   if (!invite) return response({ error: "Convite inválido, expirado ou já utilizado." }, 404);
@@ -503,6 +521,7 @@ Deno.serve(async (req: Request) => {
     switch (cleanText(body.action, 40)) {
       case "create_invite": return await createInvite(req, body);
       case "validate_invite": return await validateInvite(body);
+      case "check_cpf": return await checkCpf(body);
       case "create_upload": return await createUpload(body);
       case "extract_cnh": return await extractCnh(body);
       case "submit": return await submitRegistration(body);
