@@ -8,3 +8,5 @@
 # Scripts locais da máquina (caminhos absolutos)
 new.sh
 new2.sh
+.vercel
+.env*

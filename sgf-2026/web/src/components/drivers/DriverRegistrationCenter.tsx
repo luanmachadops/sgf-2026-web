@@ -49,11 +49,17 @@ export function DriverRegistrationCenter({ isOpen, onClose }: Props) {
     });
 
     const createInvite = useMutation({
-        mutationFn: () => driverRegistrationManagerApi.createInvite({
-            departmentId: departmentId || undefined,
-            expiresInDays,
-            maxUses,
-        }),
+        mutationFn: async () => {
+            const invite = await driverRegistrationManagerApi.createInvite({
+                departmentId: departmentId || undefined,
+                expiresInDays,
+                maxUses,
+            });
+            if (!invite.inviteUrl.startsWith('https://')) {
+                throw new Error('O serviço não retornou um link web seguro. Tente novamente.');
+            }
+            return invite;
+        },
         onSuccess: (data) => {
             setGenerated(data);
             toast.success('Convite criado com segurança.');
@@ -110,7 +116,7 @@ export function DriverRegistrationCenter({ isOpen, onClose }: Props) {
             isOpen={isOpen}
             onClose={onClose}
             title="Cadastro pelo motorista"
-            description="Envie um convite e analise os dados preenchidos no aplicativo."
+            description="Envie um convite e analise os dados preenchidos pelo navegador."
             size="xl"
         >
             <div className="space-y-5">
@@ -150,7 +156,7 @@ export function DriverRegistrationCenter({ isOpen, onClose }: Props) {
                                 onChange={(event) => setDepartmentId(event.target.value)}
                                 className="mb-4 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-emerald-500"
                             >
-                                <option value="">Motorista escolhe no aplicativo</option>
+                                <option value="">Motorista escolhe no navegador</option>
                                 {departments.map((department) => (
                                     <option key={department.id} value={department.id}>{department.name}</option>
                                 ))}
@@ -200,16 +206,16 @@ export function DriverRegistrationCenter({ isOpen, onClose }: Props) {
                                     <div>
                                         <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Convite pronto</p>
                                         <h3 className="mt-1 text-xl font-bold">Envie ao motorista</h3>
-                                        <p className="mt-1 text-sm text-slate-300">Envie por WhatsApp. Ao abrir pelo celular, o aplicativo inicia o cadastro automaticamente.</p>
+                                        <p className="mt-1 text-sm text-slate-300">Envie por WhatsApp ou e-mail. O motorista preenche tudo diretamente no navegador.</p>
                                     </div>
                                     <div className="break-all rounded-xl bg-white/10 p-3 font-mono text-xs text-emerald-100">
-                                        {generated.inviteUrl ?? generated.deepLink}
+                                        {generated.inviteUrl}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         <SGFButton
                                             variant="primary"
                                             icon={Clipboard}
-                                            onClick={() => copy(generated.inviteUrl ?? generated.deepLink, 'Link copiado.')}
+                                            onClick={() => copy(generated.inviteUrl, 'Link copiado.')}
                                         >
                                             Copiar link
                                         </SGFButton>

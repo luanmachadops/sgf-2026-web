@@ -155,10 +155,8 @@ async function createInvite(req: Request, body: Json) {
     max_uses: maxUses,
   }).select("id").single();
   if (error) return response({ error: error.message }, 400);
-  // `inviteUrl` (https) é o que se envia ao motorista: WhatsApp e SMS só
-  // transformam em link clicável URLs http(s) — um `sgffrota://` chega como
-  // texto morto. A página /convite redireciona para o esquema do app e cai nas
-  // lojas se ele não estiver instalado.
+  // `inviteUrl` é a entrada principal: o motorista realiza todo o cadastro
+  // diretamente no navegador, sem depender do aplicativo instalado.
   const webBase = (Deno.env.get("PUBLIC_WEB_URL") ?? "https://frota-web-tap.vercel.app")
     .replace(/\/$/, "");
   return response({
@@ -166,7 +164,6 @@ async function createInvite(req: Request, body: Json) {
       id: data.id,
       token,
       inviteUrl: `${webBase}/convite?token=${token}`,
-      deepLink: `sgffrota://solicitar-cadastro?token=${token}`,
       expiresAt,
       maxUses,
     },
