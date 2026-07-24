@@ -49,8 +49,9 @@ export default async function handler(req: any, res: any) {
         const driver = await preRegisterDriver(body);
         return sendJson(res, 201, driver);
     } catch (error) {
-        const status = (error as any)?.status ?? 400;
+        console.error('[API pre-register error]', error);
+        const status = (error as any)?.status ?? 500;
         const message = error instanceof Error ? error.message : 'Erro no pré-cadastro';
-        return sendJson(res, status, { message });
+        return sendJson(res, status, { message, error: message });
     }
 }
