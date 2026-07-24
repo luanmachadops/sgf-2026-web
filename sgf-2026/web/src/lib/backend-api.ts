@@ -54,14 +54,34 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
 
-    const response = await fetch(`${apiUrl}${path}`, {
-        ...init,
-        headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            ...(init.headers || {}),
-        },
-    });
+    const headers = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init.headers || {}),
+    };
+
+    let response: Response;
+    try {
+        response = await fetch(`${apiUrl}${path}`, {
+            ...init,
+            headers,
+        });
+    } catch (err) {
+        // Se falhar a conexão direta com http://localhost:3000 (servidor backend offline),
+        // tenta o endpoint relativo `/api` (Serverless / Proxy).
+        if (apiUrl.includes('localhost:3000')) {
+            try {
+                response = await fetch(`/api${path}`, {
+                    ...init,
+                    headers,
+                });
+            } catch {
+                throw new BackendApiError('Servidor backend indisponível. Verifique se a API está rodando.', 503);
+            }
+        } else {
+            throw new BackendApiError('Não foi possível conectar ao servidor de API.', 503);
+        }
+    }
 
     if (!response.ok) {
         let message = 'Erro ao processar a requisição';
