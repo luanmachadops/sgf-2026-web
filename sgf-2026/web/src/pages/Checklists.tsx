@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { SGFInput } from '@/components/sgf/SGFInput';
+import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { Modal } from '@/components/ui/Modal';
 import { ChecklistItemsList } from '@/components/checklists/ChecklistItemsList';
 import { OpenServiceOrderFromChecklist } from '@/components/checklists/OpenServiceOrderFromChecklist';
@@ -18,6 +18,7 @@ import {
     CheckCircle,
     AlertTriangle,
     Wrench,
+    Eye,
 } from '@/components/sgf/icons';
 import { useHeader } from '@/contexts/HeaderContext';
 import { checklistsApi, departmentsApi } from '@/lib/supabase-api';
@@ -76,7 +77,8 @@ export default function Checklists() {
             if (!term) return true;
             const plate = c.vehicles?.plate?.toLowerCase() ?? '';
             const driver = c.profiles?.full_name?.toLowerCase() ?? '';
-            return plate.includes(term) || driver.includes(term);
+            const vehicle = [c.vehicles?.brand, c.vehicles?.model].filter(Boolean).join(' ').toLowerCase();
+            return plate.includes(term) || driver.includes(term) || vehicle.includes(term);
         });
     }, [checklists, searchTerm]);
 
@@ -91,6 +93,132 @@ export default function Checklists() {
         setSelectedId(null);
         setOpenOsFor(checklist);
     };
+
+    const columns: SGFTableColumn<ChecklistListRecord>[] = [
+        {
+            header: 'Veículo',
+            sortType: 'text',
+            sortValue: (c) => [c.vehicles?.brand, c.vehicles?.model].filter(Boolean).join(' ') || c.vehicles?.plate || '',
+            accessor: (c) => {
+                const vehicleLabel = [c.vehicles?.brand, c.vehicles?.model].filter(Boolean).join(' ') || c.vehicles?.plate || 'Veículo';
+                return (
+                    <div className="flex items-center gap-2.5">
+                        {c.vehicles?.photo_url ? (
+                            <img
+                                src={c.vehicles.photo_url}
+                                alt={c.vehicles?.plate ?? 'Veículo'}
+                                className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+                                loading="lazy"
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                            />
+                        ) : (
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--sgf-primary)]/10">
+                                <Car className="h-4 w-4 text-[var(--sgf-primary)]" />
+                            </div>
+                        )}
+                        <span className="font-semibold text-slate-800 text-sm">{vehicleLabel}</span>
+                    </div>
+                );
+            },
+        },
+        {
+            header: 'Placa',
+            sortType: 'text',
+            sortValue: (c) => c.vehicles?.plate ?? '',
+            accessor: (c) => (
+                <span className="font-mono font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs whitespace-nowrap">
+                    {formatPlate(c.vehicles?.plate)}
+                </span>
+            ),
+        },
+        {
+            header: 'Secretaria',
+            sortType: 'text',
+            sortValue: (c) => c.vehicles?.departments?.name ?? '',
+            accessor: (c) => (
+                <span className="text-sm text-slate-600 font-medium whitespace-nowrap">
+                    {c.vehicles?.departments?.name ?? '—'}
+                </span>
+            ),
+        },
+        {
+            header: 'Motorista',
+            sortType: 'text',
+            sortValue: (c) => c.profiles?.full_name ?? '',
+            accessor: (c) => (
+                <div className="flex items-center gap-1.5 text-sm text-slate-700 font-medium whitespace-nowrap">
+                    <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span>{c.profiles?.full_name ?? '—'}</span>
+                </div>
+            ),
+        },
+        {
+            header: 'Data / Hora',
+            sortType: 'date',
+            sortValue: (c) => c.created_at,
+            accessor: (c) => (
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 whitespace-nowrap">
+                    <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span>{formatDateTime(c.created_at)}</span>
+                </div>
+            ),
+        },
+        {
+            header: 'Conformidade',
+            sortable: false,
+            accessor: (c) => {
+                const items = c.checklist_items ?? [];
+                const okItems = items.filter((i) => i.state === 'ok').length;
+                const total = items.length;
+                const hasProblem = items.some((i) => i.state !== 'ok');
+                return (
+                    <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${hasProblem ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                        {total > 0 ? `${okItems}/${total} OK` : '100% OK'}
+                    </span>
+                );
+            },
+        },
+        {
+            header: 'Status',
+            sortType: 'text',
+            sortValue: (c) => {
+                const openServiceOrder = (c.service_orders ?? [])[0] ?? null;
+                const hasProblem = (c.checklist_items ?? []).some((i) => i.state !== 'ok');
+                if (openServiceOrder) return 'O.S. aberta';
+                if (hasProblem) return 'Com problema';
+                return 'OK';
+            },
+            accessor: (c) => {
+                const items = c.checklist_items ?? [];
+                const hasProblem = items.some((i) => i.state !== 'ok');
+                const openServiceOrder = (c.service_orders ?? [])[0] ?? null;
+                return openServiceOrder ? (
+                    <SGFBadge variant="info" icon={Wrench}>O.S. aberta</SGFBadge>
+                ) : hasProblem ? (
+                    <SGFBadge variant="error" icon={AlertTriangle}>Com problema</SGFBadge>
+                ) : (
+                    <SGFBadge variant="success" icon={CheckCircle}>OK</SGFBadge>
+                );
+            },
+        },
+        {
+            header: 'Ações',
+            sortable: false,
+            accessor: (c) => (
+                <SGFButton
+                    variant="ghost"
+                    size="sm"
+                    icon={Eye}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedId(c.id);
+                    }}
+                >
+                    Ver detalhes
+                </SGFButton>
+            ),
+        },
+    ];
 
     return (
         <div className="space-y-6">
@@ -155,81 +283,14 @@ export default function Checklists() {
                 </div>
             </SGFToolbar>
 
-            {isLoading ? (
-                <div className="space-y-3">
-                    {[...Array(4)].map((_, i) => (
-                        <div key={i} className="h-[92px] animate-pulse rounded-[18px] bg-white/70" />
-                    ))}
-                </div>
-            ) : rows.length === 0 ? (
-                <SGFCard>
-                    <div className="flex flex-col items-center gap-2 py-10 text-center">
-                        <Clipboard className="h-8 w-8 text-slate-300" />
-                        <p className="text-sm font-medium text-slate-500">Nenhum checklist encontrado para os filtros selecionados.</p>
-                    </div>
-                </SGFCard>
-            ) : (
-                <div className="space-y-3">
-                    {rows.map((c) => {
-                        const items = c.checklist_items ?? [];
-                        const hasProblem = items.some((i) => i.state !== 'ok');
-                        const openServiceOrder = (c.service_orders ?? [])[0] ?? null;
-                        const vehicleLabel = [c.vehicles?.brand, c.vehicles?.model].filter(Boolean).join(' ') || c.vehicles?.plate || 'Veículo';
-
-                        return (
-                            <button key={c.id} onClick={() => setSelectedId(c.id)} className="w-full text-left">
-                                <SGFCard padding="sm" className="transition-colors hover:border-emerald-300">
-                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                        <div className="flex min-w-0 items-center gap-3">
-                                            {c.vehicles?.photo_url ? (
-                                                <img
-                                                    src={c.vehicles.photo_url}
-                                                    alt={c.vehicles.plate ?? 'Veículo'}
-                                                    className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
-                                                    loading="lazy"
-                                                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                                                />
-                                            ) : (
-                                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--sgf-primary)]/10">
-                                                    <Car className="h-5 w-5 text-[var(--sgf-primary)]" />
-                                                </div>
-                                            )}
-                                            <div className="min-w-0">
-                                                <p className="truncate text-sm font-semibold text-slate-900">
-                                                    {vehicleLabel} <span className="font-mono text-xs text-slate-400">{formatPlate(c.vehicles?.plate)}</span>
-                                                </p>
-                                                <p className="truncate text-xs text-slate-500">
-                                                    {c.vehicles?.departments?.name ?? 'Sem secretaria'}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-1.5 text-sm text-slate-600">
-                                            <User className="h-4 w-4 text-slate-400" />
-                                            {c.profiles?.full_name ?? '—'}
-                                        </div>
-
-                                        <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                                            <Calendar className="h-4 w-4 text-slate-400" />
-                                            {formatDateTime(c.created_at)}
-                                        </div>
-
-                                        <div className="flex items-center gap-2">
-                                            {openServiceOrder ? (
-                                                <SGFBadge variant="info" icon={Wrench}>O.S. aberta</SGFBadge>
-                                            ) : hasProblem ? (
-                                                <SGFBadge variant="error" icon={AlertTriangle}>Com problema</SGFBadge>
-                                            ) : (
-                                                <SGFBadge variant="success" icon={CheckCircle}>OK</SGFBadge>
-                                            )}
-                                        </div>
-                                    </div>
-                                </SGFCard>
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
+            <SGFTable<ChecklistListRecord>
+                columns={columns}
+                data={rows}
+                keyExtractor={(row) => row.id}
+                onRowClick={(row) => setSelectedId(row.id)}
+                loading={isLoading}
+                emptyMessage="Nenhum checklist encontrado para os filtros selecionados."
+            />
 
             {/* Detalhe do checklist */}
             <Modal

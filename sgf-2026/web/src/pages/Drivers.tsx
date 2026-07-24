@@ -21,6 +21,7 @@ import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { NewDriverForm } from '@/components/drivers/NewDriverForm';
 import { PreRegisterDriverModal } from '@/components/drivers/PreRegisterDriverModal';
 import { DriverAccessForm } from '@/components/drivers/DriverAccessForm';
+import { DriverRegistrationCenter } from '@/components/drivers/DriverRegistrationCenter';
 import { Modal } from '@/components/ui/Modal';
 import { useHeader } from '@/contexts/HeaderContext';
 import { departmentsApi } from '@/lib/supabase-api';
@@ -74,6 +75,7 @@ export default function Drivers() {
     const [departmentFilter, setDepartmentFilter] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [showPreRegister, setShowPreRegister] = useState(false);
+    const [showSelfRegistration, setShowSelfRegistration] = useState(false);
     const [showWarning, setShowWarning] = useState(true);
     const [showExpiredModal, setShowExpiredModal] = useState(false);
     const [accessModal, setAccessModal] = useState<{
@@ -103,6 +105,9 @@ export default function Drivers() {
 
         setHeaderAction(
             <div className="flex items-center gap-2">
+                <SGFButton variant="outline" onClick={() => setShowSelfRegistration(true)} className="!rounded-full !h-[37px]">
+                    Convites e solicitações
+                </SGFButton>
                 <SGFButton variant="secondary" onClick={() => setShowPreRegister(true)} className="!rounded-full !h-[37px]">
                     Pré-cadastro
                 </SGFButton>
@@ -501,7 +506,7 @@ export default function Drivers() {
                 onClose={() => setShowAddModal(false)}
                 title="Novo Motorista"
                 description="Cadastre o motorista e já crie o acesso dele ao app."
-                size="xl"
+                size="lg"
                 showCloseButton={false}
             >
                 <NewDriverForm
@@ -515,6 +520,11 @@ export default function Drivers() {
             <PreRegisterDriverModal
                 isOpen={showPreRegister}
                 onClose={() => setShowPreRegister(false)}
+            />
+
+            <DriverRegistrationCenter
+                isOpen={showSelfRegistration}
+                onClose={() => setShowSelfRegistration(false)}
             />
 
             <Modal

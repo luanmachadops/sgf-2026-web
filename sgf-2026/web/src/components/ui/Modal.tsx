@@ -25,7 +25,7 @@ function Modal({
     size = 'md',
     showCloseButton = true,
     footer,
-    surfaceBg = false,
+    surfaceBg = true,
 }: ModalProps) {
     // Fechar com ESC.
     useEffect(() => {

@@ -2449,4 +2449,19 @@ export const notificationsApi = {
             .eq('read', false);
         if (error) handleError(error);
     },
+
+    listPaged: async (userId: string, offset = 0, limit = 30): Promise<{ data: NotificationRecord[]; hasMore: boolean }> => {
+        const { data, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('driver_id', userId)
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
+        if (error) handleError(error);
+        const list = (data ?? []) as NotificationRecord[];
+        return {
+            data: list,
+            hasMore: list.length === limit,
+        };
+    },
 };

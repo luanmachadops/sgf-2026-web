@@ -112,7 +112,7 @@
   --sgf-card-padding-sm: var(--sgf-space-4);
   --sgf-card-padding-lg: var(--sgf-space-8);
   
-  --sgf-btn-radius: var(--sgf-radius-base);
+  --sgf-btn-radius: var(--sgf-radius-full);
   --sgf-btn-padding-x: var(--sgf-space-4);
   --sgf-btn-padding-y: var(--sgf-space-3);
   --sgf-btn-padding-x-sm: var(--sgf-space-3);
@@ -120,11 +120,11 @@
   --sgf-btn-padding-x-lg: var(--sgf-space-6);
   --sgf-btn-padding-y-lg: var(--sgf-space-4);
   
-  --sgf-input-radius: var(--sgf-radius-base);
+  --sgf-input-radius: var(--sgf-radius-full);
   --sgf-input-padding-x: var(--sgf-space-4);
   --sgf-input-padding-y: 0.625rem;
   
-  --sgf-select-radius: var(--sgf-radius-base);
+  --sgf-select-radius: var(--sgf-radius-full);
   --sgf-select-padding-x: var(--sgf-space-4);
   --sgf-select-padding-y: 0.625rem;
   

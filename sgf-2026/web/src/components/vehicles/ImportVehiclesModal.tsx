@@ -21,9 +21,28 @@ import {
     Sparkles,
 } from '@/components/sgf/icons';
 import { departmentsApi, vehiclesApi, type VehicleRecord } from '@/lib/supabase-api';
-import type { TablesUpdate } from '@/types/database.types';
+import type { TablesInsert, TablesUpdate } from '@/types/database.types';
+
+/**
+ * Converte o combustível da planilha (rótulos em caixa alta usados na UI de
+ * importação) para o enum `fuel_type_enum` do banco, que é minúsculo.
+ * Sem isto o insert falha em runtime: o Postgres rejeita 'DIESEL'.
+ *
+ * GNV vira null porque o enum do banco não tem esse valor — a UI oferece a
+ * opção, o banco não aceita. Gravar null é melhor que gravar errado.
+ */
+function fuelTypeToDb(fuel?: string | null): TablesInsert<'vehicles'>['fuel_type'] {
+    switch ((fuel || '').toUpperCase()) {
+        case 'DIESEL': return 'diesel';
+        case 'GASOLINE': return 'gasolina';
+        case 'ETHANOL': return 'etanol';
+        case 'FLEX': return 'flex';
+        default: return null;
+    }
+}
 import { formatPlate } from '@/lib/utils';
 import { extractVehicleRowsFromText, extractVehicleRowsFromImages } from '@/lib/vehicleImportAI';
+import { VEHICLE_TYPES } from '@/lib/vehicleAI';
 
 interface ImportVehiclesModalProps {
     isOpen: boolean;
@@ -37,14 +56,17 @@ export interface ParsedVehicleRow {
     brand: string;
     model: string;
     year?: number;
+    vehicleType?: string;
     color?: string;
     fuelType: 'DIESEL' | 'GASOLINE' | 'ETHANOL' | 'FLEX' | 'GNV';
     departmentName?: string;
     departmentId?: string | null;
+    vehicleStatus?: 'AVAILABLE' | 'IN_USE' | 'MAINTENANCE' | 'INACTIVE';
     tankCapacity: number;
     currentOdometer: number;
     renavam?: string;
     chassis?: string;
+    insuranceExpiry?: string;
     status: 'valid' | 'warning' | 'error';
     /** 'create' = veículo novo; 'update' = já existe e receberá só os campos vazios. */
     action: 'create' | 'update';
@@ -74,13 +96,16 @@ const FIELD_SYNONYMS: Record<string, string[]> = {
     brand: ['marca', 'brand', 'montadora', 'fabricante', 'make'],
     model: ['modelo', 'model', 'veiculo', 'veículo', 'nome', 'descrição', 'descricao', 'carro', 'desc', 'veiculo/modelo'],
     year: ['ano', 'year', 'ano fab', 'ano modelo', 'exercício', 'exercicio', 'ano fabricação', 'ano fabricacao'],
+    type: ['tipo', 'categoria', 'tipo/categoria', 'tipo veiculo', 'categoria veiculo', 'espécie', 'especie', 'classificação', 'classificacao'],
     color: ['cor', 'color', 'pintura'],
     fuel: ['combustivel', 'combustível', 'fuel', 'propulsão', 'propulsao', 'tipo combustivel', 'comb'],
     department: ['secretaria', 'departamento', 'department', 'setor', 'lotação', 'lotacao', 'unidade', 'destinação', 'destinacao', 'sec'],
+    status: ['status', 'situação', 'situacao', 'estado', 'condição', 'condicao'],
     tank: ['tanque', 'capacidade', 'vol tanque', 'litros', 'tanq', 'capacidade tanque', 'capacidade (l)', 'tanque (l)'],
     odometer: ['odometro', 'odômetro', 'km', 'quilometragem', 'hodometro', 'km atual', 'hodômetro', 'odometro atual'],
     renavam: ['renavam', 'cod renavam', 'código renavam'],
     chassis: ['chassi', 'chassis', 'vin', 'n° chassi', 'num chassi'],
+    insurance: ['seguro', 'vencimento seguro', 'validade seguro', 'venc seguro', 'vencimento do seguro'],
 };
 
 /** Gerador do modelo Excel (.xlsx) */
@@ -93,13 +118,16 @@ export async function downloadExcelTemplate() {
         { header: 'Marca *', key: 'brand', width: 18 },
         { header: 'Modelo *', key: 'model', width: 22 },
         { header: 'Ano', key: 'year', width: 10 },
+        { header: 'Tipo / Categoria', key: 'vehicle_type', width: 20 },
+        { header: 'Secretaria', key: 'department', width: 25 },
         { header: 'Cor', key: 'color', width: 14 },
         { header: 'Combustível *', key: 'fuel_type', width: 16 },
-        { header: 'Secretaria', key: 'department', width: 25 },
+        { header: 'Status', key: 'status', width: 14 },
         { header: 'Capacidade Tanque (L)', key: 'tank_capacity', width: 22 },
         { header: 'Odômetro Atual (km)', key: 'current_odometer', width: 22 },
         { header: 'RENAVAM', key: 'renavam', width: 16 },
         { header: 'Chassi', key: 'chassis', width: 22 },
+        { header: 'Vencimento Seguro', key: 'insurance_expiry', width: 18 },
     ];
 
     const headerRow = sheet.getRow(1);
@@ -116,13 +144,16 @@ export async function downloadExcelTemplate() {
         brand: 'Fiat',
         model: 'Argo 1.0',
         year: 2023,
+        vehicle_type: 'Carro',
+        department: 'Secretaria de Obras',
         color: 'Branco',
         fuel_type: 'Flex',
-        department: 'Secretaria de Obras',
+        status: 'Disponível',
         tank_capacity: 48,
         current_odometer: 15400,
         renavam: '12345678901',
         chassis: '9BWCA05W012345678',
+        insurance_expiry: '2026-12-31',
     });
 
     sheet.addRow({
@@ -130,13 +161,16 @@ export async function downloadExcelTemplate() {
         brand: 'Volkswagen',
         model: 'Gol 1.6',
         year: 2021,
+        vehicle_type: 'Carro',
+        department: 'Secretaria de Saúde',
         color: 'Prata',
         fuel_type: 'Gasolina',
-        department: 'Secretaria de Saúde',
+        status: 'Disponível',
         tank_capacity: 55,
         current_odometer: 42300,
         renavam: '98765432109',
         chassis: '9BWCA05W098765432',
+        insurance_expiry: '',
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
@@ -152,9 +186,9 @@ export async function downloadExcelTemplate() {
 /** Gerador do modelo CSV (.csv) */
 export function downloadCsvTemplate() {
     const csvContent = [
-        'Placa;Marca;Modelo;Ano;Cor;Combustível;Secretaria;Capacidade Tanque (L);Odômetro (km);RENAVAM;Chassi',
-        'ABC1D23;Fiat;Argo 1.0;2023;Branco;Flex;Secretaria de Obras;48;15400;12345678901;9BWCA05W012345678',
-        'XYZ9876;Volkswagen;Gol 1.6;2021;Prata;Gasolina;Secretaria de Saúde;55;42300;98765432109;9BWCA05W098765432',
+        'Placa;Marca;Modelo;Ano;Tipo / Categoria;Secretaria;Cor;Combustível;Status;Capacidade Tanque (L);Odômetro (km);RENAVAM;Chassi;Vencimento Seguro',
+        'ABC1D23;Fiat;Argo 1.0;2023;Carro;Secretaria de Obras;Branco;Flex;Disponível;48;15400;12345678901;9BWCA05W012345678;2026-12-31',
+        'XYZ9876;Volkswagen;Gol 1.6;2021;Carro;Secretaria de Saúde;Prata;Gasolina;Disponível;55;42300;98765432109;9BWCA05W098765432;',
     ].join('\n');
 
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -184,6 +218,16 @@ function normalizeFuel(fuelStr?: string): 'DIESEL' | 'GASOLINE' | 'ETHANOL' | 'F
     if (clean.includes('ETANOL') || clean.includes('ALCOOL') || clean.includes('ÁLCOOL') || clean.includes('ETHANOL')) return 'ETHANOL';
     if (clean.includes('GAS') || clean.includes('GASOLINA')) return 'GASOLINE';
     return 'FLEX';
+}
+
+function normalizeVehicleStatus(str?: string): 'AVAILABLE' | 'IN_USE' | 'MAINTENANCE' | 'INACTIVE' {
+    if (!str) return 'AVAILABLE';
+    const u = str.toUpperCase().trim();
+    if (u.includes('DISPON') || u.includes('AVAIL') || u.includes('ATIVO') || u.includes('OK')) return 'AVAILABLE';
+    if (u.includes('USO') || u.includes('VIAGEM') || u.includes('CIRCUL')) return 'IN_USE';
+    if (u.includes('MANUT') || u.includes('OFICINA') || u.includes('REPARO')) return 'MAINTENANCE';
+    if (u.includes('INATIV') || u.includes('BAIXA') || u.includes('PARADO')) return 'INACTIVE';
+    return 'AVAILABLE';
 }
 
 function lookupTankCapacity(brand?: string, model?: string): number {
@@ -535,13 +579,16 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
             let rawBrand = findColumnValue('brand');
             let rawModel = findColumnValue('model');
             let rawYearStr = findColumnValue('year');
+            let rawVehicleType = findColumnValue('type');
             let rawColor = findColumnValue('color');
             let rawFuelStr = findColumnValue('fuel');
             let rawDept = findColumnValue('department');
+            let rawStatusStr = findColumnValue('status');
             let rawTankStr = findColumnValue('tank');
             let rawOdoStr = findColumnValue('odometer');
             let rawRenavam = findColumnValue('renavam');
             let rawChassis = findColumnValue('chassis');
+            let rawInsuranceExpiry = findColumnValue('insurance');
 
             // 2. IA - Separação de Marca e Modelo se combinados (ex.: "Fiat Argo 1.0", "VW/SAVEIRO", "MARCOPOLO/VOLARE")
             const normBrand = (b: string) => {
@@ -635,7 +682,20 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
             }
 
             // 4. IA - Limpeza de Valores Numéricos (ex.: "15.400 km" -> 15400, "55 Litros" -> 55)
-            const rawYear = parseInt(rawYearStr.replace(/[^0-9]/g, ''), 10);
+            let rawYear = parseInt(rawYearStr.replace(/[^0-9]/g, ''), 10);
+            if (!Number.isNaN(rawYear) && rawYear > 9999) {
+                const matches = rawYearStr.match(/\b(19\d{2}|20\d{2})\b/g);
+                if (matches && matches.length > 0) {
+                    rawYear = parseInt(matches[matches.length - 1], 10);
+                } else {
+                    const strDigits = String(rawYearStr).replace(/[^0-9]/g, '');
+                    const last4 = parseInt(strDigits.slice(-4), 10);
+                    const first4 = parseInt(strDigits.slice(0, 4), 10);
+                    if (last4 >= 1900 && last4 <= 2100) rawYear = last4;
+                    else if (first4 >= 1900 && first4 <= 2100) rawYear = first4;
+                    else rawYear = parseInt(strDigits.slice(0, 4), 10);
+                }
+            }
             const rawTank = parseFloat(rawTankStr.replace(',', '.').replace(/[^0-9.]/g, ''));
             const rawOdo = parseInt(rawOdoStr.replace(/[^0-9]/g, ''), 10);
 
@@ -674,6 +734,7 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
             }
 
             if (isAiOrganized) countAiFixes++;
+            const vehicleStatus = normalizeVehicleStatus(rawStatusStr);
 
             return {
                 rowIndex: idx + 2,
@@ -681,14 +742,17 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
                 brand: rawBrand,
                 model: rawModel,
                 year: Number.isNaN(rawYear) ? undefined : rawYear,
+                vehicleType: rawVehicleType || undefined,
                 color: rawColor || undefined,
                 fuelType,
                 departmentName: rawDept || undefined,
                 departmentId: null,
+                vehicleStatus,
                 tankCapacity,
                 currentOdometer: Number.isNaN(rawOdo) || rawOdo < 0 ? 0 : rawOdo,
                 renavam: rawRenavam || undefined,
                 chassis: rawChassis || undefined,
+                insuranceExpiry: rawInsuranceExpiry || undefined,
                 status,
                 action: 'create' as const,
                 existingVehicleId: null,
@@ -904,13 +968,16 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
                     if (isEmpty(existing?.brand) && r.brand?.trim()) patch.brand = r.brand.trim();
                     if (isEmpty(existing?.model) && r.model?.trim()) patch.model = r.model.trim();
                     if (existing?.year == null && r.year) patch.year = r.year;
+                    if (isEmpty(existing?.vehicle_type) && r.vehicleType?.trim()) patch.vehicle_type = r.vehicleType.trim();
                     if (isEmpty(existing?.color) && r.color?.trim()) patch.color = r.color.trim();
-                    if (existing?.fuel_type == null && r.fuelType) patch.fuel_type = r.fuelType as unknown as TablesUpdate<'vehicles'>['fuel_type'];
+                    if (existing?.fuel_type == null && r.fuelType) patch.fuel_type = fuelTypeToDb(r.fuelType);
                     if (!existing?.tank_capacity && r.tankCapacity) patch.tank_capacity = r.tankCapacity;
                     if (!existing?.current_odometer && r.currentOdometer) patch.current_odometer = r.currentOdometer;
                     if (!existing?.department_id && r.departmentId) patch.department_id = r.departmentId;
                     if (isEmpty(existing?.renavam) && r.renavam?.trim()) patch.renavam = r.renavam.trim();
                     if (isEmpty(existing?.chassis) && r.chassis?.trim()) patch.chassis = r.chassis.trim();
+                    if (isEmpty(existing?.insurance_expiry) && r.insuranceExpiry?.trim()) patch.insurance_expiry = r.insuranceExpiry.trim();
+                    if (existing?.status == null && r.vehicleStatus) patch.status = r.vehicleStatus as unknown as TablesUpdate<'vehicles'>['status'];
 
                     if (Object.keys(patch).length === 0) {
                         skippedCount++;
@@ -927,14 +994,16 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
                         brand: r.brand?.trim() || null,
                         model: r.model?.trim() || null,
                         year: r.year ?? null,
+                        vehicle_type: r.vehicleType?.trim() || null,
                         color: r.color ?? null,
-                        fuel_type: r.fuelType,
+                        fuel_type: fuelTypeToDb(r.fuelType),
                         tank_capacity: r.tankCapacity,
                         current_odometer: r.currentOdometer,
                         department_id: r.departmentId ?? null,
                         renavam: r.renavam ?? null,
                         chassis: r.chassis ?? null,
-                        status: 'AVAILABLE',
+                        status: (r.vehicleStatus || 'AVAILABLE') as unknown as TablesInsert<'vehicles'>['status'],
+                        insurance_expiry: r.insuranceExpiry || null,
                     });
                     successCount++;
                 }
@@ -1053,31 +1122,42 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
 
                 {/* ABA DE SELEÇÃO: ARQUIVO OU TEXTO */}
                 {parsedRows.length === 0 && (
-                    <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
-                        <button
-                            type="button"
-                            onClick={() => setInputMode('file')}
-                            className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
-                                inputMode === 'file'
-                                    ? 'bg-slate-900 text-white shadow-sm'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                            }`}
-                        >
-                            <FileSpreadsheet className="h-4 w-4" />
-                            <span>Subir Arquivo / Arrastar</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setInputMode('text')}
-                            className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
-                                inputMode === 'text'
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                            }`}
-                        >
-                            <Sparkles className="h-4 w-4 text-amber-300" />
-                            <span>Colar Texto / Lista com IA</span>
-                        </button>
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setInputMode('file')}
+                                className={`flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all ${
+                                    inputMode === 'file'
+                                        ? 'bg-slate-900 text-white shadow-sm'
+                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                }`}
+                            >
+                                <FileSpreadsheet className="h-4 w-4" />
+                                <span>Subir Arquivo / Arrastar</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setInputMode('text')}
+                                className={`flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all ${
+                                    inputMode === 'text'
+                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                }`}
+                            >
+                                <Sparkles className="h-4 w-4 text-amber-300" />
+                                <span>Colar Texto / Lista com IA</span>
+                            </button>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                            <SGFButton type="button" variant="outline" size="sm" onClick={downloadExcelTemplate} icon={Download} className="!rounded-full bg-white !h-8 text-xs">
+                                Baixar Modelo Excel (.xlsx)
+                            </SGFButton>
+                            <SGFButton type="button" variant="outline" size="sm" onClick={downloadCsvTemplate} icon={FileText} className="!rounded-full bg-white !h-8 text-xs">
+                                Baixar Modelo CSV (.csv)
+                            </SGFButton>
+                        </div>
                     </div>
                 )}
 
@@ -1119,30 +1199,6 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
                         </div>
                     ) : (
                         <div className="space-y-5">
-                            {/* Orientações + Downloads */}
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-slate-800 font-semibold text-sm">
-                                        <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
-                                        <span>Planilhas Suportadas & Modelos:</span>
-                                    </div>
-                                    <span className="text-xs font-medium text-slate-500">Aceita Excel (.xlsx), CSV (.csv) ou PDF (.pdf)</span>
-                                </div>
-                                <p className="text-xs text-slate-600 leading-relaxed">
-                                    Você pode enviar relatórios em <strong>PDF</strong>, planilhas no modelo oficial do SGF ou planilhas próprias.
-                                    A <strong>IA</strong> lerá o arquivo e organizará os campos automaticamente.
-                                </p>
-
-                                <div className="pt-2 flex flex-wrap items-center gap-3">
-                                    <SGFButton type="button" variant="outline" size="sm" onClick={downloadExcelTemplate} icon={Download} className="bg-white">
-                                        Baixar Modelo Excel (.xlsx)
-                                    </SGFButton>
-                                    <SGFButton type="button" variant="outline" size="sm" onClick={downloadCsvTemplate} icon={FileText} className="bg-white">
-                                        Baixar Modelo CSV (.csv)
-                                    </SGFButton>
-                                </div>
-                            </div>
-
                             {/* Dropzone / Upload area */}
                             <div
                                 onClick={() => fileInputRef.current?.click()}
@@ -1264,14 +1320,17 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
                                         <th className="py-2.5 px-3 whitespace-nowrap">Placa *</th>
                                         <th className="py-2.5 px-3 whitespace-nowrap">Marca</th>
                                         <th className="py-2.5 px-3 whitespace-nowrap">Modelo</th>
-                                        <th className="py-2.5 px-3 whitespace-nowrap">Ano</th>
+                                        <th className="py-2.5 px-3 whitespace-nowrap">Secretaria</th>
+                                        <th className="py-2.5 px-3 whitespace-nowrap">Odômetro (km)</th>
+                                        <th className="py-2.5 px-3 whitespace-nowrap">Status Veículo</th>
+                                        <th className="py-2.5 px-3 whitespace-nowrap">Tipo / Categoria</th>
                                         <th className="py-2.5 px-3 whitespace-nowrap">Cor</th>
                                         <th className="py-2.5 px-3 whitespace-nowrap">Combustível</th>
-                                        <th className="py-2.5 px-3 whitespace-nowrap">Secretaria</th>
                                         <th className="py-2.5 px-3 whitespace-nowrap">Tanque (L)</th>
-                                        <th className="py-2.5 px-3 whitespace-nowrap">Odômetro (km)</th>
+                                        <th className="py-2.5 px-3 whitespace-nowrap">Ano</th>
                                         <th className="py-2.5 px-3 whitespace-nowrap">RENAVAM</th>
                                         <th className="py-2.5 px-3 whitespace-nowrap">Chassi</th>
+                                        <th className="py-2.5 px-3 whitespace-nowrap">Vencimento Seguro</th>
                                         <th className="py-2.5 px-3 whitespace-nowrap">Observações / Ajustes da IA</th>
                                     </tr>
                                 </thead>
@@ -1344,14 +1403,58 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
                                                 />
                                             </td>
                                             <td className="py-2 px-2">
+                                                <select
+                                                    value={r.departmentName ?? ''}
+                                                    onChange={(e) => updateRow(r.rowIndex, { departmentName: e.target.value || undefined })}
+                                                    disabled={importing}
+                                                    className={`${CELL_INPUT} w-[180px]`}
+                                                >
+                                                    <option value="">— Sem secretaria —</option>
+                                                    {departments.map((d) => (
+                                                        <option key={d.id} value={d.name}>{d.name}</option>
+                                                    ))}
+                                                    {r.departmentName && !departments.some((d) => d.name === r.departmentName) && (
+                                                        <option value={r.departmentName}>{r.departmentName} (não cadastrada)</option>
+                                                    )}
+                                                </select>
+                                            </td>
+                                            <td className="py-2 px-2">
                                                 <input
                                                     type="number"
-                                                    value={r.year ?? ''}
-                                                    onChange={(e) => updateRow(r.rowIndex, { year: e.target.value ? Number(e.target.value) : undefined })}
+                                                    value={r.currentOdometer || ''}
+                                                    onChange={(e) => updateRow(r.rowIndex, { currentOdometer: Number(e.target.value) || 0 })}
                                                     disabled={importing}
-                                                    placeholder="Ano"
-                                                    className={`${CELL_INPUT} w-[80px] font-mono`}
+                                                    className={`${CELL_INPUT} w-[100px] font-mono`}
                                                 />
+                                            </td>
+                                            <td className="py-2 px-2">
+                                                <select
+                                                    value={r.vehicleStatus ?? 'AVAILABLE'}
+                                                    onChange={(e) => updateRow(r.rowIndex, { vehicleStatus: e.target.value as ParsedVehicleRow['vehicleStatus'] })}
+                                                    disabled={importing}
+                                                    className={`${CELL_INPUT} w-[120px]`}
+                                                >
+                                                    <option value="AVAILABLE">Disponível</option>
+                                                    <option value="IN_USE">Em uso</option>
+                                                    <option value="MAINTENANCE">Manutenção</option>
+                                                    <option value="INACTIVE">Inativo</option>
+                                                </select>
+                                            </td>
+                                            <td className="py-2 px-2">
+                                                <select
+                                                    value={r.vehicleType ?? ''}
+                                                    onChange={(e) => updateRow(r.rowIndex, { vehicleType: e.target.value || undefined })}
+                                                    disabled={importing}
+                                                    className={`${CELL_INPUT} w-[150px]`}
+                                                >
+                                                    <option value="">— Selecione —</option>
+                                                    {VEHICLE_TYPES.map((t) => (
+                                                        <option key={t} value={t}>{t}</option>
+                                                    ))}
+                                                    {r.vehicleType && !VEHICLE_TYPES.includes(r.vehicleType as typeof VEHICLE_TYPES[number]) && (
+                                                        <option value={r.vehicleType}>{r.vehicleType}</option>
+                                                    )}
+                                                </select>
                                             </td>
                                             <td className="py-2 px-2">
                                                 <input
@@ -1377,27 +1480,21 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
                                                 </select>
                                             </td>
                                             <td className="py-2 px-2">
-                                                <select
-                                                    value={r.departmentName ?? ''}
-                                                    onChange={(e) => updateRow(r.rowIndex, { departmentName: e.target.value || undefined })}
-                                                    disabled={importing}
-                                                    className={`${CELL_INPUT} w-[180px]`}
-                                                >
-                                                    <option value="">— Sem secretaria —</option>
-                                                    {departments.map((d) => (
-                                                        <option key={d.id} value={d.name}>{d.name}</option>
-                                                    ))}
-                                                    {r.departmentName && !departments.some((d) => d.name === r.departmentName) && (
-                                                        <option value={r.departmentName}>{r.departmentName} (não cadastrada)</option>
-                                                    )}
-                                                </select>
-                                            </td>
-                                            <td className="py-2 px-2">
                                                 <input
                                                     type="number"
                                                     value={r.tankCapacity || ''}
                                                     onChange={(e) => updateRow(r.rowIndex, { tankCapacity: Number(e.target.value) || 0 })}
                                                     disabled={importing}
+                                                    className={`${CELL_INPUT} w-[80px] font-mono`}
+                                                />
+                                            </td>
+                                            <td className="py-2 px-2">
+                                                <input
+                                                    type="number"
+                                                    value={r.year ?? ''}
+                                                    onChange={(e) => updateRow(r.rowIndex, { year: e.target.value ? Number(e.target.value.slice(0, 4)) : undefined })}
+                                                    disabled={importing}
+                                                    placeholder="Ano"
                                                     className={`${CELL_INPUT} w-[80px] font-mono`}
                                                 />
                                             </td>
@@ -1426,6 +1523,15 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
                                                     disabled={importing}
                                                     placeholder="Chassi"
                                                     className={`${CELL_INPUT} w-[170px] font-mono`}
+                                                />
+                                            </td>
+                                            <td className="py-2 px-2">
+                                                <input
+                                                    type="date"
+                                                    value={r.insuranceExpiry ?? ''}
+                                                    onChange={(e) => updateRow(r.rowIndex, { insuranceExpiry: e.target.value })}
+                                                    disabled={importing}
+                                                    className={`${CELL_INPUT} w-[130px] font-mono`}
                                                 />
                                             </td>
                                             <td className="py-2.5 px-3 min-w-[280px]">

@@ -1,34 +1,25 @@
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { notificationsApi, type NotificationRecord } from '@/lib/supabase-api';
 import { useAuth } from '@/contexts/AuthContext';
+import { showClickableNotification } from '@/lib/notificationUtils';
 
 const LIST_KEY = ['notifications', 'list'] as const;
 const COUNT_KEY = ['notifications', 'unread-count'] as const;
 
-/** Dispara um toast estilizado conforme o tipo da notificação. */
-function notifyToast(n: Pick<NotificationRecord, 'title' | 'body' | 'type'>) {
-    const opts = { description: n.body || undefined };
-    switch (n.type) {
-        case 'success': toast.success(n.title, opts); break;
-        case 'alert':   toast.error(n.title, opts); break;
-        case 'warning': toast.warning(n.title, opts); break;
-        default:        toast.info(n.title, opts); break;
-    }
-}
-
 /**
- * Notificações do usuário logado (admin/gestor).
- * - Lista + contador de não lidas (React Query).
- * - Assinatura Realtime: novas notificações atualizam o badge na hora + toast.
- * - Mutations para marcar como lida / todas como lidas.
+ * Hook de Notificações com suporte a:
+ * - Leitura e contagem de não lidas via React Query.
+ * - Mutation otimista para "Marcar como lida" e "Marcar todas como lidas".
+ * - Assinatura Realtime do Supabase com disparo de toast clicável.
  */
 export function useNotifications() {
     const { user } = useAuth();
     const userId = user?.id;
     const queryClient = useQueryClient();
+    const navigate = useNavigate();
 
     const listQuery = useQuery({
         queryKey: LIST_KEY,
@@ -42,7 +33,44 @@ export function useNotifications() {
         enabled: !!userId,
     });
 
-    // Realtime: novas notificações para este usuário.
+    const markReadMutation = useMutation({
+        mutationFn: async (id: string) => {
+            await notificationsApi.markRead(id);
+        },
+        onMutate: async (id: string) => {
+            await queryClient.cancelQueries({ queryKey: LIST_KEY });
+            await queryClient.cancelQueries({ queryKey: COUNT_KEY });
+
+            queryClient.setQueryData(COUNT_KEY, (old: number | undefined) => Math.max(0, (old ?? 1) - 1));
+            queryClient.setQueryData(LIST_KEY, (old: NotificationRecord[] | undefined) =>
+                old ? old.map((n) => (n.id === id ? { ...n, read: true } : n)) : []
+            );
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        },
+    });
+
+    const markAllReadMutation = useMutation({
+        mutationFn: async () => {
+            if (!userId) return;
+            await notificationsApi.markAllRead(userId);
+        },
+        onMutate: async () => {
+            await queryClient.cancelQueries({ queryKey: LIST_KEY });
+            await queryClient.cancelQueries({ queryKey: COUNT_KEY });
+
+            queryClient.setQueryData(COUNT_KEY, 0);
+            queryClient.setQueryData(LIST_KEY, (old: NotificationRecord[] | undefined) =>
+                old ? old.map((n) => ({ ...n, read: true })) : []
+            );
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        },
+    });
+
+    // Realtime: escuta novos inserts em notifications para este usuário.
     useEffect(() => {
         if (!userId) return;
         const channel = supabase
@@ -52,7 +80,8 @@ export function useNotifications() {
                 { event: 'INSERT', schema: 'public', table: 'notifications', filter: `driver_id=eq.${userId}` },
                 (payload) => {
                     queryClient.invalidateQueries({ queryKey: ['notifications'] });
-                    notifyToast(payload.new as NotificationRecord);
+                    const newNotification = payload.new as NotificationRecord;
+                    showClickableNotification(newNotification, navigate, (id) => markReadMutation.mutate(id));
                 },
             )
             .subscribe();
@@ -60,23 +89,13 @@ export function useNotifications() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [userId, queryClient]);
-
-    const markRead = useMutation({
-        mutationFn: (id: string) => notificationsApi.markRead(id),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
-    });
-
-    const markAllRead = useMutation({
-        mutationFn: () => notificationsApi.markAllRead(userId as string),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications'] }),
-    });
+    }, [userId, queryClient, navigate, markReadMutation]);
 
     return {
         notifications: listQuery.data ?? [],
         unreadCount: unreadQuery.data ?? 0,
         isLoading: listQuery.isLoading,
-        markRead: (id: string) => markRead.mutate(id),
-        markAllRead: () => markAllRead.mutate(),
+        markRead: (id: string) => markReadMutation.mutate(id),
+        markAllRead: () => markAllReadMutation.mutate(),
     };
 }

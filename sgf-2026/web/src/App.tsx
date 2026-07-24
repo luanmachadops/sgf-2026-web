@@ -24,6 +24,8 @@ import Configuracoes from '@/pages/Configuracoes';
 import Perfil from '@/pages/Perfil';
 import Departments from '@/pages/Departments';
 import Stations from '@/pages/Stations';
+import Notificacoes from '@/pages/Notificacoes';
+import Convite from '@/pages/Convite';
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -48,6 +50,10 @@ function App() {
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
+            {/* Convite de cadastro do motorista — link https enviado por
+                WhatsApp, redireciona para o app. Precisa ficar fora do
+                PrivateRoute: o motorista ainda não tem conta. */}
+            <Route path="/convite" element={<Convite />} />
 
             {/* Protected routes */}
             <Route element={<PrivateRoute />}>
@@ -70,6 +76,7 @@ function App() {
                 <Route path="/postos/:id" element={<Stations />} />
                 <Route path="/configuracoes" element={<Configuracoes />} />
                 <Route path="/perfil" element={<Perfil />} />
+                <Route path="/notificacoes" element={<Notificacoes />} />
               </Route>
             </Route>
 

@@ -19,7 +19,8 @@ export function ChangePasswordCard() {
             const { error } = await supabase.auth.updateUser({ password });
             if (error) throw error;
             toast.success('Senha alterada com sucesso.');
-            setPassword(''); setConfirm('');
+            setPassword('');
+            setConfirm('');
         } catch (e) {
             toast.error((e as { message?: string })?.message ?? 'Erro ao alterar a senha.');
         } finally {
@@ -28,19 +29,38 @@ export function ChangePasswordCard() {
     };
 
     return (
-        <SGFCard padding="lg" className="border border-slate-200/80">
+        <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md">
             <div className="mb-4 flex items-center gap-2">
                 <Lock className="h-5 w-5 text-slate-400" />
                 <div>
-                    <h3 className="text-lg font-semibold text-slate-900">Segurança</h3>
-                    <p className="text-sm text-slate-500">Altere a senha da sua conta de acesso ao painel.</p>
+                    <h3 className="text-lg font-semibold text-slate-900">Segurança da Conta</h3>
+                    <p className="text-xs text-slate-500">Altere a senha da sua conta de acesso ao painel.</p>
                 </div>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:max-w-md">
-                <SGFInput label="Nova senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" fullWidth />
-                <SGFInput label="Confirmar nova senha" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} fullWidth />
-                <div>
-                    <SGFButton onClick={handleSave} disabled={saving || !password} icon={saving ? Loader2 : undefined}>
+            <div className="space-y-4">
+                <SGFInput
+                    label="Nova senha"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                    fullWidth
+                />
+                <SGFInput
+                    label="Confirmar nova senha"
+                    type="password"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    placeholder="Repita a nova senha"
+                    fullWidth
+                />
+                <div className="pt-1">
+                    <SGFButton
+                        onClick={handleSave}
+                        disabled={saving || !password}
+                        icon={saving ? Loader2 : undefined}
+                        className="w-full sm:w-auto"
+                    >
                         {saving ? 'Salvando...' : 'Alterar senha'}
                     </SGFButton>
                 </div>

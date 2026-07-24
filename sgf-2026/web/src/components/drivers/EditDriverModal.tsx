@@ -210,41 +210,47 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
             size="lg"
             footer={(
                 <ModalFooter>
-                    <SGFButton variant="ghost" onClick={onClose} disabled={isSaving}>Cancelar</SGFButton>
-                    <SGFButton onClick={handleSubmit as unknown as () => void} disabled={isSaving}>
+                    <SGFButton variant="ghost" onClick={onClose} disabled={isSaving} className="!rounded-full">Cancelar</SGFButton>
+                    <SGFButton onClick={handleSubmit as unknown as () => void} disabled={isSaving} className="!rounded-full">
                         {isSaving ? 'Salvando...' : 'Salvar alterações'}
                     </SGFButton>
                 </ModalFooter>
             )}
         >
-            <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Foto do motorista */}
-                <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white shadow-inner">
-                        {photoUrl ? (
-                            <img src={photoUrl} alt={fullName} className="h-full w-full object-cover" />
-                        ) : (
-                            <div className="flex h-full w-full items-center justify-center bg-emerald-50 text-xl font-bold text-emerald-500">
-                                {getInitials(fullName)}
+            <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Top Grid - Foto do Usuário & Leitura de CNH com IA (Vertical) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Left Card: Card de Foto do Usuário */}
+                    <div className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[var(--sgf-shadow-xs)] space-y-3">
+                        <div className="flex items-center gap-3">
+                            <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 shadow-sm">
+                                {photoUrl ? (
+                                    <img src={photoUrl} alt={fullName} className="h-full w-full object-cover" />
+                                ) : (
+                                    <div className="flex h-full w-full items-center justify-center bg-emerald-50 font-bold text-emerald-600 text-sm">
+                                        {getInitials(fullName)}
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
-                    <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-700">Foto do motorista</p>
-                        <p className="mb-2 text-xs text-slate-400">JPG ou PNG. Será otimizada automaticamente.</p>
-                        <div className="flex items-center gap-2">
+                            <div className="min-w-0">
+                                <h4 className="text-sm font-semibold text-slate-900 leading-tight">Foto do Motorista</h4>
+                                <p className="text-xs text-slate-500 mt-0.5">Perfil no app do motorista</p>
+                            </div>
+                        </div>
+                        <div className="pt-2 border-t border-slate-100 flex gap-2">
                             <SGFButton
                                 type="button"
-                                variant="secondary"
+                                variant="outline"
                                 size="sm"
                                 icon={isUploading ? Loader2 : Camera}
                                 disabled={isUploading}
                                 onClick={() => fileInputRef.current?.click()}
+                                className="w-full !rounded-full !h-9 text-xs !border-slate-200"
                             >
-                                {isUploading ? 'Enviando...' : (photoUrl ? 'Alterar foto' : 'Adicionar foto')}
+                                {isUploading ? 'Enviando...' : (photoUrl ? 'Alterar foto' : 'Enviar foto')}
                             </SGFButton>
                             {photoUrl && (
-                                <SGFButton type="button" variant="ghost" size="sm" onClick={() => setPhotoUrl('')}>
+                                <SGFButton type="button" variant="ghost" size="sm" onClick={() => setPhotoUrl('')} className="!rounded-full !h-9 text-xs">
                                     Remover
                                 </SGFButton>
                             )}
@@ -257,37 +263,56 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
                             className="hidden"
                         />
                     </div>
+
+                    {/* Right Card: Card do Ler CNH com IA */}
+                    <div className="flex flex-col justify-between rounded-2xl border border-emerald-500/20 bg-emerald-50/50 p-4 space-y-3">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+                                <Sparkles className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <h4 className="text-sm font-semibold text-slate-900 leading-tight">Ler CNH com IA</h4>
+                                <p className="text-xs text-slate-500 mt-0.5">Preenchimento automático</p>
+                            </div>
+                        </div>
+                        <div className="pt-2 border-t border-emerald-500/10">
+                            <SGFButton
+                                type="button"
+                                variant="primary"
+                                size="sm"
+                                icon={aiLoading ? Loader2 : Sparkles}
+                                disabled={aiLoading}
+                                onClick={() => cnhInputRef.current?.click()}
+                                className="w-full !rounded-full !h-9 text-xs"
+                            >
+                                {aiLoading ? 'Lendo CNH...' : 'Escanear CNH'}
+                            </SGFButton>
+                        </div>
+                        <input
+                            ref={cnhInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleCnhExtract}
+                            className="hidden"
+                        />
+                    </div>
                 </div>
 
-                {/* Preencher/corrigir a partir da foto da CNH */}
-                <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
-                    <p className="text-xs font-medium text-slate-600">
-                        Envie a foto da CNH para preencher ou corrigir os dados automaticamente.
-                    </p>
-                    <SGFButton
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        icon={aiLoading ? Loader2 : Sparkles}
-                        disabled={aiLoading}
-                        onClick={() => cnhInputRef.current?.click()}
-                    >
-                        {aiLoading ? 'Lendo CNH...' : 'Ler CNH com IA'}
-                    </SGFButton>
-                    <input
-                        ref={cnhInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleCnhExtract}
-                        className="hidden"
-                    />
-                </div>
+                {/* Linha 1: Nome Completo (Largura Total) */}
+                <SGFInput
+                    label="Nome completo"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    fullWidth
+                />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Linha 2: CPF e Matrícula (2 colunas) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <SGFInput
-                        label="Nome completo"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
+                        label="CPF"
+                        value={cpf}
+                        onChange={(e) => setCpf(maskCPF(e.target.value))}
+                        placeholder="000.000.000-00"
                         fullWidth
                     />
                     <SGFInput
@@ -298,12 +323,13 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
                     />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Linha 3: Data de nascimento e Telefone (2 colunas) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <SGFInput
-                        label="CPF"
-                        value={cpf}
-                        onChange={(e) => setCpf(maskCPF(e.target.value))}
-                        placeholder="000.000.000-00"
+                        label="Data de nascimento"
+                        type="date"
+                        value={birthDate}
+                        onChange={(e) => setBirthDate(e.target.value)}
                         fullWidth
                     />
                     <SGFInput
@@ -315,23 +341,16 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
                     />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <SGFInput
-                        label="Data de nascimento"
-                        type="date"
-                        value={birthDate}
-                        onChange={(e) => setBirthDate(e.target.value)}
-                        fullWidth
-                    />
-                    <SGFInput
-                        label="E-mail"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        fullWidth
-                    />
-                </div>
+                {/* Linha 4: E-mail (Largura Total) */}
+                <SGFInput
+                    label="E-mail"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    fullWidth
+                />
 
+                {/* Linha 5: Nº CNH, Categoria e Validade CNH (3 colunas) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <SGFInput
                         label="Nº CNH"
@@ -356,21 +375,44 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
                     />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <label className="flex items-center gap-3 cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                        <input
-                            type="checkbox"
-                            checked={cnhEar}
-                            onChange={(e) => setCnhEar(e.target.checked)}
-                            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                        />
-                        <span className="text-sm font-medium text-slate-700">
-                            CNH com EAR (exerce atividade remunerada)
-                        </span>
-                    </label>
+                {/* Linha 6: CNH com EAR, Início do turno e Fim do turno (3 colunas na mesma linha!) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-[var(--sgf-text-sm)] font-[var(--sgf-font-semibold)] text-[var(--sgf-text-primary)] mb-2">
+                            Atividade remunerada
+                        </label>
+                        <label className="flex items-center gap-2.5 h-[42px] cursor-pointer rounded-full border border-slate-200 bg-white px-4 py-2 shadow-[var(--sgf-shadow-xs)] hover:border-slate-300 transition-all">
+                            <input
+                                type="checkbox"
+                                checked={cnhEar}
+                                onChange={(e) => setCnhEar(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <span className="text-xs font-semibold text-slate-700 select-none">
+                                CNH com EAR
+                            </span>
+                        </label>
+                    </div>
+
+                    <SGFInput
+                        label="Início do turno"
+                        type="time"
+                        value={shiftStart}
+                        onChange={(e) => setShiftStart(e.target.value)}
+                        fullWidth
+                    />
+
+                    <SGFInput
+                        label="Fim do turno"
+                        type="time"
+                        value={shiftEnd}
+                        onChange={(e) => setShiftEnd(e.target.value)}
+                        fullWidth
+                    />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Linha 7: Secretaria e Status (2 colunas) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <SGFSelect
                         label="Secretaria"
                         options={departmentOptions}
@@ -388,23 +430,6 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
                         ]}
                         value={driverStatus}
                         onChange={(val) => setDriverStatus(val as typeof driverStatus)}
-                        fullWidth
-                    />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <SGFInput
-                        label="Início do turno"
-                        type="time"
-                        value={shiftStart}
-                        onChange={(e) => setShiftStart(e.target.value)}
-                        fullWidth
-                    />
-                    <SGFInput
-                        label="Fim do turno"
-                        type="time"
-                        value={shiftEnd}
-                        onChange={(e) => setShiftEnd(e.target.value)}
                         fullWidth
                     />
                 </div>

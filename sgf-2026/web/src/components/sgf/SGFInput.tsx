@@ -35,11 +35,12 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
       w-full
       px-[var(--sgf-input-padding-x)]
       py-[var(--sgf-input-padding-y)]
-      bg-slate-50
+      bg-white
       border
-      rounded-[var(--sgf-input-radius)]
+      rounded-full
       text-[var(--sgf-text-sm)]
       transition-all duration-[var(--sgf-transition-base)]
+      shadow-[var(--sgf-shadow-xs)]
       focus:outline-none focus:ring-4 focus:bg-white
       disabled:opacity-50 disabled:cursor-not-allowed
       placeholder:text-slate-400
@@ -47,7 +48,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
 
     const stateStyles = error
       ? 'border-red-300 focus:border-red-500 focus:ring-red-500/10'
-      : 'border-slate-200 focus:border-[var(--sgf-primary)] focus:ring-emerald-500/10';
+      : 'border-slate-200 hover:border-slate-300 focus:border-[var(--sgf-primary)] focus:ring-emerald-500/10';
 
     const iconStyles = Icon
       ? iconPosition === 'left'

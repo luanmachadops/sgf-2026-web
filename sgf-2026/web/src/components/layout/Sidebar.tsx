@@ -18,6 +18,7 @@ import {
     LogOut,
     User,
     Menu,
+    Bell,
 } from '@/components/sgf/icons';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -43,6 +44,7 @@ const menuSections: MenuSection[] = [
         items: [
             { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
             { icon: Map, label: 'Mapa', path: '/mapa' },
+            { icon: Bell, label: 'Notificações', path: '/notificacoes' },
         ]
     },
     {

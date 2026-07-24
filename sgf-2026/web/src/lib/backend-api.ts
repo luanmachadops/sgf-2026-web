@@ -99,6 +99,10 @@ export interface CreateDriverRequest {
     email?: string;
     status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
     password: string;
+    cnhEar?: boolean;
+    shiftStart?: string;
+    shiftEnd?: string;
+    photoUrl?: string;
 }
 
 export interface DriverAccessRequest {
