@@ -26,6 +26,7 @@ export default async function handler(req: any, res: any) {
         const body = parseBody(req);
         body.departmentId = resolveScopedDepartment(caller, body.departmentId);
         body.tenantId = caller.tenantId;
+        body.actorId = caller.id;
 
         const driver = await createDriver(body);
         return sendJson(res, 201, driver);

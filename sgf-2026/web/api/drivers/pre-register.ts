@@ -37,6 +37,7 @@ export default async function handler(req: any, res: any) {
                 ...r,
                 departmentId: resolveScopedDepartment(caller, r?.departmentId),
                 tenantId: caller.tenantId,
+                actorId: caller.id,
             }));
             const result = await preRegisterDriversBulk(rows);
             return sendJson(res, 200, result);
@@ -44,6 +45,7 @@ export default async function handler(req: any, res: any) {
 
         body.departmentId = resolveScopedDepartment(caller, body.departmentId);
         body.tenantId = caller.tenantId;
+        body.actorId = caller.id;
         const driver = await preRegisterDriver(body);
         return sendJson(res, 201, driver);
     } catch (error) {

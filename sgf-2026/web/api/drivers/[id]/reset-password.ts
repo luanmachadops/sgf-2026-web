@@ -24,7 +24,7 @@ export default async function handler(req: any, res: any) {
         assertCanManageDrivers(caller);
         await assertCanActOnDriver(caller, req.query.id);
 
-        const result = await resetDriverPassword(req.query.id, parseBody(req));
+        const result = await resetDriverPassword(req.query.id, { ...parseBody(req), actorId: caller.id });
         return sendJson(res, 200, result);
     } catch (error) {
         const status = (error as any)?.status ?? 400;

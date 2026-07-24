@@ -21,10 +21,15 @@ export interface CreateDriverPayload {
     status?: DriverWebStatus;
     password: string;
     tenantId?: string | null;
+    /** Quem está cadastrando. Carimbado em profiles para a trilha de auditoria
+     *  saber o autor — aqui `auth.uid()` é nulo (service_role). */
+    actorId?: string | null;
 }
 
 export interface DriverAccessPayload {
     password: string;
+    /** Quem está trocando a senha — ver CreateDriverPayload.actorId. */
+    actorId?: string | null;
 }
 
 function normalizeCpf(cpf: string) {
@@ -133,6 +138,8 @@ export async function createDriver(payload: CreateDriverPayload) {
             email: payload.email?.trim().toLowerCase() || null,
             driver_status: statusToDb(payload.status),
             must_change_password: false,
+            created_by: payload.actorId ?? null,
+            updated_by: payload.actorId ?? null,
         })
         .eq('id', authData.user.id)
         .select('*, departments(id, name)')
@@ -152,6 +159,8 @@ export interface PreRegisterDriverPayload {
     registrationNumber?: string;
     departmentId?: string;
     tenantId?: string | null;
+    /** Quem está pré-cadastrando — ver CreateDriverPayload.actorId. */
+    actorId?: string | null;
 }
 
 /**
@@ -212,6 +221,8 @@ export async function preRegisterDriver(payload: PreRegisterDriverPayload) {
             ...(payload.tenantId ? { tenant_id: payload.tenantId } : {}),
             driver_status: 'ativo',
             must_change_password: true,
+            created_by: payload.actorId ?? null,
+            updated_by: payload.actorId ?? null,
         })
         .eq('id', authData.user.id)
         .select('*, departments(id, name)')
@@ -249,6 +260,30 @@ export async function preRegisterDriversBulk(rows: PreRegisterDriverPayload[]) {
 
 // No banco unificado, todo motorista que existe na tabela já tem auth (id=auth.users.id).
 // "provisionar acesso" para um motorista existente sem auth não se aplica — mantido só por compat.
+/**
+ * Registra na trilha de auditoria uma ação que NÃO passa por tabela auditada.
+ * Reset/provisionamento de senha mexem só no schema `auth`, então nenhuma
+ * trigger dispara — sem isto o ato não deixaria rastro.
+ */
+async function logManualActivity(
+    actorId: string | null | undefined,
+    entityId: string,
+    action: 'reset_password' | 'block_access',
+    note?: string,
+) {
+    if (!actorId) return;
+    const { error } = await getSupabaseAdmin().rpc('log_manual_activity', {
+        p_actor_id: actorId,
+        p_entity_type: 'driver',
+        p_entity_id: entityId,
+        p_action: action,
+        p_note: note ?? null,
+    });
+    // Falha de auditoria não desfaz a operação já concluída, mas não pode
+    // passar em silêncio.
+    if (error) console.error('[auditoria] log_manual_activity falhou:', error.message);
+}
+
 export async function provisionDriverAccess(driverId: string, payload: DriverAccessPayload) {
     assertPassword(payload.password);
 
@@ -271,6 +306,8 @@ export async function provisionDriverAccess(driverId: string, payload: DriverAcc
     if (error) {
         throw new Error(error.message);
     }
+
+    await logManualActivity(payload.actorId, driver.id, 'reset_password', 'Provisionamento de acesso');
 
     return driver;
 }
@@ -296,6 +333,8 @@ export async function resetDriverPassword(driverId: string, payload: DriverAcces
     if (error) {
         throw new Error(error.message);
     }
+
+    await logManualActivity(payload.actorId, driver.id, 'reset_password', 'Redefinição de senha pelo painel');
 
     return { success: true };
 }

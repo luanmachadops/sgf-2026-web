@@ -7,6 +7,9 @@ export interface CreateManagerPayload {
     departmentId?: string;
     role?: 'secretario' | 'gestor';
     tenantId?: string | null;
+    /** Quem está criando o acesso. Carimbado em profiles para a trilha de
+     *  auditoria saber o autor — aqui `auth.uid()` é nulo (service_role). */
+    actorId?: string | null;
 }
 
 /**
@@ -48,6 +51,8 @@ export async function createManager(payload: CreateManagerPayload) {
             role,
             department_id: payload.departmentId || null,
             tenant_id: payload.tenantId,
+            created_by: payload.actorId ?? null,
+            updated_by: payload.actorId ?? null,
         })
         .eq('id', authData.user.id)
         .select('*, departments(id, name)')
