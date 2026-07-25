@@ -471,6 +471,8 @@ export type Database = {
           course: number | null
           fix_source: string | null
           gps_time: string | null
+          idle_notified_at: string | null
+          idle_since: string | null
           ignition: boolean | null
           imei: string
           lat: number | null
@@ -487,6 +489,8 @@ export type Database = {
           course?: number | null
           fix_source?: string | null
           gps_time?: string | null
+          idle_notified_at?: string | null
+          idle_since?: string | null
           ignition?: boolean | null
           imei: string
           lat?: number | null
@@ -503,6 +507,8 @@ export type Database = {
           course?: number | null
           fix_source?: string | null
           gps_time?: string | null
+          idle_notified_at?: string | null
+          idle_since?: string | null
           ignition?: boolean | null
           imei?: string
           lat?: number | null
@@ -535,6 +541,189 @@ export type Database = {
             columns: ["vehicle_id"]
             isOneToOne: false
             referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      driver_registration_invites: {
+        Row: {
+          ai_use_count: number
+          created_at: string
+          created_by: string
+          department_id: string | null
+          expires_at: string
+          id: string
+          max_uses: number
+          status: string
+          tenant_id: string
+          token_hash: string
+          updated_at: string
+          use_count: number
+        }
+        Insert: {
+          ai_use_count?: number
+          created_at?: string
+          created_by: string
+          department_id?: string | null
+          expires_at: string
+          id?: string
+          max_uses?: number
+          status?: string
+          tenant_id: string
+          token_hash: string
+          updated_at?: string
+          use_count?: number
+        }
+        Update: {
+          ai_use_count?: number
+          created_at?: string
+          created_by?: string
+          department_id?: string | null
+          expires_at?: string
+          id?: string
+          max_uses?: number
+          status?: string
+          tenant_id?: string
+          token_hash?: string
+          updated_at?: string
+          use_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_registration_invites_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_registration_invites_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_registration_invites_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      driver_registration_requests: {
+        Row: {
+          ai_confidence: number | null
+          auth_user_id: string
+          birth_date: string | null
+          cnh_back_path: string | null
+          cnh_category: string
+          cnh_expiry: string
+          cnh_front_path: string | null
+          cnh_number: string
+          cpf: string
+          created_at: string
+          department_id: string | null
+          document_entry_mode: string
+          email: string
+          full_name: string
+          id: string
+          invite_id: string
+          manager_note: string | null
+          phone: string | null
+          registration_number: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_at: string
+          tenant_id: string
+          tracking_token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          ai_confidence?: number | null
+          auth_user_id: string
+          birth_date?: string | null
+          cnh_back_path?: string | null
+          cnh_category: string
+          cnh_expiry: string
+          cnh_front_path?: string | null
+          cnh_number: string
+          cpf: string
+          created_at?: string
+          department_id?: string | null
+          document_entry_mode?: string
+          email: string
+          full_name: string
+          id?: string
+          invite_id: string
+          manager_note?: string | null
+          phone?: string | null
+          registration_number?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+          tenant_id: string
+          tracking_token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          ai_confidence?: number | null
+          auth_user_id?: string
+          birth_date?: string | null
+          cnh_back_path?: string | null
+          cnh_category?: string
+          cnh_expiry?: string
+          cnh_front_path?: string | null
+          cnh_number?: string
+          cpf?: string
+          created_at?: string
+          department_id?: string | null
+          document_entry_mode?: string
+          email?: string
+          full_name?: string
+          id?: string
+          invite_id?: string
+          manager_note?: string | null
+          phone?: string | null
+          registration_number?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+          tenant_id?: string
+          tracking_token_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_registration_requests_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_registration_requests_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "driver_registration_invites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_registration_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_registration_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -616,10 +805,17 @@ export type Database = {
       fuelings: {
         Row: {
           anomaly_type: string | null
+          authorization_note: string | null
           authorized_at: string | null
           authorized_by: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           created_at: string
           driver_id: string | null
+          expires_at: string | null
+          filled_at: string | null
+          filled_by: string | null
           fuel_type: string | null
           full_tank: boolean
           has_anomaly: boolean | null
@@ -629,10 +825,12 @@ export type Database = {
           max_liters: number | null
           odometer: number | null
           photo_dashboard_url: string | null
+          photo_pump_url: string | null
           photo_receipt_url: string | null
           photo_requisition_url: string | null
           photo_url: string | null
           price_per_liter: number | null
+          pump_receipt_number: string | null
           station: string | null
           station_id: string | null
           tenant_id: string
@@ -645,10 +843,17 @@ export type Database = {
         }
         Insert: {
           anomaly_type?: string | null
+          authorization_note?: string | null
           authorized_at?: string | null
           authorized_by?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           driver_id?: string | null
+          expires_at?: string | null
+          filled_at?: string | null
+          filled_by?: string | null
           fuel_type?: string | null
           full_tank?: boolean
           has_anomaly?: boolean | null
@@ -658,10 +863,12 @@ export type Database = {
           max_liters?: number | null
           odometer?: number | null
           photo_dashboard_url?: string | null
+          photo_pump_url?: string | null
           photo_receipt_url?: string | null
           photo_requisition_url?: string | null
           photo_url?: string | null
           price_per_liter?: number | null
+          pump_receipt_number?: string | null
           station?: string | null
           station_id?: string | null
           tenant_id?: string
@@ -674,10 +881,17 @@ export type Database = {
         }
         Update: {
           anomaly_type?: string | null
+          authorization_note?: string | null
           authorized_at?: string | null
           authorized_by?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           created_at?: string
           driver_id?: string | null
+          expires_at?: string | null
+          filled_at?: string | null
+          filled_by?: string | null
           fuel_type?: string | null
           full_tank?: boolean
           has_anomaly?: boolean | null
@@ -687,10 +901,12 @@ export type Database = {
           max_liters?: number | null
           odometer?: number | null
           photo_dashboard_url?: string | null
+          photo_pump_url?: string | null
           photo_receipt_url?: string | null
           photo_requisition_url?: string | null
           photo_url?: string | null
           price_per_liter?: number | null
+          pump_receipt_number?: string | null
           station?: string | null
           station_id?: string | null
           tenant_id?: string
@@ -710,8 +926,22 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "fuelings_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "fuelings_driver_id_fkey"
             columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fuelings_filled_by_fkey"
+            columns: ["filled_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1211,10 +1441,13 @@ export type Database = {
           phone: string | null
           photo_url: string | null
           registration_number: string | null
+          registration_status: string
+          repair_shop_id: string | null
           role: string
           score: number | null
           shift_end: string | null
           shift_start: string | null
+          station_id: string | null
           tenant_id: string
         }
         Insert: {
@@ -1238,10 +1471,13 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           registration_number?: string | null
+          registration_status?: string
+          repair_shop_id?: string | null
           role?: string
           score?: number | null
           shift_end?: string | null
           shift_start?: string | null
+          station_id?: string | null
           tenant_id?: string
         }
         Update: {
@@ -1265,10 +1501,13 @@ export type Database = {
           phone?: string | null
           photo_url?: string | null
           registration_number?: string | null
+          registration_status?: string
+          repair_shop_id?: string | null
           role?: string
           score?: number | null
           shift_end?: string | null
           shift_start?: string | null
+          station_id?: string | null
           tenant_id?: string
         }
         Relationships: [
@@ -1284,6 +1523,20 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_repair_shop_id_fkey"
+            columns: ["repair_shop_id"]
+            isOneToOne: false
+            referencedRelation: "repair_shops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_station_id_fkey"
+            columns: ["station_id"]
+            isOneToOne: false
+            referencedRelation: "fuel_stations"
             referencedColumns: ["id"]
           },
           {
@@ -1334,23 +1587,419 @@ export type Database = {
           },
         ]
       }
+      repair_shops: {
+        Row: {
+          address: string | null
+          city: string | null
+          cnpj: string | null
+          code: string | null
+          contract_end: string | null
+          contract_number: string | null
+          contract_start: string | null
+          created_at: string
+          documents: Json | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          phone: string | null
+          photo_url: string | null
+          specialties: string[] | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          cnpj?: string | null
+          code?: string | null
+          contract_end?: string | null
+          contract_number?: string | null
+          contract_start?: string | null
+          created_at?: string
+          documents?: Json | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          phone?: string | null
+          photo_url?: string | null
+          specialties?: string[] | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          cnpj?: string | null
+          code?: string | null
+          contract_end?: string | null
+          contract_number?: string | null
+          contract_start?: string | null
+          created_at?: string
+          documents?: Json | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          photo_url?: string | null
+          specialties?: string[] | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repair_shops_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_order_events: {
+        Row: {
+          actor_id: string | null
+          actor_role: string | null
+          attachment_path: string | null
+          axis: string
+          created_at: string
+          from_state: string | null
+          id: string
+          note: string | null
+          service_order_id: string
+          tenant_id: string
+          to_state: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_role?: string | null
+          attachment_path?: string | null
+          axis?: string
+          created_at?: string
+          from_state?: string | null
+          id?: string
+          note?: string | null
+          service_order_id: string
+          tenant_id?: string
+          to_state?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          actor_role?: string | null
+          attachment_path?: string | null
+          axis?: string
+          created_at?: string
+          from_state?: string | null
+          id?: string
+          note?: string | null
+          service_order_id?: string
+          tenant_id?: string
+          to_state?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_order_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_events_service_order_id_fkey"
+            columns: ["service_order_id"]
+            isOneToOne: false
+            referencedRelation: "service_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_order_invoices: {
+        Row: {
+          amount: number
+          attested_at: string | null
+          attested_by: string | null
+          commitment_number: string | null
+          created_at: string
+          file_path: string | null
+          id: string
+          invoice_number: string
+          issued_at: string
+          repair_shop_id: string
+          service_order_id: string
+          tenant_id: string
+        }
+        Insert: {
+          amount: number
+          attested_at?: string | null
+          attested_by?: string | null
+          commitment_number?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          invoice_number: string
+          issued_at?: string
+          repair_shop_id: string
+          service_order_id: string
+          tenant_id?: string
+        }
+        Update: {
+          amount?: number
+          attested_at?: string | null
+          attested_by?: string | null
+          commitment_number?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          invoice_number?: string
+          issued_at?: string
+          repair_shop_id?: string
+          service_order_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_order_invoices_attested_by_fkey"
+            columns: ["attested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_invoices_repair_shop_id_fkey"
+            columns: ["repair_shop_id"]
+            isOneToOne: false
+            referencedRelation: "repair_shops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_invoices_service_order_id_fkey"
+            columns: ["service_order_id"]
+            isOneToOne: false
+            referencedRelation: "service_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_order_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          invoice_id: string | null
+          note: string | null
+          paid_at: string
+          registered_by: string | null
+          service_order_id: string
+          tenant_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          note?: string | null
+          paid_at?: string
+          registered_by?: string | null
+          service_order_id: string
+          tenant_id?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          invoice_id?: string | null
+          note?: string | null
+          paid_at?: string
+          registered_by?: string | null
+          service_order_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_order_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "service_order_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_payments_registered_by_fkey"
+            columns: ["registered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_payments_service_order_id_fkey"
+            columns: ["service_order_id"]
+            isOneToOne: false
+            referencedRelation: "service_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_payments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_order_quote_items: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          kind: string
+          qty: number
+          quote_id: string
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          kind: string
+          qty?: number
+          quote_id: string
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          kind?: string
+          qty?: number
+          quote_id?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_order_quote_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "service_order_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_order_quotes: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          repair_shop_id: string
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          service_order_id: string
+          status: string
+          tenant_id: string
+          total: number
+          valid_until: string | null
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          repair_shop_id: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          service_order_id: string
+          status?: string
+          tenant_id?: string
+          total?: number
+          valid_until?: string | null
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          repair_shop_id?: string
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          service_order_id?: string
+          status?: string
+          tenant_id?: string
+          total?: number
+          valid_until?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_order_quotes_repair_shop_id_fkey"
+            columns: ["repair_shop_id"]
+            isOneToOne: false
+            referencedRelation: "repair_shops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_quotes_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_quotes_service_order_id_fkey"
+            columns: ["service_order_id"]
+            isOneToOne: false
+            referencedRelation: "service_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_quotes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_orders: {
         Row: {
           admin_note: string | null
           approved_at: string | null
           approved_by: string | null
+          at_shop_at: string | null
           budget: number | null
           category: string
           checklist_id: string | null
+          commitment_number: string | null
           completed_at: string | null
           cost: number | null
           created_at: string
           description: string | null
           driver_id: string
+          financial_status: Database["public"]["Enums"]["service_order_fin_status"]
           id: string
+          nad_number: string | null
           odometer: number | null
+          operational_status: Database["public"]["Enums"]["service_order_op_status"]
           priority: Database["public"]["Enums"]["issue_severity"]
+          received_at: string | null
           repair_shop: string | null
+          repair_shop_id: string | null
           status: Database["public"]["Enums"]["service_order_status"]
           tenant_id: string
           vehicle_id: string | null
@@ -1359,18 +2008,25 @@ export type Database = {
           admin_note?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          at_shop_at?: string | null
           budget?: number | null
           category: string
           checklist_id?: string | null
+          commitment_number?: string | null
           completed_at?: string | null
           cost?: number | null
           created_at?: string
           description?: string | null
           driver_id: string
+          financial_status?: Database["public"]["Enums"]["service_order_fin_status"]
           id?: string
+          nad_number?: string | null
           odometer?: number | null
+          operational_status?: Database["public"]["Enums"]["service_order_op_status"]
           priority?: Database["public"]["Enums"]["issue_severity"]
+          received_at?: string | null
           repair_shop?: string | null
+          repair_shop_id?: string | null
           status?: Database["public"]["Enums"]["service_order_status"]
           tenant_id?: string
           vehicle_id?: string | null
@@ -1379,18 +2035,25 @@ export type Database = {
           admin_note?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          at_shop_at?: string | null
           budget?: number | null
           category?: string
           checklist_id?: string | null
+          commitment_number?: string | null
           completed_at?: string | null
           cost?: number | null
           created_at?: string
           description?: string | null
           driver_id?: string
+          financial_status?: Database["public"]["Enums"]["service_order_fin_status"]
           id?: string
+          nad_number?: string | null
           odometer?: number | null
+          operational_status?: Database["public"]["Enums"]["service_order_op_status"]
           priority?: Database["public"]["Enums"]["issue_severity"]
+          received_at?: string | null
           repair_shop?: string | null
+          repair_shop_id?: string | null
           status?: Database["public"]["Enums"]["service_order_status"]
           tenant_id?: string
           vehicle_id?: string | null
@@ -1415,6 +2078,13 @@ export type Database = {
             columns: ["driver_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_orders_repair_shop_id_fkey"
+            columns: ["repair_shop_id"]
+            isOneToOne: false
+            referencedRelation: "repair_shops"
             referencedColumns: ["id"]
           },
           {
@@ -1986,14 +2656,55 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      auto_close_abandoned_trips: {
+        Args: { p_hours?: number }
+        Returns: number
+      }
       check_vehicle_conflict: {
         Args: { p_vehicle_id: string }
         Returns: {
           driver_name: string
           in_use: boolean
+          is_stale: boolean
+          last_activity_at: string
+          start_at: string
+          trip_id: string
         }[]
       }
       delete_own_account: { Args: never; Returns: undefined }
+      get_repair_shop_orders: {
+        Args: never
+        Returns: {
+          brand: string
+          category: string
+          commitment_number: string
+          created_at: string
+          description: string
+          financial_status: string
+          model: string
+          odometer: number
+          operational_status: string
+          order_id: string
+          plate: string
+          priority: string
+          year: number
+        }[]
+      }
+      get_station_pending_authorizations: {
+        Args: never
+        Returns: {
+          authorized_at: string
+          brand: string
+          expires_at: string
+          fuel_type: string
+          fueling_id: string
+          max_liters: number
+          model: string
+          note: string
+          plate: string
+          price_per_liter: number
+        }[]
+      }
       get_tenant_branding: {
         Args: { p_slug: string }
         Returns: {
@@ -2022,11 +2733,15 @@ export type Database = {
       }
       get_user_current_vehicle_id: { Args: never; Returns: string }
       get_user_department_id: { Args: never; Returns: string }
+      get_user_repair_shop_id: { Args: never; Returns: string }
+      get_user_station_id: { Args: never; Returns: string }
       get_user_tenant_id: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
       is_admin_or_manager: { Args: never; Returns: boolean }
       is_manager: { Args: never; Returns: boolean }
       is_motorista: { Args: never; Returns: boolean }
+      is_oficina: { Args: never; Returns: boolean }
+      is_posto: { Args: never; Returns: boolean }
       is_secretario: { Args: never; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
       notify_admins: {
@@ -2066,12 +2781,84 @@ export type Database = {
         }
         Returns: number
       }
+      partner_complete_fueling: {
+        Args: {
+          p_fueling_id: string
+          p_liters: number
+          p_odometer: number
+          p_photo_url?: string
+          p_receipt_no?: string
+        }
+        Returns: {
+          fueling_id: string
+          price_per_liter: number
+          total_cost: number
+        }[]
+      }
+      partner_context: {
+        Args: never
+        Returns: {
+          kind: string
+          partner_id: string
+          partner_name: string
+          profile_id: string
+          tenant_id: string
+        }[]
+      }
       register_push_token: {
         Args: { p_platform?: string; p_token: string }
         Returns: undefined
       }
+      release_stale_trip: {
+        Args: { p_reason?: string; p_vehicle_id: string }
+        Returns: {
+          previous_driver_name: string
+          released: boolean
+          trip_id: string
+        }[]
+      }
+      repair_shop_finish_service: {
+        Args: { p_note?: string; p_order_id: string }
+        Returns: undefined
+      }
+      repair_shop_start_service: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
+      repair_shop_submit_invoice: {
+        Args: {
+          p_amount: number
+          p_file_path?: string
+          p_invoice_number: string
+          p_issued_at?: string
+          p_order_id: string
+        }
+        Returns: string
+      }
+      repair_shop_submit_quote: {
+        Args: {
+          p_items: Json
+          p_note?: string
+          p_order_id: string
+          p_valid_until?: string
+        }
+        Returns: string
+      }
       sgf_role: { Args: never; Returns: string }
       sgf_tenant: { Args: never; Returns: string }
+      takeover_vehicle: {
+        Args: { p_vehicle_id: string }
+        Returns: {
+          ended_trip_id: string
+          previous_driver_name: string
+          success: boolean
+        }[]
+      }
+      trip_last_activity_at: {
+        Args: { p_start_at: string; p_trip_id: string }
+        Returns: string
+      }
+      trip_stale_after_hours: { Args: never; Returns: number }
       unregister_push_token: { Args: { p_token: string }; Returns: undefined }
     }
     Enums: {
@@ -2087,6 +2874,22 @@ export type Database = {
         | "lancado_direto"
       issue_severity: "baixa" | "media" | "alta"
       issue_status: "aberto" | "em_analise" | "resolvido"
+      service_order_fin_status:
+        | "not_started"
+        | "awaiting_commitment"
+        | "committed"
+        | "invoiced"
+        | "attested"
+        | "paid"
+      service_order_op_status:
+        | "pending"
+        | "authorized"
+        | "at_shop"
+        | "awaiting_quote_approval"
+        | "in_progress"
+        | "ready"
+        | "received"
+        | "cancelled"
       service_order_status:
         | "pendente"
         | "aprovada"
@@ -2235,6 +3038,24 @@ export const Constants = {
       ],
       issue_severity: ["baixa", "media", "alta"],
       issue_status: ["aberto", "em_analise", "resolvido"],
+      service_order_fin_status: [
+        "not_started",
+        "awaiting_commitment",
+        "committed",
+        "invoiced",
+        "attested",
+        "paid",
+      ],
+      service_order_op_status: [
+        "pending",
+        "authorized",
+        "at_shop",
+        "awaiting_quote_approval",
+        "in_progress",
+        "ready",
+        "received",
+        "cancelled",
+      ],
       service_order_status: [
         "pendente",
         "aprovada",

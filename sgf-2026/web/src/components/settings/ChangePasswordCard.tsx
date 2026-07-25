@@ -12,7 +12,7 @@ export function ChangePasswordCard() {
     const [saving, setSaving] = useState(false);
 
     const handleSave = async () => {
-        if (password.length < 6) return toast.error('A senha deve ter ao menos 6 caracteres.');
+        if (password.length < 8) return toast.error('A senha deve ter ao menos 8 caracteres.');
         if (password !== confirm) return toast.error('As senhas não conferem.');
         setSaving(true);
         try {
@@ -43,7 +43,7 @@ export function ChangePasswordCard() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Mínimo 8 caracteres"
                     fullWidth
                 />
                 <SGFInput

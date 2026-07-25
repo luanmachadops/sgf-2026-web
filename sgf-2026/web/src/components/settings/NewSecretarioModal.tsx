@@ -93,7 +93,7 @@ export function NewSecretarioModal({ isOpen, onClose, defaultDepartmentId }: New
     const handleSubmit = async () => {
         if (!name.trim()) return toast.error('Informe o nome.');
         if (!email.includes('@')) return toast.error('E-mail inválido.');
-        if (password.length < 6) return toast.error('Senha deve ter ao menos 6 caracteres.');
+        if (password.length < 8) return toast.error('Senha deve ter ao menos 8 caracteres.');
         if (!departmentId) return toast.error('Selecione a secretaria.');
         try {
             await createSecretario.mutateAsync();
@@ -170,7 +170,7 @@ export function NewSecretarioModal({ isOpen, onClose, defaultDepartmentId }: New
                             type={showPassword ? 'text' : 'password'}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Mínimo 6 caracteres"
+                            placeholder="Mínimo 8 caracteres"
                             fullWidth
                             icon={showPassword ? EyeOff : Eye}
                             iconPosition="right"

@@ -8,6 +8,7 @@ import { VehiclePickerField } from '@/components/sgf/VehiclePickerField';
 import { Loader2, Save, Fuel, Calendar, User, Receipt, DollarSign, ArrowUpRight, Camera, X } from '@/components/sgf/icons';
 import { refuelingsApi, stationsApi, vehiclesApi } from '@/lib/supabase-api';
 import { supabase } from '@/lib/supabase';
+import { uploadFoto } from '@/lib/fotoStorage';
 import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
 import { formatPlate } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,9 +27,8 @@ function PhotoUpload({ label, hint, url, onChange }: { label: string; hint: stri
             setLoading(true);
             const blob = await resizeAndConvertToWebP(file, 1000);
             const fileName = `fuelings/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
-            const { error } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
-            if (error) throw error;
-            onChange(supabase.storage.from('fotos').getPublicUrl(fileName).data.publicUrl);
+            const { publicUrl } = await uploadFoto(fileName, blob, 'image/webp');
+            onChange(publicUrl);
         } catch (err) {
             toast.error((err as { message?: string })?.message ?? 'Erro ao enviar a foto.');
         } finally {

@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import { useQueryClient } from '@tanstack/react-query';
 import type { User } from '@/types';
 import { supabase } from '@/lib/supabase';
+import { resetFotoStorageCache } from '@/lib/fotoStorage';
 
 function isAbortError(err: unknown): boolean {
     if (!err) return false;
@@ -49,6 +50,11 @@ function persistAuthState(nextUser: User | null, nextToken: string | null) {
     localStorage.removeItem('user');
 }
 
+/** Papéis com acesso ao painel de gestão. Parceiros (posto/oficina) e
+ *  motoristas têm seus próprios portais e são barrados aqui. */
+const PANEL_ROLES = ['admin', 'gestor', 'secretario', 'superadmin'] as const;
+type PanelRole = (typeof PANEL_ROLES)[number];
+
 /**
  * Mapeia role do banco (pt-BR lowercase) para o enum esperado pelo web (UPPERCASE EN).
  */
@@ -95,11 +101,16 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
         .maybeSingle();
 
     if (profile && !error) {
-        // Motorista não tem acesso ao painel de gestão — encerra a sessão imediatamente.
-        // (A RLS já limita a escrita, mas sem este gate ele enxergaria a leitura do tenant.)
-        if (profile.role === 'motorista') {
+        // Allowlist: só papéis do painel entram. Denylist (barrar apenas
+        // 'motorista') deixaria qualquer papel novo — posto, oficina — entrar
+        // no painel de gestão por omissão.
+        if (!PANEL_ROLES.includes(profile.role as PanelRole)) {
             void supabase.auth.signOut();
-            throw new Error('Este acesso é exclusivo do painel de gestão. Motoristas devem usar o aplicativo SGF Motorista.');
+            throw new Error(
+                profile.role === 'motorista'
+                    ? 'Este acesso é exclusivo do painel de gestão. Motoristas devem usar o aplicativo SGF Motorista.'
+                    : 'Seu acesso não é do painel de gestão. Use o endereço do seu sistema (posto ou oficina).',
+            );
         }
         const dept = (profile as unknown as { departments?: { id: string; name: string } | null }).departments;
         const tenant = mapTenant((profile as unknown as { tenants?: TenantRow | null }).tenants);
@@ -119,20 +130,12 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
         };
     }
 
-    // Fallback: usa auth metadata (sem profile row)
-    const metaType = authUser.user_metadata?.type as string | undefined;
-    const metaRole = (authUser.user_metadata?.role as string | undefined)?.toLowerCase();
-    if (metaType === 'driver' || metaRole === 'motorista') {
-        void supabase.auth.signOut();
-        throw new Error('Este acesso é exclusivo do painel de gestão. Motoristas devem usar o aplicativo SGF Motorista.');
-    }
-    return {
-        id: authUser.id,
-        email: authUser.email || '',
-        name: (authUser.user_metadata?.full_name as string) || (authUser.user_metadata?.name as string) || 'Usuário',
-        role: mapDbRole((authUser.user_metadata?.role as string) || 'motorista'),
-        createdAt: new Date().toISOString(),
-    };
+    // Sem perfil no banco → nega. NUNCA derivar papel/tenant de
+    // `user_metadata`: esse objeto é editável pelo próprio usuário via
+    // supabase.auth.updateUser(), então um fallback autorizativo baseado nele
+    // é escalada de privilégio (qualquer conta se declararia 'admin').
+    void supabase.auth.signOut();
+    throw new Error('Não foi possível carregar seu perfil de acesso. Procure o administrador do sistema.');
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -309,6 +312,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setToken(null);
         persistAuthState(null, null);
+        // Zera o tenant cacheado do upload de fotos: sem isso o próximo login
+        // nesta aba gravaria no caminho da prefeitura anterior.
+        resetFotoStorageCache();
 
         // Fire signOut in background (best-effort, never block redirect)
         supabase.auth.signOut().catch((error) => {

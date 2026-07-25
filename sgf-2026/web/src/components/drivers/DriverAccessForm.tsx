@@ -10,7 +10,7 @@ import type { DriverRecord } from '@/hooks/useDrivers';
 import { useProvisionDriverAccess, useResetDriverPassword } from '@/hooks/useDrivers';
 
 const accessSchema = z.object({
-    password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres').max(20, 'Senha deve ter no máximo 20 caracteres'),
+    password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres').max(20, 'Senha deve ter no máximo 20 caracteres'),
     confirmPassword: z.string().min(6, 'Confirme a senha'),
 }).refine((data) => data.password === data.confirmPassword, {
     message: 'As senhas não coincidem',
@@ -88,7 +88,7 @@ export function DriverAccessForm({ driver, mode, onSuccess, onCancel }: DriverAc
                 <SGFInput
                     label="Nova senha"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Mínimo de 6 caracteres"
+                    placeholder="Mínimo de 8 caracteres"
                     {...register('password')}
                     error={errors.password?.message}
                     icon={showPassword ? EyeOff : Eye}

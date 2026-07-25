@@ -32,6 +32,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { infractionsApi, driversApi, vehiclesApi, tripsApi, type InfractionCandidate, type VehicleRecord } from '@/lib/supabase-api';
 import { formatCurrency, formatDate, formatPlate } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { uploadFoto } from '@/lib/fotoStorage';
 import { prepareUpload } from '@/lib/imageUtils';
 import type { Tables } from '@/types/database.types';
 
@@ -327,9 +328,7 @@ function NewInfractionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
             const prepared = await prepareUpload(file, { maxSize: 1400, quality: 0.8 });
             const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^\w.\-]+/g, '_');
             const fileName = `infractions/${Date.now()}-${safe}.${prepared.ext}`;
-            const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, prepared.blob, { contentType: prepared.contentType, upsert: true });
-            if (upErr) throw upErr;
-            const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
+            const { publicUrl } = await uploadFoto(fileName, prepared.blob, prepared.contentType);
             setAttachmentUrl(publicUrl);
             setAttachmentName(file.name);
             toast.success('Documento anexado com sucesso!');

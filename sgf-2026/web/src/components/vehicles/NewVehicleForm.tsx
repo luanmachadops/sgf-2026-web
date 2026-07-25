@@ -13,6 +13,7 @@ import type { TablesInsert } from '@/types/database.types';
 import { useAuth } from '@/contexts/AuthContext';
 import { isImageFile, resizeAndConvertToWebP } from '@/lib/imageUtils';
 import { supabase } from '@/lib/supabase';
+import { uploadFoto } from '@/lib/fotoStorage';
 
 const KNOWN_BRANDS = [
     'Fiat', 'Volkswagen', 'Chevrolet', 'Ford', 'Renault', 'Toyota', 'Hyundai',
@@ -225,13 +226,8 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
                     setIsUploading(true);
                     const optimizedBlob = await resizeAndConvertToWebP(vehiclePhotoFile, 1024);
                     const fileName = `vehicles/${created.id}-${Date.now()}.webp`;
-                    const { error: uploadError } = await supabase.storage
-                        .from('fotos')
-                        .upload(fileName, optimizedBlob, { contentType: 'image/webp', upsert: true });
-                    if (!uploadError) {
-                        const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
-                        await vehiclesApi.updatePhoto(created.id, publicUrl);
-                    }
+                    const { publicUrl } = await uploadFoto(fileName, optimizedBlob, 'image/webp');
+                    await vehiclesApi.updatePhoto(created.id, publicUrl);
                 } catch (e) {
                     console.error('Error uploading vehicle photo:', e);
                 } finally {

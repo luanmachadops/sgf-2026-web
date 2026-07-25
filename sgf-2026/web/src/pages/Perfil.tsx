@@ -8,6 +8,7 @@ import { Camera, Loader2, ShieldCheck, LockKeyhole } from '@/components/sgf/icon
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { uploadFoto } from '@/lib/fotoStorage';
 import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
 import { maskPhone } from '@/lib/utils';
 
@@ -69,10 +70,8 @@ export default function Perfil() {
         try {
             setUploading(true);
             const blob = await resizeAndConvertToWebP(file, 512);
-            const fileName = `drivers/${user.id}-${Date.now()}.webp`;
-            const { error } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
-            if (error) throw error;
-            setPhotoUrl(supabase.storage.from('fotos').getPublicUrl(fileName).data.publicUrl);
+            const { publicUrl } = await uploadFoto(`drivers/${user.id}-${Date.now()}.webp`, blob, 'image/webp');
+            setPhotoUrl(publicUrl);
             toast.success('Foto carregada. Salve para confirmar.');
         } catch (err) {
             toast.error((err as { message?: string })?.message ?? 'Erro ao enviar a foto.');
@@ -103,7 +102,7 @@ export default function Perfil() {
     };
 
     const handlePassword = async () => {
-        if (pwd.length < 6) { toast.error('A senha deve ter ao menos 6 caracteres.'); return; }
+        if (pwd.length < 8) { toast.error('A senha deve ter ao menos 8 caracteres.'); return; }
         if (pwd !== pwd2) { toast.error('As senhas não coincidem.'); return; }
         try {
             setPwdSaving(true);
@@ -176,7 +175,7 @@ export default function Perfil() {
                         <h3 className="text-lg font-semibold text-slate-900">Alterar senha</h3>
                     </div>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <SGFInput label="Nova senha" type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="Mínimo 6 caracteres" fullWidth />
+                        <SGFInput label="Nova senha" type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="Mínimo 8 caracteres" fullWidth />
                         <SGFInput label="Confirmar nova senha" type="password" value={pwd2} onChange={(e) => setPwd2(e.target.value)} fullWidth />
                     </div>
                     <div className="mt-5 flex justify-end">

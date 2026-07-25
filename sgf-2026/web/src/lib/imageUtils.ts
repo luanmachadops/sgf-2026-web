@@ -198,3 +198,15 @@ export function formatFileSize(bytes: number): string {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
 }
+
+/**
+ * Normaliza URLs de imagens do Supabase Storage.
+ * Garante que a URL pública contenha `/storage/v1/object/public/` para exibição direta na tag <img> sem erros 400.
+ */
+export function normalizeImageUrl(url?: string | null): string {
+    if (!url) return '';
+    if (url.includes('/storage/v1/object/fotos/') && !url.includes('/storage/v1/object/public/fotos/')) {
+        return url.replace('/storage/v1/object/fotos/', '/storage/v1/object/public/fotos/');
+    }
+    return url;
+}

@@ -49,7 +49,7 @@ function statusToDb(status: DriverWebStatus | undefined): DriverDbStatus {
 }
 
 function assertPassword(password: unknown) {
-    if (typeof password !== 'string' || password.length < 6 || password.length > 20) {
+    if (typeof password !== 'string' || password.length < 8 || password.length > 20) {
         throw new Error('Senha deve ter entre 6 e 20 caracteres');
     }
 }

@@ -5,6 +5,7 @@
  */
 
 import { supabase } from './supabase';
+import { uploadFoto } from './fotoStorage';
 import { optimizeImage, IMAGE_PRESETS } from './imageUtils';
 import type { Enums, Tables, TablesInsert, TablesUpdate } from '@/types/database.types';
 import type { VehicleStatus, DriverStatus, TripStatus, MaintenanceStatus } from '@/types';
@@ -1523,11 +1524,8 @@ export const tenantApi = {
     uploadBrandingImage: async (tenantId: string, kind: 'logo' | 'seal' | 'photo', file: File): Promise<string> => {
         const preset = kind === 'photo' ? IMAGE_PRESETS.photo : IMAGE_PRESETS.logo;
         const opt = await optimizeImage(file, preset);
-        const path = `branding/${tenantId}/${kind}-${Date.now()}.${opt.ext}`;
-        const { error } = await supabase.storage.from('fotos').upload(path, opt.blob, { upsert: true, contentType: opt.contentType });
-        if (error) handleError(error);
-        const { data } = supabase.storage.from('fotos').getPublicUrl(path);
-        return data.publicUrl;
+        const { publicUrl } = await uploadFoto(`branding/${kind}-${Date.now()}.${opt.ext}`, opt.blob, opt.contentType, { tenantId });
+        return publicUrl;
     },
 };
 

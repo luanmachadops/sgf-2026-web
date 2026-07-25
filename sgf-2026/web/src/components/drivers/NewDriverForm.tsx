@@ -495,7 +495,7 @@ export function NewDriverForm({ onSuccess }: NewDriverFormProps) {
                     </div>
                     <SGFInput
                         type={showPassword ? 'text' : 'password'}
-                        placeholder="Mínimo 6 caracteres"
+                        placeholder="Mínimo 8 caracteres"
                         autoComplete="new-password"
                         icon={showPassword ? EyeOff : Eye}
                         iconPosition="right"

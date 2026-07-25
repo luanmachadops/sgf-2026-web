@@ -9,7 +9,8 @@ import { Camera, Loader2, Sparkles } from '@/components/sgf/icons';
 import { departmentsApi, driversApi } from '@/lib/supabase-api';
 import { extractDriverFromCNH } from '@/lib/driverAI';
 import { supabase } from '@/lib/supabase';
-import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
+import { uploadFoto } from '@/lib/fotoStorage';
+import { resizeAndConvertToWebP, isImageFile, normalizeImageUrl } from '@/lib/imageUtils';
 import { maskCPF, maskPhone } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Tables, TablesUpdate } from '@/types/database.types';
@@ -137,12 +138,9 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
             const fileName = `drivers/${driver.id}-${Date.now()}.webp`;
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error('Sessão expirada. Faça login novamente.');
-            const { error: uploadError } = await supabase.storage
-                .from('fotos')
-                .upload(fileName, optimizedBlob, { contentType: 'image/webp', upsert: true });
-            if (uploadError) throw uploadError;
-            const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
-            setPhotoUrl(publicUrl);
+            const { publicUrl } = await uploadFoto(fileName, optimizedBlob, 'image/webp');
+            const finalUrl = normalizeImageUrl(publicUrl);
+            setPhotoUrl(finalUrl);
             toast.success('Foto carregada. Salve para confirmar.');
         } catch (err) {
             const message = (err as { message?: string })?.message ?? 'Erro ao enviar a foto.';

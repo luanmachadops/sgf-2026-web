@@ -1,0 +1,11 @@
+-- 20260521170847_harden_security
+--
+-- MIGRATION APLICADA EM PRODUÇÃO SEM PASSAR PELO REPOSITÓRIO.
+-- Este arquivo existe para o histórico local bater com o do banco; o SQL real
+-- está preservado em supabase_migrations.schema_migrations e NÃO foi apagado.
+--
+-- Para recuperar o SQL original desta migration:
+--   select unnest(statements) from supabase_migrations.schema_migrations
+--    where version = '20260521170847';
+--
+-- Não reaplique: já consta como aplicada no banco.

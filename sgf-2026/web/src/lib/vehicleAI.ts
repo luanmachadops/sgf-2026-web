@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { uploadFoto } from './fotoStorage';
 import { resizeAndConvertToWebP } from './imageUtils';
 import { uploadPrivateDoc } from './docStorage';
 
@@ -100,9 +101,7 @@ export async function extractVehicleWithPhotos(
             const blob = await resizeAndConvertToWebP(s.file, 1000);
             const dir = vehicleId ? `vehicles/${vehicleId}` : 'vehicles/ai';
             const fileName = `${dir}/${s.type}-${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
-            const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
-            if (upErr) throw upErr;
-            const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
+            const { publicUrl } = await uploadFoto(fileName, blob, 'image/webp', { tenantId });
             photos.push({ type: s.type, url: publicUrl });
             imagesForAI.push(publicUrl);
         }

@@ -37,6 +37,7 @@ import { downloadVehicleQr } from '@/lib/vehicleQr';
 import { vehicleDocumentsApi } from '@/lib/supabase-api';
 import { formatDate, formatDistance, formatCurrency, formatPlate, getStatusLabel, getStatusColor } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { uploadFoto } from '@/lib/fotoStorage';
 import {
     vehiclesApi,
     tripsApi,
@@ -178,18 +179,7 @@ export default function VehicleDetails() {
                 throw new Error('Sessão expirada. Faça login novamente.');
             }
 
-            const { error: uploadError } = await supabase.storage
-                .from('fotos')
-                .upload(fileName, optimizedBlob, {
-                    contentType: 'image/webp',
-                    upsert: true,
-                });
-
-            if (uploadError) throw uploadError;
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('fotos')
-                .getPublicUrl(fileName);
+            const { publicUrl } = await uploadFoto(fileName, optimizedBlob, 'image/webp');
 
             await vehiclesApi.updatePhoto(vehicle.id, publicUrl);
             await queryClient.invalidateQueries({ queryKey: ['vehicle', id] });
@@ -218,9 +208,7 @@ export default function VehicleDetails() {
                 if (!isImageFile(file)) continue;
                 const blob = await resizeAndConvertToWebP(file, 1000);
                 const fileName = `vehicles/${vehicle.id}/foto-${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
-                const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
-                if (upErr) throw upErr;
-                const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
+                const { publicUrl } = await uploadFoto(fileName, blob, 'image/webp');
                 await vehicleDocumentsApi.add({ vehicleId: vehicle.id, url: publicUrl, title: 'Foto do veículo', docType: 'foto' });
                 if (!firstUrl) firstUrl = publicUrl;
             }

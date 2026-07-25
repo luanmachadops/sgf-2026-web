@@ -8,6 +8,7 @@ import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { FileText, Plus, X, Download, Loader2, Camera, Sparkles } from '@/components/sgf/icons';
 import { departmentsApi, vehiclesApi, vehicleDocumentsApi } from '@/lib/supabase-api';
 import { supabase } from '@/lib/supabase';
+import { uploadFoto } from '@/lib/fotoStorage';
 import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
 import { uploadPrivateDoc } from '@/lib/docStorage';
 import { VehicleAIModal } from '@/components/vehicles/VehicleAIModal';
@@ -141,9 +142,7 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
             setUploadingPhoto(true);
             const blob = await resizeAndConvertToWebP(file, 1000);
             const fileName = `vehicles/${vehicle.id}-${Date.now()}.webp`;
-            const { error: upErr } = await supabase.storage.from('fotos').upload(fileName, blob, { contentType: 'image/webp', upsert: true });
-            if (upErr) throw upErr;
-            const { data: { publicUrl } } = supabase.storage.from('fotos').getPublicUrl(fileName);
+            const { publicUrl } = await uploadFoto(fileName, blob, 'image/webp');
             setPhotoUrl(publicUrl);
             toast.success('Foto anexada. Salve para confirmar.');
         } catch (err) {

@@ -23,8 +23,8 @@ export async function createManager(payload: CreateManagerPayload) {
 
     if (!payload.name?.trim()) throw Object.assign(new Error('Nome é obrigatório'), { status: 400 });
     if (!email || !email.includes('@')) throw Object.assign(new Error('E-mail inválido'), { status: 400 });
-    if (!payload.password || payload.password.length < 6) {
-        throw Object.assign(new Error('Senha deve ter ao menos 6 caracteres'), { status: 400 });
+    if (!payload.password || payload.password.length < 8) {
+        throw Object.assign(new Error('Senha deve ter ao menos 8 caracteres'), { status: 400 });
     }
     if (role === 'secretario' && !payload.departmentId) {
         throw Object.assign(new Error('Secretário precisa de uma secretaria'), { status: 400 });
