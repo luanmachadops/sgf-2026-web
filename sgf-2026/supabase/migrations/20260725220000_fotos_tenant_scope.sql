@@ -1,7 +1,11 @@
 -- ============================================================================
 -- Bucket `fotos`: escopo por prefeitura — ETAPA 1 de 2 (somente SELECT)
 --
--- STATUS: *** NÃO APLICADA — aplicar após o deploy do PAINEL ***
+-- STATUS: *** APLICADA em 2026-07-25, após o deploy do painel ***
+--   Verificada em transação revertida, com 3 objetos de teste:
+--     • usuário vê a foto da própria prefeitura ......... OK
+--     • NÃO vê a foto de outra prefeitura .............. OK
+--     • caminho legado deixou de ser enumerável ........ OK
 --
 -- PROBLEMA
 --   A policy `fotos_auth_select` é ampla (`bucket_id = 'fotos'`) porque os

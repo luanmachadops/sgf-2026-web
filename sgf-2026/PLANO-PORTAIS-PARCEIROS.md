@@ -34,7 +34,11 @@
 | `fotos` com caminho por tenant | ⛔ **pendente** — hoje qualquer autenticado lista fotos de todas as prefeituras |
 | Fase 1 — DDL | ✅ **aplicada** — `20260725204942_partner_portals_schema` e `20260725205042_partner_portals_rpc`. 6 tabelas, 2 enums, 12 RPCs, 8 policies de parceiro, backfill das 4 OS existentes |
 | Tipos do banco | ✅ `database.types.ts` regenerado; `tsc` limpo em `web` e `admin` |
-| `20260724000001_activity_log` | ⛔ **nunca aplicada** — não faz parte da fase 1; decisão à parte (cria triggers de auditoria em várias tabelas) |
+| `20260724000001_activity_log` | ✅ **aplicada** — o código em produção já chamava `log_manual_activity` (driver-access.ts:275) a cada reset de senha e bloqueio; a auditoria vinha falhando em silêncio |
+| Deploy do painel | ✅ `856d4ca` → produção READY, `frota-web-tap.vercel.app` HTTP 200 |
+| Fase 2 — testes de isolamento | ✅ **15/15** em `supabase/tests/rls_partner_isolation.sql` |
+| `fotos` escopado por tenant — leitura | ✅ **aplicada** — enumeração cross-tenant fechada, verificada 3/3 |
+| `fotos` escopado por tenant — escrita | ⏳ aguarda adoção da build nova do app (nativo) |
 
 ### Verificação da fase 1 (2026-07-25)
 
