@@ -9,6 +9,7 @@ import {
     CheckCircle,
     FileText,
     Lock,
+    Pencil,
     ShieldCheck,
     Sparkles,
 } from '@/components/sgf/icons';
@@ -111,6 +112,7 @@ export default function Convite() {
     const [cpfStatus, setCpfStatus] = useState<CpfStatus>('idle');
     const [cpfCheckAttempt, setCpfCheckAttempt] = useState(0);
     const [documentStage, setDocumentStage] = useState<DocumentStage>('idle');
+    const [manualEntry, setManualEntry] = useState(false);
 
     const primary = invite?.tenant.primary_color || '#00A86B';
     const appName = invite?.tenant.app_name || 'Frota Municipal';
@@ -247,6 +249,7 @@ export default function Convite() {
 
         setPhotoUrl(URL.createObjectURL(file));
         setBusy(true);
+        setManualEntry(false);
         setDocumentStage('uploading');
         setError('');
         try {
@@ -270,6 +273,17 @@ export default function Convite() {
             setDocumentStage('idle');
             event.target.value = '';
         }
+    };
+
+    const startManualEntry = () => {
+        if (photoUrl) URL.revokeObjectURL(photoUrl);
+        setPhotoUrl('');
+        setCnhPath('');
+        setAiConfidence(null);
+        setManualEntry(true);
+        setError('');
+        setStep(2);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const goNext = () => {
@@ -353,6 +367,7 @@ export default function Convite() {
                 phone: digits(form.phone),
                 password: form.password,
                 cnhFrontPath: cnhPath,
+                manualEntry,
                 aiConfidence,
             });
             const nextProtocol = {
@@ -503,6 +518,19 @@ export default function Convite() {
                                 <CheckCircle className="h-5 w-5" /> CNH enviada de forma privada. Você revisará os dados na próxima etapa.
                             </div>
                         )}
+                        {!busy && !cnhPath && (
+                            <button
+                                type="button"
+                                onClick={startManualEntry}
+                                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-base font-bold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 sm:text-sm"
+                            >
+                                <Pencil className="h-5 w-5" />
+                                Preencher os dados manualmente
+                            </button>
+                        )}
+                        <p className="text-center text-xs leading-5 text-slate-400">
+                            Use esta opção se estiver com problemas na câmera ou no envio da foto.
+                        </p>
                     </Card>
                 )}
 
@@ -512,9 +540,17 @@ export default function Convite() {
                         <div>
                             <h2 className="text-2xl font-bold text-slate-900">Confira os dados da CNH</h2>
                             <p className="mt-2 text-sm leading-6 text-slate-500">
-                                A leitura automática ajuda no preenchimento, mas confirme cada informação.
+                                {manualEntry
+                                    ? 'Digite os dados exatamente como aparecem na sua CNH.'
+                                    : 'A leitura automática ajuda no preenchimento, mas confirme cada informação.'}
                             </p>
                         </div>
+                        {manualEntry && (
+                            <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                                <Pencil className="mt-0.5 h-5 w-5 shrink-0" />
+                                <span>Preenchimento manual selecionado. O gestor analisará os dados informados sem a foto do documento.</span>
+                            </div>
+                        )}
                         <Field label="Nome completo" value={form.fullName} onChange={(value) => setField('fullName', value)} autoComplete="name" />
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div>
@@ -682,7 +718,7 @@ export default function Convite() {
 
 function PublicShell({ children, primary }: { children: React.ReactNode; primary: string }) {
     return (
-        <div className="min-h-screen bg-[#F5F7F9] text-slate-900" style={{ '--registration-primary': primary } as React.CSSProperties}>
+        <div className="driver-registration-form min-h-screen bg-[#F5F7F9] text-slate-900" style={{ '--registration-primary': primary } as React.CSSProperties}>
             {children}
         </div>
     );

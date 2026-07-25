@@ -14,6 +14,7 @@ export type DriverRegistrationRequest = {
     email: string;
     phone: string | null;
     department_id: string;
+    document_entry_mode: 'photo' | 'manual';
     ai_confidence: number | null;
     manager_note: string | null;
     submitted_at: string;

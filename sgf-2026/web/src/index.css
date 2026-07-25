@@ -38,3 +38,13 @@
 .custom-scrollbar::-webkit-scrollbar-corner {
   background: #F1F5F9;
 }
+
+/* O Safari no iPhone aplica zoom automático quando um campo tem fonte menor
+   que 16px. Mantemos 16px em todos os controles do cadastro público no celular. */
+@media (max-width: 767px) {
+  .driver-registration-form input:not([type="file"]),
+  .driver-registration-form select,
+  .driver-registration-form textarea {
+    font-size: 16px !important;
+  }
+}

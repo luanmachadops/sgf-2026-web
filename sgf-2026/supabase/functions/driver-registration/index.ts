@@ -283,7 +283,8 @@ async function submitRegistration(body: Json) {
   const phone = digits(body.phone).slice(0, 13);
   const password = cleanText(body.password, 128);
   const departmentId = invite.department_id ?? cleanText(body.departmentId, 50);
-  const frontPath = cleanText(body.cnhFrontPath, 500);
+  const manualEntry = body.manualEntry === true;
+  const frontPath = cleanText(body.cnhFrontPath, 500) || null;
   const backPath = cleanText(body.cnhBackPath, 500) || null;
   const storagePrefix = `driver-registration/${invite.id}/`;
 
@@ -297,14 +298,18 @@ async function submitRegistration(body: Json) {
   if (password.length < 8 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
     return response({ error: "A senha deve ter ao menos 8 caracteres, com maiúscula, minúscula e número." }, 400);
   }
-  if (!frontPath.startsWith(storagePrefix) || (backPath && !backPath.startsWith(storagePrefix))) {
-    return response({ error: "Envie uma foto válida da CNH." }, 400);
-  }
-  const frontName = frontPath.slice(storagePrefix.length);
-  const { data: uploadedFiles } = await admin().storage.from(BUCKET)
-    .list(storagePrefix.replace(/\/$/, ""), { search: frontName, limit: 2 });
-  if (!uploadedFiles?.some((file) => file.name === frontName)) {
-    return response({ error: "A foto da CNH não foi encontrada. Fotografe o documento novamente." }, 400);
+  if (manualEntry) {
+    if (frontPath || backPath) return response({ error: "O preenchimento manual não deve incluir arquivos da CNH." }, 400);
+  } else {
+    if (!frontPath?.startsWith(storagePrefix) || (backPath && !backPath.startsWith(storagePrefix))) {
+      return response({ error: "Envie uma foto válida da CNH." }, 400);
+    }
+    const frontName = frontPath.slice(storagePrefix.length);
+    const { data: uploadedFiles } = await admin().storage.from(BUCKET)
+      .list(storagePrefix.replace(/\/$/, ""), { search: frontName, limit: 2 });
+    if (!uploadedFiles?.some((file) => file.name === frontName)) {
+      return response({ error: "A foto da CNH não foi encontrada. Fotografe o documento novamente." }, 400);
+    }
   }
   const { data: department } = await admin().from("departments").select("id, name")
     .eq("id", departmentId).eq("tenant_id", invite.tenant_id).maybeSingle();
@@ -373,6 +378,7 @@ async function submitRegistration(body: Json) {
       phone: phone || null,
       cnh_front_path: frontPath,
       cnh_back_path: backPath,
+      document_entry_mode: manualEntry ? "manual" : "photo",
       ai_confidence: typeof body.aiConfidence === "number" ? body.aiConfidence : null,
     }).select("id").single();
     if (requestError) throw requestError;
@@ -405,7 +411,7 @@ async function listRequests(req: Request, body: Json) {
   const manager = await managerContext(req);
   if (!manager) return response({ error: "Acesso de gestor necessário." }, 401);
   let query = admin().from("driver_registration_requests")
-    .select("id, status, full_name, cpf, birth_date, cnh_number, cnh_category, cnh_expiry, email, phone, department_id, cnh_front_path, cnh_back_path, ai_confidence, manager_note, submitted_at, reviewed_at, departments(name)")
+    .select("id, status, full_name, cpf, birth_date, cnh_number, cnh_category, cnh_expiry, email, phone, department_id, cnh_front_path, cnh_back_path, document_entry_mode, ai_confidence, manager_note, submitted_at, reviewed_at, departments(name)")
     .eq("tenant_id", manager.tenant_id)
     .order("submitted_at", { ascending: false });
   if (manager.role === "secretario" && manager.department_id) query = query.eq("department_id", manager.department_id);

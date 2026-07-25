@@ -267,13 +267,19 @@ export function DriverRegistrationCenter({ isOpen, onClose }: Props) {
                                 </div>
                                 <div className="rounded-2xl border border-slate-200 bg-white p-5">
                                     <h4 className="mb-3 font-bold text-slate-900">Foto da CNH</h4>
-                                    <div className="grid gap-3 sm:grid-cols-2">
-                                        {selected.cnhUrls.map((url) => (
-                                            <a key={url} href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                                                <img src={url} alt="CNH enviada pelo motorista" className="h-56 w-full object-contain" />
-                                            </a>
-                                        ))}
-                                    </div>
+                                    {selected.document_entry_mode === 'manual' ? (
+                                        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+                                            O motorista informou os dados manualmente porque não conseguiu utilizar a câmera.
+                                        </div>
+                                    ) : (
+                                        <div className="grid gap-3 sm:grid-cols-2">
+                                            {selected.cnhUrls.map((url) => (
+                                                <a key={url} href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                                                    <img src={url} alt="CNH enviada pelo motorista" className="h-56 w-full object-contain" />
+                                                </a>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <div className="h-fit rounded-2xl border border-slate-200 bg-white p-5">
