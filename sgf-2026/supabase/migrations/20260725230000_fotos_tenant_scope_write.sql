@@ -1,10 +1,20 @@
 -- ============================================================================
 -- Bucket `fotos`: escopo por prefeitura — ETAPA 2 de 2 (escrita)
 --
--- STATUS: *** NÃO APLICADA ***
--- PRÉ-REQUISITO: a build nova do APP DO MOTORISTA precisa estar em uso.
---   Enquanto houver motorista em build antiga, esta policy faz o upload da
---   foto do hodômetro falhar — e sem essa foto ele não inicia viagem.
+-- STATUS: *** APLICADA em 2026-07-26 ***
+--   Aplicada com o sistema em pré-produção (2 prefeituras de teste, 1
+--   motorista) e após o painel já estar gravando em tenant/…: nenhum caminho
+--   legado recebeu upload depois do deploy. A build do app saiu junto.
+--
+--   Verificada em transação revertida, 4/4:
+--     • grava no caminho da própria prefeitura ......... OK
+--     • recusa caminho legado (sem tenant) ............ OK
+--     • recusa caminho de OUTRA prefeitura ............ OK
+--     • bucket `documentos` não foi afetado ........... OK
+--
+-- ATENÇÃO PARA O FUTURO: em produção com motoristas reais, esta policy só
+--   entra depois da adoção da build nova. Build antiga grava em caminho legado
+--   e perderia o upload da foto do hodômetro, que bloqueia o início da viagem.
 --
 -- COMO SABER QUE PODE APLICAR
 --   Nenhum upload novo em caminho legado nas últimas 24h:
