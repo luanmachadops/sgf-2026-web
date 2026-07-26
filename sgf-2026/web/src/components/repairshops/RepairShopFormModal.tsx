@@ -7,6 +7,8 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 import { Camera, Loader2, FileText, X, Download, Search } from '@/components/sgf/icons';
 import { useCreateRepairShop, useUpdateRepairShop, useRepairShops } from '@/hooks/useRepairShops';
 import { useAuth } from '@/contexts/AuthContext';
+import { ProcurementContractFields } from '@/components/procurement/ProcurementContractFields';
+import { validateProcurementContract } from '@/lib/procurement-contract';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { resolveDocUrl, uploadPrivateDoc } from '@/lib/docStorage';
 import {
@@ -277,7 +279,15 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
         e.preventDefault();
         setError(null);
         if (!name.trim()) return setError('Informe o nome da oficina.');
-        if (contractValue && Number(contractValue) < 0) return setError('O valor da licitação não pode ser negativo.');
+        const contractError = validateProcurementContract({
+            contractNumber,
+            contractStart,
+            contractEnd,
+            contractValue,
+            contractAlertPercent,
+            contractAlertDays,
+        });
+        if (contractError) return setError(contractError);
 
         const finalCode = (code.trim() || generateNextShopCode(existingShops)).toUpperCase();
 
@@ -352,6 +362,22 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
                     </div>
                 </div>
 
+                <ProcurementContractFields
+                    idPrefix="repair-shop"
+                    contractNumber={contractNumber}
+                    contractStart={contractStart}
+                    contractEnd={contractEnd}
+                    contractValue={contractValue}
+                    contractAlertPercent={contractAlertPercent}
+                    contractAlertDays={contractAlertDays}
+                    onContractNumberChange={setContractNumber}
+                    onContractStartChange={setContractStart}
+                    onContractEndChange={setContractEnd}
+                    onContractValueChange={setContractValue}
+                    onContractAlertPercentChange={setContractAlertPercent}
+                    onContractAlertDaysChange={setContractAlertDays}
+                />
+
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="md:col-span-2">
                         <div className="flex items-end gap-2">
@@ -390,41 +416,6 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
                     <SGFInput label="Telefone" value={phone} onChange={(e) => setPhone(maskPhone(e.target.value))} placeholder="(00) 00000-0000" fullWidth />
                     <SGFInput label="Endereço" value={address} onChange={(e) => setAddress(e.target.value)} fullWidth />
                     <SGFInput label="Cidade" value={city} onChange={(e) => setCity(e.target.value)} fullWidth />
-                    <SGFInput label="Nº do contrato" value={contractNumber} onChange={(e) => setContractNumber(e.target.value)} fullWidth />
-                    <div className="grid grid-cols-2 gap-3">
-                        <SGFInput label="Início" type="date" value={contractStart} onChange={(e) => setContractStart(e.target.value)} fullWidth />
-                        <SGFInput label="Vencimento" type="date" value={contractEnd} onChange={(e) => setContractEnd(e.target.value)} fullWidth />
-                    </div>
-                    <SGFInput
-                        label="Valor total da licitação (R$)"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={contractValue}
-                        onChange={(e) => setContractValue(e.target.value)}
-                        hint="Teto para aprovação de novos orçamentos."
-                        fullWidth
-                    />
-                    <div className="grid grid-cols-2 gap-3">
-                        <SGFInput
-                            label="Alerta de saldo (%)"
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={contractAlertPercent}
-                            onChange={(e) => setContractAlertPercent(e.target.value)}
-                            fullWidth
-                        />
-                        <SGFInput
-                            label="Alerta de prazo (dias)"
-                            type="number"
-                            min="1"
-                            max="365"
-                            value={contractAlertDays}
-                            onChange={(e) => setContractAlertDays(e.target.value)}
-                            fullWidth
-                        />
-                    </div>
                 </div>
 
                 <div>
