@@ -62,7 +62,18 @@ repositório próprio.
 
 ## 🎨 DESIGN SYSTEM
 
-### Cores (NUNCA MUDE)
+### Cores (padrão do produto — o tenant pode sobrescrever 3)
+
+> **Atenção:** as três cores de MARCA (`--sgf-primary`, `--sgf-dark`,
+> `--sgf-light`) são sobrescritas por prefeitura em tempo de execução, por
+> `applyBrandingColors()` em `web/src/lib/tenantBranding.ts`, a partir de
+> `tenants.primary_color/dark_color/accent_color`. Isso é intencional: o sistema
+> é white-label e cada município aparece com a própria identidade.
+>
+> O que NÃO muda: os valores abaixo como **padrão** (quando o tenant não define
+> cor) e as cores **semânticas** — sucesso, erro, aviso, informação e status de
+> veículo. Essas continuam fixas, porque significam a mesma coisa em qualquer
+> prefeitura.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -214,7 +225,7 @@ SE item crítico = "atenção":
 ### NÃO FAÇA
 
 ```
-❌ Mudar as cores do design system
+❌ Mudar as cores SEMÂNTICAS (sucesso/erro/aviso/status) ou os valores padrão do design system — as 3 cores de marca são sobrescritas por prefeitura de propósito, ver "Cores"
 ❌ Usar bibliotecas de UI prontas (Material UI, Chakra) — use Tailwind puro
 ❌ Assumir que existe uma API REST própria (não existe — ver "Acesso a dados")
 ❌ Aplicar DDL em produção sem aprovação explícita do usuário
