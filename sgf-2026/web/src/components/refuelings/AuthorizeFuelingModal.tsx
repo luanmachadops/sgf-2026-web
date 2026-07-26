@@ -11,6 +11,7 @@ import { useCreateFuelAuthorization } from '@/hooks/useRefuelings';
 import { useDrivers } from '@/hooks/useDrivers';
 import { formatPlate } from '@/lib/utils';
 import { getStationUnavailableReason } from '@/lib/stationStatus';
+import { procurementApi } from '@/lib/procurement-api';
 
 interface Props {
     isOpen: boolean;
@@ -42,18 +43,36 @@ function AuthorizeFuelingModalContent({ isOpen, onClose }: Props) {
     const { data: vehicles = [] } = useQuery({ queryKey: ['vehicles', 'all'], queryFn: () => vehiclesApi.getAll() });
     // Busca todos os postos (inclusive inativos) para poder listá-los desabilitados/opacos em vez de escondê-los.
     const { data: stations = [] } = useQuery({ queryKey: ['stations', { activeOnly: false }], queryFn: () => stationsApi.getAll() });
+    const { data: procurementAlerts = [] } = useQuery({
+        queryKey: ['procurement-alerts'],
+        queryFn: procurementApi.getAlerts,
+        staleTime: 60_000,
+    });
+    const stationBudgetAlerts = useMemo(
+        () => new Map(
+            procurementAlerts
+                .filter((alert) => alert.partnerKind === 'posto' && alert.code.startsWith('budget_'))
+                .map((alert) => [alert.partnerId, alert]),
+        ),
+        [procurementAlerts],
+    );
 
     const stationOptions = useMemo(
         () => stations.map((s) => {
-                const unavailable = getStationUnavailableReason(s);
+                const budgetAlert = stationBudgetAlerts.get(s.id);
+                const unavailable = getStationUnavailableReason(s)
+                    ?? (budgetAlert?.code === 'budget_exhausted' ? 'orçamento da licitação 100% comprometido' : null);
+                const warning = budgetAlert?.code === 'budget_low'
+                    ? ` — restam ${Number(budgetAlert.remainingPercent ?? 0).toLocaleString('pt-BR')}% (${Number(budgetAlert.remainingValue ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})`
+                    : '';
                 return {
                     value: s.id,
-                    label: `${s.name}${s.code ? ` (${s.code})` : ''}${unavailable ? ` — ${unavailable}` : ''}`,
+                    label: `${s.name}${s.code ? ` (${s.code})` : ''}${unavailable ? ` — ${unavailable}` : warning}`,
                     disabled: !!unavailable,
                     disabledReason: unavailable ?? undefined,
                 };
             }),
-        [stations],
+        [stationBudgetAlerts, stations],
     );
 
     const [vehicleId, setVehicleId] = useState('');
@@ -146,7 +165,11 @@ function AuthorizeFuelingModalContent({ isOpen, onClose }: Props) {
         }
 
         const chosenStation = stations.find((s) => s.id === stationId);
-        const unavailable = chosenStation ? getStationUnavailableReason(chosenStation) : null;
+        const budgetAlert = stationBudgetAlerts.get(stationId);
+        const unavailable = chosenStation
+            ? getStationUnavailableReason(chosenStation)
+                ?? (budgetAlert?.code === 'budget_exhausted' ? 'orçamento da licitação 100% comprometido' : null)
+            : null;
         if (unavailable) return setError(`Não é possível autorizar neste posto: ${unavailable}.`);
 
         try {

@@ -25,6 +25,7 @@ import {
     Wrench,
     Building2,
 } from '@/components/sgf/icons';
+import { ProcurementAlertsPanel } from '@/components/dashboard/ProcurementAlertsPanel';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useBranding } from '@/contexts/BrandingContext';
 import {
@@ -60,6 +61,8 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-6">
+            <ProcurementAlertsPanel />
+
             {/* Cabeçalho da Prefeitura (brasão + nome) */}
             <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
                 <div className={`flex h-12 w-12 shrink-0 items-center justify-center ${branding.sealUrl || branding.logoUrl ? '' : 'overflow-hidden rounded-xl bg-[var(--sgf-dark)]'}`}>

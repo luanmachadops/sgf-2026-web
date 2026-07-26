@@ -1,21 +1,34 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { useBranding } from '@/contexts/BrandingContext';
+import { useLocation } from 'react-router-dom';
+import {
+    Area,
+    AreaChart,
+    CartesianGrid,
+    Cell,
+    Pie,
+    PieChart as RechartsPieChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from 'recharts';
 import { OrderDetailsModal } from '@/components/partners/workshop/OrderDetailsModal';
-import { PartnerNotificationBell } from '@/components/partners/PartnerNotificationBell';
-import { SGFBadge, SGFButton, SGFCard } from '@/components/sgf';
+import { PartnerPortalLayout, type PartnerNavItem } from '@/components/partners/PartnerPortalLayout';
+import { ContractStatusAlerts } from '@/components/partners/ContractStatusAlerts';
+import { SGFBadge, SGFButton, SGFCard, SGFKPICard } from '@/components/sgf';
 import {
     AlertCircle,
-    Calendar,
-    CheckCircle,
+    BarChart3,
+    Clock,
+    DollarSign,
     FileText,
     Home,
     Info,
-    LogOut,
+    LayoutDashboard,
     MapPin,
     Phone,
+    Receipt,
     RefreshCw,
     User,
     Wrench,
@@ -27,6 +40,11 @@ import {
     type WorkshopOrder,
 } from '@/lib/workshop-portal-api';
 import {
+    procurementApi,
+    type PartnerContractStatus,
+    type PartnerDashboardData,
+} from '@/lib/procurement-api';
+import {
     FINANCIAL_LABELS,
     OPERATIONAL_LABELS,
     nextAction,
@@ -34,11 +52,14 @@ import {
 } from '@/lib/workshop-status';
 
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
+const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-type PortalTab = 'orders' | 'details';
+type PortalTab = 'dashboard' | 'orders' | 'details';
 
 function tabFromPath(path: string): PortalTab {
-    return path.endsWith('/dados') ? 'details' : 'orders';
+    if (path.endsWith('/dados')) return 'details';
+    if (path.endsWith('/ordens')) return 'orders';
+    return 'dashboard';
 }
 
 function safeDate(value: string | null): string {
@@ -70,86 +91,145 @@ function LoadingCards() {
     );
 }
 
-function OrderCard({ order, onOpen }: { order: WorkshopOrder; onOpen: () => void }) {
-    const priorityVariant = order.priority === 'urgente' || order.priority === 'alta'
-        ? 'error'
-        : order.priority === 'normal'
-            ? 'info'
-            : 'default';
+const monthLabel = (key: string) => {
+    const [year, month] = key.split('-').map(Number);
+    if (!year || !month) return key;
+    return new Intl.DateTimeFormat('pt-BR', { month: 'short' })
+        .format(new Date(year, month - 1, 1))
+        .replace('.', '');
+};
+
+function WorkshopDashboard({ status }: { status?: PartnerContractStatus }) {
+    const query = useQuery({
+        queryKey: ['partner-dashboard', 'oficina'],
+        queryFn: procurementApi.getPartnerDashboard,
+        staleTime: 30_000,
+    });
+    if (query.isLoading) return <LoadingCards />;
+    if (query.error || !query.data) {
+        return <ErrorState message={(query.error as Error)?.message ?? 'Dashboard indisponível.'} retry={() => void query.refetch()} />;
+    }
+
+    const data: PartnerDashboardData = query.data;
+    const monthly = data.monthly.map((item) => ({ ...item, month: monthLabel(item.key) }));
+    const pie = data.statuses.map((item) => ({
+        ...item,
+        name: OPERATIONAL_LABELS[item.status as keyof typeof OPERATIONAL_LABELS] ?? item.status.replaceAll('_', ' '),
+    }));
+    const colors = ['#10b981', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#64748b'];
 
     return (
-        <button type="button" onClick={onOpen} className="h-full text-left">
-            <SGFCard hover variant="bordered" className="flex h-full flex-col">
-                <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                        <p className="text-xs font-bold uppercase tracking-wide text-blue-700">{order.category}</p>
-                        <h3 className="mt-1 text-xl font-black text-slate-950">{order.plate}</h3>
-                        <p className="truncate text-sm text-slate-500">{order.brand} {order.model}{order.year ? ` · ${order.year}` : ''}</p>
-                    </div>
-                    <SGFBadge variant={priorityVariant}>{order.priority}</SGFBadge>
-                </div>
-
-                <p className="mt-4 line-clamp-3 text-sm leading-6 text-slate-600">{order.description}</p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                    <SGFBadge dot variant={order.operationalStatus === 'received' ? 'success' : order.operationalStatus === 'in_progress' ? 'info' : 'warning'}>
-                        {OPERATIONAL_LABELS[order.operationalStatus]}
-                    </SGFBadge>
-                    <SGFBadge variant={order.financialStatus === 'paid' ? 'success' : 'default'}>
-                        {FINANCIAL_LABELS[order.financialStatus]}
-                    </SGFBadge>
-                </div>
-
-                <div className="mt-auto pt-5">
-                    <div className="rounded-2xl bg-blue-50 p-3">
-                        <p className="text-[10px] font-bold uppercase tracking-wide text-blue-600">Próxima etapa</p>
-                        <p className="mt-1 text-sm font-bold text-blue-950">
-                            {nextAction(order.operationalStatus, order.financialStatus)}
-                        </p>
-                    </div>
-                    <p className="mt-3 text-xs font-semibold text-blue-700">Abrir detalhes →</p>
-                </div>
-            </SGFCard>
-        </button>
-    );
-}
-
-function OrderGroup({
-    title,
-    subtitle,
-    orders,
-    emptyMessage,
-    onOpen,
-}: {
-    title: string;
-    subtitle: string;
-    orders: WorkshopOrder[];
-    emptyMessage: string;
-    onOpen: (order: WorkshopOrder) => void;
-}) {
-    return (
-        <section>
-            <div className="mb-3 flex items-end justify-between gap-3">
-                <div>
-                    <h3 className="text-lg font-black text-slate-950">{title}</h3>
-                    <p className="text-sm text-slate-500">{subtitle}</p>
-                </div>
-                <span className="grid h-8 min-w-8 place-items-center rounded-full bg-white px-2 text-sm font-black text-slate-700 shadow-sm">
-                    {orders.length}
-                </span>
+        <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <SGFKPICard
+                    title="Ordens em aberto"
+                    value={data.metrics.open ?? 0}
+                    icon={Wrench}
+                    iconColor="text-blue-500"
+                    chartColor="#3b82f6"
+                    chartData={monthly.map((item) => ({ month: item.month, value: item.count }))}
+                />
+                <SGFKPICard
+                    title="Precisam de atenção"
+                    value={data.metrics.attention ?? 0}
+                    icon={AlertCircle}
+                    iconColor="text-amber-500"
+                    chartColor="#f59e0b"
+                    chartData={monthly.map((item) => ({ month: item.month, value: item.count }))}
+                />
+                <SGFKPICard
+                    title="Em execução"
+                    value={data.metrics.inProgress ?? 0}
+                    icon={Clock}
+                    iconColor="text-emerald-500"
+                    chartColor="#10b981"
+                    chartData={monthly.map((item) => ({ month: item.month, value: item.count }))}
+                />
+                <SGFKPICard
+                    title={status?.remainingValue == null ? 'Faturado no mês' : 'Saldo da licitação'}
+                    value={currency.format(status?.remainingValue ?? data.metrics.monthInvoiced ?? 0)}
+                    icon={DollarSign}
+                    iconColor={status?.remainingValue === 0 ? 'text-red-500' : 'text-emerald-600'}
+                    chartColor="#00A86B"
+                    chartData={monthly.map((item) => ({ month: item.month, value: item.amount }))}
+                />
             </div>
-            {orders.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-slate-200 bg-white/50 p-7 text-center text-sm text-slate-400">
-                    {emptyMessage}
+
+            <div className="grid gap-6 lg:grid-cols-3">
+                <SGFCard className="lg:col-span-2" padding="lg">
+                    <h3 className="font-semibold text-slate-800">Evolução das ordens de serviço</h3>
+                    <p className="text-sm text-slate-400">Orçamentos vinculados nos últimos 6 meses</p>
+                    <div className="mt-6 h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={monthly}>
+                                <defs>
+                                    <linearGradient id="workshopAmount" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#00A86B" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#00A86B" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                                <YAxis
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                                    tickFormatter={(value) => `R$ ${value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value}`}
+                                />
+                                <Tooltip formatter={(value) => currency.format(Number(value))} />
+                                <Area type="monotone" dataKey="amount" stroke="#00A86B" strokeWidth={2} fill="url(#workshopAmount)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </SGFCard>
+
+                <SGFCard padding="lg">
+                    <h3 className="font-semibold text-slate-800">Situação operacional</h3>
+                    <p className="text-sm text-slate-400">Distribuição das ordens vinculadas</p>
+                    <div className="mt-4 h-[210px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <RechartsPieChart>
+                                <Pie data={pie} dataKey="count" nameKey="name" innerRadius={55} outerRadius={82} paddingAngle={3}>
+                                    {pie.map((item, index) => <Cell key={item.status} fill={colors[index % colors.length]} />)}
+                                </Pie>
+                                <Tooltip />
+                            </RechartsPieChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-2">
+                        {pie.map((item, index) => (
+                            <div key={item.status} className="flex items-center justify-between text-xs">
+                                <span className="flex items-center gap-2 text-slate-500">
+                                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colors[index % colors.length] }} />
+                                    {item.name}
+                                </span>
+                                <strong className="text-slate-800">{item.count}</strong>
+                            </div>
+                        ))}
+                    </div>
+                </SGFCard>
+            </div>
+
+            <SGFCard padding="none" className="overflow-hidden">
+                <div className="border-b border-slate-100 px-5 py-4">
+                    <h3 className="font-semibold text-slate-800">Resumo operacional</h3>
+                    <p className="text-sm text-slate-400">Indicadores antes da tabela completa de ordens</p>
                 </div>
-            ) : (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {orders.map((order) => (
-                        <OrderCard key={order.orderId} order={order} onOpen={() => onOpen(order)} />
-                    ))}
-                </div>
-            )}
-        </section>
+                <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                        <tr><th className="px-5 py-3">Situação</th><th className="px-5 py-3 text-right">Ordens</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {pie.map((item) => (
+                            <tr key={item.status}>
+                                <td className="px-5 py-4 font-semibold text-slate-800">{item.name}</td>
+                                <td className="px-5 py-4 text-right font-bold text-slate-900">{item.count}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </SGFCard>
+        </div>
     );
 }
 
@@ -184,43 +264,85 @@ function OrdersView({
     if (ordersQuery.error) {
         return <ErrorState message={(ordersQuery.error as Error).message} retry={() => void ordersQuery.refetch()} />;
     }
+    const orders = ordersQuery.data ?? [];
+    const invoicing = orders.filter((order) => ['invoiced', 'attested'].includes(order.financialStatus)).length;
+    const chartData = [
+        { month: 'Atenção', value: groups.attention.length },
+        { month: 'Execução', value: groups.execution.length },
+        { month: 'Finalizadas', value: groups.done.length },
+    ];
 
     return (
         <>
-            <div className="space-y-8">
-                {(ordersQuery.data ?? []).length === 0 ? (
-                    <SGFCard className="text-center" padding="xl">
-                        <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />
-                        <h3 className="mt-4 text-lg font-black text-slate-900">Nenhuma OS vinculada</h3>
-                        <p className="mt-1 text-sm text-slate-500">
-                            Novas ordens autorizadas pela prefeitura aparecerão aqui automaticamente.
-                        </p>
-                    </SGFCard>
-                ) : (
-                    <>
-                        <OrderGroup
-                            title="Sua atenção"
-                            subtitle="Orçamentos, empenhos e veículos aguardando uma etapa"
-                            orders={groups.attention}
-                            emptyMessage="Nenhuma ordem aguardando ação."
-                            onOpen={setSelectedOrder}
-                        />
-                        <OrderGroup
-                            title="Em execução"
-                            subtitle="Serviços iniciados ou prontos para retirada"
-                            orders={groups.execution}
-                            emptyMessage="Nenhum serviço em execução."
-                            onOpen={setSelectedOrder}
-                        />
-                        <OrderGroup
-                            title="Finalizadas"
-                            subtitle="Veículos recebidos pela prefeitura"
-                            orders={groups.done}
-                            emptyMessage="Nenhuma ordem finalizada."
-                            onOpen={setSelectedOrder}
-                        />
-                    </>
-                )}
+            <div className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <SGFKPICard title="Total de ordens" value={orders.length} icon={Wrench} iconColor="text-blue-500" chartColor="#3b82f6" chartData={chartData} />
+                    <SGFKPICard title="Precisam de atenção" value={groups.attention.length} icon={AlertCircle} iconColor="text-amber-500" chartColor="#f59e0b" chartData={chartData} />
+                    <SGFKPICard title="Em execução / retirada" value={groups.execution.length} icon={Clock} iconColor="text-emerald-500" chartColor="#10b981" chartData={chartData} />
+                    <SGFKPICard title="Em faturamento" value={invoicing} icon={Receipt} iconColor="text-violet-500" chartColor="#8b5cf6" chartData={chartData} />
+                </div>
+
+                <SGFCard padding="none" className="overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full min-w-[1000px] text-sm">
+                            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                                <tr>
+                                    <th className="px-5 py-3">Veículo / serviço</th>
+                                    <th className="px-5 py-3">Prioridade</th>
+                                    <th className="px-5 py-3">Situação operacional</th>
+                                    <th className="px-5 py-3">Financeiro</th>
+                                    <th className="px-5 py-3">Próxima etapa</th>
+                                    <th className="px-5 py-3 text-right">Ação</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {orders.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={6} className="px-5 py-12 text-center">
+                                            <p className="font-black text-slate-900">Nenhuma OS vinculada</p>
+                                            <p className="mt-1 text-sm text-slate-500">
+                                                Novas ordens autorizadas pela prefeitura aparecerão aqui automaticamente.
+                                            </p>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    orders.map((order) => {
+                                        const priorityVariant = order.priority === 'urgente' || order.priority === 'alta'
+                                            ? 'error'
+                                            : order.priority === 'normal'
+                                                ? 'info'
+                                                : 'default';
+                                        return (
+                                            <tr key={order.orderId} className="hover:bg-slate-50/70">
+                                                <td className="px-5 py-4">
+                                                    <p className="font-black text-slate-900">{order.plate}</p>
+                                                    <p className="text-xs text-slate-500">{order.brand} {order.model} · {order.category}</p>
+                                                </td>
+                                                <td className="px-5 py-4"><SGFBadge variant={priorityVariant}>{order.priority}</SGFBadge></td>
+                                                <td className="px-5 py-4">
+                                                    <SGFBadge dot variant={order.operationalStatus === 'received' ? 'success' : order.operationalStatus === 'in_progress' ? 'info' : 'warning'}>
+                                                        {OPERATIONAL_LABELS[order.operationalStatus]}
+                                                    </SGFBadge>
+                                                </td>
+                                                <td className="px-5 py-4">
+                                                    <SGFBadge variant={order.financialStatus === 'paid' ? 'success' : 'default'}>
+                                                        {FINANCIAL_LABELS[order.financialStatus]}
+                                                    </SGFBadge>
+                                                </td>
+                                                <td className="px-5 py-4 font-semibold text-slate-700">
+                                                    {nextAction(order.operationalStatus, order.financialStatus)}
+                                                </td>
+                                                <td className="px-5 py-4 text-right">
+                                                    <SGFButton size="sm" variant="outline" onClick={() => setSelectedOrder(order)}>Abrir detalhes</SGFButton>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </SGFCard>
             </div>
             {selectedOrder && (
                 <OrderDetailsModal
@@ -237,7 +359,13 @@ function OrdersView({
     );
 }
 
-function DetailsView({ context }: { context: WorkshopContext }) {
+function DetailsView({
+    context,
+    contractStatus,
+}: {
+    context: WorkshopContext;
+    contractStatus?: PartnerContractStatus;
+}) {
     const detailsQuery = useQuery({
         queryKey: ['workshop-details', context.repairShopId],
         queryFn: () => workshopPortalApi.getDetails(context.repairShopId),
@@ -256,7 +384,15 @@ function DetailsView({ context }: { context: WorkshopContext }) {
 
     const details: WorkshopDetails = detailsQuery.data;
     return (
-        <div className="grid gap-5 lg:grid-cols-3">
+        <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <SGFKPICard title="Valor da licitação" value={details.contractValue == null ? 'Não informado' : currency.format(details.contractValue)} icon={FileText} iconColor="text-blue-500" />
+                <SGFKPICard title="Valor comprometido" value={currency.format(contractStatus?.committedValue ?? 0)} icon={DollarSign} iconColor="text-amber-500" />
+                <SGFKPICard title="Saldo disponível" value={contractStatus?.remainingValue == null ? 'Não calculado' : currency.format(contractStatus.remainingValue)} icon={DollarSign} iconColor={contractStatus?.remainingValue === 0 ? 'text-red-500' : 'text-emerald-500'} />
+                <SGFKPICard title="Saldo percentual" value={contractStatus?.remainingPercent == null ? '—' : `${contractStatus.remainingPercent.toLocaleString('pt-BR')}%`} icon={BarChart3} iconColor="text-emerald-500" />
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-3">
             <SGFCard variant="bordered" className="lg:col-span-2" padding="lg">
                 <div className="flex items-start gap-4">
                     <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-blue-700">
@@ -313,97 +449,68 @@ function DetailsView({ context }: { context: WorkshopContext }) {
                     <p>Alterações cadastrais e contratuais são feitas pela prefeitura.</p>
                 </div>
             </SGFCard>
+            </div>
         </div>
     );
 }
 
 export default function WorkshopPortal() {
-    const { user, logout } = useAuth();
-    const { branding } = useBranding();
     const location = useLocation();
-    const navigate = useNavigate();
     const activeTab = tabFromPath(location.pathname);
     const [selectedOrder, setSelectedOrder] = useState<WorkshopOrder | null>(null);
 
     const contextQuery = useQuery({
-        queryKey: ['workshop-context', user?.id],
+        queryKey: ['workshop-context'],
         queryFn: workshopPortalApi.getContext,
         staleTime: 5 * 60_000,
     });
     const context = contextQuery.data;
+    const contractQuery = useQuery({
+        queryKey: ['partner-contract-status', 'oficina'],
+        queryFn: procurementApi.getPartnerContractStatus,
+        enabled: Boolean(context),
+        staleTime: 30_000,
+    });
+    const contractStatus = contractQuery.data;
+
+    const navItems: PartnerNavItem[] = [
+        { label: 'Dashboard', path: '/oficina', icon: LayoutDashboard, end: true },
+        { label: 'Ordens de serviço', path: '/oficina/ordens', icon: Home },
+        { label: 'Meus dados', path: '/oficina/dados', icon: User },
+    ];
+    const titles: Record<PortalTab, { title: string; description: string }> = {
+        dashboard: {
+            title: 'Dashboard da oficina',
+            description: 'Indicadores de ordens, faturamento, contrato e saldo da licitação.',
+        },
+        orders: {
+            title: 'Ordens de serviço',
+            description: 'Acompanhe orçamento, execução, retirada e faturamento de cada veículo.',
+        },
+        details: {
+            title: 'Dados da oficina',
+            description: 'Consulte cadastro, contrato, saldo e especialidades vinculadas.',
+        },
+    };
+    const page = titles[activeTab];
 
     return (
-        <div className="min-h-screen bg-[#F5F7F9]">
-            <header className="border-b border-white/10 bg-[var(--sgf-dark)] text-white shadow-lg">
-                <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-                    <div className="flex min-w-0 items-center gap-3">
-                        <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10">
-                            {branding.logoUrl || branding.sealUrl ? (
-                                <img src={branding.logoUrl || branding.sealUrl} alt="" className="h-full w-full object-contain p-1" />
-                            ) : (
-                                <Wrench className="h-6 w-6 text-blue-300" />
-                            )}
-                        </div>
-                        <div className="min-w-0">
-                            <p className="truncate text-xs font-semibold text-white/60">{branding.name}</p>
-                            <h1 className="truncate text-base font-bold sm:text-lg">Sistema de Manutenção</h1>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        {user?.id && <PartnerNotificationBell userId={user.id} fallbackPath="/oficina" />}
-                        <button type="button" onClick={() => void logout()}
-                            className="flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-white/70 transition hover:bg-white/10 hover:text-white">
-                            <LogOut className="h-5 w-5" />
-                            <span className="hidden sm:inline">Sair</span>
-                        </button>
-                    </div>
+        <PartnerPortalLayout
+            portal="oficina"
+            systemName="Sistema de Manutenção"
+            partnerName={context?.repairShopName}
+            title={page.title}
+            description={page.description}
+            navItems={navItems}
+            headerMeta={activeTab === 'orders' ? (
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Atualização automática a cada 30 s
                 </div>
-            </header>
-
-            <div className="border-b border-slate-200 bg-white">
-                <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-3 py-2 sm:px-6" aria-label="Navegação da oficina">
-                    <button type="button" onClick={() => navigate('/oficina')}
-                        className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition ${
-                            activeTab === 'orders'
-                                ? 'bg-blue-50 text-blue-800 ring-1 ring-inset ring-blue-200'
-                                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                        }`}>
-                        <Home className="h-4 w-4" /> Ordens de serviço
-                    </button>
-                    <button type="button" onClick={() => navigate('/oficina/dados')}
-                        className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition ${
-                            activeTab === 'details'
-                                ? 'bg-blue-50 text-blue-800 ring-1 ring-inset ring-blue-200'
-                                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                        }`}>
-                        <User className="h-4 w-4" /> Meus dados
-                    </button>
-                </nav>
-            </div>
-
-            <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-                <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-                    <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-700">
-                            {context?.repairShopName || 'Portal da oficina'}
-                        </p>
-                        <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
-                            {activeTab === 'orders' ? 'Ordens de serviço' : 'Dados da oficina'}
-                        </h2>
-                        <p className="mt-1 text-sm text-slate-500">
-                            {activeTab === 'orders'
-                                ? 'Acompanhe orçamento, execução, retirada e faturamento de cada veículo.'
-                                : 'Consulte cadastro, contrato e especialidades vinculadas.'}
-                        </p>
-                    </div>
-                    {activeTab === 'orders' && (
-                        <div className="flex items-center gap-2 text-xs text-slate-400">
-                            <RefreshCw className="h-3.5 w-3.5" />
-                            Atualização automática a cada 30 s
-                        </div>
-                    )}
-                </div>
-
+            ) : undefined}
+        >
+            <div className="space-y-6">
+                <ContractStatusAlerts status={contractStatus} />
                 {contextQuery.isLoading ? (
                     <LoadingCards />
                 ) : contextQuery.error || !context ? (
@@ -411,6 +518,8 @@ export default function WorkshopPortal() {
                         message={(contextQuery.error as Error)?.message ?? 'Vínculo da oficina não encontrado.'}
                         retry={() => void contextQuery.refetch()}
                     />
+                ) : activeTab === 'dashboard' ? (
+                    <WorkshopDashboard status={contractStatus} />
                 ) : activeTab === 'orders' ? (
                     <OrdersView
                         context={context}
@@ -418,14 +527,9 @@ export default function WorkshopPortal() {
                         setSelectedOrder={setSelectedOrder}
                     />
                 ) : (
-                    <DetailsView context={context} />
+                    <DetailsView context={context} contractStatus={contractStatus} />
                 )}
-            </main>
-
-            <footer className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-8 text-xs text-slate-400 sm:px-6">
-                <span>SGF 2026 · {branding.name}</span>
-                <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Portal do parceiro</span>
-            </footer>
-        </div>
+            </div>
+        </PartnerPortalLayout>
     );
 }

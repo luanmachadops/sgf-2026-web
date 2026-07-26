@@ -103,6 +103,10 @@ export interface WorkshopDetails {
     contractNumber: string | null;
     contractStart: string | null;
     contractEnd: string | null;
+    contractValue: number | null;
+    contractAlertPercent: number;
+    contractAlertDays: number;
+    isActive: boolean;
     specialties: string[];
 }
 
@@ -118,7 +122,7 @@ function uniqueId(): string {
 
 export const workshopPortalApi = {
     getContext: async (): Promise<WorkshopContext> => {
-        const { data, error } = await supabase.rpc('partner_context');
+        const { data, error } = await supabase.rpc('partner_read_context');
         throwIfError(error);
         const row = data?.[0];
         if (!row || row.kind !== 'oficina') {
@@ -218,7 +222,7 @@ export const workshopPortalApi = {
     getDetails: async (repairShopId: string): Promise<WorkshopDetails> => {
         const { data, error } = await supabase
             .from('repair_shops')
-            .select('id, name, cnpj, address, city, phone, contract_number, contract_start, contract_end, specialties')
+            .select('id, name, cnpj, address, city, phone, contract_number, contract_start, contract_end, contract_value, contract_alert_percent, contract_alert_days, is_active, specialties')
             .eq('id', repairShopId)
             .single();
         throwIfError(error);
@@ -232,6 +236,10 @@ export const workshopPortalApi = {
             contractNumber: data.contract_number,
             contractStart: data.contract_start,
             contractEnd: data.contract_end,
+            contractValue: data.contract_value == null ? null : Number(data.contract_value),
+            contractAlertPercent: Number(data.contract_alert_percent),
+            contractAlertDays: Number(data.contract_alert_days),
+            isActive: data.is_active,
             specialties: data.specialties ?? [],
         };
     },

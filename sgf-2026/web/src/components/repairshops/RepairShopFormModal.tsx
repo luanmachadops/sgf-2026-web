@@ -60,6 +60,9 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
     const [contractNumber, setContractNumber] = useState('');
     const [contractStart, setContractStart] = useState('');
     const [contractEnd, setContractEnd] = useState('');
+    const [contractValue, setContractValue] = useState('');
+    const [contractAlertPercent, setContractAlertPercent] = useState('20');
+    const [contractAlertDays, setContractAlertDays] = useState('30');
     const [isActive, setIsActive] = useState(true);
     const [specialties, setSpecialties] = useState<string[]>([]);
     const [notes, setNotes] = useState('');
@@ -94,6 +97,9 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
         setContractNumber(shop?.contract_number ?? '');
         setContractStart(shop?.contract_start ?? '');
         setContractEnd(shop?.contract_end ?? '');
+        setContractValue(shop?.contract_value == null ? '' : String(shop.contract_value));
+        setContractAlertPercent(String(shop?.contract_alert_percent ?? 20));
+        setContractAlertDays(String(shop?.contract_alert_days ?? 30));
         setIsActive(shop?.is_active ?? true);
         setSpecialties(shop?.specialties ?? []);
         setNotes(shop?.notes ?? '');
@@ -271,6 +277,7 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
         e.preventDefault();
         setError(null);
         if (!name.trim()) return setError('Informe o nome da oficina.');
+        if (contractValue && Number(contractValue) < 0) return setError('O valor da licitação não pode ser negativo.');
 
         const finalCode = (code.trim() || generateNextShopCode(existingShops)).toUpperCase();
 
@@ -284,6 +291,9 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
             contract_number: contractNumber.trim() || null,
             contract_start: contractStart || null,
             contract_end: contractEnd || null,
+            contract_value: contractValue ? Number(contractValue) : null,
+            contract_alert_percent: Number(contractAlertPercent || 20),
+            contract_alert_days: Number(contractAlertDays || 30),
             is_active: isActive,
             specialties,
             notes: notes.trim() || null,
@@ -384,6 +394,36 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
                     <div className="grid grid-cols-2 gap-3">
                         <SGFInput label="Início" type="date" value={contractStart} onChange={(e) => setContractStart(e.target.value)} fullWidth />
                         <SGFInput label="Vencimento" type="date" value={contractEnd} onChange={(e) => setContractEnd(e.target.value)} fullWidth />
+                    </div>
+                    <SGFInput
+                        label="Valor total da licitação (R$)"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={contractValue}
+                        onChange={(e) => setContractValue(e.target.value)}
+                        hint="Teto para aprovação de novos orçamentos."
+                        fullWidth
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                        <SGFInput
+                            label="Alerta de saldo (%)"
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={contractAlertPercent}
+                            onChange={(e) => setContractAlertPercent(e.target.value)}
+                            fullWidth
+                        />
+                        <SGFInput
+                            label="Alerta de prazo (dias)"
+                            type="number"
+                            min="1"
+                            max="365"
+                            value={contractAlertDays}
+                            onChange={(e) => setContractAlertDays(e.target.value)}
+                            fullWidth
+                        />
                     </div>
                 </div>
 

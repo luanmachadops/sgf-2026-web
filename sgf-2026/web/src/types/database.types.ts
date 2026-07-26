@@ -14,6 +14,114 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: string
+          actor_cpf: string | null
+          actor_department_id: string | null
+          actor_department_name: string | null
+          actor_id: string | null
+          actor_incomplete: boolean
+          actor_name: string | null
+          actor_role: string | null
+          changes: Json | null
+          created_at: string
+          entity_cpf: string | null
+          entity_department_id: string | null
+          entity_department_name: string | null
+          entity_id: string | null
+          entity_label: string | null
+          entity_type: string
+          id: string
+          sensitivity: string
+          snapshot: Json | null
+          source: string
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          actor_cpf?: string | null
+          actor_department_id?: string | null
+          actor_department_name?: string | null
+          actor_id?: string | null
+          actor_incomplete?: boolean
+          actor_name?: string | null
+          actor_role?: string | null
+          changes?: Json | null
+          created_at?: string
+          entity_cpf?: string | null
+          entity_department_id?: string | null
+          entity_department_name?: string | null
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_type: string
+          id?: string
+          sensitivity?: string
+          snapshot?: Json | null
+          source?: string
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          actor_cpf?: string | null
+          actor_department_id?: string | null
+          actor_department_name?: string | null
+          actor_id?: string | null
+          actor_incomplete?: boolean
+          actor_name?: string | null
+          actor_role?: string | null
+          changes?: Json | null
+          created_at?: string
+          entity_cpf?: string | null
+          entity_department_id?: string | null
+          entity_department_name?: string | null
+          entity_id?: string | null
+          entity_label?: string | null
+          entity_type?: string
+          id?: string
+          sensitivity?: string
+          snapshot?: Json | null
+          source?: string
+          tenant_id?: string
+        }
+        Relationships: []
+      }
+      activity_log_retention: {
+        Row: {
+          event_count: number | null
+          purge_date: string
+          purged_at: string | null
+          purged_count: number | null
+          tenant_id: string
+          warned_30_at: string | null
+          warned_7_at: string | null
+          warned_90_at: string | null
+          year: number
+        }
+        Insert: {
+          event_count?: number | null
+          purge_date: string
+          purged_at?: string | null
+          purged_count?: number | null
+          tenant_id: string
+          warned_30_at?: string | null
+          warned_7_at?: string | null
+          warned_90_at?: string | null
+          year: number
+        }
+        Update: {
+          event_count?: number | null
+          purge_date?: string
+          purged_at?: string | null
+          purged_count?: number | null
+          tenant_id?: string
+          warned_30_at?: string | null
+          warned_7_at?: string | null
+          warned_90_at?: string | null
+          year?: number
+        }
+        Relationships: []
+      }
       ai_usage: {
         Row: {
           cost_usd: number | null
@@ -734,9 +842,12 @@ export type Database = {
           city: string | null
           cnpj: string | null
           code: string | null
+          contract_alert_days: number
+          contract_alert_percent: number
           contract_end: string | null
           contract_number: string | null
           contract_start: string | null
+          contract_value: number | null
           created_at: string
           documents: Json
           fuel_prices: Json
@@ -755,9 +866,12 @@ export type Database = {
           city?: string | null
           cnpj?: string | null
           code?: string | null
+          contract_alert_days?: number
+          contract_alert_percent?: number
           contract_end?: string | null
           contract_number?: string | null
           contract_start?: string | null
+          contract_value?: number | null
           created_at?: string
           documents?: Json
           fuel_prices?: Json
@@ -776,9 +890,12 @@ export type Database = {
           city?: string | null
           cnpj?: string | null
           code?: string | null
+          contract_alert_days?: number
+          contract_alert_percent?: number
           contract_end?: string | null
           contract_number?: string | null
           contract_start?: string | null
+          contract_value?: number | null
           created_at?: string
           documents?: Json
           fuel_prices?: Json
@@ -1429,6 +1546,7 @@ export type Database = {
           cnh_number: string | null
           cpf: string | null
           created_at: string
+          created_by: string | null
           current_vehicle_id: string | null
           department: string | null
           department_id: string | null
@@ -1449,6 +1567,7 @@ export type Database = {
           shift_start: string | null
           station_id: string | null
           tenant_id: string
+          updated_by: string | null
         }
         Insert: {
           access_blocked?: boolean
@@ -1459,6 +1578,7 @@ export type Database = {
           cnh_number?: string | null
           cpf?: string | null
           created_at?: string
+          created_by?: string | null
           current_vehicle_id?: string | null
           department?: string | null
           department_id?: string | null
@@ -1479,6 +1599,7 @@ export type Database = {
           shift_start?: string | null
           station_id?: string | null
           tenant_id?: string
+          updated_by?: string | null
         }
         Update: {
           access_blocked?: boolean
@@ -1489,6 +1610,7 @@ export type Database = {
           cnh_number?: string | null
           cpf?: string | null
           created_at?: string
+          created_by?: string | null
           current_vehicle_id?: string | null
           department?: string | null
           department_id?: string | null
@@ -1509,6 +1631,7 @@ export type Database = {
           shift_start?: string | null
           station_id?: string | null
           tenant_id?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -1593,9 +1716,12 @@ export type Database = {
           city: string | null
           cnpj: string | null
           code: string | null
+          contract_alert_days: number
+          contract_alert_percent: number
           contract_end: string | null
           contract_number: string | null
           contract_start: string | null
+          contract_value: number | null
           created_at: string
           documents: Json | null
           id: string
@@ -1613,9 +1739,12 @@ export type Database = {
           city?: string | null
           cnpj?: string | null
           code?: string | null
+          contract_alert_days?: number
+          contract_alert_percent?: number
           contract_end?: string | null
           contract_number?: string | null
           contract_start?: string | null
+          contract_value?: number | null
           created_at?: string
           documents?: Json | null
           id?: string
@@ -1633,9 +1762,12 @@ export type Database = {
           city?: string | null
           cnpj?: string | null
           code?: string | null
+          contract_alert_days?: number
+          contract_alert_percent?: number
           contract_end?: string | null
           contract_number?: string | null
           contract_start?: string | null
+          contract_value?: number | null
           created_at?: string
           documents?: Json | null
           id?: string
@@ -2669,6 +2801,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activity_log_ignored_cols: { Args: never; Returns: string[] }
+      activity_log_purge: { Args: never; Returns: undefined }
+      activity_log_retention_warn: { Args: never; Returns: undefined }
       auto_close_abandoned_trips: {
         Args: { p_hours?: number }
         Returns: number
@@ -2685,6 +2820,57 @@ export type Database = {
         }[]
       }
       delete_own_account: { Args: never; Returns: undefined }
+      get_partner_contract_status: {
+        Args: never
+        Returns: {
+          alert_days: number
+          alert_percent: number
+          block_code: string
+          block_message: string
+          block_title: string
+          can_create_new: boolean
+          can_execute_existing: boolean
+          committed_value: number
+          contract_end: string
+          contract_number: string
+          contract_start: string
+          contract_value: number
+          days_remaining: number
+          is_active: boolean
+          partner_id: string
+          partner_kind: string
+          partner_name: string
+          remaining_percent: number
+          remaining_value: number
+        }[]
+      }
+      get_partner_dashboard: {
+        Args: never
+        Returns: {
+          metrics: Json
+          monthly_series: Json
+          partner_kind: string
+          status_series: Json
+        }[]
+      }
+      get_procurement_alerts: {
+        Args: never
+        Returns: {
+          alert_code: string
+          blocks_new_operations: boolean
+          committed_value: number
+          contract_end: string
+          contract_number: string
+          contract_value: number
+          days_remaining: number
+          partner_id: string
+          partner_kind: string
+          partner_name: string
+          remaining_percent: number
+          remaining_value: number
+          severity: string
+        }[]
+      }
       get_repair_shop_orders: {
         Args: never
         Returns: {
@@ -2701,21 +2887,6 @@ export type Database = {
           plate: string
           priority: string
           year: number
-        }[]
-      }
-      get_station_pending_authorizations: {
-        Args: never
-        Returns: {
-          authorized_at: string
-          brand: string
-          expires_at: string
-          fuel_type: string
-          fueling_id: string
-          max_liters: number
-          model: string
-          note: string
-          plate: string
-          price_per_liter: number
         }[]
       }
       get_station_history: {
@@ -2758,6 +2929,21 @@ export type Database = {
           validated_count: number
         }[]
       }
+      get_station_pending_authorizations: {
+        Args: never
+        Returns: {
+          authorized_at: string
+          brand: string
+          expires_at: string
+          fuel_type: string
+          fueling_id: string
+          max_liters: number
+          model: string
+          note: string
+          plate: string
+          price_per_liter: number
+        }[]
+      }
       get_tenant_branding: {
         Args: { p_slug: string }
         Returns: {
@@ -2797,8 +2983,35 @@ export type Database = {
       is_posto: { Args: never; Returns: boolean }
       is_secretario: { Args: never; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
+      log_login: { Args: { p_source?: string }; Returns: undefined }
+      log_manual_activity: {
+        Args: {
+          p_action: string
+          p_actor_id: string
+          p_entity_id: string
+          p_entity_type: string
+          p_note?: string
+        }
+        Returns: undefined
+      }
+      manager_attest_service_order_invoice: {
+        Args: { p_invoice_id: string }
+        Returns: undefined
+      }
+      manager_authorize_service_order: {
+        Args: { p_note?: string; p_order_id: string; p_repair_shop_id: string }
+        Returns: undefined
+      }
       manager_cancel_fueling_authorization: {
         Args: { p_fueling_id: string; p_reason: string }
+        Returns: undefined
+      }
+      manager_cancel_service_order: {
+        Args: { p_order_id: string; p_reason: string }
+        Returns: undefined
+      }
+      manager_confirm_shop_delivery: {
+        Args: { p_order_id: string }
         Returns: undefined
       }
       manager_create_direct_fueling: {
@@ -2829,34 +3042,6 @@ export type Database = {
           p_vehicle_id: string
         }
         Returns: string
-      }
-      manager_review_fueling: {
-        Args: {
-          p_approved: boolean
-          p_fueling_id: string
-          p_note?: string
-        }
-        Returns: undefined
-      }
-      manager_attest_service_order_invoice: {
-        Args: { p_invoice_id: string }
-        Returns: undefined
-      }
-      manager_authorize_service_order: {
-        Args: {
-          p_note?: string
-          p_order_id: string
-          p_repair_shop_id: string
-        }
-        Returns: undefined
-      }
-      manager_cancel_service_order: {
-        Args: { p_order_id: string; p_reason: string }
-        Returns: undefined
-      }
-      manager_confirm_shop_delivery: {
-        Args: { p_order_id: string }
-        Returns: undefined
       }
       manager_create_service_order: {
         Args: {
@@ -2892,12 +3077,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      manager_review_fueling: {
+        Args: { p_approved: boolean; p_fueling_id: string; p_note?: string }
+        Returns: undefined
+      }
       manager_review_service_order_quote: {
-        Args: {
-          p_approved: boolean
-          p_note?: string
-          p_quote_id: string
-        }
+        Args: { p_approved: boolean; p_note?: string; p_quote_id: string }
         Returns: undefined
       }
       manager_update_service_order_request: {
@@ -2936,6 +3121,20 @@ export type Database = {
           p_type: string
         }
         Returns: undefined
+      }
+      notify_partner_profile: {
+        Args: {
+          p_body: string
+          p_entity_id: string
+          p_entity_type: string
+          p_link: string
+          p_partner_id: string
+          p_partner_role: string
+          p_tenant_id: string
+          p_title: string
+          p_type: string
+        }
+        Returns: number
       }
       notify_users: {
         Args: {
@@ -2987,17 +3186,26 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      partner_read_context: {
+        Args: never
+        Returns: {
+          kind: string
+          partner_id: string
+          partner_name: string
+          profile_id: string
+          tenant_id: string
+        }[]
+      }
+      purge_old_notifications: {
+        Args: { p_days_all?: number; p_days_read?: number }
+        Returns: {
+          removidas_antigas: number
+          removidas_lidas: number
+        }[]
+      }
       register_push_token: {
         Args: { p_platform?: string; p_token: string }
         Returns: undefined
-      }
-      resolve_tenant_host: {
-        Args: { p_slug: string }
-        Returns: {
-          id: string
-          name: string
-          slug: string
-        }[]
       }
       release_stale_trip: {
         Args: { p_reason?: string; p_vehicle_id: string }
@@ -3007,16 +3215,16 @@ export type Database = {
           trip_id: string
         }[]
       }
+      repair_shop_contract_committed: {
+        Args: { p_repair_shop_id: string }
+        Returns: number
+      }
       repair_shop_finish_service: {
         Args: { p_note?: string; p_order_id: string }
         Returns: undefined
       }
       repair_shop_finish_service_v2: {
-        Args: {
-          p_note: string
-          p_order_id: string
-          p_photo_urls: string[]
-        }
+        Args: { p_note: string; p_order_id: string; p_photo_urls: string[] }
         Returns: undefined
       }
       repair_shop_start_service: {
@@ -3061,8 +3269,28 @@ export type Database = {
         }
         Returns: string
       }
+      resolve_tenant_host: {
+        Args: { p_slug: string }
+        Returns: {
+          id: string
+          name: string
+          slug: string
+        }[]
+      }
+      service_order_manager_context: {
+        Args: never
+        Returns: {
+          profile_id: string
+          superadmin: boolean
+          tenant_id: string
+        }[]
+      }
       sgf_role: { Args: never; Returns: string }
       sgf_tenant: { Args: never; Returns: string }
+      station_contract_committed: {
+        Args: { p_station_id: string }
+        Returns: number
+      }
       takeover_vehicle: {
         Args: { p_vehicle_id: string }
         Returns: {

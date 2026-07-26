@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAppSettings } from '@/hooks/useSettings';
 import { useDrivers } from '@/hooks/useDrivers';
 import { getStationUnavailableReason } from '@/lib/stationStatus';
+import { procurementApi } from '@/lib/procurement-api';
 
 // Slot de foto: faz upload ao selecionar e devolve a URL pública.
 function PhotoUpload({ label, hint, url, onChange }: { label: string; hint: string; url: string; onChange: (u: string) => void }) {
@@ -89,21 +90,39 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
         queryKey: ['stations', 'form-list', { activeOnly: false }],
         queryFn: () => stationsApi.getAll(),
     });
+    const { data: procurementAlerts = [] } = useQuery({
+        queryKey: ['procurement-alerts'],
+        queryFn: procurementApi.getAlerts,
+        staleTime: 60_000,
+    });
+    const stationBudgetAlerts = useMemo(
+        () => new Map(
+            procurementAlerts
+                .filter((alert) => alert.partnerKind === 'posto' && alert.code.startsWith('budget_'))
+                .map((alert) => [alert.partnerId, alert]),
+        ),
+        [procurementAlerts],
+    );
 
     const stationOptions = useMemo(
         () => [
             { value: '', label: 'Outro / livre' },
             ...stations.map((s) => {
-                const unavailable = getStationUnavailableReason(s);
+                const budgetAlert = stationBudgetAlerts.get(s.id);
+                const unavailable = getStationUnavailableReason(s)
+                    ?? (budgetAlert?.code === 'budget_exhausted' ? 'orçamento da licitação 100% comprometido' : null);
+                const warning = budgetAlert?.code === 'budget_low'
+                    ? ` — restam ${Number(budgetAlert.remainingPercent ?? 0).toLocaleString('pt-BR')}%`
+                    : '';
                 return {
                     value: s.id,
-                    label: `${s.name}${s.code ? ` (${s.code})` : ''}${unavailable ? ` — ${unavailable}` : ''}`,
+                    label: `${s.name}${s.code ? ` (${s.code})` : ''}${unavailable ? ` — ${unavailable}` : warning}`,
                     disabled: !!unavailable,
                     disabledReason: unavailable ?? undefined,
                 };
             }),
         ],
-        [stations],
+        [stationBudgetAlerts, stations],
     );
 
     const [vehicleId, setVehicleId] = useState('');
@@ -213,7 +232,11 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
         // Bloqueio definitivo (sem opção de confirmar): posto inativo ou com licitação vencida.
         if (stationId) {
             const chosenStation = stations.find((s) => s.id === stationId);
-            const unavailable = chosenStation ? getStationUnavailableReason(chosenStation) : null;
+            const budgetAlert = stationBudgetAlerts.get(stationId);
+            const unavailable = chosenStation
+                ? getStationUnavailableReason(chosenStation)
+                    ?? (budgetAlert?.code === 'budget_exhausted' ? 'orçamento da licitação 100% comprometido' : null)
+                : null;
             if (unavailable) return setError(`Não é possível abastecer neste posto: ${unavailable}.`);
         }
         if (noContractForFuel) return setError(`O posto não possui preço contratado para ${fuelType}.`);

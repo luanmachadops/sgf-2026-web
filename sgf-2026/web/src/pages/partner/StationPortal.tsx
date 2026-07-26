@@ -1,24 +1,36 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
-import { useAuth } from '@/contexts/AuthContext';
-import { useBranding } from '@/contexts/BrandingContext';
-import { PartnerNotificationBell } from '@/components/partners/PartnerNotificationBell';
-import { SGFBadge, SGFButton, SGFCard, SGFInput } from '@/components/sgf';
+import {
+    Area,
+    AreaChart,
+    CartesianGrid,
+    Cell,
+    Pie,
+    PieChart as RechartsPieChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from 'recharts';
+import { PartnerPortalLayout, type PartnerNavItem } from '@/components/partners/PartnerPortalLayout';
+import { ContractStatusAlerts } from '@/components/partners/ContractStatusAlerts';
+import { SGFBadge, SGFButton, SGFCard, SGFInput, SGFKPICard } from '@/components/sgf';
 import {
     AlertCircle,
-    Calendar,
+    BarChart3,
     Camera,
     Car,
     CheckCircle,
     Clock,
+    DollarSign,
     Droplet,
     FileText,
     Fuel,
     Home,
     Info,
-    LogOut,
+    LayoutDashboard,
     Receipt,
     RefreshCw,
     User,
@@ -30,6 +42,11 @@ import {
     type StationHistoryItem,
     type StationMonthlySummary,
 } from '@/lib/station-portal-api';
+import {
+    procurementApi,
+    type PartnerContractStatus,
+    type PartnerDashboardData,
+} from '@/lib/procurement-api';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const number = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
@@ -37,24 +54,18 @@ const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyl
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
 const PAGE_SIZE = 25;
 
-type PortalTab = 'pending' | 'history' | 'closing' | 'details';
+type PortalTab = 'dashboard' | 'pending' | 'history' | 'closing' | 'details';
 
 function isoDate(value: Date): string {
     return value.toISOString().slice(0, 10);
 }
 
 function tabFromPath(path: string): PortalTab {
+    if (path.endsWith('/autorizacoes')) return 'pending';
     if (path.endsWith('/historico')) return 'history';
     if (path.endsWith('/fechamento')) return 'closing';
     if (path.endsWith('/dados')) return 'details';
-    return 'pending';
-}
-
-function pathForTab(tab: PortalTab): string {
-    if (tab === 'history') return '/posto/historico';
-    if (tab === 'closing') return '/posto/fechamento';
-    if (tab === 'details') return '/posto/dados';
-    return '/posto';
+    return 'dashboard';
 }
 
 function currentMonth(): string {
@@ -87,6 +98,155 @@ function LoadingCards() {
             {[0, 1, 2].map((item) => (
                 <div key={item} className="h-64 animate-pulse rounded-3xl bg-white shadow-sm" />
             ))}
+        </div>
+    );
+}
+
+const monthLabel = (key: string) => {
+    const [year, month] = key.split('-').map(Number);
+    if (!year || !month) return key;
+    return new Intl.DateTimeFormat('pt-BR', { month: 'short' })
+        .format(new Date(year, month - 1, 1))
+        .replace('.', '');
+};
+
+const stationStatusLabel: Record<string, string> = {
+    autorizado: 'Autorizado',
+    concluido: 'Aguardando validação',
+    validado: 'Validado',
+    rejeitado_admin: 'Rejeitado',
+    lancado_direto: 'Lançamento direto',
+};
+
+function StationDashboard({ status }: { status?: PartnerContractStatus }) {
+    const query = useQuery({
+        queryKey: ['partner-dashboard', 'posto'],
+        queryFn: procurementApi.getPartnerDashboard,
+        staleTime: 30_000,
+    });
+    if (query.isLoading) return <LoadingCards />;
+    if (query.error || !query.data) {
+        return <ErrorState message={(query.error as Error)?.message ?? 'Dashboard indisponível.'} retry={() => void query.refetch()} />;
+    }
+
+    const data: PartnerDashboardData = query.data;
+    const monthly = data.monthly.map((item) => ({ ...item, month: monthLabel(item.key) }));
+    const pie = data.statuses.map((item) => ({
+        ...item,
+        name: stationStatusLabel[item.status] ?? item.status.replaceAll('_', ' '),
+    }));
+    const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#64748b'];
+    const remaining = status?.remainingValue;
+
+    return (
+        <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <SGFKPICard
+                    title="Autorizações pendentes"
+                    value={data.metrics.pending ?? 0}
+                    icon={Fuel}
+                    iconColor="text-amber-500"
+                    chartColor="#f59e0b"
+                    chartData={monthly.map((item) => ({ month: item.month, value: item.count }))}
+                />
+                <SGFKPICard
+                    title="Abastecimentos no mês"
+                    value={data.metrics.monthCount ?? 0}
+                    icon={Receipt}
+                    iconColor="text-blue-500"
+                    chartColor="#3b82f6"
+                    chartData={monthly.map((item) => ({ month: item.month, value: item.count }))}
+                />
+                <SGFKPICard
+                    title="Litros no mês"
+                    value={`${number.format(data.metrics.monthLiters ?? 0)} L`}
+                    icon={Droplet}
+                    iconColor="text-emerald-500"
+                    chartColor="#10b981"
+                    chartData={monthly.map((item) => ({ month: item.month, value: item.liters ?? 0 }))}
+                />
+                <SGFKPICard
+                    title={remaining == null ? 'Gasto no mês' : 'Saldo da licitação'}
+                    value={currency.format(remaining ?? data.metrics.monthAmount ?? 0)}
+                    icon={DollarSign}
+                    iconColor={remaining != null && remaining <= 0 ? 'text-red-500' : 'text-emerald-600'}
+                    chartColor="#00A86B"
+                    chartData={monthly.map((item) => ({ month: item.month, value: item.amount }))}
+                />
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-3">
+                <SGFCard className="lg:col-span-2" padding="lg">
+                    <div>
+                        <h3 className="font-semibold text-slate-800">Evolução dos abastecimentos</h3>
+                        <p className="text-sm text-slate-400">Valores registrados nos últimos 6 meses</p>
+                    </div>
+                    <div className="mt-6 h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={monthly}>
+                                <defs>
+                                    <linearGradient id="stationAmount" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#00A86B" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#00A86B" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }}
+                                    tickFormatter={(value) => `R$ ${value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value}`} />
+                                <Tooltip formatter={(value) => currency.format(Number(value))} />
+                                <Area type="monotone" dataKey="amount" stroke="#00A86B" strokeWidth={2} fill="url(#stationAmount)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </SGFCard>
+
+                <SGFCard padding="lg">
+                    <h3 className="font-semibold text-slate-800">Situação dos registros</h3>
+                    <p className="text-sm text-slate-400">Distribuição do histórico do posto</p>
+                    <div className="mt-4 h-[210px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <RechartsPieChart>
+                                <Pie data={pie} dataKey="count" nameKey="name" innerRadius={55} outerRadius={82} paddingAngle={3}>
+                                    {pie.map((item, index) => <Cell key={item.status} fill={colors[index % colors.length]} />)}
+                                </Pie>
+                                <Tooltip />
+                            </RechartsPieChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-2">
+                        {pie.map((item, index) => (
+                            <div key={item.status} className="flex items-center justify-between text-xs">
+                                <span className="flex items-center gap-2 text-slate-500">
+                                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colors[index % colors.length] }} />
+                                    {item.name}
+                                </span>
+                                <strong className="text-slate-800">{item.count}</strong>
+                            </div>
+                        ))}
+                    </div>
+                </SGFCard>
+            </div>
+
+            <SGFCard padding="none" className="overflow-hidden">
+                <div className="border-b border-slate-100 px-5 py-4">
+                    <h3 className="font-semibold text-slate-800">Resumo por situação</h3>
+                    <p className="text-sm text-slate-400">Indicadores antes da consulta detalhada</p>
+                </div>
+                <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                        <tr><th className="px-5 py-3">Situação</th><th className="px-5 py-3 text-right">Registros</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {pie.map((item) => (
+                            <tr key={item.status}>
+                                <td className="px-5 py-4 font-semibold text-slate-800">{item.name}</td>
+                                <td className="px-5 py-4 text-right font-bold text-slate-900">{item.count}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </SGFCard>
         </div>
     );
 }
@@ -312,9 +472,11 @@ function FuelingModal({
 function PendingAuthorizations({
     tenantId,
     stationId,
+    contractStatus,
 }: {
     tenantId: string;
     stationId: string;
+    contractStatus?: PartnerContractStatus;
 }) {
     const [selected, setSelected] = useState<StationAuthorization | null>(null);
     const query = useQuery({
@@ -329,66 +491,101 @@ function PendingAuthorizations({
         return <ErrorState message={(query.error as Error).message} retry={() => void query.refetch()} />;
     }
     const authorizations = query.data ?? [];
+    const estimatedAmount = authorizations.reduce(
+        (sum, item) => sum + (item.maxLiters ?? 0) * (item.pricePerLiter ?? 0),
+        0,
+    );
+    const estimatedLiters = authorizations.reduce((sum, item) => sum + (item.maxLiters ?? 0), 0);
+    const nextExpiry = authorizations
+        .map((item) => item.expiresAt)
+        .filter((value): value is string => Boolean(value))
+        .sort()[0];
+    const chartData = authorizations.slice(0, 6).map((item) => ({
+        month: item.plate,
+        value: item.maxLiters ?? 0,
+    }));
 
     return (
         <>
-            {authorizations.length === 0 ? (
-                <SGFCard className="border border-dashed border-slate-200 text-center" padding="xl">
-                    <CheckCircle className="mx-auto h-12 w-12 text-emerald-500" />
-                    <h2 className="mt-4 text-lg font-bold text-slate-900">Tudo em dia</h2>
-                    <p className="mt-1 text-sm text-slate-500">
-                        Não há autorizações aguardando abastecimento neste posto.
-                    </p>
-                </SGFCard>
-            ) : (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {authorizations.map((item) => (
-                        <SGFCard key={item.fuelingId} className="border border-slate-100 shadow-sm" padding="lg">
-                            <div className="flex items-start justify-between gap-3">
-                                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-amber-50 text-amber-700">
-                                    <Car className="h-6 w-6" />
-                                </div>
-                                <SGFBadge variant="warning" dot>Aguardando</SGFBadge>
-                            </div>
-                            <h2 className="mt-4 text-2xl font-black tracking-tight text-slate-950">{item.plate}</h2>
-                            <p className="text-sm text-slate-500">{item.brand} {item.model}</p>
+            <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <SGFKPICard title="Aguardando" value={authorizations.length} icon={Clock} iconColor="text-amber-500" chartColor="#f59e0b" chartData={chartData} />
+                <SGFKPICard title="Volume autorizado" value={`${number.format(estimatedLiters)} L`} icon={Droplet} iconColor="text-blue-500" chartColor="#3b82f6" chartData={chartData} />
+                <SGFKPICard title="Valor reservado" value={currency.format(estimatedAmount)} icon={DollarSign} iconColor="text-emerald-500" chartColor="#10b981" chartData={chartData} />
+                <SGFKPICard title="Próximo vencimento" value={nextExpiry ? safeDateTime(nextExpiry) : 'Sem pendências'} icon={Clock} iconColor="text-slate-500" />
+            </div>
 
-                            <dl className="mt-5 space-y-3 border-y border-slate-100 py-4 text-sm">
-                                <div className="flex items-center justify-between gap-3">
-                                    <dt className="flex items-center gap-2 text-slate-500"><Droplet className="h-4 w-4" /> Combustível</dt>
-                                    <dd className="font-semibold capitalize text-slate-800">{item.fuelType}</dd>
-                                </div>
-                                <div className="flex items-center justify-between gap-3">
-                                    <dt className="flex items-center gap-2 text-slate-500"><Fuel className="h-4 w-4" /> Limite</dt>
-                                    <dd className="font-semibold text-slate-800">
-                                        {item.maxLiters == null ? 'Sem teto' : `${number.format(item.maxLiters)} L`}
-                                    </dd>
-                                </div>
-                                <div className="flex items-center justify-between gap-3">
-                                    <dt className="flex items-center gap-2 text-slate-500"><Clock className="h-4 w-4" /> Expira</dt>
-                                    <dd className="text-right font-semibold text-slate-800">{safeDateTime(item.expiresAt)}</dd>
-                                </div>
-                            </dl>
-
-                            {item.note && (
-                                <p className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                                    <strong>Observação:</strong> {item.note}
-                                </p>
+            <SGFCard padding="none" className="overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full min-w-[900px] text-sm">
+                        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                            <tr>
+                                <th className="px-5 py-3">Veículo</th>
+                                <th className="px-5 py-3">Combustível</th>
+                                <th className="px-5 py-3">Limite</th>
+                                <th className="px-5 py-3">Preço</th>
+                                <th className="px-5 py-3">Expira</th>
+                                <th className="px-5 py-3 text-right">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {authorizations.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-5 py-12 text-center">
+                                        <CheckCircle className="mx-auto h-10 w-10 text-emerald-500" />
+                                        <p className="mt-3 font-bold text-slate-900">Tudo em dia</p>
+                                        <p className="mt-1 text-sm text-slate-500">
+                                            Não há autorizações aguardando abastecimento neste posto.
+                                        </p>
+                                    </td>
+                                </tr>
+                            ) : (
+                                authorizations.map((item) => {
+                                    const operationBlocked = contractStatus && !contractStatus.canExecuteExisting;
+                                    const disabled = operationBlocked || item.pricePerLiter == null;
+                                    return (
+                                        <tr key={item.fuelingId} className="hover:bg-slate-50/70">
+                                            <td className="px-5 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-700">
+                                                        <Car className="h-5 w-5" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-black text-slate-900">{item.plate}</p>
+                                                        <p className="text-xs text-slate-500">{item.brand} {item.model}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-5 py-4 capitalize text-slate-700">{item.fuelType}</td>
+                                            <td className="px-5 py-4 font-semibold text-slate-800">
+                                                {item.maxLiters == null ? 'Sem teto' : `${number.format(item.maxLiters)} L`}
+                                            </td>
+                                            <td className="px-5 py-4 text-slate-700">
+                                                {item.pricePerLiter == null ? 'Não cadastrado' : `${currency.format(item.pricePerLiter)}/L`}
+                                            </td>
+                                            <td className="px-5 py-4 text-slate-700">{safeDateTime(item.expiresAt)}</td>
+                                            <td className="px-5 py-4 text-right">
+                                                <SGFButton
+                                                    size="sm"
+                                                    icon={Fuel}
+                                                    disabled={disabled}
+                                                    title={operationBlocked ? contractStatus?.blockMessage ?? undefined : undefined}
+                                                    onClick={() => setSelected(item)}
+                                                >
+                                                    {operationBlocked
+                                                        ? contractStatus?.blockTitle ?? 'Operação bloqueada'
+                                                        : item.pricePerLiter == null
+                                                            ? 'Preço não cadastrado'
+                                                            : 'Registrar'}
+                                                </SGFButton>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
-
-                            <SGFButton
-                                className="mt-5"
-                                fullWidth
-                                icon={Fuel}
-                                disabled={item.pricePerLiter == null}
-                                onClick={() => setSelected(item)}
-                            >
-                                {item.pricePerLiter == null ? 'Preço não cadastrado' : 'Registrar abastecimento'}
-                            </SGFButton>
-                        </SGFCard>
-                    ))}
+                        </tbody>
+                    </table>
                 </div>
-            )}
+            </SGFCard>
 
             {selected && (
                 <FuelingModal
@@ -432,9 +629,23 @@ function StationHistory() {
     const items = query.data?.items ?? [];
     const total = query.data?.total ?? 0;
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const pageLiters = items.reduce((sum, item) => sum + item.liters, 0);
+    const pageAmount = items.reduce((sum, item) => sum + item.totalCost, 0);
+    const anomalyCount = items.filter((item) => item.hasAnomaly || item.workflowStatus === 'rejeitado_admin').length;
+    const historyChart = [...items].reverse().slice(-6).map((item) => ({
+        month: item.plate,
+        value: item.totalCost,
+    }));
 
     return (
         <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <SGFKPICard title="Registros no período" value={total} icon={Receipt} iconColor="text-blue-500" chartColor="#3b82f6" chartData={historyChart} />
+                <SGFKPICard title="Litros nesta página" value={`${number.format(pageLiters)} L`} icon={Droplet} iconColor="text-emerald-500" chartColor="#10b981" chartData={historyChart} />
+                <SGFKPICard title="Valor nesta página" value={currency.format(pageAmount)} icon={DollarSign} iconColor="text-emerald-600" chartColor="#00A86B" chartData={historyChart} />
+                <SGFKPICard title="Com ressalva nesta página" value={anomalyCount} icon={AlertCircle} iconColor={anomalyCount > 0 ? 'text-red-500' : 'text-slate-400'} chartColor="#ef4444" />
+            </div>
+
             <SGFCard className="border border-slate-100 shadow-sm">
                 <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
                     <SGFInput label="De" type="date" value={from} max={to} onChange={(event) => {
@@ -517,7 +728,13 @@ function StationHistory() {
     );
 }
 
-function StationDetails({ stationId }: { stationId: string }) {
+function StationDetails({
+    stationId,
+    contractStatus,
+}: {
+    stationId: string;
+    contractStatus?: PartnerContractStatus;
+}) {
     const query = useQuery({
         queryKey: ['station-details', stationId],
         queryFn: () => stationPortalApi.getDetails(stationId),
@@ -534,7 +751,15 @@ function StationDetails({ stationId }: { stationId: string }) {
         : [];
 
     return (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <SGFKPICard title="Valor da licitação" value={station.contractValue == null ? 'Não informado' : currency.format(station.contractValue)} icon={FileText} iconColor="text-blue-500" />
+                <SGFKPICard title="Valor comprometido" value={currency.format(contractStatus?.committedValue ?? 0)} icon={DollarSign} iconColor="text-amber-500" />
+                <SGFKPICard title="Saldo disponível" value={contractStatus?.remainingValue == null ? 'Não calculado' : currency.format(contractStatus.remainingValue)} icon={DollarSign} iconColor={contractStatus?.remainingValue === 0 ? 'text-red-500' : 'text-emerald-500'} />
+                <SGFKPICard title="Saldo percentual" value={contractStatus?.remainingPercent == null ? '—' : `${number.format(contractStatus.remainingPercent)}%`} icon={BarChart3} iconColor="text-emerald-500" />
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
             <SGFCard className="border border-slate-100 shadow-sm" padding="lg">
                 <div className="flex items-center gap-3">
                     <div className="grid h-11 w-11 place-items-center rounded-2xl bg-amber-50 text-amber-700">
@@ -613,6 +838,7 @@ function StationDetails({ stationId }: { stationId: string }) {
                     <p>Alterações de preço são feitas pela prefeitura. O valor aplicado a cada abastecimento é calculado no servidor.</p>
                 </div>
             </SGFCard>
+            </div>
         </div>
     );
 }
@@ -750,108 +976,71 @@ function StationClosing() {
 }
 
 export default function StationPortal() {
-    const { user, logout } = useAuth();
-    const { branding } = useBranding();
     const location = useLocation();
-    const navigate = useNavigate();
     const activeTab = tabFromPath(location.pathname);
 
     const contextQuery = useQuery({
-        queryKey: ['station-context', user?.id],
+        queryKey: ['station-context'],
         queryFn: stationPortalApi.getContext,
         staleTime: 5 * 60_000,
     });
     const context = contextQuery.data;
+    const contractQuery = useQuery({
+        queryKey: ['partner-contract-status', 'posto'],
+        queryFn: procurementApi.getPartnerContractStatus,
+        enabled: Boolean(context),
+        staleTime: 30_000,
+    });
+    const contractStatus = contractQuery.data;
 
-    const tabs: { id: PortalTab; label: string; icon: typeof Home }[] = [
-        { id: 'pending', label: 'Autorizações', icon: Home },
-        { id: 'history', label: 'Histórico', icon: Clock },
-        { id: 'closing', label: 'Fechamento', icon: Receipt },
-        { id: 'details', label: 'Meus dados', icon: User },
+    const navItems: PartnerNavItem[] = [
+        { label: 'Dashboard', path: '/posto', icon: LayoutDashboard, end: true },
+        { label: 'Autorizações', path: '/posto/autorizacoes', icon: Home },
+        { label: 'Histórico', path: '/posto/historico', icon: Clock },
+        { label: 'Fechamento', path: '/posto/fechamento', icon: Receipt },
+        { label: 'Meus dados', path: '/posto/dados', icon: User },
     ];
+    const titles: Record<PortalTab, { title: string; description: string }> = {
+        dashboard: {
+            title: 'Dashboard do posto',
+            description: 'Indicadores de abastecimento, contrato e situação financeira.',
+        },
+        pending: {
+            title: 'Autorizações pendentes',
+            description: 'Registre apenas abastecimentos previamente autorizados pela prefeitura.',
+        },
+        history: {
+            title: 'Histórico de abastecimentos',
+            description: 'Consulte todos os registros anteriores, mesmo após o fim do contrato.',
+        },
+        closing: {
+            title: 'Fechamento mensal',
+            description: 'Confira volumes e valores validados antes de emitir a nota fiscal.',
+        },
+        details: {
+            title: 'Dados do fornecedor',
+            description: 'Consulte cadastro, licitação, vigência, saldo e preços contratados.',
+        },
+    };
+    const page = titles[activeTab];
 
     return (
-        <div className="min-h-screen bg-[#F5F7F9]">
-            <header className="border-b border-white/10 bg-[var(--sgf-dark)] text-white shadow-lg">
-                <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-                    <div className="flex min-w-0 items-center gap-3">
-                        <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10">
-                            {branding.logoUrl || branding.sealUrl ? (
-                                <img src={branding.logoUrl || branding.sealUrl} alt="" className="h-full w-full object-contain p-1" />
-                            ) : (
-                                <Fuel className="h-6 w-6 text-amber-400" />
-                            )}
-                        </div>
-                        <div className="min-w-0">
-                            <p className="truncate text-xs font-semibold text-white/60">{branding.name}</p>
-                            <h1 className="truncate text-base font-bold sm:text-lg">Sistema de Abastecimento</h1>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        {user?.id && <PartnerNotificationBell userId={user.id} fallbackPath="/posto" />}
-                        <button
-                            type="button"
-                            onClick={() => void logout()}
-                            className="flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-white/70 transition hover:bg-white/10 hover:text-white"
-                        >
-                            <LogOut className="h-5 w-5" />
-                            <span className="hidden sm:inline">Sair</span>
-                        </button>
-                    </div>
+        <PartnerPortalLayout
+            portal="posto"
+            systemName="Sistema de Abastecimento"
+            partnerName={context?.stationName}
+            title={page.title}
+            description={page.description}
+            navItems={navItems}
+            headerMeta={activeTab === 'pending' ? (
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Atualização automática a cada 30 s
                 </div>
-            </header>
-
-            <div className="border-b border-slate-200 bg-white">
-                <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-3 py-2 sm:px-6" aria-label="Navegação do posto">
-                    {tabs.map((tab) => {
-                        const Icon = tab.icon;
-                        const active = activeTab === tab.id;
-                        return (
-                            <button
-                                key={tab.id}
-                                type="button"
-                                onClick={() => navigate(pathForTab(tab.id))}
-                                className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition ${
-                                    active
-                                        ? 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200'
-                                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                                }`}
-                            >
-                                <Icon className="h-4 w-4" />
-                                {tab.label}
-                            </button>
-                        );
-                    })}
-                </nav>
-            </div>
-
-            <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
-                <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-                    <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">
-                            {context?.stationName || 'Portal do posto'}
-                        </p>
-                        <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
-                            {activeTab === 'pending' && 'Autorizações pendentes'}
-                            {activeTab === 'history' && 'Histórico de abastecimentos'}
-                            {activeTab === 'closing' && 'Fechamento mensal'}
-                            {activeTab === 'details' && 'Dados do fornecedor'}
-                        </h2>
-                        <p className="mt-1 text-sm text-slate-500">
-                            {activeTab === 'pending' && 'Registre apenas abastecimentos previamente autorizados pela prefeitura.'}
-                            {activeTab === 'history' && 'Acompanhe a validação dos lançamentos feitos por este posto.'}
-                            {activeTab === 'closing' && 'Confira volumes e valores validados antes de emitir a nota fiscal.'}
-                            {activeTab === 'details' && 'Consulte contrato, vencimento e preços vigentes.'}
-                        </p>
-                    </div>
-                    {activeTab === 'pending' && (
-                        <div className="flex items-center gap-2 text-xs text-slate-400">
-                            <RefreshCw className="h-3.5 w-3.5" />
-                            Atualização automática a cada 30 s
-                        </div>
-                    )}
-                </div>
-
+            ) : undefined}
+        >
+            <div className="space-y-6">
+                <ContractStatusAlerts status={contractStatus} />
                 {contextQuery.isLoading ? (
                     <LoadingCards />
                 ) : contextQuery.error || !context ? (
@@ -859,21 +1048,22 @@ export default function StationPortal() {
                         message={(contextQuery.error as Error)?.message ?? 'Vínculo do posto não encontrado.'}
                         retry={() => void contextQuery.refetch()}
                     />
+                ) : activeTab === 'dashboard' ? (
+                    <StationDashboard status={contractStatus} />
                 ) : activeTab === 'pending' ? (
-                    <PendingAuthorizations tenantId={context.tenantId} stationId={context.stationId} />
+                    <PendingAuthorizations
+                        tenantId={context.tenantId}
+                        stationId={context.stationId}
+                        contractStatus={contractStatus}
+                    />
                 ) : activeTab === 'history' ? (
                     <StationHistory />
                 ) : activeTab === 'closing' ? (
                     <StationClosing />
                 ) : (
-                    <StationDetails stationId={context.stationId} />
+                    <StationDetails stationId={context.stationId} contractStatus={contractStatus} />
                 )}
-            </main>
-
-            <footer className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-8 text-xs text-slate-400 sm:px-6">
-                <span>SGF 2026 · {branding.name}</span>
-                <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Portal do parceiro</span>
-            </footer>
-        </div>
+            </div>
+        </PartnerPortalLayout>
     );
 }

@@ -6,7 +6,6 @@ import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { Camera, Loader2, FileText, Plus, X, Download } from '@/components/sgf/icons';
 import { useCreateStation, useUpdateStation } from '@/hooks/useStations';
-import { supabase } from '@/lib/supabase';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { resizeAndConvertToWebP, isImageFile, prepareDocumentUpload, formatFileSize, DOCUMENT_ACCEPT } from '@/lib/imageUtils';
 import { maskCNPJ, maskPhone } from '@/lib/utils';
@@ -35,6 +34,9 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
     const [contractNumber, setContractNumber] = useState('');
     const [contractStart, setContractStart] = useState('');
     const [contractEnd, setContractEnd] = useState('');
+    const [contractValue, setContractValue] = useState('');
+    const [contractAlertPercent, setContractAlertPercent] = useState('20');
+    const [contractAlertDays, setContractAlertDays] = useState('30');
     const [isActive, setIsActive] = useState(true);
     const [fuelTypes, setFuelTypes] = useState<string[]>([]);
     const [fuelPrices, setFuelPrices] = useState<Record<string, string>>({});
@@ -59,6 +61,9 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
         setContractNumber(station?.contract_number ?? '');
         setContractStart(station?.contract_start ?? '');
         setContractEnd(station?.contract_end ?? '');
+        setContractValue(station?.contract_value == null ? '' : String(station.contract_value));
+        setContractAlertPercent(String(station?.contract_alert_percent ?? 20));
+        setContractAlertDays(String(station?.contract_alert_days ?? 30));
         setIsActive(station?.is_active ?? true);
         setFuelTypes(station?.fuel_types ?? []);
         const fp = (station as { fuel_prices?: Record<string, number> } | null)?.fuel_prices ?? {};
@@ -136,7 +141,7 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
         for (const file of files) {
             try {
                 const prepared = await prepareDocumentUpload(file, { maxSize: 1400, quality: 0.8 });
-                const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^\w.\-]+/g, '_');
+                const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_');
                 const fileName = `station-docs/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}.${prepared.ext}`;
                 const { publicUrl } = await uploadFoto(fileName, prepared.blob, prepared.contentType);
                 anexados.push({ name: file.name, url: publicUrl, size: file.size, uploadedAt: new Date().toISOString() });
@@ -167,6 +172,7 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
         e.preventDefault();
         setError(null);
         if (!name.trim()) return setError('Informe o nome do posto.');
+        if (contractValue && Number(contractValue) < 0) return setError('O valor da licitação não pode ser negativo.');
 
         const payload = {
             name: name.trim(),
@@ -178,6 +184,9 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
             contract_number: contractNumber.trim() || null,
             contract_start: contractStart || null,
             contract_end: contractEnd || null,
+            contract_value: contractValue ? Number(contractValue) : null,
+            contract_alert_percent: Number(contractAlertPercent || 20),
+            contract_alert_days: Number(contractAlertDays || 30),
             is_active: isActive,
             fuel_types: fuelTypes,
             fuel_prices: Object.fromEntries(
@@ -279,6 +288,40 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
                         <SGFInput label="Nº do contrato" value={contractNumber} onChange={(e) => setContractNumber(e.target.value)} fullWidth />
                         <SGFInput label="Início" type="date" value={contractStart} onChange={(e) => setContractStart(e.target.value)} fullWidth />
                         <SGFInput label="Fim (vencimento)" type="date" value={contractEnd} onChange={(e) => setContractEnd(e.target.value)} fullWidth />
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-3 md:grid-cols-3">
+                        <SGFInput
+                            label="Valor total da licitação (R$)"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={contractValue}
+                            onChange={(e) => setContractValue(e.target.value)}
+                            hint="Define o teto financeiro e o bloqueio de novas autorizações."
+                            fullWidth
+                        />
+                        <SGFInput
+                            label="Alertar com saldo em (%)"
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={contractAlertPercent}
+                            onChange={(e) => setContractAlertPercent(e.target.value)}
+                            hint="Padrão: 20% restante."
+                            fullWidth
+                        />
+                        <SGFInput
+                            label="Alertar vencimento em (dias)"
+                            type="number"
+                            min="1"
+                            max="365"
+                            step="1"
+                            value={contractAlertDays}
+                            onChange={(e) => setContractAlertDays(e.target.value)}
+                            hint="Padrão: 30 dias."
+                            fullWidth
+                        />
                     </div>
                 </div>
 

@@ -68,6 +68,10 @@ export interface StationDetails {
     contractNumber: string | null;
     contractStart: string | null;
     contractEnd: string | null;
+    contractValue: number | null;
+    contractAlertPercent: number;
+    contractAlertDays: number;
+    isActive: boolean;
     fuelTypes: string[];
     fuelPrices: Json;
 }
@@ -78,7 +82,7 @@ function throwIfError(error: { message: string } | null): void {
 
 export const stationPortalApi = {
     getContext: async (): Promise<StationContext> => {
-        const { data, error } = await supabase.rpc('partner_context');
+        const { data, error } = await supabase.rpc('partner_read_context');
         throwIfError(error);
         const row = data?.[0];
         if (!row || row.kind !== 'posto') {
@@ -166,7 +170,7 @@ export const stationPortalApi = {
     getDetails: async (stationId: string): Promise<StationDetails> => {
         const { data, error } = await supabase
             .from('fuel_stations')
-            .select('id, name, cnpj, address, city, phone, contract_number, contract_start, contract_end, fuel_types, fuel_prices')
+            .select('id, name, cnpj, address, city, phone, contract_number, contract_start, contract_end, contract_value, contract_alert_percent, contract_alert_days, is_active, fuel_types, fuel_prices')
             .eq('id', stationId)
             .single();
         throwIfError(error);
@@ -180,6 +184,10 @@ export const stationPortalApi = {
             contractNumber: data.contract_number,
             contractStart: data.contract_start,
             contractEnd: data.contract_end,
+            contractValue: data.contract_value == null ? null : Number(data.contract_value),
+            contractAlertPercent: Number(data.contract_alert_percent),
+            contractAlertDays: Number(data.contract_alert_days),
+            isActive: data.is_active,
             fuelTypes: data.fuel_types ?? [],
             fuelPrices: data.fuel_prices,
         };

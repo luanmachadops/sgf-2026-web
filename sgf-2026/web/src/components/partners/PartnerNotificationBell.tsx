@@ -7,6 +7,7 @@ import { notificationsApi, type NotificationRecord } from '@/lib/supabase-api';
 interface PartnerNotificationBellProps {
     userId: string;
     fallbackPath: '/posto' | '/oficina';
+    variant?: 'dark' | 'light';
 }
 
 function formatTime(value: string): string {
@@ -20,7 +21,7 @@ function formatTime(value: string): string {
     });
 }
 
-export function PartnerNotificationBell({ userId, fallbackPath }: PartnerNotificationBellProps) {
+export function PartnerNotificationBell({ userId, fallbackPath, variant = 'dark' }: PartnerNotificationBellProps) {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const rootRef = useRef<HTMLDivElement>(null);
@@ -77,7 +78,11 @@ export function PartnerNotificationBell({ userId, fallbackPath }: PartnerNotific
                 aria-label={unread > 0 ? `${unread} notificações não lidas` : 'Notificações'}
                 aria-expanded={open}
                 onClick={() => setOpen((current) => !current)}
-                className="relative grid h-10 w-10 place-items-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white"
+                className={`relative grid h-10 w-10 place-items-center rounded-full transition ${
+                    variant === 'light'
+                        ? 'text-slate-500 hover:bg-black/5 hover:text-slate-800'
+                        : 'text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
             >
                 <Bell className="h-5 w-5" />
                 {unread > 0 && (
