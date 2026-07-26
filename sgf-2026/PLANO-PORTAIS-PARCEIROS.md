@@ -1,8 +1,8 @@
 # Plano — Portais de Parceiros (Postos e Oficinas)
 
 > Status (2026-07-26): **fases −1 a 4 e 6 concluídas**. As implementações das
-> fases 5, 7 e 8 estão prontas; faltam a policy manual do Storage e os pilotos
-> autenticados com parceiros reais.
+> fases 5, 7 e 8 estão prontas; faltam apenas os pilotos autenticados com
+> parceiros reais.
 > Este arquivo é a fonte da verdade das etapas — ver "Fases de entrega" (seção 6)
 > e "Estado da execução" logo abaixo.
 > Escopo: dois portais externos dentro do mesmo produto — **Sistema de
@@ -55,7 +55,8 @@
 | Fase 5 — migration do histórico/guard | ✅ **aplicada** — `20260726030059_station_portal_history`; migration completa validada em rollback + isolamento 15/15 |
 | Fase 5 — piloto autenticado | ⛔ **pendente** — consulta em 2026-07-26 encontrou 0 perfis `role='posto'`; criar o primeiro acesso pelo card do posto e executar o roteiro abaixo |
 | Fase 7 — Portal da Oficina (código/RPCs) | ✅ concluída — OS agrupadas, orçamento, execução com fotos, NF, timeline e contrato |
-| Fase 7 — policy de documentos + piloto | ⛔ **pendente** — policy exige dashboard do Storage; existem 0 perfis `role='oficina'` |
+| Fase 7 — policy de documentos | ✅ **aplicada pelo dashboard do Storage** — `USING` e `WITH CHECK` verificadas; suíte de isolamento 20/20 |
+| Fase 7 — piloto autenticado | ⛔ **pendente** — existem 0 perfis `role='oficina'` |
 | Fase 8 — fechamento, relatórios e avisos | ✅ código e migration aplicados; falta validação visual nos pilotos |
 
 ### Verificação da fase 1 (2026-07-25)
@@ -514,12 +515,13 @@ registro mostrando etapa atual e de quem é a bola — o que hoje se resolve por
 | **4** ✅ | Criação de acesso (card + `api/partners`) + allowlist + `PrivateRoute allow` + check hostname×tenant | 1 |
 | **5** 🟡 | Portal do Posto — **implementação concluída**; falta piloto com uma prefeitura e um posto real, monitorando eventos e falhas | 2, 4 |
 | **6** ✅ | Dois eixos de status + quotes/events + telas fiscais no painel | 3 |
-| **7** 🟡 | Portal da Oficina — implementação e RPCs concluídas; falta policy do Storage + piloto autenticado | 4, 6 |
+| **7** 🟡 | Portal da Oficina — implementação, RPCs e policy do Storage concluídas; falta piloto autenticado | 4, 6 |
 | **8** 🟡 | Fechamento mensal, relatórios por parceiro e notificações — implementação concluída; falta piloto autenticado | — |
 
-Não existe suíte automatizada de RLS/integração/E2E no repositório hoje. A
-**fase 2 é entrega obrigatória**, não checagem manual: é o único mecanismo que
-impede um vazamento entre parceiros ou entre prefeituras de passar despercebido.
+A suíte SQL automatizada de RLS/integração está em
+`supabase/tests/rls_partner_isolation.sql`. Ela é obrigatória antes de liberar
+cada portal: é o mecanismo que impede um vazamento entre parceiros ou entre
+prefeituras de passar despercebido.
 
 ---
 
@@ -641,38 +643,36 @@ Todo índice custa escrita, mas remover índice em produção é decisão à par
 - RPCs `repair_shop_*_v2` com validação de conteúdo/caminho. O `EXECUTE` das
   versões antigas foi revogado de `authenticated`.
 
-### Evidências e pendência
+### Evidências
 
 | Verificação | Resultado |
 |---|---|
 | Migration das RPCs em produção | ✅ `20260726031428_workshop_portal_security` |
 | Permissões das RPCs | ✅ `anon`: nenhuma; `authenticated`: somente versões v2 |
-| Suíte de isolamento ampliada | 🟡 19/20; único bloqueio é a policy abaixo |
+| Suíte de isolamento ampliada | ✅ 20/20, rollback automático |
+| Policy de documentos | ✅ `documentos_tenant_all` endurecida em `USING` e `WITH CHECK`; T16b bloqueia escrita cross-partner |
 | TypeScript | ✅ `tsc -b` |
 | Lint direcionado | ✅ zero achados |
 | Build Vite de produção | ✅ portal em chunk separado: 36,80 kB (9,74 kB gzip) |
 | Fluxo logado ponta a ponta | ⛔ existem 0 perfis `oficina` no banco |
 
-**Bloqueio antes de publicar:** `storage.objects` pertence a
-`supabase_storage_admin`; a conexão de migrations não consegue criar a policy
-restritiva parceiro × parceiro (erro `42501`). A migration
-`20260726235959_workshop_documents_partner_scope.sql` está pronta, mas precisa
-ser criada por **Storage → Policies** no dashboard. Sem ela, a policy permissiva
-atual isola por prefeitura, mas ainda permite que uma oficina autenticada grave
-ou leia documentos de outra oficina do mesmo tenant.
+**Policy aplicada:** `storage.objects` pertence a `supabase_storage_admin`, por
+isso a conexão de migrations retornava `42501`. A policy existente
+`documentos_tenant_all` foi editada em **Storage → Policies** para preservar o
+escopo por tenant dos gestores e limitar postos/oficinas à pasta do próprio
+vínculo. As expressões persistidas de `USING` e `WITH CHECK` foram conferidas
+diretamente em `pg_policy`; a suíte completa passou 20/20.
 
 ### Roteiro obrigatório do piloto
 
-1. Criar a policy pendente no dashboard e executar novamente
-   `rls_partner_isolation.sql`; o resultado esperado passa de 19/20 para 20/20.
-2. Criar o acesso de uma oficina ativa e entrar por `/oficina/login`.
-3. Vincular e autorizar uma OS, receber o veículo e enviar um orçamento com
+1. Criar o acesso de uma oficina ativa e entrar por `/oficina/login`.
+2. Vincular e autorizar uma OS, receber o veículo e enviar um orçamento com
    peças e mão de obra.
-4. Aprovar o orçamento e informar o empenho pelo painel; iniciar e concluir o
+3. Aprovar o orçamento e informar o empenho pelo painel; iniciar e concluir o
    serviço no portal com foto.
-5. Receber o veículo no painel e enviar a NF pelo portal; atestar e pagar no
+4. Receber o veículo no painel e enviar a NF pelo portal; atestar e pagar no
    painel, conferindo os dois eixos e a timeline.
-6. Repetir os testes negativos: outra oficina/tenant, acesso bloqueado,
+5. Repetir os testes negativos: outra oficina/tenant, acesso bloqueado,
    contrato vencido, orçamento duplicado, início sem empenho e NF antes do
    recebimento.
 
@@ -709,7 +709,7 @@ ou leia documentos de outra oficina do mesmo tenant.
 | Teste de destinatário da notificação | ✅ T20: posto A1 recebe 1; não vê A2/B1 |
 | Permissões | ✅ fechamento só `authenticated`; helper/gatilhos sem `EXECUTE` para `anon` ou `authenticated` |
 | Gatilhos em produção | ✅ ativos em `fuelings`, `service_orders` e `service_order_quotes` |
-| Suíte completa | 🟡 19/20; falha exclusiva em T16b, policy manual da fase 7 |
+| Suíte completa | ✅ 20/20, rollback automático |
 | TypeScript | ✅ `tsc -b` |
 | Lint direcionado | ✅ zero achados |
 | Build Vite de produção | ✅ posto 30,78 kB; oficina 36,97 kB; sino compartilhado 3,38 kB |
