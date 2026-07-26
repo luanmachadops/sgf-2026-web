@@ -24,6 +24,7 @@ import Configuracoes from '@/pages/Configuracoes';
 import Perfil from '@/pages/Perfil';
 import Departments from '@/pages/Departments';
 import Stations from '@/pages/Stations';
+import RepairShops from '@/pages/RepairShops';
 import Notificacoes from '@/pages/Notificacoes';
 import Convite from '@/pages/Convite';
 
@@ -74,6 +75,8 @@ function App() {
                 <Route path="/secretarias/:id" element={<Departments />} />
                 <Route path="/postos" element={<Stations />} />
                 <Route path="/postos/:id" element={<Stations />} />
+                <Route path="/oficinas" element={<RepairShops />} />
+                <Route path="/oficinas/:id" element={<RepairShops />} />
                 <Route path="/configuracoes" element={<Configuracoes />} />
                 <Route path="/perfil" element={<Perfil />} />
                 <Route path="/notificacoes" element={<Notificacoes />} />

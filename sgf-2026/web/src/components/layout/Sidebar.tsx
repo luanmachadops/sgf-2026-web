@@ -55,6 +55,7 @@ const menuSections: MenuSection[] = [
             { icon: Fuel, label: 'Abastecimentos', path: '/abastecimentos' },
             { icon: Droplet, label: 'Postos', path: '/postos' },
             { icon: Wrench, label: 'Manutenções', path: '/manutencoes' },
+            { icon: Building2, label: 'Oficinas', path: '/oficinas' },
             { icon: Clipboard, label: 'Checklists', path: '/checklists' },
             { icon: Receipt, label: 'Infrações', path: '/infracoes' },
             { icon: Building2, label: 'Secretarias', path: '/secretarias' },

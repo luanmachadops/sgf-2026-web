@@ -52,13 +52,16 @@ export function useApproveMaintenance() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ id, approvedBy, repairShop, budget, notes }: {
+        mutationFn: ({ id, approvedBy, repairShopId, repairShop, budget, notes }: {
             id: string;
             approvedBy: string;
+            /** FK da oficina credenciada — fonte da verdade. */
+            repairShopId?: string | null;
+            /** Nome, mantido para o histórico e telas antigas. */
             repairShop: string;
             budget?: number | null;
             notes?: string;
-        }) => maintenancesApi.approve(id, approvedBy, { repairShop, budget, notes }),
+        }) => maintenancesApi.approve(id, approvedBy, { repairShopId, repairShop, budget, notes }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['maintenances'] });
             queryClient.invalidateQueries({ queryKey: ['vehicles'] });

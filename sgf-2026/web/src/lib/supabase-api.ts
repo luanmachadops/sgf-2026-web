@@ -1249,13 +1249,16 @@ export const maintenancesApi = {
         return data as Tables<'service_orders'>;
     },
 
-    approve: async (id: string, approvedBy: string, opts?: { repairShop: string; budget?: number | null; notes?: string }) => {
+    approve: async (id: string, approvedBy: string, opts?: { repairShopId?: string | null; repairShop: string; budget?: number | null; notes?: string }) => {
         const { data, error } = await supabase
             .from('service_orders')
             .update({
                 status: 'aprovada',
                 approved_by: approvedBy,
                 approved_at: new Date().toISOString(),
+                // `repair_shop_id` é a fonte da verdade; `repair_shop` (texto) fica
+                // preenchido para o histórico e para as telas antigas.
+                ...(opts?.repairShopId ? { repair_shop_id: opts.repairShopId } : {}),
                 ...(opts?.repairShop ? { repair_shop: opts.repairShop } : {}),
                 ...(opts?.budget !== undefined ? { budget: opts.budget } : {}),
                 ...(opts?.notes ? { admin_note: opts.notes } : {}),
@@ -2460,6 +2463,140 @@ export const notificationsApi = {
         return {
             data: list,
             hasMore: list.length === limit,
+        };
+    },
+};
+
+// ─── Oficinas mecânicas ─────────────────────────────────────────────────────
+export interface RepairShopDetail {
+    shop: Tables<'repair_shops'>;
+    totalsAllTime: { orders: number; totalCost: number; avgCost: number };
+    totals30d:     { orders: number; totalCost: number };
+    monthly:       { month: string; orders: number; totalCost: number }[];
+    byStatus:      { status: string; orders: number }[];
+    topVehicles:   { vehicleId: string; plate: string | null; brand: string | null; model: string | null; orders: number; totalCost: number }[];
+    recent:        Tables<'service_orders'>[];
+}
+
+export const repairShopsApi = {
+    getAll: async (filters?: { activeOnly?: boolean; search?: string }) => {
+        let query = supabase.from('repair_shops').select('*').order('name', { ascending: true });
+        if (filters?.activeOnly) query = query.eq('is_active', true);
+        if (filters?.search) {
+            query = query.or(
+                `name.ilike.%${filters.search}%,code.ilike.%${filters.search}%,cnpj.ilike.%${filters.search}%`,
+            );
+        }
+        const { data, error } = await query;
+        if (error) handleError(error);
+        return (data ?? []) as Tables<'repair_shops'>[];
+    },
+
+    getById: async (id: string): Promise<Tables<'repair_shops'>> => {
+        const { data, error } = await supabase.from('repair_shops').select('*').eq('id', id).single();
+        if (error) handleError(error);
+        return data as Tables<'repair_shops'>;
+    },
+
+    create: async (shop: TablesInsert<'repair_shops'>) => {
+        const { data, error } = await supabase.from('repair_shops').insert(shop).select().single();
+        if (error) handleError(error);
+        return data as Tables<'repair_shops'>;
+    },
+
+    update: async (id: string, updates: TablesUpdate<'repair_shops'>) => {
+        const { data, error } = await supabase.from('repair_shops').update(updates).eq('id', id).select().single();
+        if (error) handleError(error);
+        return data as Tables<'repair_shops'>;
+    },
+
+    /**
+     * Desativa em vez de apagar. A FK de `profiles.repair_shop_id` é RESTRICT:
+     * excluir a oficina com login vinculado falharia, e mesmo sem login o
+     * histórico de OS precisa continuar apontando para ela.
+     */
+    deactivate: async (id: string) => {
+        const { data, error } = await supabase.from('repair_shops')
+            .update({ is_active: false }).eq('id', id).select().single();
+        if (error) handleError(error);
+        return data as Tables<'repair_shops'>;
+    },
+
+    getDetail: async (id: string): Promise<RepairShopDetail> => {
+        const shopRes = await supabase.from('repair_shops').select('*').eq('id', id).single();
+        if (shopRes.error) handleError(shopRes.error);
+
+        const since30 = new Date(); since30.setDate(since30.getDate() - 30);
+        const since6m = new Date(); since6m.setMonth(since6m.getMonth() - 5); since6m.setDate(1);
+
+        const [allRes, last30Res, last6mRes, recentRes] = await Promise.all([
+            supabase.from('service_orders')
+                .select('id, cost, operational_status, vehicle_id, vehicles(id, plate, brand, model)')
+                .eq('repair_shop_id', id),
+            supabase.from('service_orders').select('cost')
+                .eq('repair_shop_id', id).gte('created_at', since30.toISOString()),
+            supabase.from('service_orders').select('cost, created_at')
+                .eq('repair_shop_id', id).gte('created_at', since6m.toISOString()),
+            supabase.from('service_orders')
+                .select('*, vehicles(id, plate, brand, model)')
+                .eq('repair_shop_id', id)
+                .order('created_at', { ascending: false })
+                .limit(10),
+        ]);
+        if (allRes.error) handleError(allRes.error);
+        if (last30Res.error) handleError(last30Res.error);
+        if (last6mRes.error) handleError(last6mRes.error);
+        if (recentRes.error) handleError(recentRes.error);
+
+        const all = allRes.data ?? [];
+        const last30 = last30Res.data ?? [];
+        const last6m = last6mRes.data ?? [];
+        const sumCost = (rows: { cost?: number | null }[]) =>
+            roundTo(rows.reduce((s, r) => s + Number(r.cost ?? 0), 0), 2);
+
+        const totalAll = sumCost(all);
+        const totalsAllTime = {
+            orders: all.length,
+            totalCost: totalAll,
+            avgCost: all.length ? roundTo(totalAll / all.length, 2) : 0,
+        };
+        const totals30d = { orders: last30.length, totalCost: sumCost(last30) };
+
+        const monthly = getTrailingMonthBuckets(6).map((bucket) => {
+            const entries = last6m.filter((r) => (r.created_at as string)?.slice(0, 7) === bucket.key);
+            return { month: bucket.label, orders: entries.length, totalCost: sumCost(entries) };
+        });
+
+        const statusMap = new Map<string, number>();
+        for (const r of all) {
+            const key = (r.operational_status ?? 'pending') as string;
+            statusMap.set(key, (statusMap.get(key) ?? 0) + 1);
+        }
+        const byStatus = Array.from(statusMap.entries())
+            .map(([status, orders]) => ({ status, orders }))
+            .sort((a, b) => b.orders - a.orders);
+
+        const vehMap = new Map<string, { vehicleId: string; plate: string | null; brand: string | null; model: string | null; orders: number; totalCost: number }>();
+        for (const r of all) {
+            if (!r.vehicle_id) continue;
+            const v = (r as unknown as { vehicles?: { plate: string | null; brand: string | null; model: string | null } | null }).vehicles;
+            const cur = vehMap.get(r.vehicle_id) ?? {
+                vehicleId: r.vehicle_id, plate: v?.plate ?? null, brand: v?.brand ?? null, model: v?.model ?? null,
+                orders: 0, totalCost: 0,
+            };
+            cur.orders += 1;
+            cur.totalCost += Number(r.cost ?? 0);
+            vehMap.set(r.vehicle_id, cur);
+        }
+        const topVehicles = Array.from(vehMap.values())
+            .map(v => ({ ...v, totalCost: roundTo(v.totalCost, 2) }))
+            .sort((a, b) => b.totalCost - a.totalCost)
+            .slice(0, 6);
+
+        return {
+            shop: shopRes.data as Tables<'repair_shops'>,
+            totalsAllTime, totals30d, monthly, byStatus, topVehicles,
+            recent: (recentRes.data ?? []) as Tables<'service_orders'>[],
         };
     },
 };

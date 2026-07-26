@@ -8,6 +8,8 @@ import { PeriodPresetSelect, PeriodRangeFields, makePeriod, type PeriodValue } f
 import { Modal } from '@/components/ui/Modal';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFTextarea } from '@/components/sgf/SGFTextarea';
+import { SGFSelect } from '@/components/sgf/SGFSelect';
+import { useRepairShops } from '@/hooks/useRepairShops';
 import {
     Plus,
     Wrench,
@@ -92,6 +94,7 @@ type MaintItem = {
     priority: string; // baixa | media | alta
     status: string; // status do banco
     repairShop: string | null;
+    repairShopId: string | null;
     budget: number | null;
     cost: number | null;
     approvedAt: string | null;
@@ -141,6 +144,7 @@ function mapRow(r: ServiceOrderRow): MaintItem {
         priority: r.priority ?? 'media',
         status: r.status ?? 'pendente',
         repairShop: r.repair_shop ?? null,
+        repairShopId: (r as { repair_shop_id?: string | null }).repair_shop_id ?? null,
         budget: r.budget != null ? Number(r.budget) : null,
         cost: r.cost != null ? Number(r.cost) : null,
         approvedAt: r.approved_at ?? null,
@@ -157,7 +161,10 @@ export default function Maintenances() {
     const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
     const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('6'));
     const [approveTarget, setApproveTarget] = useState<MaintItem | null>(null);
-    const [approveRepairShop, setApproveRepairShop] = useState('');
+    const [approveRepairShopId, setApproveRepairShopId] = useState('');
+    // Só oficinas ativas podem receber OS — inativa some da seleção sem sumir
+    // do histórico (a FK é RESTRICT, o cadastro nunca é apagado).
+    const { data: activeShops = [] } = useRepairShops({ activeOnly: true });
     const [approveBudget, setApproveBudget] = useState('');
     const [completeTarget, setCompleteTarget] = useState<MaintItem | null>(null);
     const [completeCost, setCompleteCost] = useState('');
@@ -327,22 +334,24 @@ export default function Maintenances() {
     const completedCount = maintenances.filter((m) => m.status === 'concluida').length;
 
     const openApproveModal = (item: MaintItem) => {
-        setApproveRepairShop(item.repairShop ?? '');
+        setApproveRepairShopId(item.repairShopId ?? '');
         setApproveBudget(item.budget != null ? String(item.budget) : '');
         setApproveTarget(item);
     };
 
     const handleConfirmApprove = () => {
         if (!user?.id || !approveTarget) return;
-        if (!approveRepairShop.trim()) {
-            toast.error('Informe a oficina/local do conserto.');
+        const oficina = activeShops.find((o) => o.id === approveRepairShopId);
+        if (!oficina) {
+            toast.error('Selecione a oficina credenciada.');
             return;
         }
         approve.mutate(
             {
                 id: approveTarget.id,
                 approvedBy: user.id,
-                repairShop: approveRepairShop.trim(),
+                repairShopId: oficina.id,
+                repairShop: oficina.name,
                 budget: approveBudget.trim() ? Number(approveBudget) : null,
             },
             {
@@ -817,12 +826,20 @@ export default function Maintenances() {
                 }
             >
                 <div className="space-y-4">
-                    <SGFInput
-                        label="Oficina / local do conserto"
-                        placeholder="Ex: Oficina Central Ltda"
-                        value={approveRepairShop}
-                        onChange={(e) => setApproveRepairShop(e.target.value)}
-                        icon={Building2}
+                    <SGFSelect
+                        label="Oficina credenciada"
+                        value={approveRepairShopId}
+                        onChange={(value) => setApproveRepairShopId(value)}
+                        options={[
+                            { value: '', label: activeShops.length ? 'Selecione a oficina...' : 'Nenhuma oficina cadastrada' },
+                            ...activeShops.map((o) => ({
+                                value: o.id,
+                                label: o.city ? `${o.name} — ${o.city}` : o.name,
+                            })),
+                        ]}
+                        hint={activeShops.length
+                            ? 'Só aparecem oficinas ativas. Cadastre em Oficinas.'
+                            : 'Cadastre a oficina em Oficinas antes de aprovar.'}
                         fullWidth
                     />
                     <SGFInput

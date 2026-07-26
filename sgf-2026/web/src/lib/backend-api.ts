@@ -201,3 +201,42 @@ export const managerAccessApi = {
 };
 
 export { BackendApiError };
+
+export type PartnerType = 'posto' | 'oficina';
+
+export interface PartnerAccess {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+    access_blocked: boolean | null;
+    must_change_password: boolean | null;
+    created_at?: string | null;
+    last_sign_in_at?: string | null;
+}
+
+/** Acesso ao portal do parceiro (posto/oficina). Só admin — validado no servidor. */
+export const partnersApi = {
+    get: (partnerType: PartnerType, partnerId: string) =>
+        request<{ access: PartnerAccess | null }>(
+            `/partners?partnerType=${partnerType}&partnerId=${encodeURIComponent(partnerId)}`,
+            { method: 'GET' },
+        ),
+
+    create: (input: { partnerType: PartnerType; partnerId: string; name: string; email: string; password?: string }) =>
+        request<{ access: PartnerAccess; tempPassword: string }>('/partners', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'create', ...input }),
+        }),
+
+    resetPassword: (partnerType: PartnerType, partnerId: string) =>
+        request<{ success: boolean; tempPassword: string }>('/partners', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'reset', partnerType, partnerId }),
+        }),
+
+    setBlocked: (partnerType: PartnerType, partnerId: string, blocked: boolean) =>
+        request<{ success: boolean; blocked: boolean }>('/partners', {
+            method: 'POST',
+            body: JSON.stringify({ action: blocked ? 'block' : 'unblock', partnerType, partnerId }),
+        }),
+};

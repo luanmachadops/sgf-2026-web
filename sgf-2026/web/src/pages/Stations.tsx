@@ -24,6 +24,7 @@ import { useStations, useStationDetail } from '@/hooks/useStations';
 import { useAppSettings } from '@/hooks/useSettings';
 import { SGFBadge, SGFButton, SGFCard, SGFKPICard, SGFTable, SGFToolbar, type SGFTableColumn } from '@/components/sgf';
 import { StationFormModal } from '@/components/stations/StationFormModal';
+import { PartnerAccessCard } from '@/components/partners/PartnerAccessCard';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
 import type { Tables } from '@/types/database.types';
@@ -339,6 +340,14 @@ function StationDetailPage({ stationId }: { stationId: string }) {
                     </div>
                 </SGFCard>
             </div>
+
+            {/* Acesso do posto ao Sistema de Abastecimento */}
+            <PartnerAccessCard
+                partnerType="posto"
+                partnerId={detail.station.id}
+                partnerName={detail.station.name}
+                systemLabel="Sistema de Abastecimento"
+            />
 
             {/* Preços da licitação + Documentos */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
