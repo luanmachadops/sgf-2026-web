@@ -1,0 +1,13 @@
+-- Ver descrição completa no corpo das funções abaixo.
+-- STATUS: *** APLICADA em 2026-07-26 ***
+--
+-- 1) notify_fleet_managers mirava ('admin','manager','superadmin'). 'manager'
+--    não existe no check de profiles.role, então GESTOR nunca recebeu alerta
+--    de frota; e superadmin (conta de plataforma) acumulou 770 alertas
+--    operacionais de prefeitura. Agora mira ('admin','gestor') e pula perfis
+--    bloqueados.
+--
+-- 2) O dedup de "movimento sem viagem" só olhava notificação NÃO LIDA nos
+--    últimos 30 min: ao ler, o alerta renascia no ping seguinte do rastreador
+--    (1 por minuto) — 94/dia. Agora considera qualquer alerta do veículo na
+--    janela, e a janela passa a 2 horas.
