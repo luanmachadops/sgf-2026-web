@@ -1,6 +1,17 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { SGFButton } from '@/components/sgf/SGFButton';
+
+function passwordChangeError(error: unknown): string {
+    const message = error instanceof Error ? error.message : '';
+
+    if (message.toLowerCase().includes('auth session missing')) {
+        return 'Sua sessão expirou. Clique em “Sair”, entre novamente e defina a nova senha.';
+    }
+
+    return message || 'Não foi possível salvar a nova senha.';
+}
 
 /**
  * Bloqueio de primeiro acesso: motorista pré-cadastrado com senha = CPF precisa
@@ -18,18 +29,26 @@ export default function ForceChangePassword() {
         setErr('');
         if (password.length < 8) { setErr('A senha deve ter ao menos 8 caracteres.'); return; }
         if (password !== confirm) { setErr('As senhas não coincidem.'); return; }
+        if (!user) { setErr('Sua sessão expirou. Entre novamente para continuar.'); return; }
         setLoading(true);
         try {
+            // Confirma a sessão no servidor antes de trocar a senha. Isso evita
+            // manter a tela de primeiro acesso aberta com um usuário apenas cacheado.
+            const { data: authData, error: authError } = await supabase.auth.getUser();
+            if (authError || !authData.user || authData.user.id !== user.id) {
+                throw new Error('Auth session missing');
+            }
+
             const { error: pErr } = await supabase.auth.updateUser({ password });
             if (pErr) throw new Error(pErr.message);
             const { error: uErr } = await supabase
                 .from('profiles')
                 .update({ must_change_password: false })
-                .eq('id', user!.id);
+                .eq('id', user.id);
             if (uErr) throw new Error(uErr.message);
             await refreshUser();
         } catch (e) {
-            setErr((e as Error).message);
+            setErr(passwordChangeError(e));
         } finally {
             setLoading(false);
         }
@@ -44,21 +63,48 @@ export default function ForceChangePassword() {
                         Por segurança, seu primeiro acesso exige a criação de uma nova senha.
                     </p>
                 </div>
-                {err && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{err}</div>}
+                {err && (
+                    <div role="alert" aria-live="polite" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">
+                        {err}
+                    </div>
+                )}
                 <div>
-                    <label className="mb-1 block text-xs font-semibold text-slate-500">Nova senha</label>
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-sgf-primary focus:outline-none" />
+                    <label htmlFor="first-access-password" className="mb-1 block text-xs font-semibold text-slate-500">
+                        Nova senha
+                    </label>
+                    <input
+                        id="first-access-password"
+                        type="password"
+                        autoComplete="new-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-[var(--sgf-primary)] focus:outline-none focus:ring-4 focus:ring-emerald-500/10"
+                    />
                 </div>
                 <div>
-                    <label className="mb-1 block text-xs font-semibold text-slate-500">Confirmar nova senha</label>
-                    <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-sgf-primary focus:outline-none" />
+                    <label htmlFor="first-access-password-confirmation" className="mb-1 block text-xs font-semibold text-slate-500">
+                        Confirmar nova senha
+                    </label>
+                    <input
+                        id="first-access-password-confirmation"
+                        type="password"
+                        autoComplete="new-password"
+                        value={confirm}
+                        onChange={(e) => setConfirm(e.target.value)}
+                        required
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-[var(--sgf-primary)] focus:outline-none focus:ring-4 focus:ring-emerald-500/10"
+                    />
                 </div>
-                <button type="submit" disabled={loading}
-                    className="w-full rounded-xl bg-sgf-primary py-2.5 text-sm font-semibold text-white disabled:opacity-50">
-                    {loading ? 'Salvando…' : 'Salvar e continuar'}
-                </button>
+                <SGFButton
+                    type="submit"
+                    size="lg"
+                    fullWidth
+                    loading={loading}
+                    className="!rounded-xl"
+                >
+                    Salvar e continuar
+                </SGFButton>
                 <button type="button" onClick={logout} className="block w-full text-center text-xs font-medium text-slate-400 hover:underline">
                     Sair
                 </button>

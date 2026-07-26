@@ -29,7 +29,7 @@ export default function PrivateRoute({ allow, redirectTo, loginTo = '/login' }: 
     if (isLoading) {
         return (
             <div className="flex h-screen items-center justify-center">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-sgf-primary border-t-transparent"></div>
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--sgf-primary)] border-t-transparent"></div>
             </div>
         );
     }
