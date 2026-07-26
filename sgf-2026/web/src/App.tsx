@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -28,6 +29,15 @@ import RepairShops from '@/pages/RepairShops';
 import Notificacoes from '@/pages/Notificacoes';
 import Convite from '@/pages/Convite';
 
+const StationPortal = lazy(() => import('@/pages/partner/StationPortal'));
+const WorkshopPortalPlaceholder = lazy(() => import('@/pages/partner/WorkshopPortalPlaceholder'));
+
+const routeLoading = (
+  <div className="grid min-h-screen place-items-center bg-slate-50">
+    <div className="h-9 w-9 animate-spin rounded-full border-4 border-[var(--sgf-primary)] border-t-transparent" />
+  </div>
+);
+
 // Create a query client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,13 +61,15 @@ function App() {
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/posto/login" element={<Login portal="posto" />} />
+            <Route path="/oficina/login" element={<Login portal="oficina" />} />
             {/* Convite de cadastro do motorista — link https enviado por
                 WhatsApp, redireciona para o app. Precisa ficar fora do
                 PrivateRoute: o motorista ainda não tem conta. */}
             <Route path="/convite" element={<Convite />} />
 
             {/* Protected routes */}
-            <Route element={<PrivateRoute />}>
+            <Route element={<PrivateRoute allow={['ADMIN', 'MANAGER', 'SUPERADMIN']} />}>
               <Route element={<MainLayout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/mapa" element={<MapPage />} />
@@ -81,6 +93,20 @@ function App() {
                 <Route path="/perfil" element={<Perfil />} />
                 <Route path="/notificacoes" element={<Notificacoes />} />
               </Route>
+            </Route>
+
+            {/* Portal do posto: bundle separado e fronteira explícita de papel. */}
+            <Route element={<PrivateRoute allow={['POSTO']} loginTo="/posto/login" />}>
+              <Route
+                path="/posto/*"
+                element={<Suspense fallback={routeLoading}><StationPortal /></Suspense>}
+              />
+            </Route>
+            <Route element={<PrivateRoute allow={['OFICINA']} loginTo="/oficina/login" />}>
+              <Route
+                path="/oficina/*"
+                element={<Suspense fallback={routeLoading}><WorkshopPortalPlaceholder /></Suspense>}
+              />
             </Route>
 
             {/* Catch all */}

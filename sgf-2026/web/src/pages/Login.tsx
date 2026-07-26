@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Car, Mail, Lock, AlertCircle } from '@/components/sgf/icons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,10 +8,25 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import type { User } from '@/types';
 
-export default function Login() {
+interface LoginProps {
+    portal?: 'panel' | 'posto' | 'oficina';
+}
+
+function homeForRole(role: User['role']): string {
+    if (role === 'POSTO') return '/posto';
+    if (role === 'OFICINA') return '/oficina';
+    return '/';
+}
+
+function errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : 'Não foi possível concluir a operação.';
+}
+
+export default function Login({ portal = 'panel' }: LoginProps) {
     const navigate = useNavigate();
-    const { login } = useAuth();
+    const { login, user } = useAuth();
     const { branding } = useBranding();
     const [view, setView] = useState<'login' | 'forgot'>('login');
     const [email, setEmail] = useState('');
@@ -19,6 +34,10 @@ export default function Login() {
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        if (user) navigate(homeForRole(user.role), { replace: true });
+    }, [navigate, user]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -28,8 +47,8 @@ export default function Login() {
 
         try {
             if (view === 'login') {
-                await login(email, password);
-                navigate('/');
+                const loggedUser = await login(email, password);
+                navigate(homeForRole(loggedUser.role), { replace: true });
             } else {
                 // Forgot Password Logic with Supabase
                 const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -42,12 +61,14 @@ export default function Login() {
                 toast.success('Email de recuperação enviado!');
                 // Optional: return to login view after a delay or let user choose
             }
-        } catch (err: any) {
-            console.error(err);
+        } catch (err: unknown) {
             if (view === 'login') {
-                setError(err.response?.data?.message || 'Erro ao fazer login. Verifique suas credenciais.');
+                const message = errorMessage(err);
+                setError(message === 'Invalid login credentials'
+                    ? 'E-mail ou senha inválidos.'
+                    : message);
             } else {
-                setError(err.message || 'Erro ao enviar email de recuperação.');
+                setError(errorMessage(err));
             }
         } finally {
             setIsLoading(false);
@@ -67,6 +88,19 @@ export default function Login() {
                         )}
                     </div>
                     <h1 className="mt-6 text-3xl font-bold text-gray-900">{branding.name}</h1>
+                    <p className={`mx-auto mt-3 w-fit rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] ${
+                        portal === 'posto'
+                            ? 'bg-amber-50 text-amber-700'
+                            : portal === 'oficina'
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'bg-emerald-50 text-[var(--sgf-primary)]'
+                    }`}>
+                        {portal === 'posto'
+                            ? 'Sistema de Abastecimento'
+                            : portal === 'oficina'
+                                ? 'Sistema de Manutenção'
+                                : (branding.loginEyebrow || 'Painel de Gestão')}
+                    </p>
                     <p className="mt-2 text-sm text-slate-500">
                         {branding.city && branding.state 
                             ? `${branding.city} - ${branding.state}` 
@@ -92,9 +126,9 @@ export default function Login() {
 
                     <div className="space-y-4">
                         <SGFInput
-                            label="Email Institucional"
+                            label={portal === 'panel' ? 'E-mail institucional' : 'E-mail de acesso'}
                             type="email"
-                            placeholder="usuario@prefeitura.gov.br"
+                            placeholder={portal === 'panel' ? 'usuario@prefeitura.gov.br' : 'contato@empresa.com.br'}
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             icon={Mail}

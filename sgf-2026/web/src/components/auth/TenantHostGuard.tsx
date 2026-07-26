@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchPublicBranding, getSlugFromHost } from '@/lib/tenantBranding';
+import { getSlugFromHost } from '@/lib/tenantBranding';
+import { supabase } from '@/lib/supabase';
 import { SGFButton } from '@/components/sgf/SGFButton';
 
 /**
@@ -32,15 +33,16 @@ export function TenantHostGuard({ children }: { children: ReactNode }) {
 
         // Sem sessão, sem slug no host, ou host já é o do usuário → nada a fazer.
         if (!user || !slug || !userTenantId || slug === userSlug) {
-            setMismatch(null);
             return;
         }
 
-        fetchPublicBranding(slug)
-            .then((hostBranding) => {
+        const validateHost = async () => {
+            try {
+                const { data } = await supabase.rpc('resolve_tenant_host', { p_slug: slug });
                 if (!active) return;
+                const hostBranding = data?.[0];
                 // Slug não corresponde a prefeitura alguma: host genérico.
-                if (!hostBranding?.id) { setMismatch(null); return; }
+                if (!hostBranding) { setMismatch(null); return; }
                 if (hostBranding.id === userTenantId) { setMismatch(null); return; }
 
                 // Divergência real: tenta levar ao host correto do usuário.
@@ -53,8 +55,11 @@ export function TenantHostGuard({ children }: { children: ReactNode }) {
                     return;
                 }
                 setMismatch({ hostTenant: hostBranding.name ?? slug, userTenant: user.tenant?.name ?? 'sua prefeitura' });
-            })
-            .catch(() => { if (active) setMismatch(null); });
+            } catch {
+                if (active) setMismatch(null);
+            }
+        };
+        void validateHost();
 
         return () => { active = false; };
     }, [user]);

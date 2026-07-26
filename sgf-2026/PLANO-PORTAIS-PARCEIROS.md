@@ -1,6 +1,8 @@
 # Plano — Portais de Parceiros (Postos e Oficinas)
 
-> Status (2026-07-26): **fases −1 a 4 e 6 concluídas**. Faltam a 5, a 7 e a 8.
+> Status (2026-07-26): **fases −1 a 4 e 6 concluídas**. A implementação da
+> fase 5 está pronta; falta o piloto autenticado com um posto real. Fases 7 e
+> 8 ainda não iniciadas.
 > Este arquivo é a fonte da verdade das etapas — ver "Fases de entrega" (seção 6)
 > e "Estado da execução" logo abaixo.
 > Escopo: dois portais externos dentro do mesmo produto — **Sistema de
@@ -49,6 +51,9 @@
 | Proteção contra senha vazada (Supabase) | ⛔ **indisponível no plano gratuito** — senha mínima de 8 no código segue valendo |
 | Regra de cores no AGENTS.md/CLAUDE.md | ✅ corrigida — marca é sobrescrita por prefeitura; semântica é fixa |
 | Notificações (bug reportado 2026-07-26) | ✅ ver "Notificações" no fim deste arquivo |
+| Fase 5 — Portal do Posto (código) | ✅ concluída — login próprio, autorizações, registro com cupom/foto, preço contratual, histórico paginado e dados do contrato |
+| Fase 5 — migration do histórico/guard | ✅ **aplicada** — `20260726030059_station_portal_history`; migration completa validada em rollback + isolamento 15/15 |
+| Fase 5 — piloto autenticado | ⛔ **pendente** — consulta em 2026-07-26 encontrou 0 perfis `role='posto'`; criar o primeiro acesso pelo card do posto e executar o roteiro abaixo |
 
 ### Verificação da fase 1 (2026-07-25)
 
@@ -504,7 +509,7 @@ registro mostrando etapa atual e de quem é a bola — o que hoje se resolve por
 | **2** ✅ | **Suíte de testes de isolamento** — parceiro × parceiro (mesmo tenant), tenant × tenant, parceiro bloqueado, contrato vencido, mutação indevida, envio duplo concorrente, storage cross-tenant | 1 |
 | **3** ✅ | Aba Oficinas no painel + `repair_shop_id` na OS | 1 |
 | **4** ✅ | Criação de acesso (card + `api/partners`) + allowlist + `PrivateRoute allow` + check hostname×tenant | 1 |
-| **5** ⛔ | Portal do Posto — piloto com **uma** prefeitura e **um** posto, monitorando eventos e falhas | 2, 4 |
+| **5** 🟡 | Portal do Posto — **implementação concluída**; falta piloto com uma prefeitura e um posto real, monitorando eventos e falhas | 2, 4 |
 | **6** ✅ | Dois eixos de status + quotes/events + telas fiscais no painel | 3 |
 | **7** ⛔ | Portal da Oficina | 4, 6 |
 | **8** ⛔ | Fechamento mensal, relatórios por parceiro, notificações | — |
@@ -558,3 +563,56 @@ linhas do usuário.
 
 **Pendência:** o índice `idx_notifications_recipient` virou quase redundante.
 Todo índice custa escrita, mas remover índice em produção é decisão à parte.
+
+---
+
+## 9. Fase 5 — Portal do Posto (implementação de 2026-07-26)
+
+### O que entrou
+
+- `/posto/login` com identidade da prefeitura e rótulo “Sistema de
+  Abastecimento”;
+- fronteiras explícitas de papel: painel, posto e oficina não entram nas rotas
+  uns dos outros; perfil bloqueado é recusado também no frontend;
+- `/posto` em `React.lazy`, sem carregar o bundle do painel: autorizações com
+  atualização a cada 30 s, limite/expiração, preço contratual somente leitura;
+- registro exige litros, hodômetro inteiro, número do cupom e foto do bico. A
+  imagem é otimizada e gravada em
+  `tenant/{tenant}/stations/{station}/fuelings/{authorization}/…`;
+- `partner_complete_fueling_v2` valida cupom e caminho da foto no banco. O
+  `EXECUTE` da RPC antiga, que aceitava foto/cupom nulos, foi revogado de
+  `authenticated`;
+- histórico com período e paginação de 25 itens, mostrando aguardando
+  validação, validado ou rejeitado com motivo;
+- “Meus dados” com contrato, vencimento e preços vigentes;
+- `resolve_tenant_host` fecha uma lacuna da fase 4: o branding público não
+  devolvia o UUID do tenant, portanto o guard anterior nunca conseguia provar
+  hostname × tenant divergentes. O override `?tenant=` agora só existe em dev.
+
+### Evidências
+
+| Verificação | Resultado |
+|---|---|
+| Migration inteira contra schema real, com sentinela de rollback | ✅ |
+| Suíte `rls_partner_isolation.sql` atualizada para a RPC v2 | ✅ 15/15, rollback automático |
+| Permissões | ✅ `anon`: sem histórico/registro; `authenticated`: somente histórico + RPC v2 |
+| TypeScript | ✅ `tsc -b` |
+| Lint direcionado aos arquivos alterados | ✅ zero achados |
+| Build Vite de produção | ✅ portal em chunk separado: 24,68 kB (6,99 kB gzip) |
+| Login `/posto/login` desktop | ✅ conteúdo, campos e rótulo; sem overlay/console error |
+| Login 390 × 844 | ✅ sem overflow horizontal |
+| `/posto` sem sessão | ✅ redireciona para `/posto/login` |
+| Fluxo logado ponta a ponta | ⛔ não executado: existem 0 perfis `posto` no banco |
+
+### Roteiro obrigatório do piloto
+
+1. No painel, abrir um posto ativo com contrato/preço vigente e criar o acesso
+   pelo card “Acesso ao sistema”.
+2. Fazer o primeiro login em `/posto/login` e trocar a senha provisória.
+3. No painel, criar uma autorização para esse posto.
+4. No portal, confirmar que só essa autorização aparece e registrar um
+   abastecimento com foto/cupom.
+5. Confirmar no painel que o valor veio do contrato, validar o lançamento e
+   conferir o status “Validado” no histórico do posto.
+6. Repetir os testes negativos: litros acima do teto, autorização expirada,
+   envio duplicado e bloqueio do acesso.

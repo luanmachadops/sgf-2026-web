@@ -2705,6 +2705,32 @@ export type Database = {
           price_per_liter: number
         }[]
       }
+      get_station_history: {
+        Args: {
+          p_from?: string
+          p_limit?: number
+          p_offset?: number
+          p_to?: string
+        }
+        Returns: {
+          brand: string
+          filled_at: string
+          fuel_type: string
+          fueling_id: string
+          has_anomaly: boolean
+          liters: number
+          model: string
+          odometer: number
+          photo_url: string
+          plate: string
+          price_per_liter: number
+          receipt_no: string
+          rejection_reason: string
+          total_cost: number
+          total_count: number
+          workflow_status: string
+        }[]
+      }
       get_tenant_branding: {
         Args: { p_slug: string }
         Returns: {
@@ -2795,6 +2821,20 @@ export type Database = {
           total_cost: number
         }[]
       }
+      partner_complete_fueling_v2: {
+        Args: {
+          p_fueling_id: string
+          p_liters: number
+          p_odometer: number
+          p_photo_url: string
+          p_receipt_no: string
+        }
+        Returns: {
+          fueling_id: string
+          price_per_liter: number
+          total_cost: number
+        }[]
+      }
       partner_context: {
         Args: never
         Returns: {
@@ -2808,6 +2848,14 @@ export type Database = {
       register_push_token: {
         Args: { p_platform?: string; p_token: string }
         Returns: undefined
+      }
+      resolve_tenant_host: {
+        Args: { p_slug: string }
+        Returns: {
+          id: string
+          name: string
+          slug: string
+        }[]
       }
       release_stale_trip: {
         Args: { p_reason?: string; p_vehicle_id: string }

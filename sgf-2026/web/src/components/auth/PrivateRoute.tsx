@@ -7,18 +7,23 @@ import type { User } from '@/types';
 interface Props {
     /**
      * Papéis com acesso a este grupo de rotas. Omitir libera qualquer usuário
-     * autenticado — que hoje já é só o painel, porque o `AuthContext` derruba
-     * quem não está na allowlist de papéis do painel.
-     *
-     * Este parâmetro existe para os portais de parceiro (posto/oficina), que
-     * vão compartilhar o mesmo app e precisam de fronteira própria.
+     * autenticado. Painel, posto e oficina devem sempre informar sua allowlist
+     * para que um papel novo nunca ganhe acesso por omissão.
      */
     allow?: User['role'][];
     /** Para onde mandar quem não tem o papel exigido. */
     redirectTo?: string;
+    /** Login específico do grupo (painel, posto ou oficina). */
+    loginTo?: string;
 }
 
-export default function PrivateRoute({ allow, redirectTo = '/' }: Props = {}) {
+function homeForRole(role: User['role']): string {
+    if (role === 'POSTO') return '/posto';
+    if (role === 'OFICINA') return '/oficina';
+    return '/';
+}
+
+export default function PrivateRoute({ allow, redirectTo, loginTo = '/login' }: Props = {}) {
     const { user, isLoading } = useAuth();
 
     if (isLoading) {
@@ -30,7 +35,7 @@ export default function PrivateRoute({ allow, redirectTo = '/' }: Props = {}) {
     }
 
     if (!user) {
-        return <Navigate to="/login" replace />;
+        return <Navigate to={loginTo} replace />;
     }
 
     // Motorista pré-cadastrado (senha = CPF): bloqueia todo o app até definir nova senha.
@@ -39,7 +44,7 @@ export default function PrivateRoute({ allow, redirectTo = '/' }: Props = {}) {
     }
 
     if (allow && !allow.includes(user.role)) {
-        return <Navigate to={redirectTo} replace />;
+        return <Navigate to={redirectTo ?? homeForRole(user.role)} replace />;
     }
 
     return (

@@ -14,7 +14,7 @@ function isAbortError(err: unknown): boolean {
 interface AuthContextType {
     user: User | null;
     token: string | null;
-    login: (email: string, password: string) => Promise<void>;
+    login: (email: string, password: string) => Promise<User>;
     logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
     isLoading: boolean;
@@ -50,10 +50,10 @@ function persistAuthState(nextUser: User | null, nextToken: string | null) {
     localStorage.removeItem('user');
 }
 
-/** Papéis com acesso ao painel de gestão. Parceiros (posto/oficina) e
- *  motoristas têm seus próprios portais e são barrados aqui. */
-const PANEL_ROLES = ['admin', 'gestor', 'secretario', 'superadmin'] as const;
-type PanelRole = (typeof PANEL_ROLES)[number];
+/** Papéis aceitos pelo app web. A fronteira entre painel e portais fica nos
+ * grupos de rota; motorista continua exclusivo do app nativo. */
+const WEB_ROLES = ['admin', 'gestor', 'secretario', 'superadmin', 'posto', 'oficina'] as const;
+type WebRole = (typeof WEB_ROLES)[number];
 
 /**
  * Mapeia role do banco (pt-BR lowercase) para o enum esperado pelo web (UPPERCASE EN).
@@ -64,6 +64,8 @@ function mapDbRole(dbRole: string | null | undefined): User['role'] {
         case 'gestor': return 'MANAGER';
         case 'secretario': return 'MANAGER'; // capacidades de gestor, porém escopado por secretaria (via RLS)
         case 'superadmin': return 'SUPERADMIN';
+        case 'posto': return 'POSTO';
+        case 'oficina': return 'OFICINA';
         case 'motorista': return 'VIEWER';
         default: return 'VIEWER';
     }
@@ -96,21 +98,22 @@ function mapTenant(t: TenantRow | null | undefined): import('@/types').TenantBra
 async function fetchUserProfile(authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }): Promise<User> {
     const { data: profile, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, department_id, tenant_id, created_at, photo_url, must_change_password, departments(id, name), tenants(id, slug, name, app_name, login_eyebrow, logo_url, seal_url, photo_url, primary_color, dark_color, accent_color, cnpj, city, state, address, mayor_name, report_footer, status)')
+        .select('id, full_name, email, role, department_id, tenant_id, station_id, repair_shop_id, access_blocked, created_at, photo_url, must_change_password, departments(id, name), tenants(id, slug, name, app_name, login_eyebrow, logo_url, seal_url, photo_url, primary_color, dark_color, accent_color, cnpj, city, state, address, mayor_name, report_footer, status)')
         .eq('id', authUser.id)
         .maybeSingle();
 
     if (profile && !error) {
-        // Allowlist: só papéis do painel entram. Denylist (barrar apenas
-        // 'motorista') deixaria qualquer papel novo — posto, oficina — entrar
-        // no painel de gestão por omissão.
-        if (!PANEL_ROLES.includes(profile.role as PanelRole)) {
+        if (!WEB_ROLES.includes(profile.role as WebRole)) {
             void supabase.auth.signOut();
             throw new Error(
                 profile.role === 'motorista'
-                    ? 'Este acesso é exclusivo do painel de gestão. Motoristas devem usar o aplicativo SGF Motorista.'
-                    : 'Seu acesso não é do painel de gestão. Use o endereço do seu sistema (posto ou oficina).',
+                    ? 'Motoristas devem usar o aplicativo SGF Motorista.'
+                    : 'Seu perfil não possui acesso a este sistema.',
             );
+        }
+        if (profile.access_blocked) {
+            void supabase.auth.signOut();
+            throw new Error('Seu acesso está bloqueado. Procure a prefeitura.');
         }
         const dept = (profile as unknown as { departments?: { id: string; name: string } | null }).departments;
         const tenant = mapTenant((profile as unknown as { tenants?: TenantRow | null }).tenants);
@@ -125,6 +128,8 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
             departmentScopeId: profile.role === 'secretario' ? (profile.department_id || undefined) : undefined,
             tenantId: (profile as unknown as { tenant_id?: string }).tenant_id || undefined,
             tenant,
+            stationId: profile.station_id || undefined,
+            repairShopId: profile.repair_shop_id || undefined,
             mustChangePassword: (profile as unknown as { must_change_password?: boolean }).must_change_password === true,
             createdAt: profile.created_at || new Date().toISOString(),
         };
@@ -139,7 +144,7 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const cachedAuth = loadCachedAuth();
+    const [cachedAuth] = useState(loadCachedAuth);
     const queryClient = useQueryClient();
     const [user, setUser] = useState<User | null>(cachedAuth.user);
     const [token, setToken] = useState<string | null>(cachedAuth.token);
@@ -147,7 +152,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         let isMounted = true;
-        let initialSessionHandled = false;
         let lastUserId: string | null = cachedAuth.user?.id ?? null;
 
         // Safety timeout: always resolve loading after 10s regardless of Supabase response
@@ -202,9 +206,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 // o onAuthStateChange abaixo aplica a sessão quando ela chega.
                 if (!isAbortError(error)) {
                     console.error('Error checking auth session:', error);
+                    setUser(null);
+                    setToken(null);
+                    persistAuthState(null, null);
                 }
             } finally {
-                initialSessionHandled = true;
                 clearTimeout(safetyTimeout);
                 if (isMounted) {
                     setIsLoading(false);
@@ -255,7 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             if (!isAbortError(error)) {
                                 console.error(`Auth state change failed during ${event}:`, error);
                             }
-                            if (isMounted && !cachedAuth.user) {
+                            if (isMounted) {
                                 setUser(null);
                                 setToken(null);
                                 persistAuthState(null, null);
@@ -273,9 +279,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             clearTimeout(safetyTimeout);
             subscription?.unsubscribe();
         };
-    }, []);
+    }, [cachedAuth.user?.id, queryClient]);
 
-    const login = async (email: string, password: string) => {
+    const login = async (email: string, password: string): Promise<User> => {
         setIsLoading(true);
         try {
             const { data, error } = await supabase.auth.signInWithPassword({
@@ -292,7 +298,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 const userData = await fetchUserProfile(data.user);
                 setUser(userData);
                 persistAuthState(userData, data.session.access_token);
+                return userData;
             }
+            throw new Error('Não foi possível iniciar a sessão.');
         } finally {
             setIsLoading(false);
         }
@@ -331,6 +339,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 }
 
+// O hook e o Provider precisam compartilhar o mesmo contexto neste módulo.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
     const context = useContext(AuthContext);
     if (context === undefined) {

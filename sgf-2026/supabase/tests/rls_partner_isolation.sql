@@ -150,7 +150,10 @@ begin
   ------------------------------------------------------------------ TESTE 5
   -- RPC de escrita: litros acima do autorizado é recusado.
   begin
-    perform public.partner_complete_fueling(f_a1, 999, 1500, 'NF1', null);
+    perform public.partner_complete_fueling_v2(
+      f_a1, 999, 1500, 'NF1',
+      format('https://example.supabase.co/storage/v1/object/public/fotos/tenant/%s/stations/%s/fuelings/%s/bico.webp', t_a, st_a1, f_a1)
+    );
     falhas := falhas || '[T5] RPC aceitou litros acima do max_liters; ';
   exception when others then null;  -- recusado: ok
   end;
@@ -158,7 +161,10 @@ begin
   ------------------------------------------------------------------ TESTE 6
   -- RPC de escrita em autorização de OUTRO posto é recusada.
   begin
-    perform public.partner_complete_fueling(f_a2, 10, 1500, 'NF1', null);
+    perform public.partner_complete_fueling_v2(
+      f_a2, 10, 1500, 'NF1',
+      format('https://example.supabase.co/storage/v1/object/public/fotos/tenant/%s/stations/%s/fuelings/%s/bico.webp', t_a, st_a1, f_a2)
+    );
     falhas := falhas || '[T6] posto A1 completou abastecimento do posto A2; ';
   exception when others then null;
   end;
@@ -167,7 +173,10 @@ begin
   -- Caminho feliz + preço vindo do contrato (6.00), não do cliente.
   begin
     select total_cost, price_per_liter into v_total, v_price
-      from public.partner_complete_fueling(f_a1, 10, 1500, 'NF1', null);
+      from public.partner_complete_fueling_v2(
+        f_a1, 10, 1500, 'NF1',
+        format('https://example.supabase.co/storage/v1/object/public/fotos/tenant/%s/stations/%s/fuelings/%s/bico.webp', t_a, st_a1, f_a1)
+      );
     if v_price <> 6.00 then falhas := falhas || format('[T7] preço veio %s (esperado 6.00 do contrato); ', v_price); end if;
     if v_total <> 60.00 then falhas := falhas || format('[T7b] total veio %s (esperado 60.00); ', v_total); end if;
   exception when others then
@@ -178,7 +187,10 @@ begin
   ------------------------------------------------------------------ TESTE 8
   -- Idempotência: repetir o mesmo envio não duplica nem erra.
   begin
-    perform public.partner_complete_fueling(f_a1, 10, 1500, 'NF1', null);
+    perform public.partner_complete_fueling_v2(
+      f_a1, 10, 1500, 'NF1',
+      format('https://example.supabase.co/storage/v1/object/public/fotos/tenant/%s/stations/%s/fuelings/%s/bico.webp', t_a, st_a1, f_a1)
+    );
   exception when others then
     get stacked diagnostics msg = message_text;
     falhas := falhas || format('[T8] segundo envio não foi idempotente: %s; ', msg);

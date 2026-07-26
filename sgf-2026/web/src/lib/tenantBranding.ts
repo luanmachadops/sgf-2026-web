@@ -47,7 +47,11 @@ export function applyBrandingColors(b?: TenantBranding | null) {
 /** Slug do tenant a partir do subdomínio (ex.: tapejara.dominio.com → "tapejara"). */
 export function getSlugFromHost(): string | null {
     if (typeof window === 'undefined') return null;
-    const qs = new URLSearchParams(window.location.search).get('tenant');
+    // Override manual é útil no localhost, mas em produção permitiria trocar a
+    // marca pela URL e recriar a confusão de tenant que o HostGuard evita.
+    const qs = import.meta.env.DEV
+        ? new URLSearchParams(window.location.search).get('tenant')
+        : null;
     if (qs) return qs;
     const host = window.location.hostname;
     if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) return null;

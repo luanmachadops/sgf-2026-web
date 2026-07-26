@@ -25,7 +25,7 @@ export interface User {
     id: string;
     email: string;
     name: string;
-    role: 'ADMIN' | 'MANAGER' | 'VIEWER' | 'SUPERADMIN';
+    role: 'ADMIN' | 'MANAGER' | 'VIEWER' | 'SUPERADMIN' | 'POSTO' | 'OFICINA';
     departmentId?: string;
     departmentName?: string;
     /** Motorista pré-cadastrado com senha = CPF: precisa trocar antes de usar o sistema. */
@@ -37,6 +37,9 @@ export interface User {
     /** Prefeitura (tenant) do usuário. */
     tenantId?: string;
     tenant?: TenantBranding;
+    /** Vínculo do login de parceiro. Apenas um deles existe por perfil. */
+    stationId?: string;
+    repairShopId?: string;
 }
 
 export interface LoginResponse {
