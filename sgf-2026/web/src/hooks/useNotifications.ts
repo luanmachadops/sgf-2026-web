@@ -23,7 +23,9 @@ export function useNotifications() {
 
     const listQuery = useQuery({
         queryKey: LIST_KEY,
-        queryFn: () => notificationsApi.list(userId as string, 30),
+        // O dropdown do sino é atalho, não histórico: 15 itens bastam e o
+        // primeiro carregamento fica leve. O histórico completo é /notificacoes.
+        queryFn: () => notificationsApi.list(userId as string, 15),
         enabled: !!userId,
     });
 

@@ -2451,19 +2451,33 @@ export const notificationsApi = {
         if (error) handleError(error);
     },
 
-    listPaged: async (userId: string, offset = 0, limit = 30): Promise<{ data: NotificationRecord[]; hasMore: boolean }> => {
-        const { data, error } = await supabase
+    /**
+     * Paginação por CURSOR, não por OFFSET.
+     *
+     * `range(offset, ...)` obriga o Postgres a ler e descartar tudo o que vem
+     * antes do offset: a página 50 de uma base grande custa 50x a primeira.
+     * Com `created_at < :cursor` cada página é uma busca no índice
+     * (driver_id, created_at desc) e custa o mesmo, sempre. De quebra não
+     * duplica nem pula item quando chega notificação nova no meio da leitura.
+     */
+    listPaged: async (
+        userId: string,
+        opts?: { limit?: number; before?: string | null },
+    ): Promise<{ data: NotificationRecord[]; hasMore: boolean }> => {
+        const limit = opts?.limit ?? 30;
+        let query = supabase
             .from('notifications')
             .select('*')
             .eq('driver_id', userId)
             .order('created_at', { ascending: false })
-            .range(offset, offset + limit - 1);
+            .limit(limit);
+
+        if (opts?.before) query = query.lt('created_at', opts.before);
+
+        const { data, error } = await query;
         if (error) handleError(error);
         const list = (data ?? []) as NotificationRecord[];
-        return {
-            data: list,
-            hasMore: list.length === limit,
-        };
+        return { data: list, hasMore: list.length === limit };
     },
 };
 

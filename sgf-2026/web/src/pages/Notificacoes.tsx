@@ -10,7 +10,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { notificationsApi, type NotificationRecord } from '@/lib/supabase-api';
 import { getNotificationIcon, groupNotificationsByDate, resolveNotificationRoute } from '@/lib/notificationUtils';
 
-const PAGE_SIZE = 30;
+/** Itens por lote. 50 cobre bem o histórico recente sem puxar linha demais. */
+const PAGE_SIZES = [25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 50;
 
 type FilterTab = 'all' | 'unread' | 'vehicle' | 'driver' | 'fuel' | 'maintenance';
 
@@ -23,6 +25,7 @@ export default function Notificacoes() {
     const [items, setItems] = useState<NotificationRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
     const [hasMore, setHasMore] = useState(false);
     const [search, setSearch] = useState('');
     const [activeTab, setActiveTab] = useState<FilterTab>('all');
@@ -32,28 +35,32 @@ export default function Notificacoes() {
         setDescription('Histórico completo e auditoria de alertas e avisos do sistema.');
     }, [setTitle, setDescription]);
 
-    // Carrega primeira página
+    // Carrega primeira página (recarrega ao trocar o tamanho do lote)
     useEffect(() => {
         if (!userId) return;
         setLoading(true);
         notificationsApi
-            .listPaged(userId, 0, PAGE_SIZE)
+            .listPaged(userId, { limit: pageSize })
             .then((res) => {
                 setItems(res.data);
                 setHasMore(res.hasMore);
             })
             .catch(() => toast.error('Erro ao carregar notificações.'))
             .finally(() => setLoading(false));
-    }, [userId]);
+    }, [userId, pageSize]);
 
     // Carregar mais notificações (paginação de 30 em 30)
     const handleLoadMore = async () => {
         if (!userId || loadingMore || !hasMore) return;
         setLoadingMore(true);
         try {
-            const nextOffset = items.length;
-            const res = await notificationsApi.listPaged(userId, nextOffset, PAGE_SIZE);
-            setItems((prev) => [...prev, ...res.data]);
+            // Cursor: a data do item mais antigo já carregado.
+            const before = items[items.length - 1]?.created_at ?? null;
+            const res = await notificationsApi.listPaged(userId, { limit: pageSize, before });
+            setItems((prev) => {
+                const known = new Set(prev.map((n) => n.id));
+                return [...prev, ...res.data.filter((n) => !known.has(n.id))];
+            });
             setHasMore(res.hasMore);
         } catch {
             toast.error('Erro ao carregar mais notificações.');
@@ -147,6 +154,24 @@ export default function Notificacoes() {
                                 }`}
                             >
                                 {label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Itens por lote — controla o peso da consulta */}
+                    <div className="flex items-center gap-1.5">
+                        <span className="mr-1 text-xs font-semibold text-slate-400">Mostrar</span>
+                        {PAGE_SIZES.map((n) => (
+                            <button
+                                key={n}
+                                onClick={() => setPageSize(n)}
+                                className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                                    pageSize === n
+                                        ? 'bg-[#00A86B] text-white shadow-sm'
+                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
+                                }`}
+                            >
+                                {n}
                             </button>
                         ))}
                     </div>
