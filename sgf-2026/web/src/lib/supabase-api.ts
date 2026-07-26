@@ -18,7 +18,6 @@ import {
     dbToWebTripStatus,
     dbToWebMaintenanceStatus,
     dbCategoryToWebTypeCategory,
-    webUrgencyToDbPriority,
 } from './db-mapping';
 
 // "Driver" no banco unificado = profile com role='motorista'.
@@ -227,7 +226,7 @@ function getMonthKey(date: string | null | undefined) {
 
 // O banco unificado não tem custo de manutenção em service_orders.
 // Mantemos a função para compat — sempre retorna 0 até decidirmos onde armazenar.
-function getMaintenanceCost(_record: unknown) {
+function getMaintenanceCost() {
     return 0;
 }
 
@@ -299,7 +298,7 @@ function buildDepartmentOverview(
         fuelCost: roundTo(refuelings.reduce((sum, entry) => sum + (Number(entry.total_cost) || 0), 0), 2),
         fuelLiters: roundTo(refuelings.reduce((sum, entry) => sum + Number(entry.liters || 0), 0), 1),
         avgKmPerLiter: roundTo(avgKmPerLiter, 2),
-        maintenanceCost: roundTo(maintenances.reduce((sum, entry) => sum + getMaintenanceCost(entry), 0), 2),
+        maintenanceCost: roundTo(maintenances.reduce((sum) => sum + getMaintenanceCost(), 0), 2),
         maintenanceCount: maintenances.length,
         pendingMaintenances: maintenances.filter((entry) => entry.status === 'pendente' || entry.status === 'em_execucao').length,
         anomalyCount:
@@ -685,6 +684,23 @@ export interface LiveVehicle {
 }
 
 type VehicleEmbed = { plate?: string | null; brand?: string | null; model?: string | null; photo_url?: string | null; departments?: { name?: string } | null } | null;
+type DeviceStatusRow = {
+    vehicle_id: string;
+    lat: number | null;
+    lng: number | null;
+    speed: number | null;
+    online: boolean | null;
+    ignition: boolean | null;
+    gps_time: string | null;
+    vehicles: VehicleEmbed;
+};
+type DeviceStatusQuery = {
+    not: (
+        column: string,
+        operator: string,
+        value: unknown,
+    ) => PromiseLike<{ data: DeviceStatusRow[] | null }>;
+};
 
 function buildModel(v: VehicleEmbed): string {
     return [v?.brand, v?.model].filter(Boolean).join(' ') || 'Veículo';
@@ -708,12 +724,14 @@ export const mapApi = {
 
         // 2) Sinal contínuo do hardware (device_status da integração IOPGPS).
         const { data: statuses } = await (supabase as unknown as {
-            from: (t: string) => any;
+            from: (table: string) => {
+                select: (columns: string) => DeviceStatusQuery;
+            };
         }).from('device_status')
             .select('vehicle_id, lat, lng, speed, online, ignition, gps_time, vehicles(plate, brand, model, photo_url, departments(name))')
             .not('vehicle_id', 'is', null);
 
-        for (const s of (statuses ?? []) as any[]) {
+        for (const s of statuses ?? []) {
             if (s.lat == null || s.lng == null) continue;
             const v = s.vehicles as VehicleEmbed;
             const trip = tripByVehicle.get(s.vehicle_id);
@@ -753,7 +771,16 @@ export const mapApi = {
                 .in('trip_id', ids)
                 .order('recorded_at', { ascending: false });
             const latestByTrip = new Map<string, { lat: number; lng: number; speed: number | null; recorded_at: string }>();
-            for (const l of locs ?? []) if (!latestByTrip.has(l.trip_id)) latestByTrip.set(l.trip_id, l as any);
+            for (const location of locs ?? []) {
+                if (!latestByTrip.has(location.trip_id)) {
+                    latestByTrip.set(location.trip_id, {
+                        lat: Number(location.lat),
+                        lng: Number(location.lng),
+                        speed: location.speed,
+                        recorded_at: location.recorded_at,
+                    });
+                }
+            }
             for (const t of missing) {
                 const loc = latestByTrip.get(t.id);
                 if (!loc) continue;
@@ -1038,72 +1065,45 @@ export const refuelingsApi = {
         return decorateFueling(data as Record<string, unknown>);
     },
 
-    validate: async (id: string, approved: boolean, validatedBy: string, notes?: string) => {
-        const { data, error } = await supabase
-            .from('fuelings')
-            .update({
-                validated_at: approved ? new Date().toISOString() : null,
-                validated_by: approved ? validatedBy : null,
-                has_anomaly: !approved,
-                anomaly_type: !approved ? (notes || 'Rejeitado pelo gestor') : null,
-                workflow_status: approved ? 'validado' : 'rejeitado_admin',
-            })
-            .eq('id', id)
-            .select()
-            .single();
+    validate: async (id: string, approved: boolean, notes?: string): Promise<void> => {
+        const { error } = await supabase.rpc('manager_review_fueling', {
+            p_fueling_id: id,
+            p_approved: approved,
+            p_note: notes?.trim() || undefined,
+        });
         if (error) handleError(error);
-        return data;
     },
 
-    // Cria uma pré-autorização (gestor define veículo, motorista, posto opcional e teto opcional).
-    // O motorista verá no app, aceita/rejeita e completa com litros/foto.
+    // O gestor vincula veículo + motorista + posto contratado. O posto apenas
+    // completa a autorização no portal e nunca cria abastecimentos avulsos.
     createAuthorization: async (input: {
         vehicle_id: string;
-        driver_id?: string | null;
-        authorized_by: string;
-        station_id?: string | null;
-        fuel_type?: string | null;
+        driver_id: string;
+        station_id: string;
+        fuel_type: string;
         max_liters?: number | null;
+        expires_at: string;
         notes?: string | null;
-    }): Promise<Tables<'fuelings'>> => {
-        const payload: TablesInsert<'fuelings'> = {
-            vehicle_id: input.vehicle_id,
-            // Autorização fica ligada ao VEÍCULO; qualquer motorista com ele realiza.
-            driver_id: input.driver_id ?? null,
-            authorized_by: input.authorized_by,
-            authorized_at: new Date().toISOString(),
-            station_id: input.station_id ?? null,
-            fuel_type: input.fuel_type ?? null,
-            max_liters: input.max_liters ?? null,
-            // Placeholders até o motorista completar
-            liters: 0,
-            total_cost: null,
-            odometer: null,
-            workflow_status: 'autorizado',
-            anomaly_type: input.notes ?? null,
-        };
-        const { data, error } = await supabase
-            .from('fuelings')
-            .insert(payload)
-            .select()
-            .single();
-        if (error) handleError(error);
-        return data as Tables<'fuelings'>;
-    },
-
-    // Cancela/rejeita uma autorização do lado do admin.
-    cancelAuthorization: async (id: string, reason?: string) => {
-        const { data, error } = await supabase
-            .from('fuelings')
-            .update({
-                workflow_status: 'rejeitado_admin',
-                anomaly_type: reason ?? 'Autorização cancelada pelo gestor',
-            })
-            .eq('id', id)
-            .select()
-            .single();
+    }): Promise<string> => {
+        const { data, error } = await supabase.rpc('manager_create_fueling_authorization', {
+            p_vehicle_id: input.vehicle_id,
+            p_driver_id: input.driver_id,
+            p_station_id: input.station_id,
+            p_fuel_type: input.fuel_type,
+            p_max_liters: input.max_liters ?? undefined,
+            p_expires_at: input.expires_at,
+            p_note: input.notes?.trim() || undefined,
+        });
         if (error) handleError(error);
         return data;
+    },
+
+    cancelAuthorization: async (id: string, reason: string): Promise<void> => {
+        const { error } = await supabase.rpc('manager_cancel_fueling_authorization', {
+            p_fueling_id: id,
+            p_reason: reason.trim(),
+        });
+        if (error) handleError(error);
     },
 
     getAnomalies: async (): Promise<Tables<'fuelings'>[]> => {
@@ -1122,7 +1122,6 @@ export const refuelingsApi = {
         fuel_type: string;
         liters: number;
         price_per_liter: number;
-        total_cost: number;
         odometer: number;
         station?: string | null;
         station_id?: string | null;
@@ -1130,56 +1129,24 @@ export const refuelingsApi = {
         photo_requisition_url?: string | null;
         photo_dashboard_url?: string | null;
         photo_receipt_url?: string | null;
-        require_validation?: boolean;
-        has_anomaly?: boolean;
-        anomaly_type?: string | null;
-    }): Promise<Tables<'fuelings'>> => {
-        // Calcula km/L automaticamente a partir do último abastecimento do mesmo veículo
-        // (se houver), para usar o delta de odômetro × litros agora.
-        let kmPerLiter: number | null = null;
-        const { data: last } = await supabase
-            .from('fuelings')
-            .select('odometer')
-            .eq('vehicle_id', input.vehicle_id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-        if (last && typeof last.odometer === 'number' && input.odometer > last.odometer && input.liters > 0) {
-            kmPerLiter = Number(((input.odometer - last.odometer) / input.liters).toFixed(2));
-        }
-
-        const payload: TablesInsert<'fuelings'> = {
-            driver_id: input.driver_id,
-            vehicle_id: input.vehicle_id,
-            fuel_type: input.fuel_type,
-            liters: input.liters,
-            price_per_liter: input.price_per_liter,
-            total_cost: input.total_cost,
-            odometer: input.odometer,
-            station: input.station ?? null,
-            station_id: input.station_id ?? null,
-            // Validação obrigatória (config): fica "concluido" aguardando o gestor validar.
-            // Caso contrário, lançamento direto já validado.
-            workflow_status: input.require_validation ? 'concluido' : 'lancado_direto',
-            validated_at: input.require_validation ? null : new Date().toISOString(),
-            has_anomaly: input.has_anomaly ?? false,
-            anomaly_type: input.anomaly_type ?? null,
-            km_per_liter: kmPerLiter,
-            photo_requisition_url: input.photo_requisition_url ?? null,
-            photo_dashboard_url: input.photo_dashboard_url ?? null,
-            photo_receipt_url: input.photo_receipt_url ?? null,
-            // Para registros lançados pelo gestor, deixamos `created_at` no default (now()).
-            // Se o usuário informou uma `date` específica, gravamos em created_at para preservar
-            // a cronologia consultada pelos gráficos.
-            ...(input.date ? { created_at: new Date(input.date).toISOString() } : {}),
-        };
-        const { data, error } = await supabase
-            .from('fuelings')
-            .insert(payload)
-            .select()
-            .single();
+        full_tank?: boolean;
+    }): Promise<string> => {
+        const { data, error } = await supabase.rpc('manager_create_direct_fueling', {
+            p_vehicle_id: input.vehicle_id,
+            p_driver_id: input.driver_id,
+            p_fuel_type: input.fuel_type,
+            p_liters: input.liters,
+            p_price_per_liter: input.price_per_liter,
+            p_odometer: input.odometer,
+            p_station_id: input.station_id ?? undefined,
+            p_station_name: input.station?.trim() || undefined,
+            p_occurred_on: input.date ?? undefined,
+            p_photo_requisition_url: input.photo_requisition_url ?? undefined,
+            p_photo_dashboard_url: input.photo_dashboard_url ?? undefined,
+            p_full_tank: input.full_tank ?? false,
+        });
         if (error) handleError(error);
-        return data as Tables<'fuelings'>;
+        return data;
     },
 };
 
@@ -1190,6 +1157,16 @@ export const refuelingsApi = {
 // "maintenances" (workflow) no banco unificado = service_orders.
 // O app já tem também uma tabela `maintenances` que é histórico de manutenções realizadas,
 // mas o workflow de aprovação (pendente→aprovada→…) vive em service_orders.
+export interface MaintenanceRequestInput {
+    vehicleId: string;
+    driverId: string;
+    category: string;
+    priority: 'baixa' | 'media' | 'alta';
+    description: string;
+    odometer?: number | null;
+    checklistId?: string | null;
+}
+
 export const maintenancesApi = {
     getAll: async (filters?: {
         vehicleId?: string;
@@ -1228,77 +1205,48 @@ export const maintenancesApi = {
         return data as Tables<'service_orders'>;
     },
 
-    create: async (maintenance: TablesInsert<'service_orders'>): Promise<Tables<'service_orders'>> => {
-        const { data, error } = await supabase
-            .from('service_orders')
-            .insert(maintenance)
-            .select()
-            .single();
-        if (error) handleError(error);
-        return data as Tables<'service_orders'>;
-    },
-
-    update: async (id: string, updates: TablesUpdate<'service_orders'>): Promise<Tables<'service_orders'>> => {
-        const { data, error } = await supabase
-            .from('service_orders')
-            .update(updates)
-            .eq('id', id)
-            .select()
-            .single();
-        if (error) handleError(error);
-        return data as Tables<'service_orders'>;
-    },
-
-    approve: async (id: string, approvedBy: string, opts?: { repairShopId?: string | null; repairShop: string; budget?: number | null; notes?: string }) => {
-        const { data, error } = await supabase
-            .from('service_orders')
-            .update({
-                status: 'aprovada',
-                approved_by: approvedBy,
-                approved_at: new Date().toISOString(),
-                // `repair_shop_id` é a fonte da verdade; `repair_shop` (texto) fica
-                // preenchido para o histórico e para as telas antigas.
-                ...(opts?.repairShopId ? { repair_shop_id: opts.repairShopId } : {}),
-                ...(opts?.repairShop ? { repair_shop: opts.repairShop } : {}),
-                ...(opts?.budget !== undefined ? { budget: opts.budget } : {}),
-                ...(opts?.notes ? { admin_note: opts.notes } : {}),
-            })
-            .eq('id', id)
-            .select()
-            .single();
+    create: async (input: MaintenanceRequestInput): Promise<string> => {
+        const { data, error } = await supabase.rpc('manager_create_service_order', {
+            p_vehicle_id: input.vehicleId,
+            p_driver_id: input.driverId,
+            p_category: input.category,
+            p_priority: input.priority,
+            p_description: input.description,
+            p_odometer: input.odometer ?? undefined,
+            p_checklist_id: input.checklistId ?? undefined,
+        });
         if (error) handleError(error);
         return data;
     },
 
-    reject: async (id: string, reason: string) => {
-        const { data, error } = await supabase
-            .from('service_orders')
-            .update({
-                status: 'rejeitada',
-                admin_note: reason,
-            })
-            .eq('id', id)
-            .select()
-            .single();
+    updateRequest: async (id: string, input: MaintenanceRequestInput): Promise<void> => {
+        const { error } = await supabase.rpc('manager_update_service_order_request', {
+            p_order_id: id,
+            p_vehicle_id: input.vehicleId,
+            p_driver_id: input.driverId,
+            p_category: input.category,
+            p_priority: input.priority,
+            p_description: input.description,
+            p_odometer: input.odometer ?? undefined,
+        });
         if (error) handleError(error);
-        return data;
     },
 
-    // Conclui a O.S. (aprovada ou em_execucao → concluida), registrando o custo final.
-    complete: async (id: string, cost: number, adminNote?: string) => {
-        const { data, error } = await supabase
-            .from('service_orders')
-            .update({
-                status: 'concluida',
-                cost,
-                completed_at: new Date().toISOString(),
-                ...(adminNote ? { admin_note: adminNote } : {}),
-            })
-            .eq('id', id)
-            .select()
-            .single();
+    authorize: async (id: string, repairShopId: string, note?: string): Promise<void> => {
+        const { error } = await supabase.rpc('manager_authorize_service_order', {
+            p_order_id: id,
+            p_repair_shop_id: repairShopId,
+            p_note: note?.trim() || undefined,
+        });
         if (error) handleError(error);
-        return data;
+    },
+
+    cancel: async (id: string, reason: string): Promise<void> => {
+        const { error } = await supabase.rpc('manager_cancel_service_order', {
+            p_order_id: id,
+            p_reason: reason.trim(),
+        });
+        if (error) handleError(error);
     },
 };
 
@@ -2647,65 +2595,46 @@ export const serviceOrderFiscalApi = {
      * `budget` na OS passa a ser derivado do orçamento aprovado — evita a
      * terceira fonte de valor que existia com budget/cost digitados à mão.
      */
-    approveQuote: async (quoteId: string, orderId: string, reviewedBy: string, note?: string) => {
-        const { data: quote, error: qErr } = await supabase
-            .from('service_order_quotes')
-            .update({ status: 'aprovado', reviewed_by: reviewedBy, reviewed_at: new Date().toISOString(), review_note: note ?? null })
-            .eq('id', quoteId)
-            .select()
-            .single();
-        if (qErr) handleError(qErr);
-
-        const { error: oErr } = await supabase
-            .from('service_orders')
-            .update({ financial_status: 'awaiting_commitment', budget: (quote as Tables<'service_order_quotes'>).total })
-            .eq('id', orderId);
-        if (oErr) handleError(oErr);
-
-        await serviceOrderFiscalApi.logEvent(orderId, {
-            axis: 'financial', from: 'not_started', to: 'awaiting_commitment', actorId: reviewedBy,
-            note: `Orçamento v${(quote as Tables<'service_order_quotes'>).version} aprovado`,
+    approveQuote: async (quoteId: string, note?: string): Promise<void> => {
+        const { error } = await supabase.rpc('manager_review_service_order_quote', {
+            p_quote_id: quoteId,
+            p_approved: true,
+            p_note: note?.trim() || undefined,
         });
-        return quote as Tables<'service_order_quotes'>;
+        if (error) handleError(error);
     },
 
-    rejectQuote: async (quoteId: string, orderId: string, reviewedBy: string, note: string) => {
-        const { error } = await supabase
-            .from('service_order_quotes')
-            .update({ status: 'rejeitado', reviewed_by: reviewedBy, reviewed_at: new Date().toISOString(), review_note: note })
-            .eq('id', quoteId);
-        if (error) handleError(error);
-        await serviceOrderFiscalApi.logEvent(orderId, {
-            axis: 'note', from: null, to: null, actorId: reviewedBy, note: `Orçamento rejeitado: ${note}`,
+    rejectQuote: async (quoteId: string, note: string): Promise<void> => {
+        const { error } = await supabase.rpc('manager_review_service_order_quote', {
+            p_quote_id: quoteId,
+            p_approved: false,
+            p_note: note.trim(),
         });
+        if (error) handleError(error);
     },
 
     /** Registra o empenho/NAD e libera a oficina para executar. */
-    registerCommitment: async (orderId: string, input: { commitmentNumber: string; nadNumber?: string | null; actorId: string }) => {
-        const { error } = await supabase
-            .from('service_orders')
-            .update({
-                commitment_number: input.commitmentNumber,
-                nad_number: input.nadNumber ?? null,
-                financial_status: 'committed',
-            })
-            .eq('id', orderId);
-        if (error) handleError(error);
-        await serviceOrderFiscalApi.logEvent(orderId, {
-            axis: 'financial', from: 'awaiting_commitment', to: 'committed', actorId: input.actorId,
-            note: `Empenho ${input.commitmentNumber}`,
+    registerCommitment: async (orderId: string, input: { commitmentNumber: string; nadNumber?: string | null }): Promise<void> => {
+        const { error } = await supabase.rpc('manager_register_service_order_commitment', {
+            p_order_id: orderId,
+            p_commitment_number: input.commitmentNumber.trim(),
+            p_nad_number: input.nadNumber?.trim() || undefined,
         });
+        if (error) handleError(error);
     },
 
-    /** Muda o eixo OPERACIONAL (o trigger sincroniza a coluna `status` antiga). */
-    setOperationalStatus: async (orderId: string, to: OpStatus, actorId: string, note?: string) => {
-        const patch: TablesUpdate<'service_orders'> = { operational_status: to };
-        if (to === 'at_shop') patch.at_shop_at = new Date().toISOString();
-        if (to === 'received') patch.received_at = new Date().toISOString();
-
-        const { error } = await supabase.from('service_orders').update(patch).eq('id', orderId);
+    confirmShopDelivery: async (orderId: string): Promise<void> => {
+        const { error } = await supabase.rpc('manager_confirm_shop_delivery', {
+            p_order_id: orderId,
+        });
         if (error) handleError(error);
-        await serviceOrderFiscalApi.logEvent(orderId, { axis: 'operational', from: null, to, actorId, note });
+    },
+
+    receiveVehicle: async (orderId: string): Promise<void> => {
+        const { error } = await supabase.rpc('manager_receive_service_order_vehicle', {
+            p_order_id: orderId,
+        });
+        if (error) handleError(error);
     },
 
     invoices: async (orderId: string) => {
@@ -2717,16 +2646,11 @@ export const serviceOrderFiscalApi = {
     },
 
     /** Ateste (liquidação): o gestor confirma que o serviço da NF foi entregue. */
-    attestInvoice: async (invoiceId: string, orderId: string, actorId: string) => {
-        const { error } = await supabase
-            .from('service_order_invoices')
-            .update({ attested_by: actorId, attested_at: new Date().toISOString() })
-            .eq('id', invoiceId);
-        if (error) handleError(error);
-        await supabase.from('service_orders').update({ financial_status: 'attested' }).eq('id', orderId);
-        await serviceOrderFiscalApi.logEvent(orderId, {
-            axis: 'financial', from: 'invoiced', to: 'attested', actorId, note: 'Nota fiscal atestada',
+    attestInvoice: async (invoiceId: string): Promise<void> => {
+        const { error } = await supabase.rpc('manager_attest_service_order_invoice', {
+            p_invoice_id: invoiceId,
         });
+        if (error) handleError(error);
     },
 
     payments: async (orderId: string) => {
@@ -2742,37 +2666,21 @@ export const serviceOrderFiscalApi = {
      * pagamentos cobre a soma das notas — pagamento parcial não encerra o
      * processo (foi a razão de modelar NF e pagamento como 1:N).
      */
-    registerPayment: async (orderId: string, input: { amount: number; invoiceId?: string | null; paidAt?: string; note?: string; actorId: string }) => {
-        const { error } = await supabase.from('service_order_payments').insert({
-            service_order_id: orderId,
-            invoice_id: input.invoiceId ?? null,
-            amount: input.amount,
-            paid_at: input.paidAt ?? new Date().toISOString().slice(0, 10),
-            note: input.note ?? null,
-            registered_by: input.actorId,
+    registerPayment: async (orderId: string, input: {
+        amount: number;
+        invoiceId?: string | null;
+        paidAt?: string;
+        note?: string;
+    }): Promise<boolean> => {
+        const { data, error } = await supabase.rpc('manager_register_service_order_payment', {
+            p_order_id: orderId,
+            p_amount: input.amount,
+            p_invoice_id: input.invoiceId ?? undefined,
+            p_paid_at: input.paidAt ?? undefined,
+            p_note: input.note?.trim() || undefined,
         });
         if (error) handleError(error);
-
-        const [invs, pays] = await Promise.all([
-            serviceOrderFiscalApi.invoices(orderId),
-            serviceOrderFiscalApi.payments(orderId),
-        ]);
-        const totalNf = invs.reduce((s, i) => s + Number(i.amount ?? 0), 0);
-        const totalPago = pays.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-        const quitado = totalNf > 0 && totalPago + 0.001 >= totalNf;
-
-        if (quitado) {
-            await supabase.from('service_orders')
-                .update({ financial_status: 'paid', cost: totalNf })
-                .eq('id', orderId);
-        }
-        await serviceOrderFiscalApi.logEvent(orderId, {
-            axis: 'financial', from: 'attested', to: quitado ? 'paid' : 'attested', actorId: input.actorId,
-            note: quitado
-                ? `Pagamento de ${formatMoney(input.amount)} — processo quitado`
-                : `Pagamento parcial de ${formatMoney(input.amount)} (${formatMoney(totalPago)} de ${formatMoney(totalNf)})`,
-        });
-        return { quitado, totalNf, totalPago };
+        return data;
     },
 
     events: async (orderId: string) => {
@@ -2784,18 +2692,4 @@ export const serviceOrderFiscalApi = {
         if (error) handleError(error);
         return (data ?? []) as (Tables<'service_order_events'> & { profiles?: { full_name: string } | null })[];
     },
-
-    logEvent: async (orderId: string, e: { axis: string; from: string | null; to: string | null; actorId: string; note?: string }) => {
-        // Falha de auditoria não desfaz a operação já concluída, mas não pode
-        // passar em silêncio.
-        const { error } = await supabase.from('service_order_events').insert({
-            service_order_id: orderId, axis: e.axis, from_state: e.from, to_state: e.to,
-            actor_id: e.actorId, actor_role: 'gestao', note: e.note ?? null,
-        });
-        if (error) console.error('[auditoria OS] falha ao registrar evento:', error.message);
-    },
 };
-
-function formatMoney(v: number): string {
-    return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}

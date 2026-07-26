@@ -15,6 +15,11 @@
 > operacional × financeiro, e foi criada uma **fase −1** obrigatória — o bucket
 > `fotos` aceita escrita anônima em produção *hoje*, e o repositório tem 12
 > migrations contra 85 aplicadas no banco.
+>
+> **Revisão 3 (2026-07-26):** o fluxo do painel foi reconstruído para usar as
+> mesmas transições atômicas dos portais. Manutenção agora liga motorista,
+> gestor e oficina sem atalhos de estado; abastecimento liga motorista, veículo,
+> posto e comprovantes, com preço contratual e validação protegidos no banco.
 
 ---
 
@@ -58,6 +63,10 @@
 | Fase 7 — policy de documentos | ✅ **aplicada pelo dashboard do Storage** — `USING` e `WITH CHECK` verificadas; suíte de isolamento 20/20 |
 | Fase 7 — piloto autenticado | ⛔ **pendente** — existem 0 perfis `role='oficina'` |
 | Fase 8 — fechamento, relatórios e avisos | ✅ código e migration aplicados; falta validação visual nos pilotos |
+| Limpeza do legado de manutenção | ✅ 5 OS e 22 notificações antigas removidas; quotes, itens, NFs, pagamentos, eventos e arquivos relacionados ficaram em 0 |
+| Fluxo gerencial de manutenção V2 | ✅ RPCs atômicas, telas de triagem/execução/fiscal reconstruídas e suíte 18/18 |
+| Fluxo gerencial de abastecimento V2 | ✅ autorização e lançamento direto com motorista real, posto/contrato, preço no servidor, provas e suíte 11/11 |
+| Validação visual autenticada | ✅ painel de Manutenções, modal de solicitação, Oficinas/detalhe/edição, portal da oficina, Abastecimentos, autorização, contingência e conferência; conta técnica removida ao final |
 
 ### Verificação da fase 1 (2026-07-25)
 
@@ -654,7 +663,8 @@ Todo índice custa escrita, mas remover índice em produção é decisão à par
 | TypeScript | ✅ `tsc -b` |
 | Lint direcionado | ✅ zero achados |
 | Build Vite de produção | ✅ portal em chunk separado: 36,80 kB (9,74 kB gzip) |
-| Fluxo logado ponta a ponta | ⛔ existem 0 perfis `oficina` no banco |
+| Fluxo visual autenticado | ✅ lista/estado vazio e “Meus dados” conferidos com conta técnica temporária; conta e sessão removidas ao final |
+| Piloto transacional ponta a ponta | ⛔ ainda exige perfil e OS reais da oficina |
 
 **Policy aplicada:** `storage.objects` pertence a `supabase_storage_admin`, por
 isso a conexão de migrations retornava `42501`. A policy existente
@@ -713,7 +723,7 @@ diretamente em `pg_policy`; a suíte completa passou 20/20.
 | TypeScript | ✅ `tsc -b` |
 | Lint direcionado | ✅ zero achados |
 | Build Vite de produção | ✅ posto 30,78 kB; oficina 36,97 kB; sino compartilhado 3,38 kB |
-| Fluxo visual autenticado | ⛔ sem perfis `posto`/`oficina` para executar |
+| Fluxo visual autenticado | 🟡 portal da oficina conferido com conta técnica; portal do posto ainda aguarda perfil real |
 
 ### Piloto
 
@@ -726,3 +736,80 @@ também:
    relatório gerencial por posto;
 4. após pagar uma OS, o relatório por oficina reflete custo final e processo
    encerrado.
+
+---
+
+## 12. Revisão integrada — gestor, motorista, oficina e posto (2026-07-26)
+
+### Limpeza autorizada
+
+- 5 ordens antigas de `service_orders` removidas;
+- 22 notificações de manutenção/OS removidas;
+- 0 orçamentos, itens, notas, pagamentos, eventos, históricos e arquivos
+  vinculados permaneceram;
+- oficinas, veículos, motoristas, checklists e abastecimentos foram preservados.
+
+### Manutenção V2
+
+O painel deixou de escrever status diretamente. Todas as ações sensíveis passam
+por RPC gerencial, que deriva ator e tenant de `auth.uid()`, bloqueia transição
+inválida e grava o evento na mesma transação:
+
+1. motorista/checklist relata a avaria;
+2. gestor abre a solicitação em nome de um motorista ativo;
+3. gestor faz a triagem, escolhe oficina ativa com contrato vigente e autoriza;
+4. chegada à oficina é confirmada;
+5. oficina envia orçamento itemizado;
+6. gestor aprova ou devolve com motivo;
+7. gestor registra empenho/NAD e libera a execução;
+8. oficina executa e anexa evidências;
+9. gestor recebe o veículo — o veículo é liberado aqui;
+10. oficina envia NF privada;
+11. gestor atesta;
+12. financeiro registra pagamento parcial ou final sem ultrapassar o saldo.
+
+A tela principal passou a projetar os dois eixos em cinco colunas: **Triagem**,
+**Oficina e orçamento**, **Execução**, **Recebida** e **Cancelada**. O detalhe
+canônico é reutilizado nas entradas de manutenção, veículo e secretaria.
+
+### Abastecimento V2
+
+- autorização exige veículo, motorista ativo, posto ativo/contratado,
+  combustível compatível, limite e validade;
+- preço e total do posto contratado são calculados no servidor;
+- lançamento direto virou contingência e exige motorista real, foto da
+  requisição e foto do hodômetro;
+- somente registros `concluido` entram na conferência;
+- aprovação exige foto do bico e número do cupom; lançamento legado sem prova
+  só pode ser rejeitado com justificativa;
+- validação calcula km/L pelo último registro válido e atualiza o hodômetro
+  atomicamente;
+- filtros e contadores usam o fluxo real: aguardando posto, aguardando
+  validação, validado, rejeitado e lançamento direto.
+
+### Evidências finais
+
+| Verificação | Resultado |
+|---|---|
+| Manutenção V2 | ✅ 18/18, rollback automático |
+| Abastecimento V2 | ✅ 11/11, rollback automático |
+| Isolamento parceiro/tenant | ✅ 20/20, rollback automático |
+| TypeScript | ✅ `tsc -b` |
+| Lint dos arquivos alterados | ✅ zero achados |
+| Build Vite de produção | ✅ |
+| Visual — painel de Manutenções | ✅ fluxo vazio + modal com veículo/motorista real |
+| Visual — Oficinas | ✅ lista, detalhe, contrato, acesso, documentos e edição |
+| Visual — portal da oficina | ✅ OS vazias e dados/contrato autenticados |
+| Visual — Abastecimentos | ✅ lista, autorização, contingência, detalhe e bloqueio sem evidência |
+| Conta técnica do teste | ✅ usuário, perfil e sessões removidos (0 remanescentes) |
+
+### O que ainda depende de operação real
+
+Não falta código para o fluxo revisado. Falta executar os pilotos com os
+parceiros reais, sem massa artificial:
+
+1. criar o primeiro acesso de posto e de oficina;
+2. conduzir uma autorização de abastecimento completa até a validação;
+3. conduzir uma OS real do relato ao pagamento;
+4. conferir avisos, fechamento e relatórios com os documentos reais;
+5. publicar o frontend após a homologação.

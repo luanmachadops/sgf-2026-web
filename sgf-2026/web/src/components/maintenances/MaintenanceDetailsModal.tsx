@@ -1,106 +1,288 @@
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Modal } from '@/components/ui/Modal';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
-import { Wrench, Car, User, Gauge, Calendar, FileText, Building2, DollarSign } from '@/components/sgf/icons';
+import { SGFButton } from '@/components/sgf/SGFButton';
+import { SGFSelect } from '@/components/sgf/SGFSelect';
+import { SGFTextarea } from '@/components/sgf/SGFTextarea';
+import {
+    Building2,
+    Calendar,
+    Car,
+    DollarSign,
+    Edit,
+    FileText,
+    Gauge,
+    ShieldCheck,
+    User,
+    Wrench,
+    X,
+} from '@/components/sgf/icons';
 import { maintenancesApi } from '@/lib/supabase-api';
+import { useAuthorizeMaintenance, useCancelMaintenance } from '@/hooks/useMaintenances';
+import { useRepairShops } from '@/hooks/useRepairShops';
 import { ServiceOrderFiscalPanel } from './ServiceOrderFiscalPanel';
-import { formatDate, formatCurrency, getStatusLabel, getStatusColor } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import type { Tables } from '@/types/database.types';
 import type { FinStatus, OpStatus } from '@/lib/supabase-api';
 
 interface Props {
     maintenanceId: string | null;
     onClose: () => void;
+    onEdit?: (maintenance: Row) => void;
 }
 
 const PRIORITY_LABEL: Record<string, string> = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
+const ORIGIN_LABEL: Record<string, string> = {
+    driver: 'Solicitação do motorista',
+    checklist: 'Gerada por checklist',
+    manager: 'Aberta pelo gestor',
+};
+const OP_LABEL: Record<OpStatus, string> = {
+    pending: 'Em triagem',
+    authorized: 'Autorizada',
+    at_shop: 'Na oficina',
+    awaiting_quote_approval: 'Orçamento em análise',
+    in_progress: 'Em execução',
+    ready: 'Pronta para retirada',
+    received: 'Veículo recebido',
+    cancelled: 'Cancelada',
+};
+const FIN_LABEL: Record<FinStatus, string> = {
+    not_started: 'Financeiro não iniciado',
+    awaiting_commitment: 'Aguardando empenho',
+    committed: 'Empenhada',
+    invoiced: 'Faturada',
+    attested: 'Atestada',
+    paid: 'Paga',
+};
 
-type Row = Tables<'service_orders'> & {
-    vehicles?: { plate: string; brand: string | null; model: string | null; departments?: { name: string } | null } | null;
+export type MaintenanceDetailsRow = Tables<'service_orders'> & {
+    vehicles?: {
+        plate: string;
+        brand: string | null;
+        model: string | null;
+        departments?: { name: string } | null;
+    } | null;
     profiles?: { full_name: string } | null;
 };
 
-export function MaintenanceDetailsModal({ maintenanceId, onClose }: Props) {
+type Row = MaintenanceDetailsRow;
+
+export function MaintenanceDetailsModal(props: Props) {
+    return (
+        <MaintenanceDetailsModalContent
+            key={props.maintenanceId ?? 'closed'}
+            {...props}
+        />
+    );
+}
+
+function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Props) {
+    const [repairShopId, setRepairShopId] = useState('');
+    const [managerNote, setManagerNote] = useState('');
+    const [cancelReason, setCancelReason] = useState('');
+    const authorize = useAuthorizeMaintenance();
+    const cancel = useCancelMaintenance();
+    const { data: repairShops = [], isLoading: shopsLoading } = useRepairShops({ activeOnly: true });
     const { data, isLoading } = useQuery({
         queryKey: ['maintenance', maintenanceId],
         queryFn: () => maintenancesApi.getById(maintenanceId!),
-        enabled: !!maintenanceId,
+        enabled: Boolean(maintenanceId),
     });
     const m = data as Row | undefined;
 
+    const shopOptions = useMemo(() => {
+        const today = new Date().toISOString().slice(0, 10);
+        return repairShops.map((shop) => {
+            const expired = Boolean(shop.contract_end && shop.contract_end < today);
+            return {
+                value: shop.id,
+                label: `${shop.name}${shop.contract_number ? ` · contrato ${shop.contract_number}` : ''}`,
+                disabled: expired,
+                disabledReason: expired ? 'Contrato vencido' : undefined,
+            };
+        });
+    }, [repairShops]);
+
+    const op = (m?.operational_status ?? 'pending') as OpStatus;
+    const fin = (m?.financial_status ?? 'not_started') as FinStatus;
+    const canCancel = ['pending', 'authorized', 'at_shop', 'awaiting_quote_approval'].includes(op)
+        && ['not_started', 'awaiting_commitment'].includes(fin);
+    const busy = authorize.isPending || cancel.isPending;
+
+    const handleAuthorize = async () => {
+        if (!m || !repairShopId) return;
+        try {
+            await authorize.mutateAsync({ id: m.id, repairShopId, note: managerNote });
+            setManagerNote('');
+            toast.success('OS autorizada e enviada para a oficina.');
+        } catch (error) {
+            toast.error((error as { message?: string }).message ?? 'Não foi possível autorizar a OS.');
+        }
+    };
+
+    const handleCancel = async () => {
+        if (!m || !cancelReason.trim()) return;
+        try {
+            await cancel.mutateAsync({ id: m.id, reason: cancelReason });
+            setCancelReason('');
+            toast.success('Ordem de serviço cancelada.');
+        } catch (error) {
+            toast.error((error as { message?: string }).message ?? 'Não foi possível cancelar a OS.');
+        }
+    };
+
     return (
-        <Modal isOpen={!!maintenanceId} onClose={onClose} title="Detalhes da ordem de serviço" size="md">
+        <Modal isOpen={Boolean(maintenanceId)} onClose={onClose} title="Fluxo da ordem de serviço" size="xl">
             {isLoading || !m ? (
                 <p className="py-8 text-center text-sm text-slate-400">Carregando…</p>
             ) : (
-                <div className="space-y-5">
-                    <div className="flex items-center justify-between">
+                <div className="space-y-6">
+                    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
                         <div className="flex items-center gap-3">
-                            <div className="rounded-xl bg-amber-50 p-2.5 text-amber-600"><Wrench className="h-5 w-5" /></div>
+                            <div className="rounded-xl bg-amber-50 p-2.5 text-amber-600">
+                                <Wrench className="h-5 w-5" />
+                            </div>
                             <div>
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Categoria</p>
-                                <p className="font-bold text-slate-800">{m.category ?? '—'}</p>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                    {ORIGIN_LABEL[m.origin] ?? 'Ordem de serviço'}
+                                </p>
+                                <p className="font-bold text-slate-800">{m.category ?? 'Sem categoria'}</p>
+                                <p className="text-xs text-slate-500">OS {m.id.slice(0, 8).toUpperCase()}</p>
                             </div>
                         </div>
-                        <SGFBadge variant={getStatusColor(m.status) as 'default' | 'success' | 'warning' | 'error' | 'info'}>
-                            {getStatusLabel(m.status)}
-                        </SGFBadge>
-                    </div>
-
-                    {m.budget != null && m.cost != null && (
-                        <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                            <span className="text-xs font-semibold text-slate-500">Orçado {formatCurrency(Number(m.budget))} · Custo final {formatCurrency(Number(m.cost))}</span>
-                            <SGFBadge variant={Number(m.cost) <= Number(m.budget) ? 'success' : 'error'} size="sm">
-                                {Number(m.cost) <= Number(m.budget) ? 'Dentro do orçamento' : 'Orçamento estourado'}
+                        <div className="flex flex-wrap gap-2">
+                            <SGFBadge variant={op === 'cancelled' ? 'error' : op === 'received' ? 'success' : 'info'}>
+                                {OP_LABEL[op]}
                             </SGFBadge>
+                            <SGFBadge variant={fin === 'paid' ? 'success' : fin === 'not_started' ? 'default' : 'warning'}>
+                                {FIN_LABEL[fin]}
+                            </SGFBadge>
+                            {onEdit && op === 'pending' && (
+                                <SGFButton size="sm" variant="outline" icon={Edit} onClick={() => onEdit(m)}>
+                                    Editar solicitação
+                                </SGFButton>
+                            )}
                         </div>
-                    )}
-
-                    {/* Fluxo fiscal: orçamento → empenho → NF → ateste → pagamento */}
-                    <ServiceOrderFiscalPanel
-                        orderId={m.id}
-                        operationalStatus={(m as { operational_status?: OpStatus | null }).operational_status ?? null}
-                        financialStatus={(m as { financial_status?: FinStatus | null }).financial_status ?? null}
-                        commitmentNumber={(m as { commitment_number?: string | null }).commitment_number ?? null}
-                    />
+                    </div>
 
                     {m.description && (
                         <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                            <p className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400"><FileText className="h-3.5 w-3.5" /> Descrição</p>
+                            <p className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                <FileText className="h-3.5 w-3.5" /> Relato da avaria
+                            </p>
                             <p className="text-sm text-slate-700">{m.description}</p>
                         </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                         {[
                             { icon: Car, label: 'Veículo', value: m.vehicles ? `${m.vehicles.brand ?? ''} ${m.vehicles.model ?? ''} · ${m.vehicles.plate}`.trim() : '—' },
-                            { icon: User, label: 'Solicitante', value: m.profiles?.full_name ?? '—' },
-                            { icon: Gauge, label: 'Odômetro', value: m.odometer != null ? `${Number(m.odometer).toLocaleString('pt-BR')} km` : '—' },
+                            { icon: User, label: 'Motorista', value: m.profiles?.full_name ?? '—' },
+                            { icon: Gauge, label: 'Odômetro', value: m.odometer != null ? `${Number(m.odometer).toLocaleString('pt-BR')} km` : 'Não informado' },
                             { icon: Calendar, label: 'Aberta em', value: formatDate(m.created_at) },
                             { icon: Wrench, label: 'Prioridade', value: PRIORITY_LABEL[m.priority] ?? m.priority },
                             ...(m.repair_shop ? [{ icon: Building2, label: 'Oficina', value: m.repair_shop }] : []),
-                            ...(m.budget != null ? [{ icon: DollarSign, label: 'Orçamento', value: formatCurrency(Number(m.budget)) }] : []),
-                            ...(m.cost != null ? [{ icon: DollarSign, label: 'Custo final', value: formatCurrency(Number(m.cost)) }] : []),
-                            ...(m.approved_at ? [{ icon: Calendar, label: 'Aprovada em', value: formatDate(m.approved_at) }] : []),
-                            ...(m.completed_at ? [{ icon: Calendar, label: 'Concluída em', value: formatDate(m.completed_at) }] : []),
-                        ].map((it) => {
-                            const I = it.icon;
+                            ...(m.budget != null ? [{ icon: DollarSign, label: 'Orçamento aprovado', value: formatCurrency(Number(m.budget)) }] : []),
+                            ...(m.cost != null ? [{ icon: DollarSign, label: 'Total pago', value: formatCurrency(Number(m.cost)) }] : []),
+                        ].map((item) => {
+                            const Icon = item.icon;
                             return (
-                                <div key={it.label} className="flex items-center gap-3">
-                                    <div className="rounded-xl bg-slate-100 p-2.5 text-slate-600"><I width={18} height={18} /></div>
+                                <div key={item.label} className="flex items-center gap-3">
+                                    <div className="rounded-xl bg-slate-100 p-2.5 text-slate-600">
+                                        <Icon width={18} height={18} />
+                                    </div>
                                     <div className="min-w-0">
-                                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{it.label}</p>
-                                        <p className="truncate font-bold text-slate-800">{it.value}</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{item.label}</p>
+                                        <p className="truncate font-bold text-slate-800">{item.value}</p>
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
 
-                    {m.admin_note && (
-                        <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
-                            <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-blue-400">Observação do gestor</p>
-                            <p className="text-sm text-blue-900">{m.admin_note}</p>
+                    {op === 'pending' && (
+                        <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+                            <div className="mb-3">
+                                <h3 className="text-sm font-bold text-emerald-900">Triagem e autorização do gestor</h3>
+                                <p className="text-xs text-emerald-700">
+                                    Confirme a solicitação e vincule uma oficina ativa com contrato vigente.
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <SGFSelect
+                                    label="Oficina responsável"
+                                    options={shopOptions}
+                                    value={repairShopId}
+                                    onChange={setRepairShopId}
+                                    placeholder={shopsLoading ? 'Carregando...' : 'Selecione a oficina'}
+                                    disabled={shopsLoading}
+                                    fullWidth
+                                    icon={Building2}
+                                />
+                                <SGFTextarea
+                                    label="Orientação para a oficina (opcional)"
+                                    value={managerNote}
+                                    onChange={(event) => setManagerNote(event.target.value)}
+                                    rows={2}
+                                    fullWidth
+                                />
+                            </div>
+                            <SGFButton
+                                className="mt-3"
+                                size="sm"
+                                icon={ShieldCheck}
+                                disabled={busy || !repairShopId}
+                                onClick={handleAuthorize}
+                            >
+                                Autorizar e encaminhar
+                            </SGFButton>
+                        </section>
+                    )}
+
+                    {op !== 'pending' && op !== 'cancelled' && (
+                        <ServiceOrderFiscalPanel
+                            orderId={m.id}
+                            operationalStatus={op}
+                            financialStatus={fin}
+                            commitmentNumber={m.commitment_number}
+                        />
+                    )}
+
+                    {canCancel && (
+                        <section className="rounded-2xl border border-red-100 bg-red-50/50 p-4">
+                            <h3 className="text-sm font-bold text-red-900">Cancelar esta ordem de serviço</h3>
+                            <p className="mb-3 text-xs text-red-700">
+                                O motivo fica registrado na trilha de auditoria e é enviado aos envolvidos.
+                            </p>
+                            <div className="flex flex-col items-end gap-3 md:flex-row">
+                                <SGFTextarea
+                                    label="Motivo obrigatório"
+                                    value={cancelReason}
+                                    onChange={(event) => setCancelReason(event.target.value)}
+                                    rows={2}
+                                    fullWidth
+                                />
+                                <SGFButton
+                                    className="shrink-0"
+                                    size="sm"
+                                    variant="danger"
+                                    icon={X}
+                                    disabled={busy || !cancelReason.trim()}
+                                    onClick={handleCancel}
+                                >
+                                    Cancelar OS
+                                </SGFButton>
+                            </div>
+                        </section>
+                    )}
+
+                    {m.admin_note && op === 'cancelled' && (
+                        <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
+                            <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-red-500">Motivo do cancelamento</p>
+                            <p className="text-sm text-red-900">{m.admin_note}</p>
                         </div>
                     )}
                 </div>

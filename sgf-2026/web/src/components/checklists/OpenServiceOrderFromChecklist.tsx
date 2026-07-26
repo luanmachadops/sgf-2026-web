@@ -59,18 +59,17 @@ export function OpenServiceOrderFromChecklist({ checklist, items, onSuccess, onC
         }
         try {
             await createMaintenance.mutateAsync({
-                vehicle_id: checklist.vehicle_id,
-                driver_id: checklist.driver_id,
-                checklist_id: checklist.id,
+                vehicleId: checklist.vehicle_id,
+                driverId: checklist.driver_id,
+                checklistId: checklist.id,
                 category,
                 priority,
                 description: description.trim(),
-                status: 'pendente',
             });
             toast.success('Ordem de serviço aberta a partir do checklist.');
             onSuccess();
-        } catch {
-            toast.error('Erro ao abrir a ordem de serviço.');
+        } catch (error) {
+            toast.error((error as { message?: string }).message ?? 'Erro ao abrir a ordem de serviço.');
         }
     };
 

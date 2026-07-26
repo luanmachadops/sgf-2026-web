@@ -17,8 +17,7 @@
 --   recusam parceiro bloqueado, contrato vencido e valores inválidos.
 --
 -- RESULTADO DA ÚLTIMA EXECUÇÃO
---   2026-07-26 — 19/20 passaram contra o banco de produção; o único bloqueio
---   é T16b, cuja policy de Storage exige criação pelo dashboard.
+--   2026-07-26 — 20/20 passaram contra o banco de produção, incluindo Storage.
 --
 -- DUAS ARMADILHAS DA MASSA DE TESTE (custaram duas execuções)
 --   • `auth.users` tem trigger `handle_new_user`, que já cria o `profiles` e
@@ -45,7 +44,7 @@ declare
   t_a uuid := gen_random_uuid();  t_b uuid := gen_random_uuid();
   st_a1 uuid := gen_random_uuid(); st_a2 uuid := gen_random_uuid(); st_b1 uuid := gen_random_uuid();
   of_a1 uuid := gen_random_uuid();
-  veh_a uuid := gen_random_uuid(); veh_b uuid := gen_random_uuid();
+  veh_a uuid := gen_random_uuid(); veh_a2 uuid := gen_random_uuid(); veh_b uuid := gen_random_uuid();
   u_posto_a1 uuid := gen_random_uuid(); u_posto_a2 uuid := gen_random_uuid();
   u_posto_b1 uuid := gen_random_uuid(); u_oficina_a1 uuid := gen_random_uuid();
   u_bloqueado uuid := gen_random_uuid(); st_bloq uuid := gen_random_uuid();
@@ -73,6 +72,7 @@ begin
 
   insert into public.vehicles (id, tenant_id, unit_code, plate, model, status, tank_capacity, current_odometer) values
     (veh_a, t_a, 'A-001', 'AAA1A11', 'Carro A', 'liberado', 50, 1000),
+    (veh_a2, t_a, 'A-002', 'AAA2A22', 'Carro A2', 'liberado', 50, 1200),
     (veh_b, t_b, 'B-001', 'BBB1B11', 'Carro B', 'liberado', 50, 2000);
 
   -- Usuários. O trigger `handle_new_user` em auth.users já cria o profiles e
@@ -104,9 +104,12 @@ begin
     (f_b1, t_b, veh_b, st_b1, 'diesel', 0, 'autorizado', now(), 40);
 
   -- Ordens de serviço
-  insert into public.service_orders (id, tenant_id, vehicle_id, driver_id, repair_shop_id, category, description, operational_status, financial_status) values
-    (so_a1, t_a, veh_a, u_motorista, of_a1, 'mecanica', 'OS da oficina A1', 'authorized', 'not_started'),
-    (so_a2, t_a, veh_a, u_motorista, null,  'mecanica', 'OS sem oficina',   'pending',    'not_started');
+  insert into public.service_orders (
+    id, tenant_id, vehicle_id, driver_id, opened_by, repair_shop_id,
+    category, description, operational_status, financial_status
+  ) values
+    (so_a1, t_a, veh_a,  u_motorista, u_motorista, of_a1, 'mecanica', 'OS da oficina A1', 'authorized', 'not_started'),
+    (so_a2, t_a, veh_a2, u_motorista, u_motorista, null,  'mecanica', 'OS sem oficina',   'pending',    'not_started');
 
   -- ── Helper de assert ─────────────────────────────────────────────────────
   -- (inline: cada bloco acumula em `falhas` em vez de abortar no primeiro erro,
@@ -225,6 +228,10 @@ begin
 
   ------------------------------------------------------------------ TESTE 12
   -- Orçamento: total é calculado no servidor.
+  perform set_config('role','postgres', true);
+  update public.service_orders set operational_status = 'at_shop' where id = so_a1;
+  perform set_config('role','authenticated', true);
+  perform set_config('request.jwt.claims', json_build_object('sub', u_oficina_a1, 'role','authenticated')::text, true);
   begin
     q := public.repair_shop_submit_quote_v2(so_a1,
           '[{"kind":"peca","description":"Pastilha","qty":2,"unit_price":150.00},
@@ -288,7 +295,7 @@ begin
   -- Caminho execução: com empenho inicia e conclui com foto vinculada.
   perform set_config('role','postgres', true);
   update public.service_orders
-     set financial_status = 'committed', commitment_number = 'EMP-001'
+     set financial_status = 'committed', commitment_number = 'EMP-001', budget = 400
    where id = so_a1;
   perform set_config('role','authenticated', true);
   perform set_config('request.jwt.claims', json_build_object('sub', u_oficina_a1, 'role','authenticated')::text, true);

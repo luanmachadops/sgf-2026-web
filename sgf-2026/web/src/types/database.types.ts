@@ -1995,7 +1995,9 @@ export type Database = {
           id: string
           nad_number: string | null
           odometer: number | null
+          opened_by: string
           operational_status: Database["public"]["Enums"]["service_order_op_status"]
+          origin: string
           priority: Database["public"]["Enums"]["issue_severity"]
           received_at: string | null
           repair_shop: string | null
@@ -2022,7 +2024,9 @@ export type Database = {
           id?: string
           nad_number?: string | null
           odometer?: number | null
+          opened_by?: string
           operational_status?: Database["public"]["Enums"]["service_order_op_status"]
+          origin?: string
           priority?: Database["public"]["Enums"]["issue_severity"]
           received_at?: string | null
           repair_shop?: string | null
@@ -2049,7 +2053,9 @@ export type Database = {
           id?: string
           nad_number?: string | null
           odometer?: number | null
+          opened_by?: string
           operational_status?: Database["public"]["Enums"]["service_order_op_status"]
+          origin?: string
           priority?: Database["public"]["Enums"]["issue_severity"]
           received_at?: string | null
           repair_shop?: string | null
@@ -2076,6 +2082,13 @@ export type Database = {
           {
             foreignKeyName: "service_orders_driver_id_fkey"
             columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_orders_opened_by_fkey"
+            columns: ["opened_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2784,6 +2797,121 @@ export type Database = {
       is_posto: { Args: never; Returns: boolean }
       is_secretario: { Args: never; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
+      manager_cancel_fueling_authorization: {
+        Args: { p_fueling_id: string; p_reason: string }
+        Returns: undefined
+      }
+      manager_create_direct_fueling: {
+        Args: {
+          p_driver_id: string
+          p_fuel_type: string
+          p_full_tank?: boolean
+          p_liters: number
+          p_occurred_on?: string
+          p_odometer: number
+          p_photo_dashboard_url?: string
+          p_photo_requisition_url?: string
+          p_price_per_liter: number
+          p_station_id?: string
+          p_station_name?: string
+          p_vehicle_id: string
+        }
+        Returns: string
+      }
+      manager_create_fueling_authorization: {
+        Args: {
+          p_driver_id: string
+          p_expires_at?: string
+          p_fuel_type: string
+          p_max_liters?: number
+          p_note?: string
+          p_station_id: string
+          p_vehicle_id: string
+        }
+        Returns: string
+      }
+      manager_review_fueling: {
+        Args: {
+          p_approved: boolean
+          p_fueling_id: string
+          p_note?: string
+        }
+        Returns: undefined
+      }
+      manager_attest_service_order_invoice: {
+        Args: { p_invoice_id: string }
+        Returns: undefined
+      }
+      manager_authorize_service_order: {
+        Args: {
+          p_note?: string
+          p_order_id: string
+          p_repair_shop_id: string
+        }
+        Returns: undefined
+      }
+      manager_cancel_service_order: {
+        Args: { p_order_id: string; p_reason: string }
+        Returns: undefined
+      }
+      manager_confirm_shop_delivery: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
+      manager_create_service_order: {
+        Args: {
+          p_category: string
+          p_checklist_id?: string
+          p_description: string
+          p_driver_id: string
+          p_odometer?: number
+          p_priority: string
+          p_vehicle_id: string
+        }
+        Returns: string
+      }
+      manager_receive_service_order_vehicle: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
+      manager_register_service_order_commitment: {
+        Args: {
+          p_commitment_number: string
+          p_nad_number?: string
+          p_order_id: string
+        }
+        Returns: undefined
+      }
+      manager_register_service_order_payment: {
+        Args: {
+          p_amount: number
+          p_invoice_id?: string
+          p_note?: string
+          p_order_id: string
+          p_paid_at?: string
+        }
+        Returns: boolean
+      }
+      manager_review_service_order_quote: {
+        Args: {
+          p_approved: boolean
+          p_note?: string
+          p_quote_id: string
+        }
+        Returns: undefined
+      }
+      manager_update_service_order_request: {
+        Args: {
+          p_category: string
+          p_description: string
+          p_driver_id: string
+          p_odometer?: number
+          p_order_id: string
+          p_priority: string
+          p_vehicle_id: string
+        }
+        Returns: undefined
+      }
       notify_admins: {
         Args: {
           p_body: string

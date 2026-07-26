@@ -4,9 +4,8 @@ import { toast } from 'sonner';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
-import { Check, DollarSign, FileText, Loader2, Receipt, X } from '@/components/sgf/icons';
+import { Check, DollarSign, FileText, Loader2, X } from '@/components/sgf/icons';
 import { serviceOrderFiscalApi, type FinStatus, type OpStatus } from '@/lib/supabase-api';
-import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
 interface Props {
@@ -32,13 +31,13 @@ const FIN_ORDER: FinStatus[] = [
 ];
 
 const ETAPAS: { n: number; label: string; quem: string; done: (op: OpStatus, fin: FinStatus) => boolean }[] = [
-    { n: 1,  label: 'Motorista identifica a avaria',       quem: 'Motorista',     done: () => true },
-    { n: 2,  label: 'Gestor abre a OS e autoriza',         quem: 'Gestor',        done: (op) => OP_ORDER.indexOf(op) >= 1 },
+    { n: 1,  label: 'Avaria identificada e solicitação aberta', quem: 'Motorista', done: () => true },
+    { n: 2,  label: 'Gestor autoriza e vincula a oficina', quem: 'Gestor',        done: (op) => OP_ORDER.indexOf(op) >= 1 },
     { n: 3,  label: 'Veículo entregue na oficina',         quem: 'Motorista',     done: (op) => OP_ORDER.indexOf(op) >= 2 },
     { n: 4,  label: 'Oficina envia o orçamento',           quem: 'Oficina',       done: (op) => OP_ORDER.indexOf(op) >= 3 },
     { n: 5,  label: 'Gestor aprova e pede reserva',        quem: 'Gestor',        done: (_, fin) => FIN_ORDER.indexOf(fin) >= 1 },
     { n: 6,  label: 'Contabilidade emite NAD/empenho',     quem: 'Contabilidade', done: (_, fin) => FIN_ORDER.indexOf(fin) >= 2 },
-    { n: 7,  label: 'Gestor autoriza a execução',          quem: 'Gestor',        done: (op) => OP_ORDER.indexOf(op) >= 4 },
+    { n: 7,  label: 'Empenho libera a execução',           quem: 'Sistema',       done: (op) => OP_ORDER.indexOf(op) >= 4 },
     { n: 8,  label: 'Oficina executa o serviço',           quem: 'Oficina',       done: (op) => OP_ORDER.indexOf(op) >= 5 },
     { n: 9,  label: 'Conferência e retirada do veículo',   quem: 'Gestor',        done: (op) => OP_ORDER.indexOf(op) >= 6 },
     { n: 10, label: 'Oficina emite a nota fiscal',         quem: 'Oficina',       done: (_, fin) => FIN_ORDER.indexOf(fin) >= 3 },
@@ -57,15 +56,16 @@ const FIN_LABEL: Record<string, string> = {
 };
 
 export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialStatus, commitmentNumber }: Props) {
-    const { user } = useAuth();
     const qc = useQueryClient();
-    const actorId = user?.id ?? '';
     const op = (operationalStatus ?? 'pending') as OpStatus;
     const fin = (financialStatus ?? 'not_started') as FinStatus;
 
+    const [quoteReviewNote, setQuoteReviewNote] = useState('');
     const [commitment, setCommitment] = useState(commitmentNumber ?? '');
     const [nad, setNad] = useState('');
     const [payAmount, setPayAmount] = useState('');
+    const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
+    const [payNote, setPayNote] = useState('');
 
     const invalidate = () => {
         qc.invalidateQueries({ queryKey: ['maintenance', orderId] });
@@ -92,18 +92,49 @@ export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialS
         catch (e) { toast.error((e as { message?: string })?.message ?? 'Não foi possível concluir a ação.'); }
     };
 
-    const mutApproveQuote = useMutation({ mutationFn: (id: string) => serviceOrderFiscalApi.approveQuote(id, orderId, actorId) });
-    const mutCommit = useMutation({ mutationFn: () => serviceOrderFiscalApi.registerCommitment(orderId, { commitmentNumber: commitment.trim(), nadNumber: nad.trim() || null, actorId }) });
-    const mutOp = useMutation({ mutationFn: (to: OpStatus) => serviceOrderFiscalApi.setOperationalStatus(orderId, to, actorId) });
-    const mutAttest = useMutation({ mutationFn: (id: string) => serviceOrderFiscalApi.attestInvoice(id, orderId, actorId) });
-    const mutPay = useMutation({ mutationFn: () => serviceOrderFiscalApi.registerPayment(orderId, { amount: Number(payAmount), actorId }) });
+    const mutApproveQuote = useMutation({
+        mutationFn: (id: string) => serviceOrderFiscalApi.approveQuote(id, quoteReviewNote),
+    });
+    const mutRejectQuote = useMutation({
+        mutationFn: (id: string) => serviceOrderFiscalApi.rejectQuote(id, quoteReviewNote),
+    });
+    const mutCommit = useMutation({
+        mutationFn: () => serviceOrderFiscalApi.registerCommitment(orderId, {
+            commitmentNumber: commitment,
+            nadNumber: nad || null,
+        }),
+    });
+    const mutDelivery = useMutation({
+        mutationFn: () => serviceOrderFiscalApi.confirmShopDelivery(orderId),
+    });
+    const mutReceive = useMutation({
+        mutationFn: () => serviceOrderFiscalApi.receiveVehicle(orderId),
+    });
+    const mutAttest = useMutation({
+        mutationFn: (id: string) => serviceOrderFiscalApi.attestInvoice(id),
+    });
+    const mutPay = useMutation({
+        mutationFn: () => serviceOrderFiscalApi.registerPayment(orderId, {
+            amount: Number(payAmount),
+            paidAt: new Date(`${payDate}T12:00:00`).toISOString(),
+            note: payNote,
+        }),
+    });
 
-    const busy = mutApproveQuote.isPending || mutCommit.isPending || mutOp.isPending || mutAttest.isPending || mutPay.isPending;
+    const busy = mutApproveQuote.isPending
+        || mutRejectQuote.isPending
+        || mutCommit.isPending
+        || mutDelivery.isPending
+        || mutReceive.isPending
+        || mutAttest.isPending
+        || mutPay.isPending;
 
     const quoteAberto = data?.quotes.find((q) => q.status === 'enviado');
     const totalNf = (data?.invoices ?? []).reduce((s, i) => s + Number(i.amount ?? 0), 0);
     const totalPago = (data?.payments ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0);
     const naoAtestadas = (data?.invoices ?? []).filter((i) => !i.attested_at);
+    const saldoPagar = Math.max(0, totalNf - totalPago);
+    const podePagar = fin === 'attested' && naoAtestadas.length === 0 && saldoPagar > 0;
 
     if (isLoading) {
         return <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>;
@@ -147,7 +178,7 @@ export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialS
             {/* Ações do gestor, só a pertinente à etapa atual */}
             <div className="space-y-3">
                 {op === 'authorized' && (
-                    <SGFButton size="sm" disabled={busy} onClick={run(() => mutOp.mutateAsync('at_shop'), 'Veículo registrado na oficina.')}>
+                    <SGFButton size="sm" disabled={busy} onClick={run(() => mutDelivery.mutateAsync(), 'Veículo registrado na oficina.')}>
                         Confirmar entrega na oficina
                     </SGFButton>
                 )}
@@ -162,10 +193,7 @@ export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialS
                                     <p className="text-[11px] text-amber-700">Válido até {formatDate(quoteAberto.valid_until)}</p>
                                 )}
                             </div>
-                            <SGFButton size="sm" disabled={busy} icon={Check}
-                                onClick={run(() => mutApproveQuote.mutateAsync(quoteAberto.id), 'Orçamento aprovado. Solicite o empenho.')}>
-                                Aprovar
-                            </SGFButton>
+                            <SGFBadge variant="warning" size="sm">Revisão do gestor</SGFBadge>
                         </div>
                         <ul className="mt-3 space-y-1">
                             {quoteAberto.items.map((it) => (
@@ -175,6 +203,45 @@ export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialS
                                 </li>
                             ))}
                         </ul>
+                        {quoteAberto.note && (
+                            <p className="mt-3 rounded-xl bg-white/60 p-3 text-xs text-amber-900">
+                                <strong>Observação da oficina:</strong> {quoteAberto.note}
+                            </p>
+                        )}
+                        <div className="mt-3">
+                            <SGFInput
+                                label="Parecer do gestor"
+                                value={quoteReviewNote}
+                                onChange={(event) => setQuoteReviewNote(event.target.value)}
+                                placeholder="Opcional para aprovar; obrigatório para rejeitar"
+                                fullWidth
+                            />
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            <SGFButton
+                                size="sm"
+                                disabled={busy}
+                                icon={Check}
+                                onClick={run(async () => {
+                                    await mutApproveQuote.mutateAsync(quoteAberto.id);
+                                    setQuoteReviewNote('');
+                                }, 'Orçamento aprovado. Solicite o empenho.')}
+                            >
+                                Aprovar orçamento
+                            </SGFButton>
+                            <SGFButton
+                                size="sm"
+                                variant="danger"
+                                disabled={busy || !quoteReviewNote.trim()}
+                                icon={X}
+                                onClick={run(async () => {
+                                    await mutRejectQuote.mutateAsync(quoteAberto.id);
+                                    setQuoteReviewNote('');
+                                }, 'Orçamento rejeitado e devolvido à oficina.')}
+                            >
+                                Rejeitar e devolver
+                            </SGFButton>
+                        </div>
                     </div>
                 )}
 
@@ -193,12 +260,12 @@ export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialS
                 )}
 
                 {op === 'ready' && (
-                    <SGFButton size="sm" disabled={busy} onClick={run(() => mutOp.mutateAsync('received'), 'Veículo recebido e liberado para uso.')}>
+                    <SGFButton size="sm" disabled={busy} onClick={run(() => mutReceive.mutateAsync(), 'Veículo recebido e liberado para uso.')}>
                         Conferir e receber o veículo
                     </SGFButton>
                 )}
 
-                {naoAtestadas.length > 0 && (
+                {op === 'received' && naoAtestadas.length > 0 && (
                     <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
                         <p className="mb-2 text-xs font-bold uppercase tracking-wide text-blue-700">Notas a atestar</p>
                         {naoAtestadas.map((nf) => (
@@ -233,19 +300,55 @@ export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialS
                                 <span className="font-semibold">{formatCurrency(Number(p.amount))}</span>
                             </div>
                         ))}
-                        {totalPago < totalNf && (
-                            <div className="mt-3 flex items-end gap-2">
-                                <SGFInput label="Valor pago (R$)" type="number" min={0} step="0.01"
-                                    value={payAmount} onChange={(e) => setPayAmount(e.target.value)} icon={DollarSign} />
-                                <SGFButton size="sm" disabled={busy || !(Number(payAmount) > 0)}
-                                    onClick={run(async () => {
-                                        const r = await mutPay.mutateAsync();
-                                        setPayAmount('');
-                                        return r;
-                                    }, 'Pagamento registrado.')}>
-                                    Registrar
-                                </SGFButton>
+                        {podePagar && (
+                            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                                <SGFInput
+                                    label="Valor pago (R$)"
+                                    type="number"
+                                    min={0.01}
+                                    max={saldoPagar}
+                                    step="0.01"
+                                    value={payAmount}
+                                    onChange={(event) => setPayAmount(event.target.value)}
+                                    icon={DollarSign}
+                                    fullWidth
+                                />
+                                <SGFInput
+                                    label="Data do pagamento"
+                                    type="date"
+                                    value={payDate}
+                                    onChange={(event) => setPayDate(event.target.value)}
+                                    fullWidth
+                                />
+                                <SGFInput
+                                    label="Referência (opcional)"
+                                    value={payNote}
+                                    onChange={(event) => setPayNote(event.target.value)}
+                                    placeholder="OB, processo ou observação"
+                                    fullWidth
+                                />
+                                <div className="md:col-span-3">
+                                    <SGFButton
+                                        size="sm"
+                                        disabled={busy
+                                            || !(Number(payAmount) > 0)
+                                            || Number(payAmount) > saldoPagar
+                                            || !payDate}
+                                        onClick={run(async () => {
+                                            await mutPay.mutateAsync();
+                                            setPayAmount('');
+                                            setPayNote('');
+                                        }, 'Pagamento registrado.')}
+                                    >
+                                        Registrar pagamento
+                                    </SGFButton>
+                                </div>
                             </div>
+                        )}
+                        {fin === 'invoiced' && naoAtestadas.length > 0 && (
+                            <p className="mt-3 text-[11px] text-blue-700">
+                                O pagamento será liberado somente depois do ateste de todas as notas.
+                            </p>
                         )}
                         {totalPago > 0 && totalPago < totalNf && (
                             <p className="mt-2 text-[11px] text-amber-600">

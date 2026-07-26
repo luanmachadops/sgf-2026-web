@@ -91,7 +91,7 @@ export function OrderDetailsModal({
         ),
     });
 
-    const canQuote = ['authorized', 'at_shop', 'awaiting_quote_approval']
+    const canQuote = ['at_shop', 'awaiting_quote_approval']
         .includes(order.operationalStatus);
     const canStart = order.operationalStatus === 'awaiting_quote_approval'
         && order.financialStatus === 'committed';

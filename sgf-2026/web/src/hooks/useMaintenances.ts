@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { maintenancesApi } from '@/lib/supabase-api';
+import type { MaintenanceRequestInput } from '@/lib/supabase-api';
 import type { MaintenanceFilters } from '@/types';
-import type { TablesInsert, TablesUpdate } from '@/types/database.types';
 
 export function useMaintenances(filters?: MaintenanceFilters) {
     return useQuery({
@@ -28,9 +28,10 @@ export function useCreateMaintenance() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (data: TablesInsert<'service_orders'>) => maintenancesApi.create(data),
+        mutationFn: (input: MaintenanceRequestInput) => maintenancesApi.create(input),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['maintenances'] });
+            queryClient.invalidateQueries({ queryKey: ['workshop-orders'] });
         },
     });
 }
@@ -39,8 +40,8 @@ export function useUpdateMaintenance() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ id, data }: { id: string; data: TablesUpdate<'service_orders'> }) =>
-            maintenancesApi.update(id, data),
+        mutationFn: ({ id, input }: { id: string; input: MaintenanceRequestInput }) =>
+            maintenancesApi.updateRequest(id, input),
         onSuccess: (_, { id }) => {
             queryClient.invalidateQueries({ queryKey: ['maintenances'] });
             queryClient.invalidateQueries({ queryKey: ['maintenance', id] });
@@ -48,52 +49,37 @@ export function useUpdateMaintenance() {
     });
 }
 
-export function useApproveMaintenance() {
+export function useAuthorizeMaintenance() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ id, approvedBy, repairShopId, repairShop, budget, notes }: {
+        mutationFn: ({ id, repairShopId, note }: {
             id: string;
-            approvedBy: string;
-            /** FK da oficina credenciada — fonte da verdade. */
-            repairShopId?: string | null;
-            /** Nome, mantido para o histórico e telas antigas. */
-            repairShop: string;
-            budget?: number | null;
-            notes?: string;
-        }) => maintenancesApi.approve(id, approvedBy, { repairShopId, repairShop, budget, notes }),
-        onSuccess: () => {
+            repairShopId: string;
+            note?: string;
+        }) => maintenancesApi.authorize(id, repairShopId, note),
+        onSuccess: (_, { id }) => {
             queryClient.invalidateQueries({ queryKey: ['maintenances'] });
+            queryClient.invalidateQueries({ queryKey: ['maintenance', id] });
             queryClient.invalidateQueries({ queryKey: ['vehicles'] });
             queryClient.invalidateQueries({ queryKey: ['map', 'live-vehicles'] });
+            queryClient.invalidateQueries({ queryKey: ['workshop-orders'] });
         },
     });
 }
 
-export function useRejectMaintenance() {
+export function useCancelMaintenance() {
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: ({ id, reason }: { id: string; reason: string }) =>
-            maintenancesApi.reject(id, reason),
-        onSuccess: () => {
+            maintenancesApi.cancel(id, reason),
+        onSuccess: (_, { id }) => {
             queryClient.invalidateQueries({ queryKey: ['maintenances'] });
+            queryClient.invalidateQueries({ queryKey: ['maintenance', id] });
             queryClient.invalidateQueries({ queryKey: ['vehicles'] });
             queryClient.invalidateQueries({ queryKey: ['map', 'live-vehicles'] });
-        },
-    });
-}
-
-export function useCompleteMaintenance() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: ({ id, cost, adminNote }: { id: string; cost: number; adminNote?: string }) =>
-            maintenancesApi.complete(id, cost, adminNote),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['maintenances'] });
-            queryClient.invalidateQueries({ queryKey: ['vehicles'] });
-            queryClient.invalidateQueries({ queryKey: ['map', 'live-vehicles'] });
+            queryClient.invalidateQueries({ queryKey: ['workshop-orders'] });
         },
     });
 }

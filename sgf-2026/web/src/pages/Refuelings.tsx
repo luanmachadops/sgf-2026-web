@@ -3,6 +3,7 @@ import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
+import { SGFTextarea } from '@/components/sgf/SGFTextarea';
 import { Modal } from '@/components/ui/Modal';
 import { PhotoViewer } from '@/components/ui/PhotoViewer';
 import {
@@ -22,17 +23,19 @@ import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { NewRefuelingForm } from '@/components/refuelings/NewRefuelingForm';
 import { AuthorizeFuelingModal } from '@/components/refuelings/AuthorizeFuelingModal';
 import { useRefuelings, useValidateRefueling, useCancelFuelAuthorization } from '@/hooks/useRefuelings';
-import { useAuth } from '@/contexts/AuthContext';
 import type { Tables } from '@/types/database.types';
 
 type WorkflowStatus = 'autorizado' | 'concluido' | 'rejeitado_motorista' | 'validado' | 'rejeitado_admin' | 'lancado_direto';
 
-const WORKFLOW_TABS: Array<{ value: '' | 'pending_validation' | WorkflowStatus; label: string }> = [
+type WorkflowTab = '' | 'pending_validation' | 'rejected' | WorkflowStatus;
+
+const WORKFLOW_TABS: Array<{ value: WorkflowTab; label: string }> = [
     { value: '', label: 'Todos' },
-    { value: 'autorizado', label: 'Autorizados (aguardando motorista)' },
+    { value: 'autorizado', label: 'Aguardando o posto' },
     { value: 'pending_validation', label: 'Aguardando validação' },
     { value: 'validado', label: 'Validados' },
     { value: 'rejeitado_admin', label: 'Rejeitados' },
+    { value: 'lancado_direto', label: 'Lançamentos diretos' },
 ];
 
 function workflowBadge(status: WorkflowStatus | null | undefined): { label: string; variant: 'success' | 'warning' | 'error' | 'info' | 'default' } {
@@ -78,27 +81,24 @@ type RefuelingRow = {
     fullTank: boolean | null;
     photoRequisition: string | null;
     photoDashboard: string | null;
+    photoPump: string | null;
     photoReceipt: string | null;
+    receiptNumber: string | null;
 };
 
 export default function Refuelings() {
     const [searchTerm, setSearchTerm] = useState('');
-    const [workflowTab, setWorkflowTab] = useState<'' | 'pending_validation' | WorkflowStatus>('');
+    const [workflowTab, setWorkflowTab] = useState<WorkflowTab>('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [showAuthorizeModal, setShowAuthorizeModal] = useState(false);
     const [selectedRefueling, setSelectedRefueling] = useState<RefuelingRow | null>(null);
+    const [reviewReason, setReviewReason] = useState('');
     const [photoViewer, setPhotoViewer] = useState<{ images: string[]; index: number } | null>(null);
     const { setTitle, setDescription, setHeaderAction } = useHeader();
-    const { user } = useAuth();
     const validateMutation = useValidateRefueling();
     const cancelAuth = useCancelFuelAuthorization();
 
-    // "Aguardando validação" = workflow_status='concluido' (motorista preencheu, falta admin validar).
-    const queryStatus = workflowTab === 'pending_validation' ? 'concluido' : (workflowTab || undefined);
-
-    const { data: rawRefuelings = [] } = useRefuelings({
-        workflowStatus: queryStatus,
-    });
+    const { data: rawRefuelings = [], isLoading } = useRefuelings();
 
     useEffect(() => {
         setTitle('Abastecimentos');
@@ -110,7 +110,7 @@ export default function Refuelings() {
                     Autorizar abastecimento
                 </SGFButton>
                 <SGFButton onClick={() => setShowAddModal(true)} icon={Plus} className="!rounded-full !h-[37px]">
-                    Novo Abastecimento
+                    Lançamento direto
                 </SGFButton>
             </div>
         );
@@ -151,7 +151,9 @@ export default function Refuelings() {
                 fullTank: (row.full_tank as boolean | null) ?? null,
                 photoRequisition: row.photo_requisition_url ?? null,
                 photoDashboard: row.photo_dashboard_url ?? null,
+                photoPump: row.photo_pump_url ?? null,
                 photoReceipt: row.photo_receipt_url ?? null,
+                receiptNumber: row.pump_receipt_number ?? null,
             };
         });
     }, [rawRefuelings]);
@@ -163,14 +165,19 @@ export default function Refuelings() {
                 || refueling.vehicle.toLowerCase().includes(term)
                 || refueling.driver.toLowerCase().includes(term)
                 || refueling.station.toLowerCase().includes(term);
-            return matchesSearch;
+            const matchesWorkflow = !workflowTab
+                || (workflowTab === 'pending_validation' && refueling.workflowStatus === 'concluido')
+                || (workflowTab === 'rejected'
+                    && ['rejeitado_admin', 'rejeitado_motorista'].includes(refueling.workflowStatus))
+                || refueling.workflowStatus === workflowTab;
+            return matchesSearch && matchesWorkflow;
         });
-    }, [refuelings, searchTerm]);
+    }, [refuelings, searchTerm, workflowTab]);
 
     const totalLiters = filteredRefuelings.reduce((sum, row) => sum + row.liters, 0);
     const totalCost = filteredRefuelings.reduce((sum, row) => sum + row.cost, 0);
     const anomalyCount = refuelings.filter((row) => row.hasAnomaly).length;
-    const pendingCount = refuelings.filter((row) => !row.isValidated).length;
+    const pendingCount = refuelings.filter((row) => row.workflowStatus === 'concluido').length;
 
     const columns: SGFTableColumn<RefuelingRow>[] = [
         { header: 'Data', accessor: (row) => row.date ? formatDate(row.date) : '-' },
@@ -228,23 +235,36 @@ export default function Refuelings() {
             header: 'Ações',
             sortable: false,
             accessor: (row) => (
-                <SGFButton variant="ghost" size="sm" icon={Eye} onClick={() => setSelectedRefueling(row)} />
+                <SGFButton
+                    variant="ghost"
+                    size="sm"
+                    icon={Eye}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedRefueling(row);
+                        setReviewReason('');
+                    }}
+                />
             )
         }
     ];
 
     const handleValidate = (approved: boolean) => {
-        if (!selectedRefueling || !user?.id) return;
+        if (!selectedRefueling) return;
+        if (!approved && !reviewReason.trim()) return;
+        if (approved && (!selectedRefueling.photoPump || !selectedRefueling.receiptNumber?.trim())) return;
 
         validateMutation.mutate(
             {
                 id: selectedRefueling.id,
                 approved,
-                validatedBy: user.id,
-                notes: approved ? undefined : 'Rejeitado manualmente pelo gestor',
+                notes: reviewReason.trim() || undefined,
             },
             {
-                onSuccess: () => setSelectedRefueling(null),
+                onSuccess: () => {
+                    setSelectedRefueling(null);
+                    setReviewReason('');
+                },
             }
         );
     };
@@ -254,7 +274,10 @@ export default function Refuelings() {
         autorizado: refuelings.filter(r => r.workflowStatus === 'autorizado').length,
         concluido: refuelings.filter(r => r.workflowStatus === 'concluido').length,
         validado: refuelings.filter(r => r.workflowStatus === 'validado').length,
-        rejeitado_admin: refuelings.filter(r => r.workflowStatus === 'rejeitado_admin').length,
+        rejeitado_admin: refuelings.filter(r =>
+            ['rejeitado_admin', 'rejeitado_motorista'].includes(r.workflowStatus),
+        ).length,
+        lancado_direto: refuelings.filter(r => r.workflowStatus === 'lancado_direto').length,
     }), [refuelings]);
 
     return (
@@ -330,14 +353,21 @@ export default function Refuelings() {
                     columns={columns}
                     data={filteredRefuelings}
                     keyExtractor={(row) => row.id}
-                    onRowClick={(row) => setSelectedRefueling(row)}
+                    onRowClick={(row) => {
+                        setSelectedRefueling(row);
+                        setReviewReason('');
+                    }}
+                    loading={isLoading}
                     emptyMessage="Nenhum abastecimento encontrado."
                 />
             </div>
 
             <Modal
                 isOpen={!!selectedRefueling}
-                onClose={() => setSelectedRefueling(null)}
+                onClose={() => {
+                    setSelectedRefueling(null);
+                    setReviewReason('');
+                }}
                 title="Detalhes do Abastecimento"
                 size="lg"
                 footer={
@@ -350,40 +380,45 @@ export default function Refuelings() {
                                     className="text-rose-600 hover:bg-rose-50"
                                     onClick={() => {
                                         if (!selectedRefueling) return;
-                                        cancelAuth.mutate({ id: selectedRefueling.id }, {
-                                            onSuccess: () => setSelectedRefueling(null),
+                                        cancelAuth.mutate({ id: selectedRefueling.id, reason: reviewReason }, {
+                                            onSuccess: () => {
+                                                setSelectedRefueling(null);
+                                                setReviewReason('');
+                                            },
                                         });
                                     }}
-                                    disabled={cancelAuth.isPending}
+                                    disabled={cancelAuth.isPending || !reviewReason.trim()}
                                 >
                                     Cancelar autorização
                                 </SGFButton>
                             )}
-                            {/* Quando motorista preencheu (concluido) ou é lançamento direto sem validar */}
-                            {selectedRefueling && !selectedRefueling.isValidated
-                                && selectedRefueling.workflowStatus !== 'autorizado'
-                                && selectedRefueling.workflowStatus !== 'rejeitado_admin'
-                                && selectedRefueling.workflowStatus !== 'rejeitado_motorista' && (
+                            {/* Só a execução concluída pelo posto entra na conferência. */}
+                            {selectedRefueling?.workflowStatus === 'concluido' && (
                                 <>
                                     <SGFButton
                                         variant="ghost"
                                         className="text-rose-600 hover:bg-rose-50"
                                         onClick={() => handleValidate(false)}
-                                        disabled={validateMutation.isPending}
+                                        disabled={validateMutation.isPending || !reviewReason.trim()}
                                     >
                                         Rejeitar
                                     </SGFButton>
                                     <SGFButton
                                         variant="primary"
                                         onClick={() => handleValidate(true)}
-                                        disabled={validateMutation.isPending}
+                                        disabled={validateMutation.isPending
+                                            || !selectedRefueling.photoPump
+                                            || !selectedRefueling.receiptNumber?.trim()}
                                     >
                                         Validar Abastecimento
                                     </SGFButton>
                                 </>
                             )}
                         </div>
-                        <SGFButton variant="ghost" onClick={() => setSelectedRefueling(null)}>
+                        <SGFButton variant="ghost" onClick={() => {
+                            setSelectedRefueling(null);
+                            setReviewReason('');
+                        }}>
                             Fechar
                         </SGFButton>
                     </div>
@@ -392,7 +427,8 @@ export default function Refuelings() {
                 {selectedRefueling && (() => {
                     const badge = workflowBadge(selectedRefueling.workflowStatus);
                     const proofs = [
-                        { url: selectedRefueling.photoRequisition, label: 'Requisição do posto' },
+                        { url: selectedRefueling.photoPump, label: 'Bico da bomba' },
+                        { url: selectedRefueling.photoRequisition, label: 'Requisição' },
                         { url: selectedRefueling.photoDashboard, label: 'Painel / Hodômetro' },
                         { url: selectedRefueling.photoReceipt, label: 'Cupom fiscal' },
                     ].filter((p): p is { url: string; label: string } => !!p.url);
@@ -526,17 +562,35 @@ export default function Refuelings() {
                             </div>
                         </div>
 
-                        {/* Comprovantes enviados pelo motorista */}
+                        {(selectedRefueling.workflowStatus === 'autorizado'
+                            || selectedRefueling.workflowStatus === 'concluido') && (
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <SGFTextarea
+                                    label={selectedRefueling.workflowStatus === 'autorizado'
+                                        ? 'Motivo do cancelamento'
+                                        : 'Parecer da gestão'}
+                                    value={reviewReason}
+                                    onChange={(event) => setReviewReason(event.target.value)}
+                                    placeholder={selectedRefueling.workflowStatus === 'concluido'
+                                        ? 'Opcional ao validar; obrigatório ao rejeitar'
+                                        : 'Obrigatório para cancelar a autorização'}
+                                    rows={2}
+                                    fullWidth
+                                />
+                            </div>
+                        )}
+
+                        {/* Comprovantes enviados pelo posto ou anexados na contingência. */}
                         <div>
                             <div className="flex items-center justify-between mb-2">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Comprovantes</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Comprovantes da execução</p>
                                 {proofs.length > 0 && (
                                     <p className="text-[11px] font-semibold text-slate-400">{proofs.length} foto{proofs.length > 1 ? 's' : ''} · clique para ampliar</p>
                                 )}
                             </div>
                             {proofs.length === 0 ? (
                                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
-                                    <p className="text-sm font-medium text-slate-400">Nenhuma foto anexada pelo motorista.</p>
+                                    <p className="text-sm font-medium text-slate-400">Nenhuma evidência fotográfica anexada.</p>
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -555,7 +609,27 @@ export default function Refuelings() {
                                     ))}
                                 </div>
                             )}
+                            <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
+                                <span className="text-slate-500">Número do cupom</span>
+                                <span className={cn(
+                                    'font-bold',
+                                    selectedRefueling.receiptNumber ? 'text-slate-800' : 'text-rose-600',
+                                )}>
+                                    {selectedRefueling.receiptNumber || 'Não informado'}
+                                </span>
+                            </div>
                         </div>
+
+                        {selectedRefueling.workflowStatus === 'concluido'
+                            && (!selectedRefueling.photoPump || !selectedRefueling.receiptNumber?.trim()) && (
+                            <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                                <p className="text-sm font-medium text-amber-900">
+                                    A aprovação está bloqueada porque falta a foto do bico ou o número do cupom.
+                                    Rejeite o lançamento com a justificativa para o posto corrigir o processo.
+                                </p>
+                            </div>
+                        )}
 
                         {selectedRefueling.hasAnomaly && (
                             <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
@@ -575,7 +649,7 @@ export default function Refuelings() {
                 isOpen={showAddModal}
                 onClose={() => setShowAddModal(false)}
                 title="Novo Abastecimento"
-                description="Lançar novo abastecimento de veículo"
+                description="Contingência: lance um comprovante já realizado fora do portal do posto."
                 size="lg"
             >
                 <NewRefuelingForm

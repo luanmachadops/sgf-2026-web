@@ -41,12 +41,11 @@ export function useValidateRefueling() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ id, approved, validatedBy, notes }: {
+        mutationFn: ({ id, approved, notes }: {
             id: string;
             approved: boolean;
-            validatedBy: string;
             notes?: string;
-        }) => refuelingsApi.validate(id, approved, validatedBy, notes),
+        }) => refuelingsApi.validate(id, approved, notes),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['refuelings'] });
         },
@@ -67,7 +66,7 @@ export function useCreateFuelAuthorization() {
 export function useCancelFuelAuthorization() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+        mutationFn: ({ id, reason }: { id: string; reason: string }) =>
             refuelingsApi.cancelAuthorization(id, reason),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['refuelings'] });

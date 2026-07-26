@@ -1,26 +1,26 @@
 import React from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { SGFTextarea } from '@/components/sgf/SGFTextarea';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { Loader2, Save, Wrench, Calendar, FileText, Car } from '@/components/sgf/icons';
+import { Loader2, Save, Wrench, Car, User } from '@/components/sgf/icons';
 import { toast } from 'sonner';
 import { useVehicles } from '@/hooks/useVehicles';
+import { useDrivers } from '@/hooks/useDrivers';
 import { useCreateMaintenance, useUpdateMaintenance } from '@/hooks/useMaintenances';
-import { useAuth } from '@/contexts/AuthContext';
 import { VehiclePickerField } from '@/components/sgf/VehiclePickerField';
 
 // Schema alinhado aos enums do banco (service_orders)
 const maintenanceSchema = z.object({
     vehicleId: z.string().min(1, 'Veículo é obrigatório'),
+    driverId: z.string().min(1, 'Motorista solicitante é obrigatório'),
     category: z.string().min(1, 'Categoria é obrigatória'),
     categoryOther: z.string().optional(),
     priority: z.enum(['baixa', 'media', 'alta']),
     description: z.string().min(5, 'Descrição deve ter pelo menos 5 caracteres'),
-    scheduledDate: z.string().min(1, 'Data é obrigatória'),
     odometer: z.coerce.number().min(0).optional(),
 }).refine(
     (data) => data.category !== 'Outro' || (data.categoryOther?.trim().length ?? 0) >= 2,
@@ -35,11 +35,11 @@ type MaintenanceFormData = z.output<typeof maintenanceSchema>;
 export interface MaintenanceEditData {
     id: string;
     vehicleId: string;
+    driverId: string;
     category: string;
     priority: 'baixa' | 'media' | 'alta';
     description: string;
     odometer: number | null;
-    scheduledDate?: string;
 }
 
 interface NewMaintenanceFormProps {
@@ -70,8 +70,8 @@ const priorityOptions = [
 ];
 
 export function NewMaintenanceForm({ onSuccess, onCancel, editData }: NewMaintenanceFormProps) {
-    const { user } = useAuth();
     const { data: vehicles = [], isLoading: vehiclesLoading } = useVehicles();
+    const { data: drivers = [], isLoading: driversLoading } = useDrivers({ status: 'ACTIVE' });
     const createMaintenance = useCreateMaintenance();
     const updateMaintenance = useUpdateMaintenance();
     const isEdit = Boolean(editData);
@@ -83,65 +83,56 @@ export function NewMaintenanceForm({ onSuccess, onCancel, editData }: NewMainten
         register,
         handleSubmit,
         control,
-        watch,
         formState: { errors, isSubmitting },
     } = useForm<MaintenanceFormInput, unknown, MaintenanceFormData>({
         resolver: zodResolver(maintenanceSchema),
         defaultValues: editData
-            ? {
+              ? {
                   vehicleId: editData.vehicleId,
+                  driverId: editData.driverId,
                   category: knownCategory ? editData.category : 'Outro',
                   categoryOther: knownCategory ? '' : editData.category,
                   priority: editData.priority,
                   description: editData.description,
-                  scheduledDate: editData.scheduledDate ?? new Date().toISOString().split('T')[0],
                   odometer: editData.odometer ?? undefined,
               }
             : {
+                  vehicleId: '',
+                  driverId: '',
                   category: '',
                   categoryOther: '',
                   priority: 'media',
                   description: '',
-                  scheduledDate: new Date().toISOString().split('T')[0],
               },
     });
+    const selectedCategory = useWatch({ control, name: 'category' });
 
     const onSubmit = async (data: MaintenanceFormData) => {
-        if (!user?.id) {
-            toast.error('Usuário não autenticado.');
-            return;
-        }
-
         const category = data.category === 'Outro' ? (data.categoryOther?.trim() || 'Outro') : data.category;
+        const input = {
+            vehicleId: data.vehicleId,
+            driverId: data.driverId,
+            category,
+            priority: data.priority,
+            description: data.description.trim(),
+            odometer: data.odometer ?? null,
+        };
 
         try {
             if (isEdit && editData) {
                 await updateMaintenance.mutateAsync({
                     id: editData.id,
-                    data: {
-                        vehicle_id: data.vehicleId,
-                        category,
-                        priority: data.priority,
-                        description: data.description,
-                        odometer: data.odometer ?? null,
-                    },
+                    input,
                 });
                 toast.success('Ordem de serviço atualizada!');
             } else {
-                await createMaintenance.mutateAsync({
-                    vehicle_id: data.vehicleId,
-                    driver_id: user.id,
-                    category,
-                    priority: data.priority,
-                    description: data.description,
-                    odometer: data.odometer ?? null,
-                    status: 'pendente',
-                });
-                toast.success('Manutenção registrada com sucesso!');
+                await createMaintenance.mutateAsync(input);
+                toast.success('Solicitação de manutenção aberta!');
             }
             onSuccess();
-        } catch {
-            toast.error(isEdit ? 'Erro ao atualizar a O.S.' : 'Erro ao registrar manutenção.');
+        } catch (error) {
+            toast.error((error as { message?: string }).message
+                ?? (isEdit ? 'Erro ao atualizar a O.S.' : 'Erro ao registrar manutenção.'));
         }
     };
 
@@ -164,41 +155,60 @@ export function NewMaintenanceForm({ onSuccess, onCancel, editData }: NewMainten
                     />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <Controller
-                        name="category"
-                        control={control}
-                        render={({ field }) => (
-                            <SGFSelect
-                                label="Categoria"
-                                options={categoryOptions}
-                                value={field.value}
-                                onChange={field.onChange}
-                                error={errors.category?.message}
-                                placeholder="Selecione..."
-                                fullWidth
-                                icon={Wrench}
-                            />
-                        )}
-                    />
+                <Controller
+                    name="driverId"
+                    control={control}
+                    render={({ field }) => (
+                        <SGFSelect
+                            label="Motorista solicitante"
+                            options={drivers.map((driver) => ({
+                                value: driver.id,
+                                label: driver.full_name,
+                            }))}
+                            value={field.value}
+                            onChange={field.onChange}
+                            error={errors.driverId?.message}
+                            placeholder={driversLoading ? 'Carregando...' : 'Selecione o motorista'}
+                            disabled={driversLoading}
+                            fullWidth
+                            icon={User}
+                        />
+                    )}
+                />
 
-                    <Controller
-                        name="priority"
-                        control={control}
-                        render={({ field }) => (
-                            <SGFSelect
-                                label="Prioridade"
-                                options={priorityOptions}
-                                value={field.value}
-                                onChange={field.onChange}
-                                error={errors.priority?.message}
-                                fullWidth
-                            />
-                        )}
-                    />
-                </div>
+                <Controller
+                    name="priority"
+                    control={control}
+                    render={({ field }) => (
+                        <SGFSelect
+                            label="Prioridade"
+                            options={priorityOptions}
+                            value={field.value}
+                            onChange={field.onChange}
+                            error={errors.priority?.message}
+                            fullWidth
+                        />
+                    )}
+                />
 
-                {watch('category') === 'Outro' && (
+                <Controller
+                    name="category"
+                    control={control}
+                    render={({ field }) => (
+                        <SGFSelect
+                            label="Categoria"
+                            options={categoryOptions}
+                            value={field.value}
+                            onChange={field.onChange}
+                            error={errors.category?.message}
+                            placeholder="Selecione..."
+                            fullWidth
+                            icon={Wrench}
+                        />
+                    )}
+                />
+
+                {selectedCategory === 'Outro' && (
                     <SGFInput
                         label="Qual a categoria?"
                         placeholder="Descreva a categoria"
@@ -210,16 +220,7 @@ export function NewMaintenanceForm({ onSuccess, onCancel, editData }: NewMainten
                 )}
 
                 <SGFInput
-                    label="Data Agendada"
-                    type="date"
-                    {...register('scheduledDate')}
-                    error={errors.scheduledDate?.message}
-                    fullWidth
-                    icon={Calendar}
-                />
-
-                <SGFInput
-                    label="Odômetro Atual (Opcional)"
+                    label="Odômetro informado (opcional)"
                     type="number"
                     placeholder="Ex: 45230"
                     {...register('odometer')}
@@ -249,9 +250,9 @@ export function NewMaintenanceForm({ onSuccess, onCancel, editData }: NewMainten
                 <SGFButton
                     type="submit"
                     icon={isSubmitting ? Loader2 : Save}
-                    disabled={isSubmitting || vehiclesLoading}
+                    disabled={isSubmitting || vehiclesLoading || driversLoading}
                 >
-                    {isSubmitting ? 'Salvando...' : isEdit ? 'Salvar Alterações' : 'Registrar Manutenção'}
+                    {isSubmitting ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Abrir solicitação'}
                 </SGFButton>
             </div>
         </form>

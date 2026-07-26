@@ -8,7 +8,7 @@ import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { Car, Fuel, User } from '@/components/sgf/icons';
 import { stationsApi, vehiclesApi } from '@/lib/supabase-api';
 import { useCreateFuelAuthorization } from '@/hooks/useRefuelings';
-import { useAuth } from '@/contexts/AuthContext';
+import { useDrivers } from '@/hooks/useDrivers';
 import { formatPlate } from '@/lib/utils';
 import { getStationUnavailableReason } from '@/lib/stationStatus';
 
@@ -18,25 +18,33 @@ interface Props {
 }
 
 const FUEL_OPTIONS = [
-    { value: '', label: 'Qualquer (motorista decide)' },
+    { value: '', label: 'Selecione o combustível' },
     { value: 'Gasolina', label: 'Gasolina' },
     { value: 'Etanol', label: 'Etanol' },
     { value: 'Diesel', label: 'Diesel' },
-    { value: 'GNV', label: 'GNV' },
 ];
 
-export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
-    const { user } = useAuth();
+function defaultExpiry(): string {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    tomorrow.setSeconds(0, 0);
+    const localTomorrow = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60_000);
+    return localTomorrow.toISOString().slice(0, 16);
+}
+
+export function AuthorizeFuelingModal(props: Props) {
+    return <AuthorizeFuelingModalContent key={props.isOpen ? 'open' : 'closed'} {...props} />;
+}
+
+function AuthorizeFuelingModalContent({ isOpen, onClose }: Props) {
     const createAuth = useCreateFuelAuthorization();
+    const { data: drivers = [], isLoading: driversLoading } = useDrivers({ status: 'ACTIVE' });
 
     const { data: vehicles = [] } = useQuery({ queryKey: ['vehicles', 'all'], queryFn: () => vehiclesApi.getAll() });
     // Busca todos os postos (inclusive inativos) para poder listá-los desabilitados/opacos em vez de escondê-los.
     const { data: stations = [] } = useQuery({ queryKey: ['stations', { activeOnly: false }], queryFn: () => stationsApi.getAll() });
 
     const stationOptions = useMemo(
-        () => [
-            { value: '', label: 'Qualquer (motorista decide)' },
-            ...stations.map((s) => {
+        () => stations.map((s) => {
                 const unavailable = getStationUnavailableReason(s);
                 return {
                     value: s.id,
@@ -45,7 +53,6 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
                     disabledReason: unavailable ?? undefined,
                 };
             }),
-        ],
         [stations],
     );
 
@@ -55,8 +62,10 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
     const suggestionsRef = useRef<HTMLDivElement>(null);
 
     const [stationId, setStationId] = useState('');
+    const [driverId, setDriverId] = useState('');
     const [fuelType, setFuelType] = useState('');
     const [maxLiters, setMaxLiters] = useState('');
+    const [expiresAt, setExpiresAt] = useState(defaultExpiry);
     const [notes, setNotes] = useState('');
     const [error, setError] = useState<string | null>(null);
 
@@ -75,7 +84,13 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
     }, [vehicles, vehicleSearch]);
 
     // Combustível segue o veículo: específico → trava; flex → só Gasolina/Etanol.
-    const FUEL_BY_VEHICLE: Record<string, string> = { DIESEL: 'Diesel', GASOLINE: 'Gasolina', ETHANOL: 'Etanol' };
+    const FUEL_BY_VEHICLE: Record<string, string> = {
+        DIESEL: 'Diesel',
+        GASOLINE: 'Gasolina',
+        GASOLINA: 'Gasolina',
+        ETHANOL: 'Etanol',
+        ETANOL: 'Etanol',
+    };
     const vFuel = String((selectedVehicle as { fuel_type?: string } | undefined)?.fuel_type ?? '').toUpperCase();
     const lockedFuel = FUEL_BY_VEHICLE[vFuel]; // undefined quando flex/desconhecido
     const isFlex = vFuel === 'FLEX';
@@ -101,48 +116,50 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Ao trocar o veículo: trava no combustível dele (ou limpa, no flex/sem veículo).
-    useEffect(() => {
-        setFuelType(lockedFuel ?? '');
-    }, [vehicleId, lockedFuel]);
-
-    useEffect(() => {
-        if (!isOpen) return;
-        setVehicleId('');
+    const chooseVehicle = (id: string) => {
+        const vehicle = vehicles.find((item) => item.id === id);
+        const vehicleFuel = String(vehicle?.fuel_type ?? '').toUpperCase();
+        setVehicleId(id);
+        setFuelType(FUEL_BY_VEHICLE[vehicleFuel] ?? '');
+        setMaxLiters(vehicle?.tank_capacity ? String(vehicle.tank_capacity) : '');
         setVehicleSearch('');
         setShowSuggestions(false);
-        setStationId('');
+    };
+
+    const clearVehicle = () => {
+        setVehicleId('');
+        setVehicleSearch('');
         setFuelType('');
         setMaxLiters('');
-        setNotes('');
-        setError(null);
-    }, [isOpen]);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
 
         if (!vehicleId) return setError('Selecione o veículo.');
-        if (!user?.id) return setError('Sessão inválida — faça login novamente.');
-
-        if (stationId) {
-            const chosenStation = stations.find((s) => s.id === stationId);
-            const unavailable = chosenStation ? getStationUnavailableReason(chosenStation) : null;
-            if (unavailable) return setError(`Não é possível autorizar neste posto: ${unavailable}.`);
+        if (!driverId) return setError('Selecione o motorista responsável.');
+        if (!stationId) return setError('Selecione o posto que executará o abastecimento.');
+        if (!fuelType) return setError('Selecione o combustível.');
+        if (!expiresAt || new Date(expiresAt).getTime() <= Date.now()) {
+            return setError('Informe uma validade futura.');
         }
+
+        const chosenStation = stations.find((s) => s.id === stationId);
+        const unavailable = chosenStation ? getStationUnavailableReason(chosenStation) : null;
+        if (unavailable) return setError(`Não é possível autorizar neste posto: ${unavailable}.`);
 
         try {
             await createAuth.mutateAsync({
                 vehicle_id: vehicleId,
-                // Sem motorista: a autorização fica ligada ao veículo.
-                driver_id: null,
-                authorized_by: user.id,
-                station_id: stationId || null,
-                fuel_type: fuelType || null,
+                driver_id: driverId,
+                station_id: stationId,
+                fuel_type: fuelType,
                 max_liters: maxLiters ? Number(maxLiters) : null,
+                expires_at: new Date(expiresAt).toISOString(),
                 notes: notes.trim() || null,
             });
-            toast.success('Autorização criada. O motorista verá no app.');
+            toast.success('Autorização enviada ao posto.');
             onClose();
         } catch (err) {
             const message = (err as { message?: string })?.message ?? 'Erro ao criar autorização.';
@@ -156,7 +173,7 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
             isOpen={isOpen}
             onClose={onClose}
             title="Autorizar abastecimento"
-            description="Pré-libere um abastecimento para que o motorista realize no posto."
+            description="Vincule veículo, motorista e posto. O posto registrará litros, cupom e foto."
             size="lg"
             footer={(
                 <ModalFooter>
@@ -198,10 +215,7 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
                             variant="outline"
                             size="sm"
                             className="!text-rose-600 !border-rose-200 hover:!bg-rose-50 !rounded-full shrink-0"
-                            onClick={() => {
-                                setVehicleId('');
-                                setVehicleSearch('');
-                            }}
+                            onClick={clearVehicle}
                         >
                             Alterar veículo
                         </SGFButton>
@@ -226,10 +240,7 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
                                     <button
                                         key={v.id}
                                         type="button"
-                                        onClick={() => {
-                                            setVehicleId(v.id);
-                                            setShowSuggestions(false);
-                                        }}
+                                        onClick={() => chooseVehicle(v.id)}
                                         className="flex w-full items-center gap-3 rounded-full px-3 py-2 text-left hover:bg-emerald-50 transition-colors cursor-pointer"
                                     >
                                         {v.photo_url ? (
@@ -263,14 +274,22 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
                     </div>
                 )}
 
-                <p className="-mt-1 flex items-center gap-1.5 text-xs text-slate-500">
-                    <User className="h-3.5 w-3.5 text-slate-400" />
-                    Sem motorista: a autorização aparece para quem estiver com este veículo no app.
-                </p>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SGFSelect
-                        label="Posto (opcional)"
+                        label="Motorista responsável"
+                        options={drivers.map((driver) => ({
+                            value: driver.id,
+                            label: driver.full_name,
+                        }))}
+                        value={driverId}
+                        onChange={setDriverId}
+                        placeholder={driversLoading ? 'Carregando...' : 'Selecione o motorista'}
+                        disabled={driversLoading}
+                        fullWidth
+                        icon={User}
+                    />
+                    <SGFSelect
+                        label="Posto responsável"
                         options={stationOptions}
                         value={stationId}
                         onChange={setStationId}
@@ -290,7 +309,7 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SGFInput
-                        label="Limite de litros (opcional)"
+                        label="Limite de litros"
                         type="number"
                         step="0.01"
                         value={maxLiters}
@@ -298,22 +317,29 @@ export function AuthorizeFuelingModal({ isOpen, onClose }: Props) {
                         placeholder="Ex.: 50 — deixe vazio para sem limite"
                         fullWidth
                     />
+                    <SGFInput
+                        label="Válida até"
+                        type="datetime-local"
+                        value={expiresAt}
+                        onChange={(event) => setExpiresAt(event.target.value)}
+                        fullWidth
+                    />
                 </div>
 
                 <div>
-                    <label className="block text-xs font-semibold uppercase mb-2 text-slate-500">Observações para o motorista (opcional)</label>
+                    <label className="block text-xs font-semibold uppercase mb-2 text-slate-500">Observações para o posto (opcional)</label>
                     <textarea
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         rows={3}
                         className="w-full rounded-xl bg-slate-50 border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500"
-                        placeholder="Ex.: Abastecer com 30 L de Etanol e voltar para a Secretaria."
+                        placeholder="Ex.: Abastecer até o limite e registrar o número do cupom."
                     />
                 </div>
 
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 text-xs text-emerald-700">
-                    <strong>Como funciona:</strong> o motorista verá a autorização no app, vai até o posto, abastece e
-                    envia a foto da requisição + foto do painel. O abastecimento volta para você validar.
+                    <strong>Como funciona:</strong> o posto recebe a autorização no portal, informa litros e hodômetro,
+                    anexa a foto do bico e o cupom. O abastecimento volta para a gestão validar.
                 </div>
 
                 {error && (

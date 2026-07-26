@@ -1,452 +1,400 @@
 import { useEffect, useMemo, useState } from 'react';
-import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
+import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
+import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { PeriodPresetSelect, PeriodRangeFields, makePeriod, type PeriodValue } from '@/components/sgf/PeriodSelect';
 import { Modal } from '@/components/ui/Modal';
-import { SGFInput } from '@/components/sgf/SGFInput';
-import { SGFTextarea } from '@/components/sgf/SGFTextarea';
-import { SGFSelect } from '@/components/sgf/SGFSelect';
-import { useRepairShops } from '@/hooks/useRepairShops';
 import {
-    Plus,
-    Wrench,
-    Clock,
-    CheckCircle,
-    Car,
-    Calendar,
-    FileText,
-    ShieldCheck,
     Building2,
-    DollarSign,
-    User,
+    Calendar,
+    Car,
+    CheckCircle,
+    Clock,
+    FileText,
+    Plus,
+    ShieldCheck,
+    Wrench,
 } from '@/components/sgf/icons';
-import { formatDate, formatCurrency } from '@/lib/utils';
-import { useHeader } from '@/contexts/HeaderContext';
-import { cn } from '@/lib/utils';
-import { SGFKPICard } from '@/components/sgf/SGFKPICard';
-import { motion, AnimatePresence } from 'framer-motion';
-import { NewMaintenanceForm } from '@/components/maintenances/NewMaintenanceForm';
+import { NewMaintenanceForm, type MaintenanceEditData } from '@/components/maintenances/NewMaintenanceForm';
 import {
-    useMaintenances,
-    useApproveMaintenance,
-    useRejectMaintenance,
-    useUpdateMaintenance,
-    useCompleteMaintenance,
-} from '@/hooks/useMaintenances';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
-import type { Tables } from '@/types/database.types';
+    MaintenanceDetailsModal,
+    type MaintenanceDetailsRow,
+} from '@/components/maintenances/MaintenanceDetailsModal';
+import { useMaintenances } from '@/hooks/useMaintenances';
+import { useHeader } from '@/contexts/HeaderContext';
+import { formatCurrency, formatDate } from '@/lib/utils';
+import type { FinStatus, OpStatus } from '@/lib/supabase-api';
 
-// Coluna do Kanban = status real do banco (service_orders.status)
-const statusColumns = [
-    { id: 'pendente', label: 'Pendente', color: 'text-yellow-600', icon: Clock },
-    { id: 'aprovada', label: 'Aprovada', color: 'text-blue-600', icon: ShieldCheck },
-    { id: 'em_execucao', label: 'Em Execução', color: 'text-orange-600', icon: Wrench },
-    { id: 'concluida', label: 'Concluída', color: 'text-green-600', icon: CheckCircle },
+type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info';
+
+interface MaintenanceItem {
+    id: string;
+    raw: MaintenanceDetailsRow;
+    vehicleId: string;
+    vehicleLabel: string;
+    plate: string;
+    photoUrl: string | null;
+    department: string;
+    driverId: string;
+    driver: string;
+    category: string;
+    description: string;
+    priority: 'baixa' | 'media' | 'alta';
+    odometer: number | null;
+    openedAt: string;
+    origin: string;
+    operationalStatus: OpStatus;
+    financialStatus: FinStatus;
+    repairShop: string | null;
+    budget: number | null;
+    paid: number | null;
+}
+
+interface WorkflowColumn {
+    id: string;
+    title: string;
+    description: string;
+    statuses: OpStatus[];
+    color: string;
+    icon: typeof Wrench;
+}
+
+const WORKFLOW_COLUMNS: WorkflowColumn[] = [
+    {
+        id: 'triage',
+        title: 'Triagem',
+        description: 'Solicitações a revisar',
+        statuses: ['pending'],
+        color: 'text-amber-600',
+        icon: Clock,
+    },
+    {
+        id: 'shop',
+        title: 'Oficina e orçamento',
+        description: 'Autorização, entrega e cotação',
+        statuses: ['authorized', 'at_shop', 'awaiting_quote_approval'],
+        color: 'text-blue-600',
+        icon: Building2,
+    },
+    {
+        id: 'execution',
+        title: 'Execução',
+        description: 'Serviço e retirada',
+        statuses: ['in_progress', 'ready'],
+        color: 'text-orange-600',
+        icon: Wrench,
+    },
+    {
+        id: 'received',
+        title: 'Recebida',
+        description: 'Nota, ateste e pagamento',
+        statuses: ['received'],
+        color: 'text-emerald-600',
+        icon: CheckCircle,
+    },
+    {
+        id: 'cancelled',
+        title: 'Cancelada',
+        description: 'Processos encerrados',
+        statuses: ['cancelled'],
+        color: 'text-red-500',
+        icon: FileText,
+    },
 ];
 
-const priorityColors: Record<string, 'default' | 'success' | 'warning' | 'error' | 'info'> = {
-    baixa: 'info',
-    media: 'warning',
-    alta: 'error',
+const OP_LABEL: Record<OpStatus, string> = {
+    pending: 'Em triagem',
+    authorized: 'Autorizada',
+    at_shop: 'Na oficina',
+    awaiting_quote_approval: 'Orçamento em análise',
+    in_progress: 'Em execução',
+    ready: 'Pronta para retirada',
+    received: 'Veículo recebido',
+    cancelled: 'Cancelada',
 };
 
-const priorityLabels: Record<string, string> = {
+const FIN_LABEL: Record<FinStatus, string> = {
+    not_started: 'Não iniciado',
+    awaiting_commitment: 'Aguardando empenho',
+    committed: 'Empenhada',
+    invoiced: 'Faturada',
+    attested: 'Atestada',
+    paid: 'Paga',
+};
+
+const ORIGIN_LABEL: Record<string, string> = {
+    driver: 'Motorista',
+    checklist: 'Checklist',
+    manager: 'Gestor',
+};
+
+const PRIORITY_LABEL: Record<MaintenanceItem['priority'], string> = {
     baixa: 'Baixa',
     media: 'Média',
     alta: 'Alta',
 };
 
-const STATUS_BADGE: Record<string, { variant: 'default' | 'success' | 'warning' | 'error' | 'info'; label: string }> = {
-    pendente: { variant: 'warning', label: 'Pendente' },
-    aprovada: { variant: 'info', label: 'Aprovada' },
-    em_execucao: { variant: 'info', label: 'Em execução' },
-    concluida: { variant: 'success', label: 'Concluída' },
-    rejeitada: { variant: 'error', label: 'Rejeitada' },
+const PRIORITY_VARIANT: Record<MaintenanceItem['priority'], BadgeVariant> = {
+    baixa: 'info',
+    media: 'warning',
+    alta: 'error',
 };
 
-const priorityBorderColors: Record<string, string> = {
-    baixa: 'border-l-sky-500',
-    media: 'border-l-amber-500',
-    alta: 'border-l-rose-500',
+const PRIORITY_BORDER: Record<MaintenanceItem['priority'], string> = {
+    baixa: 'border-l-blue-400',
+    media: 'border-l-amber-400',
+    alta: 'border-l-red-500',
 };
 
-type ServiceOrderRow = Tables<'service_orders'> & {
-    vehicles?: { plate?: string | null; brand?: string | null; model?: string | null; photo_url?: string | null; departments?: { name?: string } | null } | null;
-    profiles?: { full_name?: string } | null;
-};
-
-type MaintItem = {
-    id: string;
-    plate: string;
-    photoUrl: string | null;
-    vehicleLabel: string;
-    vehicleId: string;
-    department: string;
-    driver: string;
-    category: string;
-    description: string;
-    date: string;
-    odometer: number | null;
-    priority: string; // baixa | media | alta
-    status: string; // status do banco
-    repairShop: string | null;
-    repairShopId: string | null;
-    budget: number | null;
-    cost: number | null;
-    approvedAt: string | null;
-    completedAt: string | null;
-};
-
-/** Item de informação do modal de detalhes (ícone + rótulo + valor), padrão dos demais modais. */
-function DetailInfo({
-    icon: Icon,
-    label,
-    value,
-    hint,
-}: {
-    icon: typeof Car;
-    label: string;
-    value: string;
-    hint?: string;
-}) {
-    return (
-        <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-slate-100 p-2.5 text-slate-600">
-                <Icon width={20} height={20} />
-            </div>
-            <div className="min-w-0">
-                <p className="mb-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
-                <p className="truncate font-bold text-slate-800">{value}</p>
-                {hint && <p className="truncate text-xs font-medium text-slate-500">{hint}</p>}
-            </div>
-        </div>
-    );
+function operationalVariant(status: OpStatus): BadgeVariant {
+    if (status === 'cancelled') return 'error';
+    if (status === 'received') return 'success';
+    if (status === 'pending' || status === 'ready' || status === 'awaiting_quote_approval') return 'warning';
+    return 'info';
 }
 
-function mapRow(r: ServiceOrderRow): MaintItem {
-    const v = r.vehicles;
+function financialVariant(status: FinStatus): BadgeVariant {
+    if (status === 'paid') return 'success';
+    if (status === 'not_started') return 'default';
+    return 'warning';
+}
+
+function managerNextAction(item: MaintenanceItem): string {
+    if (item.operationalStatus === 'pending') return 'Revisar e autorizar';
+    if (item.operationalStatus === 'authorized') return 'Confirmar entrega na oficina';
+    if (item.operationalStatus === 'at_shop') return 'Aguardar orçamento da oficina';
+    if (item.operationalStatus === 'awaiting_quote_approval') return 'Analisar orçamento';
+    if (item.operationalStatus === 'in_progress') return 'Acompanhar execução';
+    if (item.operationalStatus === 'ready') return 'Conferir e receber veículo';
+    if (item.operationalStatus === 'cancelled') return 'Processo cancelado';
+    if (item.financialStatus === 'invoiced') return 'Atestar notas fiscais';
+    if (item.financialStatus === 'attested') return 'Registrar pagamento';
+    if (item.financialStatus === 'paid') return 'Processo encerrado';
+    return 'Aguardar nota fiscal';
+}
+
+function mapRow(row: MaintenanceDetailsRow): MaintenanceItem {
+    const vehicle = row.vehicles as MaintenanceDetailsRow['vehicles'] & { photo_url?: string | null };
+    const priority = ['baixa', 'media', 'alta'].includes(row.priority)
+        ? row.priority as MaintenanceItem['priority']
+        : 'media';
     return {
-        id: r.id,
-        plate: v?.plate ?? '—',
-        photoUrl: v?.photo_url ?? null,
-        vehicleLabel: [v?.brand, v?.model].filter(Boolean).join(' ') || v?.plate || 'Veículo',
-        vehicleId: r.vehicle_id ?? '',
-        department: v?.departments?.name ?? 'Sem secretaria',
-        driver: r.profiles?.full_name ?? '—',
-        category: r.category ?? '—',
-        description: r.description ?? 'Sem descrição',
-        date: r.created_at,
-        odometer: r.odometer ?? null,
-        priority: r.priority ?? 'media',
-        status: r.status ?? 'pendente',
-        repairShop: r.repair_shop ?? null,
-        repairShopId: (r as { repair_shop_id?: string | null }).repair_shop_id ?? null,
-        budget: r.budget != null ? Number(r.budget) : null,
-        cost: r.cost != null ? Number(r.cost) : null,
-        approvedAt: r.approved_at ?? null,
-        completedAt: r.completed_at ?? null,
+        id: row.id,
+        raw: row,
+        vehicleId: row.vehicle_id,
+        vehicleLabel: [vehicle?.brand, vehicle?.model].filter(Boolean).join(' ') || 'Veículo',
+        plate: vehicle?.plate ?? '—',
+        photoUrl: vehicle?.photo_url ?? null,
+        department: vehicle?.departments?.name ?? 'Sem secretaria',
+        driverId: row.driver_id,
+        driver: row.profiles?.full_name ?? '—',
+        category: row.category ?? 'Sem categoria',
+        description: row.description || 'Sem descrição',
+        priority,
+        odometer: row.odometer,
+        openedAt: row.created_at,
+        origin: row.origin,
+        operationalStatus: (row.operational_status ?? 'pending') as OpStatus,
+        financialStatus: (row.financial_status ?? 'not_started') as FinStatus,
+        repairShop: row.repair_shop,
+        budget: row.budget == null ? null : Number(row.budget),
+        paid: row.cost == null ? null : Number(row.cost),
     };
 }
 
 export default function Maintenances() {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [priorityFilter, setPriorityFilter] = useState('');
-    const [selectedMaintenance, setSelectedMaintenance] = useState<MaintItem | null>(null);
-    const [editMaintenance, setEditMaintenance] = useState<MaintItem | null>(null);
-    const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+    const [search, setSearch] = useState('');
+    const [priority, setPriority] = useState('');
+    const [viewMode, setViewMode] = useState<'flow' | 'list'>('flow');
     const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('6'));
-    const [approveTarget, setApproveTarget] = useState<MaintItem | null>(null);
-    const [approveRepairShopId, setApproveRepairShopId] = useState('');
-    // Só oficinas ativas podem receber OS — inativa some da seleção sem sumir
-    // do histórico (a FK é RESTRICT, o cadastro nunca é apagado).
-    const { data: activeShops = [] } = useRepairShops({ activeOnly: true });
-    const [approveBudget, setApproveBudget] = useState('');
-    const [completeTarget, setCompleteTarget] = useState<MaintItem | null>(null);
-    const [completeCost, setCompleteCost] = useState('');
-    const [completeNote, setCompleteNote] = useState('');
+    const [showCreate, setShowCreate] = useState(false);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [editData, setEditData] = useState<MaintenanceEditData | null>(null);
     const { setTitle, setDescription, setHeaderAction } = useHeader();
-    const { user } = useAuth();
-
-    const { data: rawData = [], isLoading } = useMaintenances();
-    const approve = useApproveMaintenance();
-    const reject = useRejectMaintenance();
-    const update = useUpdateMaintenance();
-    const complete = useCompleteMaintenance();
+    const { data: rows = [], isLoading } = useMaintenances();
 
     useEffect(() => {
         setTitle('Manutenções');
-        setDescription('Ordens de serviço e acompanhamento das manutenções da frota.');
+        setDescription('Fluxo integrado entre motorista, gestão e oficina, da avaria ao pagamento.');
         setHeaderAction(
-            <SGFButton onClick={() => setShowAddModal(true)} icon={Plus} className="!rounded-full !h-[37px]">
-                Nova Manutenção
-            </SGFButton>
+            <SGFButton onClick={() => setShowCreate(true)} icon={Plus} className="!h-[37px] !rounded-full">
+                Abrir solicitação
+            </SGFButton>,
         );
         return () => setHeaderAction(null);
-    }, [setTitle, setDescription, setHeaderAction]);
+    }, [setDescription, setHeaderAction, setTitle]);
 
-    // Limite inferior (e superior) de data conforme o período escolhido.
     const periodRange = useMemo(() => {
-        // Personalizado: usa as datas escolhidas; pontas não preenchidas ficam abertas.
         if (period.preset === 'custom') {
-            const from = period.from ? new Date(`${period.from}T00:00:00`).getTime() : -Infinity;
-            const to = period.to ? new Date(`${period.to}T23:59:59`).getTime() : Infinity;
-            return { from, to };
+            return {
+                from: period.from ? new Date(`${period.from}T00:00:00`).getTime() : -Infinity,
+                to: period.to ? new Date(`${period.to}T23:59:59`).getTime() : Infinity,
+            };
         }
-        const m = Number(period.preset) || 1;
-        const d = new Date(); d.setMonth(d.getMonth() - (m - 1)); d.setDate(1); d.setHours(0, 0, 0, 0);
-        return { from: d.getTime(), to: Infinity };
+        const months = Number(period.preset) || 1;
+        const from = new Date();
+        from.setMonth(from.getMonth() - (months - 1), 1);
+        from.setHours(0, 0, 0, 0);
+        return { from: from.getTime(), to: Infinity };
     }, [period]);
 
     const maintenances = useMemo(
-        () => (rawData as ServiceOrderRow[])
+        () => (rows as MaintenanceDetailsRow[])
             .map(mapRow)
-            .filter((m) => {
-                const t = m.date ? new Date(m.date).getTime() : 0;
-                return t >= periodRange.from && t <= periodRange.to;
+            .filter((item) => {
+                const openedAt = new Date(item.openedAt).getTime();
+                return openedAt >= periodRange.from && openedAt <= periodRange.to;
             }),
-        [rawData, periodRange]
+        [periodRange, rows],
     );
 
-    // Filtro comum (busca + prioridade) aplicado também na visão de lista.
-    const filteredMaintenances = useMemo(
-        () => maintenances.filter((m) => {
-            const term = searchTerm.trim().toLowerCase();
-            const matchesSearch = !term
-                || m.plate.toLowerCase().includes(term)
-                || m.vehicleLabel.toLowerCase().includes(term)
-                || m.department.toLowerCase().includes(term)
-                || m.description.toLowerCase().includes(term);
-            return matchesSearch && (!priorityFilter || m.priority === priorityFilter);
-        }),
-        [maintenances, searchTerm, priorityFilter]
-    );
+    const filtered = useMemo(() => {
+        const term = search.trim().toLocaleLowerCase('pt-BR');
+        return maintenances.filter((item) => {
+            const matchesSearch = !term || [
+                item.plate,
+                item.vehicleLabel,
+                item.department,
+                item.driver,
+                item.category,
+                item.description,
+                item.repairShop ?? '',
+            ].some((value) => value.toLocaleLowerCase('pt-BR').includes(term));
+            return matchesSearch && (!priority || item.priority === priority);
+        });
+    }, [maintenances, priority, search]);
 
-    const maintenanceColumns: SGFTableColumn<MaintItem>[] = [
+    const managerActionCount = maintenances.filter((item) =>
+        item.operationalStatus === 'pending'
+        || item.operationalStatus === 'awaiting_quote_approval'
+        || item.operationalStatus === 'ready'
+        || (item.operationalStatus === 'received'
+            && ['invoiced', 'attested'].includes(item.financialStatus)),
+    ).length;
+    const atShopCount = maintenances.filter((item) =>
+        ['at_shop', 'awaiting_quote_approval', 'in_progress', 'ready'].includes(item.operationalStatus),
+    ).length;
+    const receivedCount = maintenances.filter((item) => item.operationalStatus === 'received').length;
+    const paidCount = maintenances.filter((item) => item.financialStatus === 'paid').length;
+
+    const columns = useMemo<SGFTableColumn<MaintenanceItem>[]>(() => [
         {
             header: 'Veículo',
-            sortable: true,
-            sortType: 'text',
-            sortValue: (m) => m.vehicleLabel,
-            accessor: (m) => (
+            sortValue: (item) => item.plate,
+            accessor: (item) => (
                 <div className="flex items-center gap-3">
-                    {m.photoUrl ? (
-                        <img
-                            src={m.photoUrl}
-                            alt={m.plate}
-                            className="h-10 w-10 rounded-lg object-cover ring-1 ring-slate-200"
-                            loading="lazy"
-                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                        />
+                    {item.photoUrl ? (
+                        <img className="h-10 w-10 rounded-xl object-cover" src={item.photoUrl} alt={item.plate} />
                     ) : (
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--sgf-primary)]/10">
-                            <Car className="h-5 w-5 text-[var(--sgf-primary)]" />
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                            <Car className="h-5 w-5" />
                         </div>
                     )}
-                    <div className="min-w-0">
-                        <p className="font-semibold text-slate-900 truncate">{m.vehicleLabel}</p>
-                        <p className="text-xs font-medium text-slate-400">{m.plate}</p>
+                    <div>
+                        <p className="font-semibold text-slate-900">{item.vehicleLabel}</p>
+                        <p className="text-xs text-slate-500">{item.plate} · {item.department}</p>
                     </div>
                 </div>
             ),
         },
         {
-            header: 'Data',
-            sortable: true,
-            sortType: 'date',
-            sortValue: (m) => m.date,
-            accessor: (m) => <span className="text-slate-600">{formatDate(m.date)}</span>,
-        },
-        { header: 'Secretaria', sortable: true, sortType: 'text', sortValue: (m) => m.department, accessor: (m) => m.department || '—' },
-        { header: 'Categoria', sortable: true, sortType: 'text', sortValue: (m) => m.category, accessor: (m) => m.category || '—' },
-        {
-            header: 'Oficina',
-            sortable: true,
-            sortType: 'text',
-            sortValue: (m) => m.repairShop ?? '',
-            accessor: (m) => m.repairShop || '—',
-        },
-        {
-            header: 'Orçado × Custo',
-            accessor: (m) => {
-                if (m.budget == null && m.cost == null) return '—';
-                return (
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-slate-600">
-                            {m.budget != null ? formatCurrency(m.budget) : '—'}
-                            {' / '}
-                            {m.cost != null ? formatCurrency(m.cost) : '—'}
-                        </span>
-                        {m.budget != null && m.cost != null && (
-                            <SGFBadge variant={m.cost <= m.budget ? 'success' : 'error'} size="sm">
-                                {m.cost <= m.budget ? 'OK' : 'Estourou'}
-                            </SGFBadge>
-                        )}
-                    </div>
-                );
-            },
-        },
-        {
-            header: 'Descrição',
-            sortable: true,
-            sortType: 'text',
-            sortValue: (m) => m.description,
-            accessor: (m) => <span className="line-clamp-1 text-slate-600">{m.description}</span>,
-        },
-        {
-            header: 'Prioridade',
-            sortable: true,
-            sortType: 'number',
-            sortValue: (m) => ({ baixa: 1, media: 2, alta: 3 } as Record<string, number>)[m.priority] ?? 0,
-            accessor: (m) => (
-                <SGFBadge variant={priorityColors[m.priority]}>{priorityLabels[m.priority]}</SGFBadge>
+            header: 'Solicitação',
+            sortValue: (item) => item.category,
+            accessor: (item) => (
+                <div>
+                    <p className="font-medium text-slate-800">{item.category}</p>
+                    <p className="max-w-[260px] truncate text-xs text-slate-500">{item.description}</p>
+                </div>
             ),
         },
         {
-            header: 'Status',
-            sortable: true,
-            sortType: 'number',
-            sortValue: (m) => ({ pendente: 1, aprovada: 2, em_execucao: 3, concluida: 4, rejeitada: 5 } as Record<string, number>)[m.status] ?? 0,
-            accessor: (m) => {
-                const s = STATUS_BADGE[m.status] ?? { variant: 'default' as const, label: m.status };
-                return <SGFBadge variant={s.variant}>{s.label}</SGFBadge>;
-            },
+            header: 'Origem',
+            sortValue: (item) => item.origin,
+            accessor: (item) => (
+                <div>
+                    <p className="text-sm text-slate-700">{ORIGIN_LABEL[item.origin] ?? item.origin}</p>
+                    <p className="text-xs text-slate-400">{item.driver}</p>
+                </div>
+            ),
         },
-    ];
+        {
+            header: 'Veículo / oficina',
+            sortValue: (item) => item.operationalStatus,
+            accessor: (item) => (
+                <SGFBadge variant={operationalVariant(item.operationalStatus)}>
+                    {OP_LABEL[item.operationalStatus]}
+                </SGFBadge>
+            ),
+        },
+        {
+            header: 'Processo fiscal',
+            sortValue: (item) => item.financialStatus,
+            accessor: (item) => (
+                <SGFBadge variant={financialVariant(item.financialStatus)}>
+                    {FIN_LABEL[item.financialStatus]}
+                </SGFBadge>
+            ),
+        },
+        {
+            header: 'Próxima ação',
+            sortValue: managerNextAction,
+            accessor: (item) => <span className="text-sm font-medium text-slate-700">{managerNextAction(item)}</span>,
+        },
+        {
+            header: 'Abertura',
+            sortType: 'date',
+            sortValue: (item) => item.openedAt,
+            accessor: (item) => <span className="text-sm text-slate-600">{formatDate(item.openedAt)}</span>,
+        },
+    ], []);
 
-    const getMaintenancesByStatus = (status: string) =>
-        maintenances.filter((m) => {
-            const term = searchTerm.trim().toLowerCase();
-            const matchesSearch =
-                !term ||
-                m.plate.toLowerCase().includes(term) ||
-                m.vehicleLabel.toLowerCase().includes(term) ||
-                m.description.toLowerCase().includes(term);
-            return m.status === status && matchesSearch && (!priorityFilter || m.priority === priorityFilter);
+    const handleEdit = (row: MaintenanceDetailsRow) => {
+        setSelectedId(null);
+        setEditData({
+            id: row.id,
+            vehicleId: row.vehicle_id,
+            driverId: row.driver_id,
+            category: row.category ?? '',
+            priority: ['baixa', 'media', 'alta'].includes(row.priority)
+                ? row.priority as MaintenanceEditData['priority']
+                : 'media',
+            description: row.description ?? '',
+            odometer: row.odometer,
         });
-
-    const pendingCount = maintenances.filter((m) => m.status === 'pendente').length;
-    const inProgressCount = maintenances.filter((m) => m.status === 'em_execucao' || m.status === 'aprovada').length;
-    const completedCount = maintenances.filter((m) => m.status === 'concluida').length;
-
-    const openApproveModal = (item: MaintItem) => {
-        setApproveRepairShopId(item.repairShopId ?? '');
-        setApproveBudget(item.budget != null ? String(item.budget) : '');
-        setApproveTarget(item);
-    };
-
-    const handleConfirmApprove = () => {
-        if (!user?.id || !approveTarget) return;
-        const oficina = activeShops.find((o) => o.id === approveRepairShopId);
-        if (!oficina) {
-            toast.error('Selecione a oficina credenciada.');
-            return;
-        }
-        approve.mutate(
-            {
-                id: approveTarget.id,
-                approvedBy: user.id,
-                repairShopId: oficina.id,
-                repairShop: oficina.name,
-                budget: approveBudget.trim() ? Number(approveBudget) : null,
-            },
-            {
-                onSuccess: () => {
-                    toast.success('Manutenção aprovada.');
-                    setApproveTarget(null);
-                    setSelectedMaintenance(null);
-                },
-                onError: () => toast.error('Erro ao aprovar manutenção.'),
-            }
-        );
-    };
-
-    const openCompleteModal = (item: MaintItem) => {
-        setCompleteCost(item.cost != null ? String(item.cost) : '');
-        setCompleteNote('');
-        setCompleteTarget(item);
-    };
-
-    const handleConfirmComplete = () => {
-        if (!completeTarget) return;
-        const costValue = Number(completeCost);
-        if (!completeCost.trim() || Number.isNaN(costValue) || costValue < 0) {
-            toast.error('Informe o custo final do serviço.');
-            return;
-        }
-        complete.mutate(
-            { id: completeTarget.id, cost: costValue, adminNote: completeNote.trim() || undefined },
-            {
-                onSuccess: () => {
-                    toast.success('Serviço concluído.');
-                    setCompleteTarget(null);
-                    setSelectedMaintenance(null);
-                },
-                onError: () => toast.error('Erro ao concluir serviço.'),
-            }
-        );
-    };
-
-    const handleReject = (id: string) => {
-        reject.mutate(
-            { id, reason: 'Rejeitada pelo gestor' },
-            {
-                onSuccess: () => { toast.success('Manutenção rejeitada.'); setSelectedMaintenance(null); },
-                onError: () => toast.error('Erro ao rejeitar manutenção.'),
-            }
-        );
-    };
-
-    const handleSetStatus = (id: string, status: string) => {
-        update.mutate(
-            { id, data: { status: status as Tables<'service_orders'>['status'] } as never },
-            {
-                onSuccess: () => {
-                    toast.success(status === 'concluida' ? 'Serviço concluído.' : 'Status atualizado.');
-                    setSelectedMaintenance(null);
-                },
-                onError: () => toast.error('Erro ao atualizar status.'),
-            }
-        );
     };
 
     return (
         <div className="space-y-6">
-            {/* KPIs */}
-            <div className="grid gap-4 md:grid-cols-4">
-                <SGFKPICard title="Pendentes" value={pendingCount} icon={Clock} iconColor="text-amber-500" chartColor="#f59e0b" />
-                <SGFKPICard title="Em andamento" value={inProgressCount} icon={Wrench} iconColor="text-blue-500" chartColor="#3b82f6" />
-                <SGFKPICard title="Concluídas" value={completedCount} icon={CheckCircle} iconColor="text-emerald-500" chartColor="#10b981" />
-                <SGFKPICard title="Total de OS" value={maintenances.length} icon={FileText} iconColor="text-slate-500" chartColor="#64748b" />
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <SGFKPICard title="Ações do gestor" value={managerActionCount} icon={ShieldCheck} iconColor="text-amber-500" chartColor="#f59e0b" />
+                <SGFKPICard title="Na oficina" value={atShopCount} icon={Wrench} iconColor="text-blue-500" chartColor="#3b82f6" />
+                <SGFKPICard title="Veículos recebidos" value={receivedCount} icon={Car} iconColor="text-emerald-500" chartColor="#10b981" />
+                <SGFKPICard title="Processos pagos" value={paidCount} icon={CheckCircle} iconColor="text-slate-500" chartColor="#64748b" />
             </div>
 
-            {/* Busca + filtros (esquerda/centro) e alternância Kanban/Lista (canto direito) */}
-            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                 <SGFToolbar
-                    className="flex-1 min-w-0"
-                    searchValue={searchTerm}
-                    onSearchChange={setSearchTerm}
-                    searchPlaceholder="Buscar por veículo ou descrição..."
+                    className="min-w-0 flex-1"
+                    searchValue={search}
+                    onSearchChange={setSearch}
+                    searchPlaceholder="Buscar placa, motorista, oficina ou serviço..."
                     filters={[
                         {
                             key: 'priority',
-                            value: priorityFilter,
-                            onChange: setPriorityFilter,
+                            value: priority,
+                            onChange: setPriority,
                             options: [
                                 { value: '', label: 'Todas as prioridades' },
                                 { value: 'baixa', label: 'Baixa' },
                                 { value: 'media', label: 'Média' },
                                 { value: 'alta', label: 'Alta' },
                             ],
-                            placeholder: 'Prioridade',
                         },
                     ]}
                 >
-                    {/* Campos de data sempre à frente (à esquerda) do listbox de período */}
                     <div className="flex items-center gap-2">
                         {period.preset === 'custom' && (
                             <PeriodRangeFields
@@ -460,446 +408,140 @@ export default function Maintenances() {
                         <PeriodPresetSelect value={period} onChange={setPeriod} />
                     </div>
                 </SGFToolbar>
-
-                <div className="inline-flex shrink-0 self-end rounded-xl border border-slate-200 bg-slate-50 p-1 md:self-auto">
+                <div className="inline-flex self-end rounded-full border border-slate-200 bg-white p-1 lg:self-auto">
                     <button
                         type="button"
-                        onClick={() => setViewMode('kanban')}
-                        className={cn(
-                            'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-colors',
-                            viewMode === 'kanban' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
-                        )}
+                        className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                            viewMode === 'flow' ? 'bg-[var(--sgf-primary)] text-white' : 'text-slate-500'
+                        }`}
+                        onClick={() => setViewMode('flow')}
                     >
-                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                            <rect x="3" y="3" width="7" height="18" rx="1.5" />
-                            <rect x="14" y="3" width="7" height="11" rx="1.5" />
-                        </svg>
-                        Kanban
+                        Fluxo
                     </button>
                     <button
                         type="button"
+                        className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                            viewMode === 'list' ? 'bg-[var(--sgf-primary)] text-white' : 'text-slate-500'
+                        }`}
                         onClick={() => setViewMode('list')}
-                        className={cn(
-                            'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-colors',
-                            viewMode === 'list' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
-                        )}
                     >
-                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                            <line x1="8" y1="6" x2="21" y2="6" />
-                            <line x1="8" y1="12" x2="21" y2="12" />
-                            <line x1="8" y1="18" x2="21" y2="18" />
-                            <line x1="3" y1="6" x2="3.01" y2="6" />
-                            <line x1="3" y1="12" x2="3.01" y2="12" />
-                            <line x1="3" y1="18" x2="3.01" y2="18" />
-                        </svg>
                         Lista
                     </button>
                 </div>
             </div>
 
-            {/* Lista (tabela) */}
-            {viewMode === 'list' && (
-                <SGFTable<MaintItem>
-                    columns={maintenanceColumns}
-                    data={filteredMaintenances}
-                    keyExtractor={(m) => m.id}
-                    onRowClick={(m) => setSelectedMaintenance(m)}
+            {viewMode === 'list' ? (
+                <SGFTable
+                    columns={columns}
+                    data={filtered}
+                    keyExtractor={(item) => item.id}
+                    onRowClick={(item) => setSelectedId(item.id)}
                     loading={isLoading}
-                    emptyMessage="Nenhuma manutenção no período selecionado."
+                    emptyMessage="Nenhuma ordem de serviço encontrada."
                 />
-            )}
-
-            {/* Kanban */}
-            {viewMode === 'kanban' && (
-            <div className="rounded-[var(--sgf-card-radius)]">
-            <div className="grid gap-6 md:grid-cols-4 items-start h-full">
-                {statusColumns.map((column) => {
-                    const Icon = column.icon;
-                    const items = getMaintenancesByStatus(column.id);
-
-                    return (
-                        <div key={column.id} className="flex flex-col h-full bg-slate-100/70 rounded-3xl border border-slate-200/70 p-3 lg:p-4">
-                            <div className="mb-4 flex items-center gap-2.5 rounded-2xl bg-white px-3 py-2.5 shadow-sm ring-1 ring-slate-100">
-                                <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-50 ring-1 ring-slate-100", column.color)}>
-                                    <Icon className="h-[18px] w-[18px]" />
-                                </div>
-                                <span className="font-bold text-slate-800 text-[15px] tracking-tight">{column.label}</span>
-                                <span className={cn("ml-auto inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-slate-100 px-2 text-xs font-bold", column.color)}>
-                                    {items.length}
-                                </span>
-                            </div>
-
-                            <div className="space-y-3 min-h-[150px]">
-                                {isLoading && (
-                                    <div className="py-8 text-center text-xs text-slate-400">Carregando…</div>
-                                )}
-                                <AnimatePresence mode="popLayout">
-                                    {items.map((maintenance) => (
-                                        <motion.div
-                                            key={maintenance.id}
-                                            layout
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, scale: 0.95 }}
-                                            transition={{ duration: 0.2 }}
+            ) : (
+                <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-5">
+                    {WORKFLOW_COLUMNS.map((column) => {
+                        const items = filtered.filter((item) => column.statuses.includes(item.operationalStatus));
+                        const Icon = column.icon;
+                        return (
+                            <section key={column.id} className="min-w-0 rounded-3xl border border-slate-200 bg-slate-50/70 p-3">
+                                <header className="mb-3 flex items-start justify-between gap-2 px-1">
+                                    <div>
+                                        <h2 className={`flex items-center gap-2 text-sm font-bold ${column.color}`}>
+                                            <Icon className="h-4 w-4" />
+                                            {column.title}
+                                        </h2>
+                                        <p className="mt-0.5 text-[11px] text-slate-400">{column.description}</p>
+                                    </div>
+                                    <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-500 shadow-sm">
+                                        {items.length}
+                                    </span>
+                                </header>
+                                <div className="space-y-3">
+                                    {items.map((item) => (
+                                        <SGFCard
+                                            key={item.id}
+                                            variant="bordered"
+                                            padding="sm"
+                                            hover
+                                            className={`border-l-4 ${PRIORITY_BORDER[item.priority]}`}
+                                            onClick={() => setSelectedId(item.id)}
                                         >
-                                            <SGFCard
-                                                className={cn(
-                                                    "cursor-pointer group hover:shadow-md hover:shadow-slate-200/50 transition-all duration-300 active:scale-[0.98] border-l-[3px]",
-                                                    priorityBorderColors[maintenance.priority]
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-sm font-bold text-slate-900">{item.vehicleLabel}</p>
+                                                    <p className="text-xs font-semibold text-slate-500">{item.plate}</p>
+                                                </div>
+                                                <SGFBadge variant={PRIORITY_VARIANT[item.priority]} size="sm">
+                                                    {PRIORITY_LABEL[item.priority]}
+                                                </SGFBadge>
+                                            </div>
+                                            <p className="mt-3 line-clamp-2 text-xs text-slate-600">{item.description}</p>
+                                            <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                                                <SGFBadge variant={operationalVariant(item.operationalStatus)} size="sm">
+                                                    {OP_LABEL[item.operationalStatus]}
+                                                </SGFBadge>
+                                                <p className="text-[11px] font-semibold text-slate-700">{managerNextAction(item)}</p>
+                                                {item.repairShop && (
+                                                    <p className="truncate text-[11px] text-slate-500">{item.repairShop}</p>
                                                 )}
-                                                onClick={() => setSelectedMaintenance(maintenance)}
-                                                padding="sm"
-                                                variant="default"
-                                            >
-                                                <div className="flex items-start justify-between gap-2 mb-1.5">
-                                                    <div className="flex items-center gap-2.5 min-w-0">
-                                                        {maintenance.photoUrl ? (
-                                                            <img
-                                                                src={maintenance.photoUrl}
-                                                                alt={maintenance.plate}
-                                                                className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
-                                                                loading="lazy"
-                                                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                                                            />
-                                                        ) : (
-                                                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--sgf-primary)]/10">
-                                                                <Car className="h-5 w-5 text-[var(--sgf-primary)]" />
-                                                            </div>
-                                                        )}
-                                                        <div className="min-w-0">
-                                                            <p className="font-semibold text-slate-800 text-base truncate leading-tight">{maintenance.vehicleLabel}</p>
-                                                            <p className="text-sm font-medium text-slate-400 truncate">{maintenance.plate} · {maintenance.department}</p>
-                                                        </div>
-                                                    </div>
-                                                    <SGFBadge variant={priorityColors[maintenance.priority]}>
-                                                        {priorityLabels[maintenance.priority]}
-                                                    </SGFBadge>
-                                                </div>
-
-                                                <p className="text-sm font-medium text-slate-600 mb-2.5 line-clamp-1 leading-snug">
-                                                    {maintenance.description}
-                                                </p>
-
-                                                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                                                    <div className="flex items-center gap-1.5 text-sm font-medium text-slate-500">
-                                                        <Calendar className="h-4 w-4 shrink-0 text-slate-400" />
-                                                        <span>{formatDate(maintenance.date)}</span>
-                                                    </div>
-                                                    <span className="shrink-0 px-2 py-0.5 rounded-full text-sm font-semibold bg-slate-100 text-slate-600">
-                                                        {maintenance.category}
+                                                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                                                    <span className="flex items-center gap-1">
+                                                        <Calendar className="h-3 w-3" />
+                                                        {formatDate(item.openedAt)}
                                                     </span>
+                                                    {item.budget != null && <span>{formatCurrency(item.budget)}</span>}
                                                 </div>
-                                            </SGFCard>
-                                        </motion.div>
+                                            </div>
+                                        </SGFCard>
                                     ))}
-                                </AnimatePresence>
-                                {!isLoading && items.length === 0 && (
-                                    <div className="py-8 text-center text-xs text-slate-300">Nenhuma</div>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-            </div>
+                                    {!isLoading && items.length === 0 && (
+                                        <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 py-8 text-center text-xs text-slate-400">
+                                            Nenhuma OS
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+                        );
+                    })}
+                </div>
             )}
 
-            {/* Add Modal */}
             <Modal
-                isOpen={showAddModal}
-                onClose={() => setShowAddModal(false)}
-                title="Nova Manutenção"
-                description="Agende uma nova manutenção para um veículo"
+                isOpen={showCreate}
+                onClose={() => setShowCreate(false)}
+                title="Abrir solicitação de manutenção"
+                description="Registre o relato em nome do motorista. A oficina será vinculada na triagem."
                 size="lg"
             >
                 <NewMaintenanceForm
-                    onSuccess={() => setShowAddModal(false)}
-                    onCancel={() => setShowAddModal(false)}
+                    onSuccess={() => setShowCreate(false)}
+                    onCancel={() => setShowCreate(false)}
                 />
             </Modal>
 
-            {/* Edit Modal */}
             <Modal
-                isOpen={!!editMaintenance}
-                onClose={() => setEditMaintenance(null)}
-                title="Editar Ordem de Serviço"
-                description="Altere os dados desta manutenção."
+                isOpen={Boolean(editData)}
+                onClose={() => setEditData(null)}
+                title="Editar solicitação"
+                description="A edição é permitida somente enquanto a OS está em triagem."
                 size="lg"
             >
-                {editMaintenance && (
+                {editData && (
                     <NewMaintenanceForm
-                        editData={{
-                            id: editMaintenance.id,
-                            vehicleId: editMaintenance.vehicleId,
-                            category: editMaintenance.category,
-                            priority: (['baixa', 'media', 'alta'].includes(editMaintenance.priority) ? editMaintenance.priority : 'media') as 'baixa' | 'media' | 'alta',
-                            description: editMaintenance.description === 'Sem descrição' ? '' : editMaintenance.description,
-                            odometer: editMaintenance.odometer,
-                            scheduledDate: editMaintenance.date ? new Date(editMaintenance.date).toISOString().split('T')[0] : undefined,
-                        }}
-                        onSuccess={() => setEditMaintenance(null)}
-                        onCancel={() => setEditMaintenance(null)}
+                        editData={editData}
+                        onSuccess={() => setEditData(null)}
+                        onCancel={() => setEditData(null)}
                     />
                 )}
             </Modal>
 
-            {/* Details Modal */}
-            <Modal
-                isOpen={!!selectedMaintenance}
-                onClose={() => setSelectedMaintenance(null)}
-                title="Detalhes da Manutenção"
-                size="lg"
-                footer={
-                    <div className="flex w-full justify-between items-center">
-                        <div className="flex gap-2">
-                            {selectedMaintenance?.status === 'pendente' && (
-                                <>
-                                    <SGFButton variant="ghost" className="text-rose-600 hover:bg-rose-50" loading={reject.isPending} onClick={() => selectedMaintenance && handleReject(selectedMaintenance.id)}>
-                                        Rejeitar
-                                    </SGFButton>
-                                    <SGFButton variant="primary" onClick={() => selectedMaintenance && openApproveModal(selectedMaintenance)}>
-                                        Aprovar
-                                    </SGFButton>
-                                </>
-                            )}
-                            {selectedMaintenance?.status === 'aprovada' && (
-                                <>
-                                    <SGFButton variant="outline" loading={update.isPending} onClick={() => selectedMaintenance && handleSetStatus(selectedMaintenance.id, 'em_execucao')}>
-                                        Iniciar Execução
-                                    </SGFButton>
-                                    <SGFButton variant="primary" onClick={() => selectedMaintenance && openCompleteModal(selectedMaintenance)}>
-                                        Concluir Serviço
-                                    </SGFButton>
-                                </>
-                            )}
-                            {selectedMaintenance?.status === 'em_execucao' && (
-                                <SGFButton variant="primary" onClick={() => selectedMaintenance && openCompleteModal(selectedMaintenance)}>
-                                    Concluir Serviço
-                                </SGFButton>
-                            )}
-                            {/* Editar: enquanto a O.S. está em andamento (não concluída/rejeitada) */}
-                            {selectedMaintenance && ['pendente', 'aprovada', 'em_execucao'].includes(selectedMaintenance.status) && (
-                                <SGFButton variant="outline" icon={FileText} onClick={() => { setEditMaintenance(selectedMaintenance); setSelectedMaintenance(null); }}>
-                                    Editar
-                                </SGFButton>
-                            )}
-                            {/* Reabrir: quando concluída ou rejeitada */}
-                            {selectedMaintenance && ['concluida', 'rejeitada'].includes(selectedMaintenance.status) && (
-                                <SGFButton variant="primary" icon={Clock} loading={update.isPending} onClick={() => selectedMaintenance && handleSetStatus(selectedMaintenance.id, 'em_execucao')}>
-                                    Reabrir O.S.
-                                </SGFButton>
-                            )}
-                        </div>
-                        <SGFButton variant="ghost" onClick={() => setSelectedMaintenance(null)}>
-                            Fechar
-                        </SGFButton>
-                    </div>
-                }
-            >
-                {selectedMaintenance && (
-                    <div className="space-y-6">
-                        {/* Cabeçalho: abertura + status e prioridade */}
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <p className="text-sm text-slate-500">
-                                Aberta em {formatDate(selectedMaintenance.date)}
-                            </p>
-                            <div className="flex items-center gap-2">
-                                <SGFBadge variant={STATUS_BADGE[selectedMaintenance.status]?.variant ?? 'default'}>
-                                    {STATUS_BADGE[selectedMaintenance.status]?.label ?? selectedMaintenance.status}
-                                </SGFBadge>
-                                <SGFBadge variant={priorityColors[selectedMaintenance.priority]} size="sm">
-                                    Prioridade {priorityLabels[selectedMaintenance.priority]}
-                                </SGFBadge>
-                            </div>
-                        </div>
-
-                        <div className="grid gap-6 md:grid-cols-2">
-                            {/* Dados da solicitação */}
-                            <div className="space-y-4">
-                                <DetailInfo
-                                    icon={Car}
-                                    label="Veículo"
-                                    value={selectedMaintenance.vehicleLabel}
-                                    hint={`${selectedMaintenance.plate} · ${selectedMaintenance.department}`}
-                                />
-                                <DetailInfo icon={User} label="Motorista solicitante" value={selectedMaintenance.driver} />
-                                <DetailInfo icon={Wrench} label="Categoria" value={selectedMaintenance.category} />
-                            </div>
-
-                            {/* Painel de execução e custos */}
-                            <div className="space-y-3 self-start rounded-3xl border border-slate-100 bg-slate-50 p-5">
-                                <div className="flex items-center justify-between gap-2">
-                                    <p className="whitespace-nowrap text-[10px] font-bold uppercase tracking-widest text-slate-400">Custos do serviço</p>
-                                    {selectedMaintenance.budget != null && selectedMaintenance.cost != null && (
-                                        <SGFBadge variant={selectedMaintenance.cost <= selectedMaintenance.budget ? 'success' : 'error'} size="sm">
-                                            {selectedMaintenance.cost <= selectedMaintenance.budget ? 'Dentro do orçamento' : 'Orçamento estourado'}
-                                        </SGFBadge>
-                                    )}
-                                </div>
-
-                                {!selectedMaintenance.repairShop && selectedMaintenance.budget == null && selectedMaintenance.cost == null ? (
-                                    <div className="flex items-center gap-2.5 py-2 text-sm text-slate-400">
-                                        <Building2 className="h-4 w-4 shrink-0" />
-                                        <span>Oficina e orçamento são definidos na aprovação da O.S.</span>
-                                    </div>
-                                ) : (
-                                    <>
-                                        {selectedMaintenance.repairShop && (
-                                            <div className="flex items-start justify-between gap-3 text-sm">
-                                                <span className="shrink-0 text-slate-500">Oficina</span>
-                                                <span className="text-right font-bold text-slate-800">{selectedMaintenance.repairShop}</span>
-                                            </div>
-                                        )}
-                                        <div className="flex justify-between text-sm">
-                                            <span className="text-slate-500">Orçamento</span>
-                                            <span className="font-bold text-slate-800">
-                                                {selectedMaintenance.budget != null ? formatCurrency(selectedMaintenance.budget) : '—'}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center justify-between border-t border-slate-200 pt-2">
-                                            <span className="font-bold text-slate-500">Custo final</span>
-                                            <span
-                                                className={cn(
-                                                    'text-xl font-black',
-                                                    selectedMaintenance.cost == null
-                                                        ? 'text-slate-300'
-                                                        : selectedMaintenance.budget != null && selectedMaintenance.cost > selectedMaintenance.budget
-                                                            ? 'text-rose-600'
-                                                            : 'text-emerald-600'
-                                                )}
-                                            >
-                                                {selectedMaintenance.cost != null ? formatCurrency(selectedMaintenance.cost) : '—'}
-                                            </span>
-                                        </div>
-                                    </>
-                                )}
-
-                                {(selectedMaintenance.approvedAt || selectedMaintenance.completedAt) && (
-                                    <div className="space-y-1.5 border-t border-slate-200 pt-3">
-                                        {selectedMaintenance.approvedAt && (
-                                            <div className="flex items-center justify-between text-xs">
-                                                <span className="flex items-center gap-1.5 text-slate-500">
-                                                    <ShieldCheck className="h-3.5 w-3.5" /> Aprovada em
-                                                </span>
-                                                <span className="font-semibold text-slate-700">{formatDate(selectedMaintenance.approvedAt)}</span>
-                                            </div>
-                                        )}
-                                        {selectedMaintenance.completedAt && (
-                                            <div className="flex items-center justify-between text-xs">
-                                                <span className="flex items-center gap-1.5 text-slate-500">
-                                                    <CheckCircle className="h-3.5 w-3.5" /> Concluída em
-                                                </span>
-                                                <span className="font-semibold text-slate-700">{formatDate(selectedMaintenance.completedAt)}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Descrição */}
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                            <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                <FileText className="h-3.5 w-3.5" /> Descrição
-                            </p>
-                            <p className="text-sm leading-relaxed text-slate-700">{selectedMaintenance.description}</p>
-                        </div>
-                    </div>
-                )}
-            </Modal>
-
-            {/* Modal de Aprovação — oficina/orçamento */}
-            <Modal
-                isOpen={!!approveTarget}
-                onClose={() => setApproveTarget(null)}
-                title="Aprovar Ordem de Serviço"
-                description="Informe a oficina de destino e, se possível, o orçamento previsto."
-                size="sm"
-                footer={
-                    <div className="flex w-full justify-end gap-2">
-                        <SGFButton variant="ghost" onClick={() => setApproveTarget(null)}>Cancelar</SGFButton>
-                        <SGFButton variant="primary" loading={approve.isPending} onClick={handleConfirmApprove}>
-                            Confirmar Aprovação
-                        </SGFButton>
-                    </div>
-                }
-            >
-                <div className="space-y-4">
-                    <SGFSelect
-                        label="Oficina credenciada"
-                        value={approveRepairShopId}
-                        onChange={(value) => setApproveRepairShopId(value)}
-                        options={[
-                            { value: '', label: activeShops.length ? 'Selecione a oficina...' : 'Nenhuma oficina cadastrada' },
-                            ...activeShops.map((o) => ({
-                                value: o.id,
-                                label: o.city ? `${o.name} — ${o.city}` : o.name,
-                            })),
-                        ]}
-                        hint={activeShops.length
-                            ? 'Só aparecem oficinas ativas. Cadastre em Oficinas.'
-                            : 'Cadastre a oficina em Oficinas antes de aprovar.'}
-                        fullWidth
-                    />
-                    <SGFInput
-                        label="Orçamento (R$)"
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        placeholder="Ex: 850.00"
-                        value={approveBudget}
-                        onChange={(e) => setApproveBudget(e.target.value)}
-                        icon={DollarSign}
-                        hint="Opcional, mas recomendado para acompanhar o custo final."
-                        fullWidth
-                    />
-                </div>
-            </Modal>
-
-            {/* Modal de Conclusão — custo final */}
-            <Modal
-                isOpen={!!completeTarget}
-                onClose={() => setCompleteTarget(null)}
-                title="Concluir Serviço"
-                description="Informe o custo final do serviço realizado."
-                size="sm"
-                footer={
-                    <div className="flex w-full justify-end gap-2">
-                        <SGFButton variant="ghost" onClick={() => setCompleteTarget(null)}>Cancelar</SGFButton>
-                        <SGFButton variant="primary" loading={complete.isPending} onClick={handleConfirmComplete}>
-                            Confirmar Conclusão
-                        </SGFButton>
-                    </div>
-                }
-            >
-                <div className="space-y-4">
-                    {completeTarget?.budget != null && (
-                        <p className="text-xs font-medium text-slate-500">
-                            Orçamento previsto: <span className="font-bold text-slate-700">{formatCurrency(completeTarget.budget)}</span>
-                        </p>
-                    )}
-                    <SGFInput
-                        label="Custo final (R$)"
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        placeholder="Ex: 920.00"
-                        value={completeCost}
-                        onChange={(e) => setCompleteCost(e.target.value)}
-                        icon={DollarSign}
-                        fullWidth
-                    />
-                    <SGFTextarea
-                        label="Observação (opcional)"
-                        placeholder="Detalhes do serviço realizado..."
-                        value={completeNote}
-                        onChange={(e) => setCompleteNote(e.target.value)}
-                        fullWidth
-                        rows={3}
-                    />
-                </div>
-            </Modal>
+            <MaintenanceDetailsModal
+                maintenanceId={selectedId}
+                onClose={() => setSelectedId(null)}
+                onEdit={handleEdit}
+            />
         </div>
     );
 }

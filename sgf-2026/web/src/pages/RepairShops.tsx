@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
     ArrowLeft, Building2, Calendar, Download, FileText, Loader2,
     Pencil, Plus, Receipt, Wrench,
@@ -14,6 +15,7 @@ import { SGFBadge, SGFButton, SGFCard, SGFKPICard, SGFTable, SGFToolbar, type SG
 import { RepairShopFormModal } from '@/components/repairshops/RepairShopFormModal';
 import { PartnerAccessCard } from '@/components/partners/PartnerAccessCard';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { resolveDocUrl } from '@/lib/docStorage';
 import { differenceInDays, parseISO } from 'date-fns';
 import type { Tables } from '@/types/database.types';
 
@@ -155,6 +157,16 @@ function RepairShopDetailPage({ shopId }: { shopId: string }) {
         [detail],
     );
 
+    const openDocument = async (storedPath: string) => {
+        try {
+            const url = await resolveDocUrl(storedPath);
+            if (!url) throw new Error('Documento indisponível.');
+            window.open(url, '_blank', 'noopener,noreferrer');
+        } catch (error) {
+            toast.error((error as { message?: string }).message ?? 'Não foi possível abrir o documento.');
+        }
+    };
+
     useEffect(() => {
         setHeaderAction(
             <div className="flex items-center gap-2">
@@ -234,15 +246,17 @@ function RepairShopDetailPage({ shopId }: { shopId: string }) {
                     <ul className="mt-4 space-y-2">
                         {docs.map((doc, i) => (
                             <li key={`${doc.url}-${i}`}>
-                                <a href={doc.url} target="_blank" rel="noopener noreferrer"
-                                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 transition hover:border-blue-300 hover:bg-blue-50/40">
+                                <button
+                                    type="button"
+                                    onClick={() => void openDocument(doc.url)}
+                                    className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-blue-300 hover:bg-blue-50/40">
                                     <div className="rounded-xl bg-slate-100 p-2 text-slate-500"><FileText className="h-4 w-4" /></div>
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate text-sm font-semibold text-slate-800">{doc.name}</p>
                                         {doc.uploadedAt && <p className="text-[11px] text-slate-400">Anexado em {formatDate(doc.uploadedAt)}</p>}
                                     </div>
                                     <Download className="h-4 w-4 shrink-0 text-blue-500" />
-                                </a>
+                                </button>
                             </li>
                         ))}
                     </ul>
