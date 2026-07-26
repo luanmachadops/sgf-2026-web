@@ -1,6 +1,8 @@
 # Plano — Portais de Parceiros (Postos e Oficinas)
 
-> Status: **proposta**, nada implementado. Nenhum DDL aplicado.
+> Status (2026-07-26): **fases −1 a 4 e 6 concluídas**. Faltam a 5, a 7 e a 8.
+> Este arquivo é a fonte da verdade das etapas — ver "Fases de entrega" (seção 6)
+> e "Estado da execução" logo abaixo.
 > Escopo: dois portais externos dentro do mesmo produto — **Sistema de
 > Abastecimento** (postos) e **Sistema de Manutenção** (oficinas mecânicas),
 > com login próprio, dados restritos ao parceiro e isolamento por prefeitura.
@@ -38,7 +40,15 @@
 | Deploy do painel | ✅ `856d4ca` → produção READY, `frota-web-tap.vercel.app` HTTP 200 |
 | Fase 2 — testes de isolamento | ✅ **15/15** em `supabase/tests/rls_partner_isolation.sql` |
 | `fotos` escopado por tenant — leitura | ✅ **aplicada** — enumeração cross-tenant fechada, verificada 3/3 |
-| `fotos` escopado por tenant — escrita | ⏳ aguarda adoção da build nova do app (nativo) |
+| `fotos` escopado por tenant — escrita | ✅ **aplicada** (2026-07-26) — verificada 4/4 em transação revertida |
+| Fase 3 — aba Oficinas + `repair_shop_id` na OS | ✅ concluída |
+| Fase 4 — criação de acesso + allowlist + guard hostname×tenant | ✅ concluída |
+| Fase 6 — fluxo fiscal da OS no painel | ✅ concluída (orçamento, empenho, NF, ateste, pagamento, timeline das 12 etapas) |
+| OTA (`expo-updates`) no app | ✅ configurado — correção de JS passa a chegar por `eas update`, sem loja |
+| Build EAS do app | ✅ disparada (perfil production, runtime 1.0.1) |
+| Proteção contra senha vazada (Supabase) | ⛔ **indisponível no plano gratuito** — senha mínima de 8 no código segue valendo |
+| Regra de cores no AGENTS.md/CLAUDE.md | ✅ corrigida — marca é sobrescrita por prefeitura; semântica é fixa |
+| Notificações (bug reportado 2026-07-26) | ✅ ver "Notificações" no fim deste arquivo |
 
 ### Verificação da fase 1 (2026-07-25)
 
@@ -488,16 +498,16 @@ registro mostrando etapa atual e de quem é a bola — o que hoje se resolve por
 
 | Fase | Entrega | Depende de |
 |---|---|---|
-| **−1** | Aplicar fix do bucket `fotos`; reconciliar 85 migrations; remover fallback de metadata; senha 8+ e proteção de senha vazada; limites de MIME/tamanho | — (independe dos portais) |
-| **0** | Decisões de domínio: 1 login ou N por parceiro; fiscal 1:1 ou 1:N; quem cria acesso; preço contratual; expiração | −1 |
-| **1** | Primitivas: `repair_shops`, papéis, constraints, índices, **grants explícitos**, buckets/paths, helpers e **RPCs atômicas**. Sem portal. | 0 |
-| **2** | **Suíte de testes de isolamento** — parceiro × parceiro (mesmo tenant), tenant × tenant, parceiro bloqueado, contrato vencido, mutação indevida, envio duplo concorrente, storage cross-tenant | 1 |
-| **3** | Aba Oficinas no painel + `repair_shop_id` na OS | 1 |
-| **4** | Criação de acesso (card + `api/partners`) + allowlist + `PrivateRoute allow` + check hostname×tenant | 1 |
-| **5** | Portal do Posto — piloto com **uma** prefeitura e **um** posto, monitorando eventos e falhas | 2, 4 |
-| **6** | Dois eixos de status + quotes/events + telas fiscais no painel | 3 |
-| **7** | Portal da Oficina | 4, 6 |
-| **8** | Fechamento mensal, relatórios por parceiro, notificações | — |
+| **−1** ✅ | Aplicar fix do bucket `fotos`; reconciliar 85 migrations; remover fallback de metadata; senha 8+ e proteção de senha vazada; limites de MIME/tamanho | — (independe dos portais) |
+| **0** ✅ | Decisões de domínio: 1 login ou N por parceiro; fiscal 1:1 ou 1:N; quem cria acesso; preço contratual; expiração | −1 |
+| **1** ✅ | Primitivas: `repair_shops`, papéis, constraints, índices, **grants explícitos**, buckets/paths, helpers e **RPCs atômicas**. Sem portal. | 0 |
+| **2** ✅ | **Suíte de testes de isolamento** — parceiro × parceiro (mesmo tenant), tenant × tenant, parceiro bloqueado, contrato vencido, mutação indevida, envio duplo concorrente, storage cross-tenant | 1 |
+| **3** ✅ | Aba Oficinas no painel + `repair_shop_id` na OS | 1 |
+| **4** ✅ | Criação de acesso (card + `api/partners`) + allowlist + `PrivateRoute allow` + check hostname×tenant | 1 |
+| **5** ⛔ | Portal do Posto — piloto com **uma** prefeitura e **um** posto, monitorando eventos e falhas | 2, 4 |
+| **6** ✅ | Dois eixos de status + quotes/events + telas fiscais no painel | 3 |
+| **7** ⛔ | Portal da Oficina | 4, 6 |
+| **8** ⛔ | Fechamento mensal, relatórios por parceiro, notificações | — |
 
 Não existe suíte automatizada de RLS/integração/E2E no repositório hoje. A
 **fase 2 é entrega obrigatória**, não checagem manual: é o único mecanismo que
@@ -515,3 +525,36 @@ impede um vazamento entre parceiros ou entre prefeituras de passar despercebido.
 6. **Quem cria o acesso**: só `admin` ou `gestor` também?
 7. **`budget`/`cost` vs. orçamento aprovado** — evitar três fontes de valor.
 8. **CORS das edge functions** — pendência já registrada em `PRODUCAO.md`; revisar quando os domínios finais existirem.
+
+---
+
+## 8. Notificações (bug reportado em 2026-07-26)
+
+**Sintoma:** o app do motorista listava tudo e travava, e "notificação do gestor
+caía no motorista".
+
+**Causa:** a conta usada no app era a de **admin** (863 notificações), e o app
+não tinha gate de papel — então uma conta de gestão entrava e via os alertas de
+frota, que nascem endereçados a ela. O motorista de verdade tinha 3. Junto
+disso, `getNotifications` não tinha limite: a home e a tela carregavam todas as
+linhas do usuário.
+
+**Corrigido**
+
+| Camada | O que mudou |
+|---|---|
+| App | Gate de papel: só `motorista` entra. Conta de gestão vê tela explicando que deve usar o painel |
+| App e painel | Modal do sino: 15 itens + "Mostrar mais" |
+| App e painel | Histórico: seletor 25/50/100, padrão 50 |
+| App e painel | Badge usa contagem no servidor, não o tamanho do array carregado |
+| Banco | `notify_fleet_managers` mirava `('admin','manager','superadmin')` — **`manager` não existe** no check de `profiles.role`, então **gestor nunca recebeu alerta de frota**. Passou a `('admin','gestor')`, pulando perfis bloqueados |
+| Banco | Dedup de "movimento sem viagem" só olhava notificação **não lida** em 30 min: ao ler, o alerta renascia no ping seguinte do rastreador (~94/dia). Agora ignora o estado de leitura e a janela é de 2 h |
+| Banco | Paginação por **cursor** no lugar de OFFSET (a página 50 custava 50× a primeira) |
+| Banco | Índice `(driver_id, created_at desc)` — o que existia tinha `read` no meio e forçava **Sort**. Confirmado por `EXPLAIN`: agora é Index Scan sem Sort. Mais um índice parcial para o badge |
+| Banco | `purge_old_notifications` no pg_cron: lidas > 90 dias e qualquer uma > 365 dias |
+
+**Limpeza autorizada:** 1.611 notificações de alerta de frota removidas
+(restaram 26).
+
+**Pendência:** o índice `idx_notifications_recipient` virou quase redundante.
+Todo índice custa escrita, mas remover índice em produção é decisão à parte.
