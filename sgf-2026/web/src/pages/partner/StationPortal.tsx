@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
+import { PartnerNotificationBell } from '@/components/partners/PartnerNotificationBell';
 import { SGFBadge, SGFButton, SGFCard, SGFInput } from '@/components/sgf';
 import {
     AlertCircle,
@@ -27,6 +28,7 @@ import {
     stationPortalApi,
     type StationAuthorization,
     type StationHistoryItem,
+    type StationMonthlySummary,
 } from '@/lib/station-portal-api';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -35,7 +37,7 @@ const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyl
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
 const PAGE_SIZE = 25;
 
-type PortalTab = 'pending' | 'history' | 'details';
+type PortalTab = 'pending' | 'history' | 'closing' | 'details';
 
 function isoDate(value: Date): string {
     return value.toISOString().slice(0, 10);
@@ -43,14 +45,21 @@ function isoDate(value: Date): string {
 
 function tabFromPath(path: string): PortalTab {
     if (path.endsWith('/historico')) return 'history';
+    if (path.endsWith('/fechamento')) return 'closing';
     if (path.endsWith('/dados')) return 'details';
     return 'pending';
 }
 
 function pathForTab(tab: PortalTab): string {
     if (tab === 'history') return '/posto/historico';
+    if (tab === 'closing') return '/posto/fechamento';
     if (tab === 'details') return '/posto/dados';
     return '/posto';
+}
+
+function currentMonth(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function safeDateTime(value: string | null): string {
@@ -608,6 +617,138 @@ function StationDetails({ stationId }: { stationId: string }) {
     );
 }
 
+function summaryTotals(rows: StationMonthlySummary[]) {
+    return rows.reduce((total, row) => ({
+        count: total.count + row.totalCount,
+        liters: total.liters + row.totalLiters,
+        amount: total.amount + row.totalAmount,
+        pending: total.pending + row.pendingCount,
+        pendingAmount: total.pendingAmount + row.pendingAmount,
+        validated: total.validated + row.validatedCount,
+        validatedAmount: total.validatedAmount + row.validatedAmount,
+        rejected: total.rejected + row.rejectedCount,
+    }), {
+        count: 0,
+        liters: 0,
+        amount: 0,
+        pending: 0,
+        pendingAmount: 0,
+        validated: 0,
+        validatedAmount: 0,
+        rejected: 0,
+    });
+}
+
+function StationClosing() {
+    const [month, setMonth] = useState(currentMonth);
+    const summaryQuery = useQuery({
+        queryKey: ['station-closing', month],
+        queryFn: () => stationPortalApi.getMonthlySummary(month),
+    });
+    const totals = summaryTotals(summaryQuery.data ?? []);
+
+    if (summaryQuery.error) {
+        return (
+            <ErrorState
+                message={(summaryQuery.error as Error).message}
+                retry={() => void summaryQuery.refetch()}
+            />
+        );
+    }
+
+    return (
+        <div className="space-y-5">
+            <SGFCard variant="bordered" padding="lg">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                    <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-amber-700">Competência</p>
+                        <h3 className="mt-1 text-lg font-black text-slate-950">Conferência para faturamento</h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                            O valor validado é a base para conferir a nota fiscal com a prefeitura.
+                        </p>
+                    </div>
+                    <label className="text-sm font-semibold text-slate-700">
+                        Mês
+                        <input type="month" value={month} max={currentMonth()} onChange={(event) => setMonth(event.target.value)}
+                            className="mt-1 block rounded-full border border-slate-200 bg-white px-4 py-2.5 outline-none focus:border-[var(--sgf-primary)] focus:ring-4 focus:ring-emerald-500/10" />
+                    </label>
+                </div>
+            </SGFCard>
+
+            {summaryQuery.isLoading ? (
+                <LoadingCards />
+            ) : (summaryQuery.data ?? []).length === 0 ? (
+                <SGFCard className="text-center" padding="xl">
+                    <Receipt className="mx-auto h-10 w-10 text-slate-300" />
+                    <h3 className="mt-3 font-bold text-slate-900">Nenhum abastecimento no período</h3>
+                    <p className="mt-1 text-sm text-slate-500">Selecione outro mês para consultar.</p>
+                </SGFCard>
+            ) : (
+                <>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <SGFCard variant="bordered">
+                            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Apresentado</p>
+                            <p className="mt-2 text-2xl font-black text-slate-950">{currency.format(totals.amount)}</p>
+                            <p className="mt-1 text-xs text-slate-500">{number.format(totals.liters)} L · {totals.count} registros</p>
+                        </SGFCard>
+                        <SGFCard variant="bordered">
+                            <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">Validado</p>
+                            <p className="mt-2 text-2xl font-black text-emerald-800">{currency.format(totals.validatedAmount)}</p>
+                            <p className="mt-1 text-xs text-slate-500">{totals.validated} registros</p>
+                        </SGFCard>
+                        <SGFCard variant="bordered">
+                            <p className="text-xs font-bold uppercase tracking-wide text-amber-600">Em conferência</p>
+                            <p className="mt-2 text-2xl font-black text-amber-800">{currency.format(totals.pendingAmount)}</p>
+                            <p className="mt-1 text-xs text-slate-500">{totals.pending} registros</p>
+                        </SGFCard>
+                        <SGFCard variant="bordered">
+                            <p className="text-xs font-bold uppercase tracking-wide text-red-600">Rejeitados</p>
+                            <p className="mt-2 text-2xl font-black text-red-700">{totals.rejected}</p>
+                            <p className="mt-1 text-xs text-slate-500">Não entram no faturamento</p>
+                        </SGFCard>
+                    </div>
+
+                    <SGFCard variant="bordered" padding="none" className="overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[680px] text-sm">
+                                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                                    <tr>
+                                        <th className="px-5 py-3">Combustível</th>
+                                        <th className="px-5 py-3 text-right">Litros</th>
+                                        <th className="px-5 py-3 text-right">Apresentado</th>
+                                        <th className="px-5 py-3 text-right">Validado</th>
+                                        <th className="px-5 py-3 text-right">Em conferência</th>
+                                        <th className="px-5 py-3 text-right">Rejeitados</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {summaryQuery.data?.map((row) => (
+                                        <tr key={row.fuelType}>
+                                            <td className="px-5 py-4 font-bold capitalize text-slate-900">{row.fuelType}</td>
+                                            <td className="px-5 py-4 text-right text-slate-600">{number.format(row.totalLiters)} L</td>
+                                            <td className="px-5 py-4 text-right font-semibold text-slate-900">{currency.format(row.totalAmount)}</td>
+                                            <td className="px-5 py-4 text-right text-emerald-700">{currency.format(row.validatedAmount)}</td>
+                                            <td className="px-5 py-4 text-right text-amber-700">{currency.format(row.pendingAmount)}</td>
+                                            <td className="px-5 py-4 text-right text-red-700">{row.rejectedCount}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </SGFCard>
+
+                    {totals.pending > 0 && (
+                        <div className="flex gap-2 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
+                            <Info className="mt-0.5 h-5 w-5 shrink-0" />
+                            <p>Existem lançamentos aguardando validação. Aguarde a conferência antes de emitir a NF definitiva.</p>
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
+
 export default function StationPortal() {
     const { user, logout } = useAuth();
     const { branding } = useBranding();
@@ -625,6 +766,7 @@ export default function StationPortal() {
     const tabs: { id: PortalTab; label: string; icon: typeof Home }[] = [
         { id: 'pending', label: 'Autorizações', icon: Home },
         { id: 'history', label: 'Histórico', icon: Clock },
+        { id: 'closing', label: 'Fechamento', icon: Receipt },
         { id: 'details', label: 'Meus dados', icon: User },
     ];
 
@@ -645,14 +787,17 @@ export default function StationPortal() {
                             <h1 className="truncate text-base font-bold sm:text-lg">Sistema de Abastecimento</h1>
                         </div>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => void logout()}
-                        className="flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-white/70 transition hover:bg-white/10 hover:text-white"
-                    >
-                        <LogOut className="h-5 w-5" />
-                        <span className="hidden sm:inline">Sair</span>
-                    </button>
+                    <div className="flex items-center gap-1">
+                        {user?.id && <PartnerNotificationBell userId={user.id} fallbackPath="/posto" />}
+                        <button
+                            type="button"
+                            onClick={() => void logout()}
+                            className="flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-white/70 transition hover:bg-white/10 hover:text-white"
+                        >
+                            <LogOut className="h-5 w-5" />
+                            <span className="hidden sm:inline">Sair</span>
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -689,11 +834,13 @@ export default function StationPortal() {
                         <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
                             {activeTab === 'pending' && 'Autorizações pendentes'}
                             {activeTab === 'history' && 'Histórico de abastecimentos'}
+                            {activeTab === 'closing' && 'Fechamento mensal'}
                             {activeTab === 'details' && 'Dados do fornecedor'}
                         </h2>
                         <p className="mt-1 text-sm text-slate-500">
                             {activeTab === 'pending' && 'Registre apenas abastecimentos previamente autorizados pela prefeitura.'}
                             {activeTab === 'history' && 'Acompanhe a validação dos lançamentos feitos por este posto.'}
+                            {activeTab === 'closing' && 'Confira volumes e valores validados antes de emitir a nota fiscal.'}
                             {activeTab === 'details' && 'Consulte contrato, vencimento e preços vigentes.'}
                         </p>
                     </div>
@@ -716,6 +863,8 @@ export default function StationPortal() {
                     <PendingAuthorizations tenantId={context.tenantId} stationId={context.stationId} />
                 ) : activeTab === 'history' ? (
                     <StationHistory />
+                ) : activeTab === 'closing' ? (
+                    <StationClosing />
                 ) : (
                     <StationDetails stationId={context.stationId} />
                 )}

@@ -2731,6 +2731,20 @@ export type Database = {
           workflow_status: string
         }[]
       }
+      get_station_monthly_summary: {
+        Args: { p_month?: string }
+        Returns: {
+          fuel_type: string
+          pending_amount: number
+          pending_count: number
+          rejected_count: number
+          total_amount: number
+          total_count: number
+          total_liters: number
+          validated_amount: number
+          validated_count: number
+        }[]
+      }
       get_tenant_branding: {
         Args: { p_slug: string }
         Returns: {

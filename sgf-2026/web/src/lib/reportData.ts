@@ -490,6 +490,195 @@ async function infractionsReport(f?: ReportFilterInput): Promise<ReportDataset> 
     };
 }
 
+async function fuelByStation(f?: ReportFilterInput): Promise<ReportDataset> {
+    const { from, to } = dateRange(f);
+    let query = supabase
+        .from('fuelings')
+        .select('station_id, liters, total_cost, workflow_status, filled_at, fuel_stations(name), vehicles(department_id)')
+        .not('station_id', 'is', null)
+        .not('filled_at', 'is', null)
+        .in('workflow_status', ['concluido', 'validado', 'rejeitado_admin']);
+    if (from) query = query.gte('filled_at', from);
+    if (to) query = query.lte('filled_at', to);
+    const { data, error } = await query;
+    if (error) throw error;
+
+    type FuelRow = {
+        station_id: string | null;
+        liters: number | null;
+        total_cost: number | null;
+        workflow_status: string;
+        fuel_stations: { name?: string | null } | null;
+        vehicles: { department_id?: string | null } | null;
+    };
+    let list = (data ?? []) as unknown as FuelRow[];
+    if (f?.departmentId) {
+        list = list.filter((row) => row.vehicles?.department_id === f.departmentId);
+    }
+
+    const grouped = new Map<string, {
+        station: string;
+        count: number;
+        liters: number;
+        presented: number;
+        validated: number;
+        pending: number;
+        rejected: number;
+    }>();
+    for (const row of list) {
+        if (!row.station_id) continue;
+        const current = grouped.get(row.station_id) ?? {
+            station: row.fuel_stations?.name || 'Posto não identificado',
+            count: 0,
+            liters: 0,
+            presented: 0,
+            validated: 0,
+            pending: 0,
+            rejected: 0,
+        };
+        if (row.workflow_status === 'rejeitado_admin') {
+            current.rejected += 1;
+        } else {
+            current.count += 1;
+            current.liters += Number(row.liters ?? 0);
+            current.presented += Number(row.total_cost ?? 0);
+            if (row.workflow_status === 'validado') current.validated += Number(row.total_cost ?? 0);
+            if (row.workflow_status === 'concluido') current.pending += Number(row.total_cost ?? 0);
+        }
+        grouped.set(row.station_id, current);
+    }
+
+    const rows = [...grouped.values()]
+        .sort((a, b) => b.presented - a.presented)
+        .map((row) => ({
+            station: row.station,
+            fuelings: row.count,
+            liters: Number(row.liters.toFixed(2)),
+            presented: Number(row.presented.toFixed(2)),
+            validated: Number(row.validated.toFixed(2)),
+            pending: Number(row.pending.toFixed(2)),
+            rejected: row.rejected,
+        }));
+    const total = rows.reduce((sum, row) => ({
+        fuelings: sum.fuelings + row.fuelings,
+        liters: sum.liters + row.liters,
+        validated: sum.validated + row.validated,
+    }), { fuelings: 0, liters: 0, validated: 0 });
+
+    return {
+        kpis: [
+            { label: 'Postos com movimento', value: NUM(rows.length) },
+            { label: 'Abastecimentos', value: NUM(total.fuelings) },
+            { label: 'Litros apresentados', value: `${NUM(total.liters, 0)} L` },
+            { label: 'Valor validado', value: BRL(total.validated) },
+        ],
+        columns: [
+            { key: 'station', label: 'Posto' },
+            { key: 'fuelings', label: 'Registros', align: 'right' },
+            { key: 'liters', label: 'Litros', align: 'right' },
+            { key: 'presented', label: 'Apresentado (R$)', align: 'right' },
+            { key: 'validated', label: 'Validado (R$)', align: 'right' },
+            { key: 'pending', label: 'Pendente (R$)', align: 'right' },
+            { key: 'rejected', label: 'Rejeitados', align: 'right' },
+        ],
+        rows,
+    };
+}
+
+async function maintenanceByShop(f?: ReportFilterInput): Promise<ReportDataset> {
+    const { from, to } = dateRange(f);
+    let query = supabase
+        .from('service_orders')
+        .select('repair_shop_id, budget, cost, operational_status, financial_status, created_at, repair_shops(name), vehicles(department_id)')
+        .not('repair_shop_id', 'is', null);
+    if (from) query = query.gte('created_at', from);
+    if (to) query = query.lte('created_at', to);
+    const { data, error } = await query;
+    if (error) throw error;
+
+    type OrderRow = {
+        repair_shop_id: string | null;
+        budget: number | null;
+        cost: number | null;
+        operational_status: string;
+        financial_status: string;
+        repair_shops: { name?: string | null } | null;
+        vehicles: { department_id?: string | null } | null;
+    };
+    let list = (data ?? []) as unknown as OrderRow[];
+    if (f?.departmentId) {
+        list = list.filter((row) => row.vehicles?.department_id === f.departmentId);
+    }
+
+    const grouped = new Map<string, {
+        shop: string;
+        orders: number;
+        budget: number;
+        cost: number;
+        execution: number;
+        openFinance: number;
+        paid: number;
+    }>();
+    for (const row of list) {
+        if (!row.repair_shop_id) continue;
+        const current = grouped.get(row.repair_shop_id) ?? {
+            shop: row.repair_shops?.name || 'Oficina não identificada',
+            orders: 0,
+            budget: 0,
+            cost: 0,
+            execution: 0,
+            openFinance: 0,
+            paid: 0,
+        };
+        current.orders += 1;
+        current.budget += Number(row.budget ?? 0);
+        current.cost += Number(row.cost ?? 0);
+        if (['at_shop', 'awaiting_quote_approval', 'in_progress', 'ready'].includes(row.operational_status)) {
+            current.execution += 1;
+        }
+        if (!['not_started', 'paid'].includes(row.financial_status)) current.openFinance += 1;
+        if (row.financial_status === 'paid') current.paid += 1;
+        grouped.set(row.repair_shop_id, current);
+    }
+
+    const rows = [...grouped.values()]
+        .sort((a, b) => b.budget - a.budget)
+        .map((row) => ({
+            shop: row.shop,
+            orders: row.orders,
+            budget: Number(row.budget.toFixed(2)),
+            cost: Number(row.cost.toFixed(2)),
+            execution: row.execution,
+            openFinance: row.openFinance,
+            paid: row.paid,
+        }));
+    const totals = rows.reduce((sum, row) => ({
+        orders: sum.orders + row.orders,
+        budget: sum.budget + row.budget,
+        cost: sum.cost + row.cost,
+        openFinance: sum.openFinance + row.openFinance,
+    }), { orders: 0, budget: 0, cost: 0, openFinance: 0 });
+
+    return {
+        kpis: [
+            { label: 'Oficinas com movimento', value: NUM(rows.length) },
+            { label: 'Ordens de serviço', value: NUM(totals.orders) },
+            { label: 'Orçado', value: BRL(totals.budget) },
+            { label: 'Processos financeiros abertos', value: NUM(totals.openFinance) },
+        ],
+        columns: [
+            { key: 'shop', label: 'Oficina' },
+            { key: 'orders', label: 'OS', align: 'right' },
+            { key: 'budget', label: 'Orçado (R$)', align: 'right' },
+            { key: 'cost', label: 'Custo final (R$)', align: 'right' },
+            { key: 'execution', label: 'Em execução', align: 'right' },
+            { key: 'openFinance', label: 'Financeiro aberto', align: 'right' },
+            { key: 'paid', label: 'Pagas', align: 'right' },
+        ],
+        rows,
+    };
+}
+
 const FETCHERS: Record<string, (f?: ReportFilterInput) => Promise<ReportDataset>> = {
     'fleet-summary': fleetSummary,
     'fuel-consumption': fuelConsumption,
@@ -500,6 +689,8 @@ const FETCHERS: Record<string, (f?: ReportFilterInput) => Promise<ReportDataset>
     'department-usage': departmentUsage,
     'efficiency-report': efficiencyReport,
     'infractions': infractionsReport,
+    'fuel-by-station': fuelByStation,
+    'maintenance-by-shop': maintenanceByShop,
 };
 
 /** Busca o dataset real de um relatório, aplicando os filtros selecionados. */

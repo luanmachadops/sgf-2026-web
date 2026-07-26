@@ -12,7 +12,6 @@ import {
     TrendingUp,
     BarChart3,
     PieChart,
-    Clock,
     Receipt,
     Search,
     X,
@@ -98,6 +97,20 @@ const reports: Report[] = [
         description: 'Multas registradas, condutor indicado, valores e situação.',
         icon: <Receipt className="h-6 w-6" />,
         category: 'operational',
+    },
+    {
+        id: 'fuel-by-station',
+        title: 'Fechamento por Posto',
+        description: 'Volumes, valores validados, pendências e rejeições agrupados por fornecedor.',
+        icon: <Fuel className="h-6 w-6" />,
+        category: 'financial',
+    },
+    {
+        id: 'maintenance-by-shop',
+        title: 'Manutenções por Oficina',
+        description: 'Ordens, orçamento aprovado, custo final e processos em aberto por oficina.',
+        icon: <Wrench className="h-6 w-6" />,
+        category: 'financial',
     },
 ];
 

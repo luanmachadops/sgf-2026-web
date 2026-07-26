@@ -46,6 +46,18 @@ export interface StationHistoryPage {
     total: number;
 }
 
+export interface StationMonthlySummary {
+    fuelType: string;
+    totalCount: number;
+    totalLiters: number;
+    totalAmount: number;
+    pendingCount: number;
+    pendingAmount: number;
+    validatedCount: number;
+    validatedAmount: number;
+    rejectedCount: number;
+}
+
 export interface StationDetails {
     id: string;
     name: string;
@@ -131,6 +143,24 @@ export const stationPortalApi = {
                 hasAnomaly: row.has_anomaly,
             })),
         };
+    },
+
+    getMonthlySummary: async (month: string): Promise<StationMonthlySummary[]> => {
+        const { data, error } = await supabase.rpc('get_station_monthly_summary', {
+            p_month: `${month}-01`,
+        });
+        throwIfError(error);
+        return (data ?? []).map((row) => ({
+            fuelType: row.fuel_type,
+            totalCount: Number(row.total_count),
+            totalLiters: Number(row.total_liters),
+            totalAmount: Number(row.total_amount),
+            pendingCount: Number(row.pending_count),
+            pendingAmount: Number(row.pending_amount),
+            validatedCount: Number(row.validated_count),
+            validatedAmount: Number(row.validated_amount),
+            rejectedCount: Number(row.rejected_count),
+        }));
     },
 
     getDetails: async (stationId: string): Promise<StationDetails> => {

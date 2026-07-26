@@ -1,8 +1,8 @@
 # Plano — Portais de Parceiros (Postos e Oficinas)
 
-> Status (2026-07-26): **fases −1 a 4 e 6 concluídas**. A implementação da
-> fase 5 está pronta; falta o piloto autenticado com um posto real. Fases 7 e
-> 8 ainda não iniciadas.
+> Status (2026-07-26): **fases −1 a 4 e 6 concluídas**. As implementações das
+> fases 5, 7 e 8 estão prontas; faltam a policy manual do Storage e os pilotos
+> autenticados com parceiros reais.
 > Este arquivo é a fonte da verdade das etapas — ver "Fases de entrega" (seção 6)
 > e "Estado da execução" logo abaixo.
 > Escopo: dois portais externos dentro do mesmo produto — **Sistema de
@@ -54,6 +54,9 @@
 | Fase 5 — Portal do Posto (código) | ✅ concluída — login próprio, autorizações, registro com cupom/foto, preço contratual, histórico paginado e dados do contrato |
 | Fase 5 — migration do histórico/guard | ✅ **aplicada** — `20260726030059_station_portal_history`; migration completa validada em rollback + isolamento 15/15 |
 | Fase 5 — piloto autenticado | ⛔ **pendente** — consulta em 2026-07-26 encontrou 0 perfis `role='posto'`; criar o primeiro acesso pelo card do posto e executar o roteiro abaixo |
+| Fase 7 — Portal da Oficina (código/RPCs) | ✅ concluída — OS agrupadas, orçamento, execução com fotos, NF, timeline e contrato |
+| Fase 7 — policy de documentos + piloto | ⛔ **pendente** — policy exige dashboard do Storage; existem 0 perfis `role='oficina'` |
+| Fase 8 — fechamento, relatórios e avisos | ✅ código e migration aplicados; falta validação visual nos pilotos |
 
 ### Verificação da fase 1 (2026-07-25)
 
@@ -512,7 +515,7 @@ registro mostrando etapa atual e de quem é a bola — o que hoje se resolve por
 | **5** 🟡 | Portal do Posto — **implementação concluída**; falta piloto com uma prefeitura e um posto real, monitorando eventos e falhas | 2, 4 |
 | **6** ✅ | Dois eixos de status + quotes/events + telas fiscais no painel | 3 |
 | **7** 🟡 | Portal da Oficina — implementação e RPCs concluídas; falta policy do Storage + piloto autenticado | 4, 6 |
-| **8** ⛔ | Fechamento mensal, relatórios por parceiro, notificações | — |
+| **8** 🟡 | Fechamento mensal, relatórios por parceiro e notificações — implementação concluída; falta piloto autenticado | — |
 
 Não existe suíte automatizada de RLS/integração/E2E no repositório hoje. A
 **fase 2 é entrega obrigatória**, não checagem manual: é o único mecanismo que
@@ -644,7 +647,7 @@ Todo índice custa escrita, mas remover índice em produção é decisão à par
 |---|---|
 | Migration das RPCs em produção | ✅ `20260726031428_workshop_portal_security` |
 | Permissões das RPCs | ✅ `anon`: nenhuma; `authenticated`: somente versões v2 |
-| Suíte de isolamento ampliada | 🟡 24/25; único bloqueio é a policy abaixo |
+| Suíte de isolamento ampliada | 🟡 19/20; único bloqueio é a policy abaixo |
 | TypeScript | ✅ `tsc -b` |
 | Lint direcionado | ✅ zero achados |
 | Build Vite de produção | ✅ portal em chunk separado: 36,80 kB (9,74 kB gzip) |
@@ -653,7 +656,7 @@ Todo índice custa escrita, mas remover índice em produção é decisão à par
 **Bloqueio antes de publicar:** `storage.objects` pertence a
 `supabase_storage_admin`; a conexão de migrations não consegue criar a policy
 restritiva parceiro × parceiro (erro `42501`). A migration
-`20260726031454_workshop_documents_partner_scope.sql` está pronta, mas precisa
+`20260726235959_workshop_documents_partner_scope.sql` está pronta, mas precisa
 ser criada por **Storage → Policies** no dashboard. Sem ela, a policy permissiva
 atual isola por prefeitura, mas ainda permite que uma oficina autenticada grave
 ou leia documentos de outra oficina do mesmo tenant.
@@ -661,7 +664,7 @@ ou leia documentos de outra oficina do mesmo tenant.
 ### Roteiro obrigatório do piloto
 
 1. Criar a policy pendente no dashboard e executar novamente
-   `rls_partner_isolation.sql`; o resultado esperado passa de 24/25 para 25/25.
+   `rls_partner_isolation.sql`; o resultado esperado passa de 19/20 para 20/20.
 2. Criar o acesso de uma oficina ativa e entrar por `/oficina/login`.
 3. Vincular e autorizar uma OS, receber o veículo e enviar um orçamento com
    peças e mão de obra.
@@ -672,3 +675,54 @@ ou leia documentos de outra oficina do mesmo tenant.
 6. Repetir os testes negativos: outra oficina/tenant, acesso bloqueado,
    contrato vencido, orçamento duplicado, início sem empenho e NF antes do
    recebimento.
+
+---
+
+## 11. Fase 8 — Fechamento, relatórios e notificações (2026-07-26)
+
+### O que entrou
+
+- nova aba **Fechamento** no portal do posto, por competência mensal, separando
+  valor apresentado, validado, aguardando conferência e rejeitado, com quebra
+  por combustível;
+- RPC `get_station_monthly_summary`: o parceiro é resolvido por
+  `auth.uid()`/`partner_context`, sem receber `station_id` do cliente;
+- relatórios gerenciais exportáveis **Fechamento por Posto** e **Manutenções
+  por Oficina**, respeitando período e secretaria;
+- sino nos dois portais, com oito avisos recentes, contagem no servidor,
+  atualização a cada 30 segundos e marcação individual/em lote;
+- avisos automáticos para o posto quando recebe uma autorização ou quando o
+  lançamento é validado/rejeitado;
+- avisos automáticos para a oficina em nova OS/entrega, devolução ou aprovação
+  do orçamento, empenho, recebimento do veículo, ateste e pagamento;
+- helper `notify_partner_profile` resolve o destinatário pelo vínculo do
+  parceiro e ignora acessos bloqueados. Usuários autenticados não têm
+  `EXECUTE` direto nesse helper nem nos gatilhos.
+
+### Evidências
+
+| Verificação | Resultado |
+|---|---|
+| Migration inteira no schema real com rollback por sentinela | ✅ |
+| Migration em produção | ✅ `20260726033245_partner_closing_notifications` |
+| Teste do fechamento isolado | ✅ T19: 10 L / R$ 60 apenas do posto A1 |
+| Teste de destinatário da notificação | ✅ T20: posto A1 recebe 1; não vê A2/B1 |
+| Permissões | ✅ fechamento só `authenticated`; helper/gatilhos sem `EXECUTE` para `anon` ou `authenticated` |
+| Gatilhos em produção | ✅ ativos em `fuelings`, `service_orders` e `service_order_quotes` |
+| Suíte completa | 🟡 19/20; falha exclusiva em T16b, policy manual da fase 7 |
+| TypeScript | ✅ `tsc -b` |
+| Lint direcionado | ✅ zero achados |
+| Build Vite de produção | ✅ posto 30,78 kB; oficina 36,97 kB; sino compartilhado 3,38 kB |
+| Fluxo visual autenticado | ⛔ sem perfis `posto`/`oficina` para executar |
+
+### Piloto
+
+O roteiro das fases 5 e 7 cobre a origem dos eventos. Durante o piloto, conferir
+também:
+
+1. o aviso aparece no sino do parceiro correto e abre a rota do próprio portal;
+2. marcar individualmente e “marcar todas” atualiza a contagem;
+3. após validar/rejeitar abastecimentos, o fechamento do mês confere com o
+   relatório gerencial por posto;
+4. após pagar uma OS, o relatório por oficina reflete custo final e processo
+   encerrado.

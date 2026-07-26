@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
 import { OrderDetailsModal } from '@/components/partners/workshop/OrderDetailsModal';
+import { PartnerNotificationBell } from '@/components/partners/PartnerNotificationBell';
 import { SGFBadge, SGFButton, SGFCard } from '@/components/sgf';
 import {
     AlertCircle,
@@ -348,11 +349,14 @@ export default function WorkshopPortal() {
                             <h1 className="truncate text-base font-bold sm:text-lg">Sistema de Manutenção</h1>
                         </div>
                     </div>
-                    <button type="button" onClick={() => void logout()}
-                        className="flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-white/70 transition hover:bg-white/10 hover:text-white">
-                        <LogOut className="h-5 w-5" />
-                        <span className="hidden sm:inline">Sair</span>
-                    </button>
+                    <div className="flex items-center gap-1">
+                        {user?.id && <PartnerNotificationBell userId={user.id} fallbackPath="/oficina" />}
+                        <button type="button" onClick={() => void logout()}
+                            className="flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-white/70 transition hover:bg-white/10 hover:text-white">
+                            <LogOut className="h-5 w-5" />
+                            <span className="hidden sm:inline">Sair</span>
+                        </button>
+                    </div>
                 </div>
             </header>
 

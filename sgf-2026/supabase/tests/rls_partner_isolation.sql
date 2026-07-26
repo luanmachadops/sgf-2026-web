@@ -17,7 +17,8 @@
 --   recusam parceiro bloqueado, contrato vencido e valores inválidos.
 --
 -- RESULTADO DA ÚLTIMA EXECUÇÃO
---   2026-07-25 — 15/15 passaram contra o banco de produção.
+--   2026-07-26 — 19/20 passaram contra o banco de produção; o único bloqueio
+--   é T16b, cuja policy de Storage exige criação pelo dashboard.
 --
 -- DUAS ARMADILHAS DA MASSA DE TESTE (custaram duas execuções)
 --   • `auth.users` tem trigger `handle_new_user`, que já cria o `profiles` e
@@ -53,7 +54,7 @@ declare
   so_a1 uuid := gen_random_uuid(); so_a2 uuid := gen_random_uuid();
   u_motorista uuid := gen_random_uuid();
   n int; msg text; falhas text := '';
-  v_total numeric; v_price numeric; q uuid; u record;
+  v_total numeric; v_price numeric; v_liters numeric; q uuid; u record;
 begin
   -- ── Massa de teste (como postgres, ignorando RLS) ────────────────────────
   insert into public.tenants (id, name, slug) values
@@ -329,10 +330,39 @@ begin
     falhas := falhas || format('[T18] emissão de NF falhou: %s; ', msg);
   end;
 
+  ------------------------------------------------------------------ TESTE 19
+  -- Fechamento mensal do posto soma apenas a própria execução.
+  perform set_config('request.jwt.claims', json_build_object('sub', u_posto_a1, 'role','authenticated')::text, true);
+  begin
+    select coalesce(sum(total_liters), 0), coalesce(sum(total_amount), 0)
+      into v_liters, v_total
+      from public.get_station_monthly_summary(current_date);
+    if v_liters <> 10 then falhas := falhas || format('[T19] fechamento somou %s L (esperado 10); ', v_liters); end if;
+    if v_total <> 60 then falhas := falhas || format('[T19b] fechamento somou R$ %s (esperado 60); ', v_total); end if;
+  exception when others then
+    get stacked diagnostics msg = message_text;
+    falhas := falhas || format('[T19] fechamento mensal falhou: %s; ', msg);
+  end;
+
+  ------------------------------------------------------------------ TESTE 20
+  -- A autorização gera aviso apenas para o login do posto vinculado.
+  select count(*) into n
+    from public.notifications
+   where driver_id = u_posto_a1
+     and entity_type = 'fueling'
+     and entity_id = f_a1
+     and title = 'Nova autorização de abastecimento';
+  if n <> 1 then falhas := falhas || format('[T20] posto A1 recebeu %s avisos da própria autorização (esperado 1); ', n); end if;
+
+  select count(*) into n
+    from public.notifications
+   where entity_id in (f_a2, f_b1);
+  if n <> 0 then falhas := falhas || format('[T20b] posto A1 enxerga %s avisos de outros postos; ', n); end if;
+
   ------------------------------------------------------------------ RELATÓRIO
   perform set_config('role','postgres', true);
   if falhas = '' then
-    raise exception 'TODOS OS TESTES PASSARAM (18/18) — rollback automático';
+    raise exception 'TODOS OS TESTES PASSARAM (20/20) — rollback automático';
   else
     raise exception 'FALHAS >>> %', falhas;
   end if;
