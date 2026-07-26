@@ -2614,3 +2614,188 @@ export const repairShopsApi = {
         };
     },
 };
+
+// ─── Fluxo fiscal da OS (orçamento → empenho → NF → ateste → pagamento) ─────
+//
+// Os dois eixos vivem em colunas separadas: `operational_status` diz onde o
+// VEÍCULO está, `financial_status` onde o PROCESSO está. Misturar prenderia o
+// veículo em manutenção até a contabilidade pagar — ver a migration
+// 20260725204942.
+export type OpStatus = Enums<'service_order_op_status'>;
+export type FinStatus = Enums<'service_order_fin_status'>;
+
+export interface QuoteItem { id: string; kind: 'peca' | 'mao_de_obra'; description: string; qty: number; unit_price: number }
+export interface Quote extends Tables<'service_order_quotes'> { items: QuoteItem[] }
+
+export const serviceOrderFiscalApi = {
+    /** Orçamentos da OS, mais recente primeiro, com itens. */
+    quotes: async (orderId: string): Promise<Quote[]> => {
+        const { data, error } = await supabase
+            .from('service_order_quotes')
+            .select('*, service_order_quote_items(id, kind, description, qty, unit_price)')
+            .eq('service_order_id', orderId)
+            .order('version', { ascending: false });
+        if (error) handleError(error);
+        return (data ?? []).map((q) => {
+            const row = q as Tables<'service_order_quotes'> & { service_order_quote_items?: QuoteItem[] };
+            return { ...row, items: row.service_order_quote_items ?? [] } as Quote;
+        });
+    },
+
+    /**
+     * Aprova o orçamento e joga a OS para "aguardando empenho".
+     * `budget` na OS passa a ser derivado do orçamento aprovado — evita a
+     * terceira fonte de valor que existia com budget/cost digitados à mão.
+     */
+    approveQuote: async (quoteId: string, orderId: string, reviewedBy: string, note?: string) => {
+        const { data: quote, error: qErr } = await supabase
+            .from('service_order_quotes')
+            .update({ status: 'aprovado', reviewed_by: reviewedBy, reviewed_at: new Date().toISOString(), review_note: note ?? null })
+            .eq('id', quoteId)
+            .select()
+            .single();
+        if (qErr) handleError(qErr);
+
+        const { error: oErr } = await supabase
+            .from('service_orders')
+            .update({ financial_status: 'awaiting_commitment', budget: (quote as Tables<'service_order_quotes'>).total })
+            .eq('id', orderId);
+        if (oErr) handleError(oErr);
+
+        await serviceOrderFiscalApi.logEvent(orderId, {
+            axis: 'financial', from: 'not_started', to: 'awaiting_commitment', actorId: reviewedBy,
+            note: `Orçamento v${(quote as Tables<'service_order_quotes'>).version} aprovado`,
+        });
+        return quote as Tables<'service_order_quotes'>;
+    },
+
+    rejectQuote: async (quoteId: string, orderId: string, reviewedBy: string, note: string) => {
+        const { error } = await supabase
+            .from('service_order_quotes')
+            .update({ status: 'rejeitado', reviewed_by: reviewedBy, reviewed_at: new Date().toISOString(), review_note: note })
+            .eq('id', quoteId);
+        if (error) handleError(error);
+        await serviceOrderFiscalApi.logEvent(orderId, {
+            axis: 'note', from: null, to: null, actorId: reviewedBy, note: `Orçamento rejeitado: ${note}`,
+        });
+    },
+
+    /** Registra o empenho/NAD e libera a oficina para executar. */
+    registerCommitment: async (orderId: string, input: { commitmentNumber: string; nadNumber?: string | null; actorId: string }) => {
+        const { error } = await supabase
+            .from('service_orders')
+            .update({
+                commitment_number: input.commitmentNumber,
+                nad_number: input.nadNumber ?? null,
+                financial_status: 'committed',
+            })
+            .eq('id', orderId);
+        if (error) handleError(error);
+        await serviceOrderFiscalApi.logEvent(orderId, {
+            axis: 'financial', from: 'awaiting_commitment', to: 'committed', actorId: input.actorId,
+            note: `Empenho ${input.commitmentNumber}`,
+        });
+    },
+
+    /** Muda o eixo OPERACIONAL (o trigger sincroniza a coluna `status` antiga). */
+    setOperationalStatus: async (orderId: string, to: OpStatus, actorId: string, note?: string) => {
+        const patch: TablesUpdate<'service_orders'> = { operational_status: to };
+        if (to === 'at_shop') patch.at_shop_at = new Date().toISOString();
+        if (to === 'received') patch.received_at = new Date().toISOString();
+
+        const { error } = await supabase.from('service_orders').update(patch).eq('id', orderId);
+        if (error) handleError(error);
+        await serviceOrderFiscalApi.logEvent(orderId, { axis: 'operational', from: null, to, actorId, note });
+    },
+
+    invoices: async (orderId: string) => {
+        const { data, error } = await supabase
+            .from('service_order_invoices').select('*')
+            .eq('service_order_id', orderId).order('issued_at', { ascending: false });
+        if (error) handleError(error);
+        return (data ?? []) as Tables<'service_order_invoices'>[];
+    },
+
+    /** Ateste (liquidação): o gestor confirma que o serviço da NF foi entregue. */
+    attestInvoice: async (invoiceId: string, orderId: string, actorId: string) => {
+        const { error } = await supabase
+            .from('service_order_invoices')
+            .update({ attested_by: actorId, attested_at: new Date().toISOString() })
+            .eq('id', invoiceId);
+        if (error) handleError(error);
+        await supabase.from('service_orders').update({ financial_status: 'attested' }).eq('id', orderId);
+        await serviceOrderFiscalApi.logEvent(orderId, {
+            axis: 'financial', from: 'invoiced', to: 'attested', actorId, note: 'Nota fiscal atestada',
+        });
+    },
+
+    payments: async (orderId: string) => {
+        const { data, error } = await supabase
+            .from('service_order_payments').select('*')
+            .eq('service_order_id', orderId).order('paid_at', { ascending: false });
+        if (error) handleError(error);
+        return (data ?? []) as Tables<'service_order_payments'>[];
+    },
+
+    /**
+     * Registra pagamento. Só marca a OS como `paid` quando a soma dos
+     * pagamentos cobre a soma das notas — pagamento parcial não encerra o
+     * processo (foi a razão de modelar NF e pagamento como 1:N).
+     */
+    registerPayment: async (orderId: string, input: { amount: number; invoiceId?: string | null; paidAt?: string; note?: string; actorId: string }) => {
+        const { error } = await supabase.from('service_order_payments').insert({
+            service_order_id: orderId,
+            invoice_id: input.invoiceId ?? null,
+            amount: input.amount,
+            paid_at: input.paidAt ?? new Date().toISOString().slice(0, 10),
+            note: input.note ?? null,
+            registered_by: input.actorId,
+        });
+        if (error) handleError(error);
+
+        const [invs, pays] = await Promise.all([
+            serviceOrderFiscalApi.invoices(orderId),
+            serviceOrderFiscalApi.payments(orderId),
+        ]);
+        const totalNf = invs.reduce((s, i) => s + Number(i.amount ?? 0), 0);
+        const totalPago = pays.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+        const quitado = totalNf > 0 && totalPago + 0.001 >= totalNf;
+
+        if (quitado) {
+            await supabase.from('service_orders')
+                .update({ financial_status: 'paid', cost: totalNf })
+                .eq('id', orderId);
+        }
+        await serviceOrderFiscalApi.logEvent(orderId, {
+            axis: 'financial', from: 'attested', to: quitado ? 'paid' : 'attested', actorId: input.actorId,
+            note: quitado
+                ? `Pagamento de ${formatMoney(input.amount)} — processo quitado`
+                : `Pagamento parcial de ${formatMoney(input.amount)} (${formatMoney(totalPago)} de ${formatMoney(totalNf)})`,
+        });
+        return { quitado, totalNf, totalPago };
+    },
+
+    events: async (orderId: string) => {
+        const { data, error } = await supabase
+            .from('service_order_events')
+            .select('*, profiles(full_name)')
+            .eq('service_order_id', orderId)
+            .order('created_at', { ascending: false });
+        if (error) handleError(error);
+        return (data ?? []) as (Tables<'service_order_events'> & { profiles?: { full_name: string } | null })[];
+    },
+
+    logEvent: async (orderId: string, e: { axis: string; from: string | null; to: string | null; actorId: string; note?: string }) => {
+        // Falha de auditoria não desfaz a operação já concluída, mas não pode
+        // passar em silêncio.
+        const { error } = await supabase.from('service_order_events').insert({
+            service_order_id: orderId, axis: e.axis, from_state: e.from, to_state: e.to,
+            actor_id: e.actorId, actor_role: 'gestao', note: e.note ?? null,
+        });
+        if (error) console.error('[auditoria OS] falha ao registrar evento:', error.message);
+    },
+};
+
+function formatMoney(v: number): string {
+    return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}

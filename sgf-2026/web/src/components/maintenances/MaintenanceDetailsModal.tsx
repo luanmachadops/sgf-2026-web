@@ -3,8 +3,10 @@ import { Modal } from '@/components/ui/Modal';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { Wrench, Car, User, Gauge, Calendar, FileText, Building2, DollarSign } from '@/components/sgf/icons';
 import { maintenancesApi } from '@/lib/supabase-api';
+import { ServiceOrderFiscalPanel } from './ServiceOrderFiscalPanel';
 import { formatDate, formatCurrency, getStatusLabel, getStatusColor } from '@/lib/utils';
 import type { Tables } from '@/types/database.types';
+import type { FinStatus, OpStatus } from '@/lib/supabase-api';
 
 interface Props {
     maintenanceId: string | null;
@@ -53,6 +55,14 @@ export function MaintenanceDetailsModal({ maintenanceId, onClose }: Props) {
                             </SGFBadge>
                         </div>
                     )}
+
+                    {/* Fluxo fiscal: orçamento → empenho → NF → ateste → pagamento */}
+                    <ServiceOrderFiscalPanel
+                        orderId={m.id}
+                        operationalStatus={(m as { operational_status?: OpStatus | null }).operational_status ?? null}
+                        financialStatus={(m as { financial_status?: FinStatus | null }).financial_status ?? null}
+                        commitmentNumber={(m as { commitment_number?: string | null }).commitment_number ?? null}
+                    />
 
                     {m.description && (
                         <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
