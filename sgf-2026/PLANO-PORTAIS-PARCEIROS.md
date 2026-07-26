@@ -511,7 +511,7 @@ registro mostrando etapa atual e de quem é a bola — o que hoje se resolve por
 | **4** ✅ | Criação de acesso (card + `api/partners`) + allowlist + `PrivateRoute allow` + check hostname×tenant | 1 |
 | **5** 🟡 | Portal do Posto — **implementação concluída**; falta piloto com uma prefeitura e um posto real, monitorando eventos e falhas | 2, 4 |
 | **6** ✅ | Dois eixos de status + quotes/events + telas fiscais no painel | 3 |
-| **7** ⛔ | Portal da Oficina | 4, 6 |
+| **7** 🟡 | Portal da Oficina — implementação e RPCs concluídas; falta policy do Storage + piloto autenticado | 4, 6 |
 | **8** ⛔ | Fechamento mensal, relatórios por parceiro, notificações | — |
 
 Não existe suíte automatizada de RLS/integração/E2E no repositório hoje. A
@@ -616,3 +616,59 @@ Todo índice custa escrita, mas remover índice em produção é decisão à par
    conferir o status “Validado” no histórico do posto.
 6. Repetir os testes negativos: litros acima do teto, autorização expirada,
    envio duplicado e bloqueio do acesso.
+
+---
+
+## 10. Fase 7 — Portal da Oficina (implementação de 2026-07-26)
+
+### O que entrou
+
+- `/oficina` em bundle separado, com OS agrupadas em “sua atenção”, “em
+  execução” e “finalizadas”, atualização automática e indicação explícita da
+  próxima etapa;
+- detalhe da OS com os dois eixos de situação, descrição, empenho, versões de
+  orçamento, notas fiscais e timeline append-only;
+- envio de orçamento itemizado (peças e mão de obra), com quantidade, preço,
+  validade e total recalculado no servidor;
+- início do serviço somente depois do empenho; conclusão exige descrição e de
+  uma a dez fotos no diretório da própria oficina/OS;
+- faturamento somente depois do recebimento do veículo, exibindo o número do
+  empenho e exigindo anexo privado da NF;
+- “Meus dados” com cadastro, contrato e especialidades;
+- RPCs `repair_shop_*_v2` com validação de conteúdo/caminho. O `EXECUTE` das
+  versões antigas foi revogado de `authenticated`.
+
+### Evidências e pendência
+
+| Verificação | Resultado |
+|---|---|
+| Migration das RPCs em produção | ✅ `20260726031428_workshop_portal_security` |
+| Permissões das RPCs | ✅ `anon`: nenhuma; `authenticated`: somente versões v2 |
+| Suíte de isolamento ampliada | 🟡 24/25; único bloqueio é a policy abaixo |
+| TypeScript | ✅ `tsc -b` |
+| Lint direcionado | ✅ zero achados |
+| Build Vite de produção | ✅ portal em chunk separado: 36,80 kB (9,74 kB gzip) |
+| Fluxo logado ponta a ponta | ⛔ existem 0 perfis `oficina` no banco |
+
+**Bloqueio antes de publicar:** `storage.objects` pertence a
+`supabase_storage_admin`; a conexão de migrations não consegue criar a policy
+restritiva parceiro × parceiro (erro `42501`). A migration
+`20260726031454_workshop_documents_partner_scope.sql` está pronta, mas precisa
+ser criada por **Storage → Policies** no dashboard. Sem ela, a policy permissiva
+atual isola por prefeitura, mas ainda permite que uma oficina autenticada grave
+ou leia documentos de outra oficina do mesmo tenant.
+
+### Roteiro obrigatório do piloto
+
+1. Criar a policy pendente no dashboard e executar novamente
+   `rls_partner_isolation.sql`; o resultado esperado passa de 24/25 para 25/25.
+2. Criar o acesso de uma oficina ativa e entrar por `/oficina/login`.
+3. Vincular e autorizar uma OS, receber o veículo e enviar um orçamento com
+   peças e mão de obra.
+4. Aprovar o orçamento e informar o empenho pelo painel; iniciar e concluir o
+   serviço no portal com foto.
+5. Receber o veículo no painel e enviar a NF pelo portal; atestar e pagar no
+   painel, conferindo os dois eixos e a timeline.
+6. Repetir os testes negativos: outra oficina/tenant, acesso bloqueado,
+   contrato vencido, orçamento duplicado, início sem empenho e NF antes do
+   recebimento.

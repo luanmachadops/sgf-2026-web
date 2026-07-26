@@ -2869,6 +2869,14 @@ export type Database = {
         Args: { p_note?: string; p_order_id: string }
         Returns: undefined
       }
+      repair_shop_finish_service_v2: {
+        Args: {
+          p_note: string
+          p_order_id: string
+          p_photo_urls: string[]
+        }
+        Returns: undefined
+      }
       repair_shop_start_service: {
         Args: { p_order_id: string }
         Returns: undefined
@@ -2883,7 +2891,26 @@ export type Database = {
         }
         Returns: string
       }
+      repair_shop_submit_invoice_v2: {
+        Args: {
+          p_amount: number
+          p_file_path: string
+          p_invoice_number: string
+          p_issued_at?: string
+          p_order_id: string
+        }
+        Returns: string
+      }
       repair_shop_submit_quote: {
+        Args: {
+          p_items: Json
+          p_note?: string
+          p_order_id: string
+          p_valid_until?: string
+        }
+        Returns: string
+      }
+      repair_shop_submit_quote_v2: {
         Args: {
           p_items: Json
           p_note?: string

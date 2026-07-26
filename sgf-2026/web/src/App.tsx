@@ -30,7 +30,7 @@ import Notificacoes from '@/pages/Notificacoes';
 import Convite from '@/pages/Convite';
 
 const StationPortal = lazy(() => import('@/pages/partner/StationPortal'));
-const WorkshopPortalPlaceholder = lazy(() => import('@/pages/partner/WorkshopPortalPlaceholder'));
+const WorkshopPortal = lazy(() => import('@/pages/partner/WorkshopPortal'));
 
 const routeLoading = (
   <div className="grid min-h-screen place-items-center bg-slate-50">
@@ -105,7 +105,7 @@ function App() {
             <Route element={<PrivateRoute allow={['OFICINA']} loginTo="/oficina/login" />}>
               <Route
                 path="/oficina/*"
-                element={<Suspense fallback={routeLoading}><WorkshopPortalPlaceholder /></Suspense>}
+                element={<Suspense fallback={routeLoading}><WorkshopPortal /></Suspense>}
               />
             </Route>
 

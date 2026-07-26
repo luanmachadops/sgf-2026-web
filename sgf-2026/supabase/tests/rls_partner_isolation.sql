@@ -225,7 +225,7 @@ begin
   ------------------------------------------------------------------ TESTE 12
   -- Orçamento: total é calculado no servidor.
   begin
-    q := public.repair_shop_submit_quote(so_a1,
+    q := public.repair_shop_submit_quote_v2(so_a1,
           '[{"kind":"peca","description":"Pastilha","qty":2,"unit_price":150.00},
             {"kind":"mao_de_obra","description":"Troca","qty":1,"unit_price":100.00}]'::jsonb, null, null);
     select total into v_total from public.service_order_quotes where id = q;
@@ -238,7 +238,11 @@ begin
   ------------------------------------------------------------------ TESTE 13
   -- Oficina não emite NF antes de a prefeitura receber o veículo.
   begin
-    perform public.repair_shop_submit_invoice(so_a1, 'NF-999', 400.00, null, current_date);
+    perform public.repair_shop_submit_invoice_v2(
+      so_a1, 'NF-999', 400.00,
+      format('repair_shops/%s/%s/service_orders/%s/invoices/nf-999.pdf', t_a, of_a1, so_a1),
+      current_date
+    );
     falhas := falhas || '[T13] oficina emitiu NF antes do recebimento; ';
   exception when others then null;
   end;
@@ -261,10 +265,74 @@ begin
   exception when others then null;
   end;
 
+  ------------------------------------------------------------------ TESTE 16
+  -- Oficina pode gravar documento no próprio diretório, mas não em outro
+  -- parceiro do mesmo tenant.
+  perform set_config('request.jwt.claims', json_build_object('sub', u_oficina_a1, 'role','authenticated')::text, true);
+  begin
+    insert into storage.objects (bucket_id, name, owner_id)
+    values ('documentos', format('repair_shops/%s/%s/service_orders/%s/invoices/ok.pdf', t_a, of_a1, so_a1), u_oficina_a1::text);
+  exception when others then
+    get stacked diagnostics msg = message_text;
+    falhas := falhas || format('[T16] oficina não gravou no próprio diretório: %s; ', msg);
+  end;
+  begin
+    insert into storage.objects (bucket_id, name, owner_id)
+    values ('documentos', format('repair_shops/%s/%s/service_orders/%s/invoices/invasao.pdf', t_a, gen_random_uuid(), so_a1), u_oficina_a1::text);
+    falhas := falhas || '[T16b] oficina gravou documento no diretório de OUTRO parceiro; ';
+  exception when others then null;
+  end;
+
+  ------------------------------------------------------------------ TESTE 17
+  -- Caminho execução: com empenho inicia e conclui com foto vinculada.
+  perform set_config('role','postgres', true);
+  update public.service_orders
+     set financial_status = 'committed', commitment_number = 'EMP-001'
+   where id = so_a1;
+  perform set_config('role','authenticated', true);
+  perform set_config('request.jwt.claims', json_build_object('sub', u_oficina_a1, 'role','authenticated')::text, true);
+  begin
+    perform public.repair_shop_start_service(so_a1);
+    perform public.repair_shop_finish_service_v2(
+      so_a1,
+      'Pastilhas substituídas e sistema revisado',
+      array[format(
+        'https://example.supabase.co/storage/v1/object/public/fotos/tenant/%s/repair_shops/%s/service_orders/%s/final.webp',
+        t_a, of_a1, so_a1
+      )]
+    );
+    select count(*) into n
+      from public.service_order_events
+     where service_order_id = so_a1 and attachment_path is not null;
+    if n <> 1 then falhas := falhas || format('[T17] conclusão registrou %s fotos (esperado 1); ', n); end if;
+  exception when others then
+    get stacked diagnostics msg = message_text;
+    falhas := falhas || format('[T17] execução/conclusão falhou: %s; ', msg);
+  end;
+
+  ------------------------------------------------------------------ TESTE 18
+  -- Após recebimento, NF privada é aceita e move o eixo financeiro.
+  perform set_config('role','postgres', true);
+  update public.service_orders set operational_status = 'received' where id = so_a1;
+  perform set_config('role','authenticated', true);
+  perform set_config('request.jwt.claims', json_build_object('sub', u_oficina_a1, 'role','authenticated')::text, true);
+  begin
+    q := public.repair_shop_submit_invoice_v2(
+      so_a1, 'NF-001', 400.00,
+      format('repair_shops/%s/%s/service_orders/%s/invoices/nf-001.pdf', t_a, of_a1, so_a1),
+      current_date
+    );
+    select count(*) into n from public.service_order_invoices where id = q and file_path is not null;
+    if n <> 1 then falhas := falhas || '[T18] NF não foi persistida com arquivo; '; end if;
+  exception when others then
+    get stacked diagnostics msg = message_text;
+    falhas := falhas || format('[T18] emissão de NF falhou: %s; ', msg);
+  end;
+
   ------------------------------------------------------------------ RELATÓRIO
   perform set_config('role','postgres', true);
   if falhas = '' then
-    raise exception 'TODOS OS TESTES PASSARAM (15/15) — rollback automático';
+    raise exception 'TODOS OS TESTES PASSARAM (18/18) — rollback automático';
   else
     raise exception 'FALHAS >>> %', falhas;
   end if;
