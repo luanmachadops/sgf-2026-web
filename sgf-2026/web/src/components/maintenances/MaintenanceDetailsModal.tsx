@@ -171,7 +171,7 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                     </div>
 
                     {m.description && (
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                             <p className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
                                 <FileText className="h-3.5 w-3.5" /> Relato da avaria
                             </p>
@@ -181,8 +181,8 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                         {/* Veículo com foto */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
-                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
                                 {m.vehicles?.photo_url ? (
                                     <img src={m.vehicles.photo_url} alt="Veículo" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                 ) : (
@@ -200,8 +200,8 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                         </div>
 
                         {/* Motorista com foto */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
-                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white">
+                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
                                 {m.profiles?.photo_url ? (
                                     <img src={m.profiles.photo_url} alt="Motorista" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                 ) : (
@@ -217,8 +217,8 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                         </div>
 
                         {/* Odômetro */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
                                 <Gauge className="h-5 w-5" />
                             </div>
                             <div className="min-w-0">
@@ -228,8 +228,8 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                         </div>
 
                         {/* Aberta em */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
                                 <Calendar className="h-5 w-5" />
                             </div>
                             <div className="min-w-0">
@@ -239,8 +239,8 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                         </div>
 
                         {/* Prioridade */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
                                 <Wrench className="h-5 w-5" />
                             </div>
                             <div className="min-w-0">
@@ -251,8 +251,8 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
 
                         {/* Oficina (se houver) */}
                         {m.repair_shop && (
-                            <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
                                     <Building2 className="h-5 w-5" />
                                 </div>
                                 <div className="min-w-0">
@@ -264,10 +264,10 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                     </div>
 
                     {op === 'pending' && (
-                        <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
-                            <div className="mb-3">
-                                <h3 className="text-sm font-bold text-emerald-900">Triagem e autorização do gestor</h3>
-                                <p className="text-xs text-emerald-700">
+                        <section className="rounded-2xl border border-emerald-300/80 bg-white p-5 shadow-xs">
+                            <div className="mb-4">
+                                <h3 className="text-sm font-bold text-emerald-950">Triagem e autorização do gestor</h3>
+                                <p className="text-xs text-slate-500">
                                     Confirme a solicitação e vincule uma oficina ativa com contrato vigente.
                                 </p>
                             </div>
@@ -312,9 +312,9 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                     )}
 
                     {canCancel && (
-                        <section className="rounded-2xl border border-red-100 bg-red-50/50 p-4">
-                            <h3 className="text-sm font-bold text-red-900">Cancelar esta ordem de serviço</h3>
-                            <p className="mb-3 text-xs text-red-700">
+                        <section className="rounded-2xl border border-red-200 bg-white p-5 shadow-xs">
+                            <h3 className="text-sm font-bold text-red-950">Cancelar esta ordem de serviço</h3>
+                            <p className="mb-4 text-xs text-slate-500">
                                 O motivo fica registrado na trilha de auditoria e é enviado aos envolvidos.
                             </p>
                             <div className="flex flex-col items-end gap-3 md:flex-row">

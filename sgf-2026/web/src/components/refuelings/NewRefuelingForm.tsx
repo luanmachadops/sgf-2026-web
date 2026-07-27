@@ -5,7 +5,7 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { VehiclePickerField } from '@/components/sgf/VehiclePickerField';
-import { Loader2, Save, Fuel, Calendar, User, Receipt, DollarSign, ArrowUpRight, Camera, X } from '@/components/sgf/icons';
+import { Loader2, Save, Fuel, Calendar, User, Receipt, DollarSign, ArrowUpRight, Camera, X, Building2 } from '@/components/sgf/icons';
 import { refuelingsApi, stationsApi, vehiclesApi } from '@/lib/supabase-api';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
@@ -118,6 +118,7 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
                 return {
                     value: s.id,
                     label: `${s.name}${s.code ? ` (${s.code})` : ''}${unavailable ? ` — ${unavailable}` : warning}`,
+                    photoUrl: s.photo_url,
                     disabled: !!unavailable,
                     disabledReason: unavailable ?? undefined,
                 };
@@ -336,6 +337,7 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
                     onChange={handleStationChange}
                     placeholder="Selecione o posto..."
                     fullWidth
+                    icon={Building2}
                 />
                 {!stationId && (
                     <SGFInput
