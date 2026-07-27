@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
@@ -26,6 +27,7 @@ import type { ChecklistListRecord } from '@/lib/supabase-api';
 import { formatDateTime, formatPlate } from '@/lib/utils';
 
 export default function Checklists() {
+    const [searchParams] = useSearchParams();
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const queryClient = useQueryClient();
 
@@ -35,6 +37,18 @@ export default function Checklists() {
     const [dateTo, setDateTo] = useState('');
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [openOsFor, setOpenOsFor] = useState<ChecklistListRecord | null>(null);
+
+    const paramId = searchParams.get('id') || searchParams.get('checklistId');
+    const paramSearch = searchParams.get('search');
+
+    useEffect(() => {
+        if (paramSearch) {
+            setSearchTerm(paramSearch);
+        }
+        if (paramId) {
+            setSelectedId(paramId);
+        }
+    }, [paramSearch, paramId]);
 
     useEffect(() => {
         setTitle('Checklists');

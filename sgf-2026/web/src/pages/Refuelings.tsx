@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
@@ -87,6 +88,7 @@ type RefuelingRow = {
 };
 
 export default function Refuelings() {
+    const [searchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState('');
     const [workflowTab, setWorkflowTab] = useState<WorkflowTab>('');
     const [showAddModal, setShowAddModal] = useState(false);
@@ -99,6 +101,15 @@ export default function Refuelings() {
     const cancelAuth = useCancelFuelAuthorization();
 
     const { data: rawRefuelings = [], isLoading } = useRefuelings();
+
+    const paramId = searchParams.get('id') || searchParams.get('refuelingId');
+    const paramSearch = searchParams.get('search');
+
+    useEffect(() => {
+        if (paramSearch) {
+            setSearchTerm(paramSearch);
+        }
+    }, [paramSearch]);
 
     useEffect(() => {
         setTitle('Abastecimentos');

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Car, FileSpreadsheet, Fuel, Plus, Wrench } from '@/components/sgf/icons';
@@ -42,12 +42,21 @@ function getFuelLabel(fuelType: VehicleRecord['fuel_type']) {
 
 export default function Vehicles() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [departmentFilter, setDepartmentFilter] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
+
+    const paramSearch = searchParams.get('search');
+
+    useEffect(() => {
+        if (paramSearch) {
+            setSearchTerm(paramSearch);
+        }
+    }, [paramSearch]);
 
     const { data: departments = [] } = useQuery({
         queryKey: ['departments'],

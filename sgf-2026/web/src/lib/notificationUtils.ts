@@ -1,3 +1,4 @@
+import React from 'react';
 import { toast } from 'sonner';
 import { notificationsApi, type NotificationRecord } from '@/lib/supabase-api';
 import {
@@ -154,47 +155,124 @@ export function resolveNotificationRoute(n: Partial<NotificationRecord>): string
         }
     }
 
-    const entityType = n.entity_type?.toLowerCase();
-    const entityId = n.entity_id;
-    const textContent = `${n.title ?? ''} ${n.body ?? ''}`.toLowerCase();
+    const entityType = n.entity_type?.toLowerCase() ?? '';
+    const entityId = n.entity_id?.trim() ?? '';
+    const textContent = `${n.title ?? ''} ${n.body ?? ''}`;
+    const textLower = textContent.toLowerCase();
 
-    // 1. Tipo Veículo ou Alertas de Movimentação/Rastreamento
-    if (entityType === 'vehicle' || entityType === 'veiculo' || textContent.includes('movimento') || textContent.includes('velocidade') || textContent.includes('geofence')) {
-        return entityId ? `/mapa?vehicleId=${entityId}` : '/mapa';
-    }
+    // Extrai placa do título/corpo caso esteja no formato de placa brasileira (ex: UBJ4C93, ABC-1234)
+    const plateMatch = textContent.match(/[A-Z]{3}-?\d[A-Z0-9]\d{2}/i);
+    const extractedPlate = plateMatch ? plateMatch[0].replace('-', '').toUpperCase() : null;
 
-    // 2. Tipo Motorista
-    if (entityType === 'driver' || entityType === 'motorista' || textContent.includes('cnh') || textContent.includes('motorista')) {
-        return entityId ? `/motoristas/${entityId}` : '/motoristas';
-    }
-
-    // 3. Viagens
-    if (entityType === 'trip' || entityType === 'viagem' || textContent.includes('viagem')) {
-        return '/viagens';
-    }
-
-    // 4. Abastecimentos
-    if (entityType === 'refueling' || entityType === 'abastecimento' || textContent.includes('abastecimento') || textContent.includes('combustível')) {
-        return '/abastecimentos';
-    }
-
-    // 5. Manutenções
-    if (entityType === 'maintenance' || entityType === 'manutencao' || entityType === 'issue' || entityType === 'service_order' || textContent.includes('manutenção') || textContent.includes('oficina')) {
+    // 1. Manutenção / Ordem de Serviço / Oficina / Avaria
+    if (
+        entityType === 'maintenance' ||
+        entityType === 'manutencao' ||
+        entityType === 'issue' ||
+        entityType === 'service_order' ||
+        entityType === 'service_orders' ||
+        textLower.includes('manutenção') ||
+        textLower.includes('manutencao') ||
+        textLower.includes('oficina') ||
+        textLower.includes('reparo') ||
+        textLower.includes('avaria')
+    ) {
+        if (entityId) return `/manutencoes?id=${entityId}`;
+        if (extractedPlate) return `/manutencoes?search=${extractedPlate}`;
         return '/manutencoes';
     }
 
-    // 6. Checklists
-    if (entityType === 'checklist' || textContent.includes('checklist')) {
+    // 2. Abastecimentos / Posto / Combustível
+    if (
+        entityType === 'refueling' ||
+        entityType === 'abastecimento' ||
+        entityType === 'fuel' ||
+        entityType === 'station' ||
+        textLower.includes('abastecimento') ||
+        textLower.includes('combustível') ||
+        textLower.includes('combustivel') ||
+        textLower.includes('posto') ||
+        textLower.includes('litro')
+    ) {
+        if (entityId) return `/abastecimentos?id=${entityId}`;
+        if (extractedPlate) return `/abastecimentos?search=${extractedPlate}`;
+        return '/abastecimentos';
+    }
+
+    // 3. Viagens / Rotas
+    if (
+        entityType === 'trip' ||
+        entityType === 'viagem' ||
+        textLower.includes('viagem') ||
+        textLower.includes('rota')
+    ) {
+        if (entityId) return `/viagens?id=${entityId}`;
+        if (extractedPlate) return `/viagens?search=${extractedPlate}`;
+        return '/viagens';
+    }
+
+    // 4. Checklist
+    if (
+        entityType === 'checklist' ||
+        textLower.includes('checklist')
+    ) {
+        if (entityId) return `/checklists?id=${entityId}`;
+        if (extractedPlate) return `/checklists?search=${extractedPlate}`;
         return '/checklists';
     }
 
+    // 5. Motorista / CNH
+    if (
+        entityType === 'driver' ||
+        entityType === 'motorista' ||
+        textLower.includes('cnh') ||
+        textLower.includes('motorista')
+    ) {
+        return entityId ? `/motoristas/${entityId}` : '/motoristas';
+    }
+
+    // 6. Infração / Multa
+    if (
+        entityType === 'infraction' ||
+        entityType === 'infracao' ||
+        entityType === 'multa' ||
+        textLower.includes('infração') ||
+        textLower.includes('infracao') ||
+        textLower.includes('multa')
+    ) {
+        if (entityId) return `/infracoes?id=${entityId}`;
+        if (extractedPlate) return `/infracoes?search=${extractedPlate}`;
+        return '/infracoes';
+    }
+
     // 7. Secretarias
-    if (entityType === 'department' || entityType === 'secretaria') {
+    if (
+        entityType === 'department' ||
+        entityType === 'secretaria'
+    ) {
         return entityId ? `/secretarias/${entityId}` : '/secretarias';
     }
 
-    // Fallback padrão
-    return entityId ? `/mapa?vehicleId=${entityId}` : '/mapa';
+    // 8. Veículos / Movimentação / GPS
+    if (
+        entityType === 'vehicle' ||
+        entityType === 'veiculo' ||
+        textLower.includes('veículo') ||
+        textLower.includes('veiculo') ||
+        textLower.includes('placa') ||
+        textLower.includes('movimento') ||
+        textLower.includes('geofence') ||
+        textLower.includes('velocidade')
+    ) {
+        if (entityId) return `/mapa?vehicleId=${entityId}`;
+        if (extractedPlate) return `/veiculos?search=${extractedPlate}`;
+        return '/veiculos';
+    }
+
+    // Fallback padrão com ID ou mapa
+    if (entityId) return `/mapa?vehicleId=${entityId}`;
+    if (extractedPlate) return `/veiculos?search=${extractedPlate}`;
+    return '/mapa';
 }
 
 /**
@@ -216,25 +294,55 @@ export function showClickableNotification(
         navigate(route);
     };
 
-    const opts = {
-        description: n.body || undefined,
-        duration: 8000,
-        onClick: handleNavigate,
-        className: 'cursor-pointer hover:shadow-lg transition-all active:scale-[0.98]',
-    };
+    toast.custom((t) => {
+        const { Icon, bg } = getNotificationIcon(n);
 
-    switch (n.type) {
-        case 'success':
-            toast.success(n.title, opts);
-            break;
-        case 'alert':
-            toast.error(n.title, opts);
-            break;
-        case 'warning':
-            toast.warning(n.title, opts);
-            break;
-        default:
-            toast.info(n.title, opts);
-            break;
-    }
+        return React.createElement(
+            'div',
+            {
+                onClick: () => {
+                    toast.dismiss(t);
+                    handleNavigate();
+                },
+                className:
+                    'group relative flex w-full max-w-sm cursor-pointer items-start gap-3 rounded-2xl border border-amber-500/30 bg-[#0F2B2F] p-4 text-white shadow-2xl transition-all hover:scale-[1.02] active:scale-[0.98]',
+            },
+            React.createElement(
+                'button',
+                {
+                    type: 'button',
+                    onClick: (e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        toast.dismiss(t);
+                    },
+                    className:
+                        'absolute -top-2 -left-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-amber-300 border border-amber-500/40 hover:bg-black hover:text-white transition-colors',
+                },
+                React.createElement('span', { className: 'text-xs font-bold leading-none' }, '✕')
+            ),
+            React.createElement(
+                'div',
+                { className: `mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${bg}` },
+                React.createElement(Icon, { className: 'h-4.5 w-4.5' })
+            ),
+            React.createElement(
+                'div',
+                { className: 'min-w-0 flex-1 pr-1' },
+                React.createElement(
+                    'p',
+                    { className: 'text-xs font-bold text-amber-400 group-hover:text-amber-300 transition-colors' },
+                    n.title
+                ),
+                n.body
+                    ? React.createElement(
+                          'p',
+                          { className: 'mt-1 text-xs text-slate-200 leading-snug' },
+                          n.body
+                      )
+                    : null
+            )
+        );
+    }, { duration: 8000 });
 }
+
+

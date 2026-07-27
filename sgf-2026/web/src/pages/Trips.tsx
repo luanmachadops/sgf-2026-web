@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
@@ -59,11 +60,24 @@ function getDurationInMinutes(startAt: string, endAt: string | null): number {
 }
 
 export default function Trips() {
+    const [searchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [showAnomaliesOnly, setShowAnomaliesOnly] = useState(false);
     const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
     const { setTitle, setDescription } = useHeader();
+
+    const paramId = searchParams.get('id') || searchParams.get('tripId');
+    const paramSearch = searchParams.get('search');
+
+    useEffect(() => {
+        if (paramSearch) {
+            setSearchTerm(paramSearch);
+        }
+        if (paramId) {
+            setSelectedTripId(paramId);
+        }
+    }, [paramSearch, paramId]);
 
     const { data: rawTrips = [] } = useTrips({
         status: (statusFilter || undefined) as TripStatus | undefined,

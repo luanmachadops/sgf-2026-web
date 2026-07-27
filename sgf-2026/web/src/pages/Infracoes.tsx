@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { SGFButton } from '@/components/sgf/SGFButton';
@@ -65,11 +66,20 @@ function fmtDateTime(iso?: string | null) {
 }
 
 export default function Infracoes() {
+    const [searchParams] = useSearchParams();
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [selected, setSelected] = useState<InfractionRow | null>(null);
+
+    const paramSearch = searchParams.get('search');
+
+    useEffect(() => {
+        if (paramSearch) {
+            setSearchTerm(paramSearch);
+        }
+    }, [paramSearch]);
 
     const { data: infractions = [], isLoading } = useQuery({
         queryKey: ['infractions', statusFilter, searchTerm],
