@@ -231,9 +231,10 @@ export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialS
                             </SGFButton>
                             <SGFButton
                                 size="sm"
-                                variant="danger"
+                                variant="ghost"
                                 disabled={busy || !quoteReviewNote.trim()}
                                 icon={X}
+                                className="!text-red-600 hover:!bg-red-50 focus:!ring-red-500/20 font-semibold"
                                 onClick={run(async () => {
                                     await mutRejectQuote.mutateAsync(quoteAberto.id);
                                     setQuoteReviewNote('');

@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { Modal } from '@/components/ui/Modal';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFButton } from '@/components/sgf/SGFButton';
+import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { SGFTextarea } from '@/components/sgf/SGFTextarea';
 import {
@@ -67,6 +68,7 @@ export type MaintenanceDetailsRow = Tables<'service_orders'> & {
         departments?: { name: string } | null;
     } | null;
     profiles?: { full_name: string; photo_url?: string | null } | null;
+    repair_shops?: { id: string; name: string; photo_url?: string | null } | null;
 };
 
 type Row = MaintenanceDetailsRow;
@@ -84,6 +86,7 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
     const [repairShopId, setRepairShopId] = useState('');
     const [managerNote, setManagerNote] = useState('');
     const [cancelReason, setCancelReason] = useState('');
+    const [showCancelInput, setShowCancelInput] = useState(false);
     const authorize = useAuthorizeMaintenance();
     const cancel = useCancelMaintenance();
     const { data: repairShops = [], isLoading: shopsLoading } = useRepairShops({ activeOnly: true });
@@ -93,6 +96,8 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
         enabled: Boolean(maintenanceId),
     });
     const m = data as Row | undefined;
+
+    const shopPhotoUrl = m?.repair_shops?.photo_url || repairShops.find((s) => s.id === m?.repair_shop_id || s.name === m?.repair_shop)?.photo_url;
 
     const shopOptions = useMemo(() => {
         const today = new Date().toISOString().slice(0, 10);
@@ -130,14 +135,90 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
         try {
             await cancel.mutateAsync({ id: m.id, reason: cancelReason });
             setCancelReason('');
+            setShowCancelInput(false);
             toast.success('Ordem de serviço cancelada.');
         } catch (error) {
             toast.error((error as { message?: string }).message ?? 'Não foi possível cancelar a OS.');
         }
     };
 
+    const hasFooter = canCancel || op === 'pending';
+
     return (
-        <Modal isOpen={Boolean(maintenanceId)} onClose={onClose} title="Fluxo da ordem de serviço" size="xl">
+        <Modal
+            isOpen={Boolean(maintenanceId)}
+            onClose={onClose}
+            title="Fluxo da ordem de serviço"
+            size="xl"
+            footer={
+                hasFooter ? (
+                    showCancelInput ? (
+                        <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:items-center">
+                            <div className="flex-1">
+                                <SGFInput
+                                    placeholder="Justificativa do cancelamento (obrigatório)..."
+                                    value={cancelReason}
+                                    onChange={(event) => setCancelReason(event.target.value)}
+                                    fullWidth
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="flex items-center justify-end gap-2 shrink-0">
+                                <SGFButton
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                        setShowCancelInput(false);
+                                        setCancelReason('');
+                                    }}
+                                >
+                                    Voltar
+                                </SGFButton>
+                                <SGFButton
+                                    size="sm"
+                                    variant="ghost"
+                                    icon={X}
+                                    disabled={busy || !cancelReason.trim()}
+                                    className="!text-red-600 hover:!bg-red-50 focus:!ring-red-500/20 font-semibold"
+                                    onClick={handleCancel}
+                                >
+                                    Confirmar cancelamento
+                                </SGFButton>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex w-full items-center justify-between">
+                            <div>
+                                {canCancel && (
+                                    <SGFButton
+                                        size="sm"
+                                        variant="ghost"
+                                        icon={X}
+                                        disabled={busy}
+                                        className="!text-red-600 hover:!bg-red-50 focus:!ring-red-500/20 font-semibold"
+                                        onClick={() => setShowCancelInput(true)}
+                                    >
+                                        Cancelar OS
+                                    </SGFButton>
+                                )}
+                            </div>
+                            <div>
+                                {op === 'pending' && (
+                                    <SGFButton
+                                        size="sm"
+                                        icon={ShieldCheck}
+                                        disabled={busy || !repairShopId}
+                                        onClick={handleAuthorize}
+                                    >
+                                        Autorizar e encaminhar
+                                    </SGFButton>
+                                )}
+                            </div>
+                        </div>
+                    )
+                ) : undefined
+            }
+        >
             {isLoading || !m ? (
                 <p className="py-8 text-center text-sm text-slate-400">Carregando…</p>
             ) : (
@@ -202,12 +283,18 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
 
                         {/* Oficina */}
                         <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
-                                <Building2 className="h-5 w-5" />
+                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                                {shopPhotoUrl ? (
+                                    <img src={shopPhotoUrl} alt="Oficina" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-slate-400">
+                                        <Building2 className="h-5 w-5" />
+                                    </div>
+                                )}
                             </div>
                             <div className="min-w-0">
                                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Oficina</p>
-                                <p className="truncate font-bold text-slate-800">{m.repair_shop ?? 'Aguardando triagem'}</p>
+                                <p className="truncate font-bold text-slate-800">{m.repair_shops?.name ?? m.repair_shop ?? 'Aguardando triagem'}</p>
                             </div>
                         </div>
                     </div>
@@ -289,23 +376,14 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                                     fullWidth
                                     icon={Building2}
                                 />
-                                <SGFTextarea
+                                <SGFInput
                                     label="Orientação para a oficina (opcional)"
+                                    placeholder="Orientação para a oficina..."
                                     value={managerNote}
                                     onChange={(event) => setManagerNote(event.target.value)}
-                                    rows={2}
                                     fullWidth
                                 />
                             </div>
-                            <SGFButton
-                                className="mt-3"
-                                size="sm"
-                                icon={ShieldCheck}
-                                disabled={busy || !repairShopId}
-                                onClick={handleAuthorize}
-                            >
-                                Autorizar e encaminhar
-                            </SGFButton>
                         </section>
                     )}
 
@@ -316,34 +394,6 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                             financialStatus={fin}
                             commitmentNumber={m.commitment_number}
                         />
-                    )}
-
-                    {canCancel && (
-                        <section className="rounded-2xl border border-red-200 bg-white p-5 shadow-xs">
-                            <h3 className="text-sm font-bold text-red-950">Cancelar esta ordem de serviço</h3>
-                            <p className="mb-4 text-xs text-slate-500">
-                                O motivo fica registrado na trilha de auditoria e é enviado aos envolvidos.
-                            </p>
-                            <div className="flex flex-col items-end gap-3 md:flex-row">
-                                <SGFTextarea
-                                    label="Motivo obrigatório"
-                                    value={cancelReason}
-                                    onChange={(event) => setCancelReason(event.target.value)}
-                                    rows={2}
-                                    fullWidth
-                                />
-                                <SGFButton
-                                    className="shrink-0"
-                                    size="sm"
-                                    variant="danger"
-                                    icon={X}
-                                    disabled={busy || !cancelReason.trim()}
-                                    onClick={handleCancel}
-                                >
-                                    Cancelar OS
-                                </SGFButton>
-                            </div>
-                        </section>
                     )}
 
                     {m.admin_note && op === 'cancelled' && (

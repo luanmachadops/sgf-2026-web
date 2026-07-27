@@ -881,9 +881,9 @@ export const infractionsApi = {
         let query = supabase
             .from('infractions')
             .select(`*,
-                vehicles(plate, brand, model, departments(name)),
-                suggested:profiles!infractions_suggested_driver_id_fkey(id, full_name),
-                indicated:profiles!infractions_indicated_driver_id_fkey(id, full_name)
+                vehicles(plate, brand, model, photo_url, departments(name)),
+                suggested:profiles!infractions_suggested_driver_id_fkey(id, full_name, photo_url),
+                indicated:profiles!infractions_indicated_driver_id_fkey(id, full_name, photo_url)
             `)
             .order('occurred_at', { ascending: false });
         if (filters?.status) query = query.eq('status', filters.status);
@@ -893,9 +893,9 @@ export const infractionsApi = {
         const { data, error } = await query;
         if (error) handleError(error);
         return (data ?? []) as unknown as Array<Tables<'infractions'> & {
-            vehicles?: { plate?: string; brand?: string; model?: string; departments?: { name?: string } | null } | null;
-            suggested?: { id: string; full_name: string } | null;
-            indicated?: { id: string; full_name: string } | null;
+            vehicles?: { plate?: string; brand?: string; model?: string; photo_url?: string | null; departments?: { name?: string } | null } | null;
+            suggested?: { id: string; full_name: string; photo_url?: string | null } | null;
+            indicated?: { id: string; full_name: string; photo_url?: string | null } | null;
         }>;
     },
 
@@ -903,9 +903,9 @@ export const infractionsApi = {
         const { data, error } = await supabase
             .from('infractions')
             .select(`*,
-                vehicles(plate, brand, model, departments(name)),
-                suggested:profiles!infractions_suggested_driver_id_fkey(id, full_name),
-                indicated:profiles!infractions_indicated_driver_id_fkey(id, full_name)
+                vehicles(plate, brand, model, photo_url, departments(name)),
+                suggested:profiles!infractions_suggested_driver_id_fkey(id, full_name, photo_url),
+                indicated:profiles!infractions_indicated_driver_id_fkey(id, full_name, photo_url)
             `)
             .eq('id', id)
             .single();
@@ -1198,7 +1198,7 @@ export const maintenancesApi = {
     getById: async (id: string): Promise<Tables<'service_orders'>> => {
         const { data, error } = await supabase
             .from('service_orders')
-            .select('*, vehicles(id, plate, brand, model, photo_url, departments(name)), profiles!service_orders_driver_id_fkey(id, full_name, photo_url)')
+            .select('*, vehicles(id, plate, brand, model, photo_url, departments(name)), profiles!service_orders_driver_id_fkey(id, full_name, photo_url), repair_shops(id, name, photo_url)')
             .eq('id', id)
             .single();
         if (error) handleError(error);
