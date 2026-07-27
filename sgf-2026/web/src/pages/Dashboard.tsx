@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     SGFKPICard,
     SGFCard,
@@ -29,19 +30,21 @@ import { ProcurementAlertsPanel } from '@/components/dashboard/ProcurementAlerts
 import { useHeader } from '@/contexts/HeaderContext';
 import { useBranding } from '@/contexts/BrandingContext';
 import {
-    useDashboardKPIs,
+    useDashboardSummary,
     useDashboardKpiTrends,
     useExpenseChart
 } from '@/hooks/useDashboard';
+import { AttentionPanel } from '@/components/dashboard/AttentionPanel';
 import { formatCurrency } from '@/lib/utils';
 
 export default function Dashboard() {
+    const navigate = useNavigate();
     const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler } = useHeader();
     const { branding } = useBranding();
     const [expensePeriod, setExpensePeriod] = useState<PeriodValue>(() => makePeriod('6'));
 
     // Real Data Hooks
-    const { data: kpis, isLoading: isLoadingKPIs } = useDashboardKPIs();
+    const { data: resumo, isLoading: isLoadingKPIs } = useDashboardSummary();
     const { data: trends } = useDashboardKpiTrends();
     const { data: expenseData, isLoading: isLoadingExpenses, isError: isErrorExpenses } = useExpenseChart(resolvePeriod(expensePeriod));
 
@@ -49,8 +52,21 @@ export default function Dashboard() {
         setTitle('Dashboard');
         setDescription('Visão geral dos indicadores e alertas da frota.');
         setSearchPlaceholder('Pesquisar veículo, condutor ou secretaria...');
-        setSearchHandler(() => { });
-    }, [setTitle, setDescription, setSearchPlaceholder, setSearchHandler]);
+        // A busca do header prometia "veículo, condutor ou secretaria" e não
+        // fazia nada. Encaminha para a frota, que já lê ?search= e filtra por
+        // placa, modelo e secretaria.
+        setSearchHandler((term: string) => {
+            const q = term.trim();
+            if (q) navigate(`/veiculos?search=${encodeURIComponent(q)}`);
+        });
+    }, [setTitle, setDescription, setSearchPlaceholder, setSearchHandler, navigate]);
+
+    /** Variação vs. mês anterior. Sem base anterior não há percentual honesto. */
+    const delta = (atual?: number, anterior?: number) => {
+        if (!atual || !anterior || anterior === 0) return undefined;
+        return Math.round(((atual - anterior) / anterior) * 100);
+    };
+    const trendOf = (d?: number) => (d === undefined ? undefined : d >= 0 ? 'up' : 'down');
 
     // Formatters for display
     const formatValue = (val: number | undefined) => {
@@ -81,12 +97,16 @@ export default function Dashboard() {
                 </div>
             </div>
 
+            {/* O que exige ação hoje — antes dos números, porque é o que se faz
+                com a tela aberta. */}
+            <AttentionPanel />
+
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                 {/* KPIs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
                     <SGFKPICard
-                        title="Frota ativa"
-                        value={formatValue(kpis?.fleet?.totalVehicles)}
+                        title="Em uso agora"
+                        value={`${resumo?.frota.emUso ?? 0} de ${resumo?.frota.total ?? 0}`}
                         loading={isLoadingKPIs}
                         icon={Truck}
                         iconColor="text-emerald-500"
@@ -94,17 +114,19 @@ export default function Dashboard() {
                         chartData={trends?.activeFleet ?? []}
                     />
                     <SGFKPICard
-                        title="Combustível (L)"
-                        value={formatValue(kpis?.fuel?.totalLitersMonth)}
+                        title="Combustível no mês (L)"
+                        value={formatValue(resumo?.combustivel.litrosMes)}
                         loading={isLoadingKPIs}
                         icon={Fuel}
                         iconColor="text-blue-500"
                         chartColor="#3b82f6"
                         chartData={trends?.fuelLiters ?? []}
+                        percentage={delta(resumo?.combustivel.litrosMes, resumo?.combustivel.litrosMesAnterior)}
+                        trend={trendOf(delta(resumo?.combustivel.litrosMes, resumo?.combustivel.litrosMesAnterior))}
                     />
                     <SGFKPICard
-                        title="Manutenção Prev."
-                        value={formatValue(kpis?.fleet?.inMaintenance)}
+                        title="Manutenções abertas"
+                        value={formatValue(resumo?.manutencao.abertas)}
                         loading={isLoadingKPIs}
                         icon={Wrench}
                         iconColor="text-amber-500"
@@ -112,14 +134,36 @@ export default function Dashboard() {
                         chartData={trends?.maintenance ?? []}
                     />
                     <SGFKPICard
-                        title="Total Rodado"
-                        value={formatValue(kpis?.trips?.totalKmMonth)}
+                        title="Km rodados no mês"
+                        value={formatValue(resumo?.viagens.kmMes)}
                         loading={isLoadingKPIs}
                         icon={Activity}
                         iconColor="text-rose-500"
                         chartColor="#f43f5e"
                         chartData={trends?.distanceKm ?? []}
+                        percentage={delta(resumo?.viagens.kmMes, resumo?.viagens.kmMesAnterior)}
+                        trend={trendOf(delta(resumo?.viagens.kmMes, resumo?.viagens.kmMesAnterior))}
                     />
+                </div>
+
+                {/* Indicadores que já eram calculados e não apareciam na tela */}
+                <div className="mb-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    {[
+                        { rotulo: 'Disponibilidade da frota', valor: `${resumo?.frota.disponibilidade ?? 0}%`,
+                          nota: `${resumo?.frota.disponiveis ?? 0} liberados · ${resumo?.frota.emManutencao ?? 0} em manutenção` },
+                        { rotulo: 'Consumo médio', valor: `${resumo?.combustivel.kmPorLitro ?? 0} km/L`,
+                          nota: `${resumo?.combustivel.anomaliasMes ?? 0} divergência(s) no mês` },
+                        { rotulo: 'CNH vencendo', valor: String(resumo?.motoristas.cnhVencendo ?? 0),
+                          nota: `${resumo?.motoristas.ativos ?? 0} motorista(s) ativo(s)` },
+                        { rotulo: 'Tempo médio de manutenção', valor: `${resumo?.manutencao.diasResolucao ?? 0} dias`,
+                          nota: `${resumo?.manutencao.aguardandoEmpenho ?? 0} aguardando empenho` },
+                    ].map((item) => (
+                        <div key={item.rotulo} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{item.rotulo}</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{item.valor}</p>
+                            <p className="mt-0.5 text-[11px] text-slate-500">{item.nota}</p>
+                        </div>
+                    ))}
                 </div>
 
                 {/* Main Content Grid */}

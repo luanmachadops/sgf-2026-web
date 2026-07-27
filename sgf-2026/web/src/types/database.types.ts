@@ -2820,6 +2820,18 @@ export type Database = {
         }[]
       }
       delete_own_account: { Args: never; Returns: undefined }
+      get_dashboard_alerts: {
+        Args: never
+        Returns: {
+          count: number
+          detail: string
+          kind: string
+          link: string
+          severity: string
+          title: string
+        }[]
+      }
+      get_dashboard_summary: { Args: never; Returns: Json }
       get_partner_contract_status: {
         Args: never
         Returns: {

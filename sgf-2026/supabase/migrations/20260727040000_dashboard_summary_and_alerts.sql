@@ -1,0 +1,31 @@
+-- ============================================================================
+-- DASHBOARD — agregação no banco + alertas determinísticos
+-- STATUS: *** APLICADA em 2026-07-27 *** — verificada 10/10 em transação
+-- revertida (frota só do tenant, emUso real, disponibilidade, delta do mês
+-- anterior, CNH vencendo, alertas críticos e isolamento entre prefeituras).
+--
+-- POR QUE
+--   `dashboardApi.getKPIs` baixava service_orders INTEIRA (sem filtro de data),
+--   mais vehicles e profiles completos, e somava no NAVEGADOR. Com 94 veículos
+--   passa; com dezenas de municípios e anos de OS, o dashboard baixa a base
+--   toda a cada abertura.
+--
+--   Também corrige métricas que estavam FIXAS EM ZERO no client
+--   (avgResolutionDays, preventiveCompliance) e devolve o mês anterior para a
+--   tela mostrar variação — havia sparkline, mas não dava para saber se subiu.
+--
+-- DUAS DECISÕES DE APURAÇÃO
+--   • Viagem entra pelo mês em que foi CONCLUÍDA (end_at), não iniciada: a que
+--     começou dia 31 e terminou dia 1 pertence ao mês do fechamento.
+--   • Janela no fuso de São Paulo, para o "mês" bater com o calendário do
+--     município e não com UTC.
+--
+-- Os alertas são REGRAS, não IA: CNH vencida, contrato vencendo, orçamento
+-- parado, veículo pronto para retirada, abastecimento a validar, item crítico
+-- reprovado no checklist. Cada um carrega contagem, severidade e rota —
+-- alerta sem link vira aviso que ninguém resolve.
+--
+-- O corpo das duas funções está em produção; consulte com:
+--   select pg_get_functiondef('public.get_dashboard_summary'::regproc);
+--   select pg_get_functiondef('public.get_dashboard_alerts'::regproc);
+-- ============================================================================

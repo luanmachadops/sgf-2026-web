@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { dashboardApi } from '@/lib/supabase-api';
+import { dashboardSummaryApi, dashboardApi } from '@/lib/supabase-api';
 import type { ResolvedPeriod } from '@/components/sgf/PeriodSelect';
 
 export function useDashboardKPIs() {
@@ -48,5 +48,23 @@ export function useDepartmentConsumption(period: ResolvedPeriod = { monthsBack: 
         queryKey: ['dashboard', 'department-consumption', period],
         queryFn: () => dashboardApi.getDepartmentConsumption(period.monthsBack ?? 1, { from: period.from, to: period.to }),
         staleTime: 5 * 60 * 1000,
+    });
+}
+
+/** Resumo agregado no banco (substitui o cálculo no navegador). */
+export function useDashboardSummary() {
+    return useQuery({
+        queryKey: ['dashboard', 'summary'],
+        queryFn: () => dashboardSummaryApi.get(),
+        staleTime: 60_000,
+    });
+}
+
+/** Alertas que exigem ação do gestor. */
+export function useDashboardAlerts() {
+    return useQuery({
+        queryKey: ['dashboard', 'alerts'],
+        queryFn: () => dashboardSummaryApi.alerts(),
+        staleTime: 60_000,
     });
 }

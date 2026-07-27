@@ -2693,3 +2693,44 @@ export const serviceOrderFiscalApi = {
         return (data ?? []) as (Tables<'service_order_events'> & { profiles?: { full_name: string } | null })[];
     },
 };
+
+// ─── Dashboard: agregação no banco ──────────────────────────────────────────
+export interface DashboardSummary {
+    frota: { total: number; emUso: number; emManutencao: number; disponiveis: number; bloqueados: number; disponibilidade: number };
+    viagens: { mes: number; mesAnterior: number; kmMes: number; kmMesAnterior: number };
+    combustivel: { litrosMes: number; litrosMesAnterior: number; custoMes: number; custoMesAnterior: number; anomaliasMes: number; kmPorLitro: number };
+    manutencao: { abertas: number; pendentes: number; aguardandoEmpenho: number; diasResolucao: number };
+    motoristas: { ativos: number; cnhVencendo: number };
+}
+
+export interface DashboardAlert {
+    kind: string;
+    severity: 'critical' | 'warning' | 'info';
+    title: string;
+    detail: string;
+    count: number;
+    link: string;
+}
+
+export const dashboardSummaryApi = {
+    /**
+     * Um JSON pequeno com tudo já somado no Postgres.
+     * Substitui o caminho antigo, que baixava service_orders inteira (sem
+     * filtro de data) mais vehicles e profiles, e agregava no navegador.
+     */
+    get: async (): Promise<DashboardSummary> => {
+        const { data, error } = await supabase.rpc('get_dashboard_summary');
+        if (error) handleError(error);
+        return data as unknown as DashboardSummary;
+    },
+
+    /** Alertas determinísticos: o que exige ação do gestor hoje. */
+    alerts: async (): Promise<DashboardAlert[]> => {
+        const { data, error } = await supabase.rpc('get_dashboard_alerts');
+        if (error) handleError(error);
+        return (data ?? []).map((r) => ({
+            kind: r.kind, severity: r.severity as DashboardAlert['severity'],
+            title: r.title, detail: r.detail, count: Number(r.count), link: r.link,
+        }));
+    },
+};
