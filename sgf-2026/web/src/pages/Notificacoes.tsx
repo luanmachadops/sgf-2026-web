@@ -237,10 +237,11 @@ export default function Notificacoes() {
                                     });
 
                                     return (
-                                        <div
+                                        <button
                                             key={n.id}
-                                            onClick={() => handleClickItem(n)}
-                                            className={`group relative flex cursor-pointer items-start gap-4 rounded-2xl border p-4 transition-all hover:shadow-md ${
+                                            type="button"
+                                            onClick={() => void handleClickItem(n)}
+                                            className={`group relative flex w-full cursor-pointer items-start gap-4 rounded-2xl border p-4 text-left transition-all hover:shadow-md ${
                                                 n.read
                                                     ? 'border-slate-200/80 bg-white hover:border-slate-300'
                                                     : 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300'
@@ -280,7 +281,7 @@ export default function Notificacoes() {
                                             <div className="self-center text-slate-300 transition-transform group-hover:translate-x-1 group-hover:text-[#00A86B]">
                                                 <ArrowRight className="h-4 w-4" />
                                             </div>
-                                        </div>
+                                        </button>
                                     );
                                 })}
                             </div>

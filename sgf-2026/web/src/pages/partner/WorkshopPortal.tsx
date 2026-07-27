@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
     Area,
     AreaChart,
@@ -242,11 +242,15 @@ function WorkshopDashboard({ status }: { status?: PartnerContractStatus }) {
 function OrdersView({
     context,
     selectedOrder,
-    setSelectedOrder,
+    requestedOrderId,
+    onSelectOrder,
+    onCloseOrder,
 }: {
     context: WorkshopContext;
     selectedOrder: WorkshopOrder | null;
-    setSelectedOrder: (order: WorkshopOrder | null) => void;
+    requestedOrderId: string | null;
+    onSelectOrder: (order: WorkshopOrder) => void;
+    onCloseOrder: () => void;
 }) {
     const ordersQuery = useQuery({
         queryKey: ['workshop-orders', context.repairShopId],
@@ -277,6 +281,10 @@ function OrdersView({
         { month: 'Execução', value: groups.execution.length },
         { month: 'Finalizadas', value: groups.done.length },
     ];
+    const requestedOrder = requestedOrderId
+        ? orders.find((order) => order.orderId === requestedOrderId) ?? null
+        : null;
+    const activeSelectedOrder = selectedOrder ?? requestedOrder;
 
     return (
         <>
@@ -339,7 +347,7 @@ function OrdersView({
                                                     {nextAction(order.operationalStatus, order.financialStatus)}
                                                 </td>
                                                 <td className="px-5 py-4 text-right">
-                                                    <SGFButton size="sm" variant="outline" onClick={() => setSelectedOrder(order)}>Abrir detalhes</SGFButton>
+                                                    <SGFButton size="sm" variant="outline" onClick={() => onSelectOrder(order)}>Abrir detalhes</SGFButton>
                                                 </td>
                                             </tr>
                                         );
@@ -350,13 +358,13 @@ function OrdersView({
                     </div>
                 </SGFCard>
             </div>
-            {selectedOrder && (
+            {activeSelectedOrder && (
                 <OrderDetailsModal
-                    order={selectedOrder}
+                    order={activeSelectedOrder}
                     context={context}
-                    onClose={() => setSelectedOrder(null)}
+                    onClose={onCloseOrder}
                     onChanged={() => {
-                        setSelectedOrder(null);
+                        onCloseOrder();
                         void ordersQuery.refetch();
                     }}
                 />
@@ -601,8 +609,24 @@ function WorkshopClosing() {
 
 export default function WorkshopPortal() {
     const location = useLocation();
+    const navigate = useNavigate();
     const activeTab = tabFromPath(location.pathname);
     const [selectedOrder, setSelectedOrder] = useState<WorkshopOrder | null>(null);
+    const requestedOrderId = useMemo(
+        () => new URLSearchParams(location.search).get('id')
+            ?? new URLSearchParams(location.search).get('orderId'),
+        [location.search],
+    );
+
+    const openOrder = useCallback((order: WorkshopOrder) => {
+        setSelectedOrder(order);
+        navigate(`/oficina/ordens?id=${encodeURIComponent(order.orderId)}`, { replace: true });
+    }, [navigate]);
+
+    const closeOrder = useCallback(() => {
+        setSelectedOrder(null);
+        navigate('/oficina/ordens', { replace: true });
+    }, [navigate]);
 
     const contextQuery = useQuery({
         queryKey: ['workshop-context'],
@@ -674,7 +698,9 @@ export default function WorkshopPortal() {
                     <OrdersView
                         context={context}
                         selectedOrder={selectedOrder}
-                        setSelectedOrder={setSelectedOrder}
+                        requestedOrderId={requestedOrderId}
+                        onSelectOrder={openOrder}
+                        onCloseOrder={closeOrder}
                     />
                 ) : activeTab === 'closing' ? (
                     <WorkshopClosing />

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -66,13 +66,14 @@ function fmtDateTime(iso?: string | null) {
 }
 
 export default function Infracoes() {
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
-    const [selected, setSelected] = useState<InfractionRow | null>(null);
+    const [manualSelected, setSelected] = useState<InfractionRow | null>(null);
 
+    const paramId = searchParams.get('id') || searchParams.get('infractionId');
     const paramSearch = searchParams.get('search');
 
     useEffect(() => {
@@ -98,9 +99,33 @@ export default function Infracoes() {
     }, [setTitle, setDescription, setHeaderAction]);
 
     const list = infractions as InfractionRow[];
+    const requested = useMemo(() => {
+        if (paramId) return list.find((infraction) => infraction.id === paramId) ?? null;
+        if (!paramSearch) return null;
+        const term = paramSearch.trim().toLowerCase();
+        return list.find((infraction) =>
+            infraction.vehicles?.plate?.toLowerCase() === term
+            || infraction.vehicles?.plate?.toLowerCase().replace('-', '') === term.replace('-', '')
+            || infraction.plate?.toLowerCase() === term
+            || infraction.plate?.toLowerCase().replace('-', '') === term.replace('-', '')
+            || infraction.indicated?.full_name?.toLowerCase().includes(term)
+            || infraction.suggested?.full_name?.toLowerCase().includes(term)
+            || infraction.ait?.toLowerCase() === term
+        ) ?? null;
+    }, [list, paramId, paramSearch]);
+    const selected = manualSelected ?? requested;
     const pendingCount = list.filter((i) => i.status === 'pendente').length;
     const totalAmount = list.reduce((s, i) => s + Number(i.amount ?? 0), 0);
     const totalPoints = list.reduce((s, i) => s + Number(i.points ?? 0), 0);
+
+    const closeSelected = () => {
+        setSelected(null);
+        if (!paramId) return;
+        const next = new URLSearchParams(searchParams);
+        next.delete('id');
+        next.delete('infractionId');
+        setSearchParams(next, { replace: true });
+    };
 
     const columns: SGFTableColumn<InfractionRow>[] = [
         {
@@ -224,7 +249,7 @@ export default function Infracoes() {
             </div>
 
             <NewInfractionModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} />
-            <ManageInfractionModal infraction={selected} onClose={() => setSelected(null)} />
+            <ManageInfractionModal infraction={selected} onClose={closeSelected} />
         </div>
     );
 }

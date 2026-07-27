@@ -207,6 +207,10 @@ function mapRow(row: MaintenanceDetailsRow): MaintenanceItem {
 }
 
 export default function Maintenances() {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const paramId = searchParams.get('id') || searchParams.get('soId') || searchParams.get('maintenanceId');
+    const paramSearch = searchParams.get('search');
+
     const [search, setSearch] = useState('');
     const [priority, setPriority] = useState('');
     const [viewMode, setViewMode] = useState<'flow' | 'list'>('flow');
@@ -216,6 +220,12 @@ export default function Maintenances() {
     const [editData, setEditData] = useState<MaintenanceEditData | null>(null);
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const { data: rows = [], isLoading } = useMaintenances();
+
+    useEffect(() => {
+        if (paramSearch) {
+            setSearch(paramSearch);
+        }
+    }, [paramSearch]);
 
     useEffect(() => {
         setTitle('Manutenções');
@@ -251,6 +261,20 @@ export default function Maintenances() {
             }),
         [periodRange, rows],
     );
+    const requestedMaintenanceId = useMemo(() => {
+        if (paramId) return paramId;
+        if (!paramSearch) return null;
+        const term = paramSearch.trim().toLowerCase();
+        return (rows as MaintenanceDetailsRow[])
+            .map(mapRow)
+            .find((maintenance) =>
+                maintenance.plate?.toLowerCase() === term
+                || maintenance.plate?.toLowerCase().replace('-', '') === term.replace('-', '')
+                || maintenance.driver?.toLowerCase().includes(term)
+                || maintenance.repairShop?.toLowerCase().includes(term)
+            )?.id ?? null;
+    }, [paramId, paramSearch, rows]);
+    const activeSelectedId = selectedId ?? requestedMaintenanceId;
 
     const filtered = useMemo(() => {
         const term = search.trim().toLocaleLowerCase('pt-BR');
@@ -352,8 +376,18 @@ export default function Maintenances() {
         },
     ], []);
 
-    const handleEdit = (row: MaintenanceDetailsRow) => {
+    const closeSelected = () => {
         setSelectedId(null);
+        if (!paramId) return;
+        const next = new URLSearchParams(searchParams);
+        next.delete('id');
+        next.delete('soId');
+        next.delete('maintenanceId');
+        setSearchParams(next, { replace: true });
+    };
+
+    const handleEdit = (row: MaintenanceDetailsRow) => {
+        closeSelected();
         setEditData({
             id: row.id,
             vehicleId: row.vehicle_id,
@@ -539,8 +573,8 @@ export default function Maintenances() {
             </Modal>
 
             <MaintenanceDetailsModal
-                maintenanceId={selectedId}
-                onClose={() => setSelectedId(null)}
+                maintenanceId={activeSelectedId}
+                onClose={closeSelected}
                 onEdit={handleEdit}
             />
         </div>

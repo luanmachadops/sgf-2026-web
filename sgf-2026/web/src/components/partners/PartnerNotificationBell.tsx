@@ -3,10 +3,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Check, CheckCircle, Clock } from '@/components/sgf/icons';
 import { notificationsApi, type NotificationRecord } from '@/lib/supabase-api';
+import {
+    resolvePartnerNotificationRoute,
+    type PartnerNotificationPath,
+} from '@/lib/notificationRoutes';
 
 interface PartnerNotificationBellProps {
     userId: string;
-    fallbackPath: '/posto' | '/oficina';
+    fallbackPath: PartnerNotificationPath;
     variant?: 'dark' | 'light';
 }
 
@@ -58,10 +62,7 @@ export function PartnerNotificationBell({ userId, fallbackPath, variant = 'dark'
             }
         } finally {
             setOpen(false);
-            const target = notification.link?.startsWith(fallbackPath)
-                ? notification.link
-                : fallbackPath;
-            navigate(target);
+            navigate(resolvePartnerNotificationRoute(notification, fallbackPath));
         }
     };
 

@@ -27,7 +27,7 @@ import type { ChecklistListRecord } from '@/lib/supabase-api';
 import { formatDateTime, formatPlate } from '@/lib/utils';
 
 export default function Checklists() {
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const queryClient = useQueryClient();
 
@@ -101,10 +101,32 @@ export default function Checklists() {
         [rows]
     );
 
-    const selected = rows.find((c) => c.id === selectedId) ?? null;
+    const requested = useMemo(() => {
+        const all = checklists as ChecklistListRecord[];
+        if (paramId) return all.find((checklist) => checklist.id === paramId) ?? null;
+        if (!paramSearch) return null;
+        const term = paramSearch.trim().toLowerCase();
+        return all.find((checklist) =>
+            checklist.vehicles?.plate?.toLowerCase() === term
+            || checklist.vehicles?.plate?.toLowerCase().replace('-', '') === term.replace('-', '')
+            || checklist.profiles?.full_name?.toLowerCase().includes(term)
+        ) ?? null;
+    }, [checklists, paramId, paramSearch]);
+    const selected = rows.find((checklist) => checklist.id === selectedId)
+        ?? requested;
+    const activeSelectedId = selectedId ?? requested?.id ?? paramId;
+
+    const closeSelected = () => {
+        setSelectedId(null);
+        if (!paramId) return;
+        const next = new URLSearchParams(searchParams);
+        next.delete('id');
+        next.delete('checklistId');
+        setSearchParams(next, { replace: true });
+    };
 
     const handleOpenOs = (checklist: ChecklistListRecord) => {
-        setSelectedId(null);
+        closeSelected();
         setOpenOsFor(checklist);
     };
 
@@ -308,8 +330,8 @@ export default function Checklists() {
 
             {/* Detalhe do checklist */}
             <Modal
-                isOpen={Boolean(selectedId)}
-                onClose={() => setSelectedId(null)}
+                isOpen={Boolean(activeSelectedId)}
+                onClose={closeSelected}
                 title="Detalhes do checklist"
                 description={selected ? `${formatDateTime(selected.created_at)} — ${selected.profiles?.full_name ?? '—'}` : undefined}
                 size="md"

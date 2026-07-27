@@ -1,6 +1,7 @@
 import React from 'react';
 import { toast } from 'sonner';
 import { notificationsApi, type NotificationRecord } from '@/lib/supabase-api';
+import { resolveNotificationRoute } from '@/lib/notificationRoutes';
 import {
     Car,
     User,
@@ -14,6 +15,8 @@ import {
     ShieldCheck,
     MapPin,
 } from '@/components/sgf/icons';
+
+export { resolveNotificationRoute } from '@/lib/notificationRoutes';
 
 /**
  * Retorna o ícone e cores temáticas contextualizados de acordo com o assunto/entidade da notificação.
@@ -118,164 +121,6 @@ export function groupNotificationsByDate(notifications: NotificationRecord[]): N
 }
 
 /**
- * Resolve a rota de destino em português com base no link, tipo de entidade ou conteúdo da notificação.
- */
-export function resolveNotificationRoute(n: Partial<NotificationRecord>): string {
-    const rawLink = n.link?.trim();
-
-    if (rawLink) {
-        // Normaliza rotas que usam /map em vez de /mapa
-        if (rawLink.startsWith('/map')) {
-            return rawLink.replace(/^\/map/, '/mapa');
-        }
-        if (rawLink.includes('/vehicle-details')) {
-            const match = rawLink.match(/id=([^&]+)/);
-            if (match) return `/mapa?vehicleId=${match[1]}`;
-            return '/veiculos';
-        }
-        if (rawLink.startsWith('/vehicles/')) {
-            const id = rawLink.replace('/vehicles/', '');
-            return `/veiculos/${id}`;
-        }
-        if (rawLink === '/vehicles') return '/veiculos';
-        if (rawLink.startsWith('/drivers/')) {
-            const id = rawLink.replace('/drivers/', '');
-            return `/motoristas/${id}`;
-        }
-        if (rawLink === '/drivers') return '/motoristas';
-        if (rawLink.startsWith('/trips')) return rawLink.replace('/trips', '/viagens');
-        if (rawLink.startsWith('/refuelings') || rawLink.startsWith('/fuel')) return rawLink.replace(/^\/(refuelings|fuel)/, '/abastecimentos');
-        if (rawLink.startsWith('/maintenances') || rawLink.startsWith('/maintenance')) return rawLink.replace(/^\/(maintenances|maintenance)/, '/manutencoes');
-        if (rawLink.startsWith('/checklists')) return '/checklists';
-        if (rawLink.startsWith('/departments')) return rawLink.replace('/departments', '/secretarias');
-        if (rawLink.startsWith('/reports')) return '/relatorios';
-
-        if (rawLink.startsWith('/')) {
-            return rawLink;
-        }
-    }
-
-    const entityType = n.entity_type?.toLowerCase() ?? '';
-    const entityId = n.entity_id?.trim() ?? '';
-    const textContent = `${n.title ?? ''} ${n.body ?? ''}`;
-    const textLower = textContent.toLowerCase();
-
-    // Extrai placa do título/corpo caso esteja no formato de placa brasileira (ex: UBJ4C93, ABC-1234)
-    const plateMatch = textContent.match(/[A-Z]{3}-?\d[A-Z0-9]\d{2}/i);
-    const extractedPlate = plateMatch ? plateMatch[0].replace('-', '').toUpperCase() : null;
-
-    // 1. Manutenção / Ordem de Serviço / Oficina / Avaria
-    if (
-        entityType === 'maintenance' ||
-        entityType === 'manutencao' ||
-        entityType === 'issue' ||
-        entityType === 'service_order' ||
-        entityType === 'service_orders' ||
-        textLower.includes('manutenção') ||
-        textLower.includes('manutencao') ||
-        textLower.includes('oficina') ||
-        textLower.includes('reparo') ||
-        textLower.includes('avaria')
-    ) {
-        if (entityId) return `/manutencoes?id=${entityId}`;
-        if (extractedPlate) return `/manutencoes?search=${extractedPlate}`;
-        return '/manutencoes';
-    }
-
-    // 2. Abastecimentos / Posto / Combustível
-    if (
-        entityType === 'refueling' ||
-        entityType === 'abastecimento' ||
-        entityType === 'fuel' ||
-        entityType === 'station' ||
-        textLower.includes('abastecimento') ||
-        textLower.includes('combustível') ||
-        textLower.includes('combustivel') ||
-        textLower.includes('posto') ||
-        textLower.includes('litro')
-    ) {
-        if (entityId) return `/abastecimentos?id=${entityId}`;
-        if (extractedPlate) return `/abastecimentos?search=${extractedPlate}`;
-        return '/abastecimentos';
-    }
-
-    // 3. Viagens / Rotas
-    if (
-        entityType === 'trip' ||
-        entityType === 'viagem' ||
-        textLower.includes('viagem') ||
-        textLower.includes('rota')
-    ) {
-        if (entityId) return `/viagens?id=${entityId}`;
-        if (extractedPlate) return `/viagens?search=${extractedPlate}`;
-        return '/viagens';
-    }
-
-    // 4. Checklist
-    if (
-        entityType === 'checklist' ||
-        textLower.includes('checklist')
-    ) {
-        if (entityId) return `/checklists?id=${entityId}`;
-        if (extractedPlate) return `/checklists?search=${extractedPlate}`;
-        return '/checklists';
-    }
-
-    // 5. Motorista / CNH
-    if (
-        entityType === 'driver' ||
-        entityType === 'motorista' ||
-        textLower.includes('cnh') ||
-        textLower.includes('motorista')
-    ) {
-        return entityId ? `/motoristas/${entityId}` : '/motoristas';
-    }
-
-    // 6. Infração / Multa
-    if (
-        entityType === 'infraction' ||
-        entityType === 'infracao' ||
-        entityType === 'multa' ||
-        textLower.includes('infração') ||
-        textLower.includes('infracao') ||
-        textLower.includes('multa')
-    ) {
-        if (entityId) return `/infracoes?id=${entityId}`;
-        if (extractedPlate) return `/infracoes?search=${extractedPlate}`;
-        return '/infracoes';
-    }
-
-    // 7. Secretarias
-    if (
-        entityType === 'department' ||
-        entityType === 'secretaria'
-    ) {
-        return entityId ? `/secretarias/${entityId}` : '/secretarias';
-    }
-
-    // 8. Veículos / Movimentação / GPS
-    if (
-        entityType === 'vehicle' ||
-        entityType === 'veiculo' ||
-        textLower.includes('veículo') ||
-        textLower.includes('veiculo') ||
-        textLower.includes('placa') ||
-        textLower.includes('movimento') ||
-        textLower.includes('geofence') ||
-        textLower.includes('velocidade')
-    ) {
-        if (entityId) return `/mapa?vehicleId=${entityId}`;
-        if (extractedPlate) return `/veiculos?search=${extractedPlate}`;
-        return '/veiculos';
-    }
-
-    // Fallback padrão com ID ou mapa
-    if (entityId) return `/mapa?vehicleId=${entityId}`;
-    if (extractedPlate) return `/veiculos?search=${extractedPlate}`;
-    return '/mapa';
-}
-
-/**
  * Dispara um toast instantâneo clicável na tela que leva à rota do assunto ao ser clicado em qualquer lugar.
  */
 export function showClickableNotification(
@@ -344,5 +189,4 @@ export function showClickableNotification(
         );
     }, { duration: 8000 });
 }
-
 

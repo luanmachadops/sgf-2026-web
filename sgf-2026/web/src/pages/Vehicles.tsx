@@ -50,6 +50,7 @@ export default function Vehicles() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
 
+    const paramId = searchParams.get('id') || searchParams.get('vehicleId');
     const paramSearch = searchParams.get('search');
 
     useEffect(() => {
@@ -68,6 +69,31 @@ export default function Vehicles() {
         status: statusFilter as 'AVAILABLE' | 'IN_USE' | 'MAINTENANCE' | 'INACTIVE' | undefined,
         departmentId: departmentFilter || undefined,
     });
+
+    // Auto-navega para os detalhes do veículo quando id ou placa exata está presente na URL
+    useEffect(() => {
+        if (!vehicles || vehicles.length === 0) return;
+
+        if (paramId) {
+            const match = vehicles.find((v) => v.id === paramId);
+            if (match) {
+                navigate(`/veiculos/${match.id}`, { replace: true });
+                return;
+            }
+        }
+
+        if (paramSearch) {
+            const term = paramSearch.trim().toLowerCase();
+            const exactMatch = vehicles.find(
+                (v) =>
+                    v.plate?.toLowerCase() === term ||
+                    v.plate?.toLowerCase().replace('-', '') === term.replace('-', '')
+            );
+            if (exactMatch) {
+                navigate(`/veiculos/${exactMatch.id}`, { replace: true });
+            }
+        }
+    }, [paramId, paramSearch, vehicles, navigate]);
 
     useEffect(() => {
         setTitle('Frota');

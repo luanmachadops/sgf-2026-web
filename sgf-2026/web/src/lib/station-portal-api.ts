@@ -149,6 +149,33 @@ export const stationPortalApi = {
         };
     },
 
+    getHistoryItem: async (fuelingId: string): Promise<StationHistoryItem | null> => {
+        const { data, error } = await supabase.rpc('get_station_history_item', {
+            p_fueling_id: fuelingId,
+        });
+        throwIfError(error);
+        const row = data?.[0];
+        if (!row) return null;
+
+        return {
+            fuelingId: row.fueling_id,
+            plate: row.plate,
+            brand: row.brand,
+            model: row.model,
+            fuelType: row.fuel_type,
+            liters: row.liters,
+            odometer: row.odometer,
+            pricePerLiter: row.price_per_liter,
+            totalCost: row.total_cost,
+            receiptNo: row.receipt_no,
+            photoUrl: row.photo_url,
+            filledAt: row.filled_at,
+            workflowStatus: row.workflow_status,
+            rejectionReason: row.rejection_reason,
+            hasAnomaly: row.has_anomaly,
+        };
+    },
+
     getMonthlySummary: async (month: string): Promise<StationMonthlySummary[]> => {
         const { data, error } = await supabase.rpc('get_station_monthly_summary', {
             p_month: `${month}-01`,

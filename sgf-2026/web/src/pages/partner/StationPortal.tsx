@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
     Area,
@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 import { PartnerPortalLayout, type PartnerNavItem } from '@/components/partners/PartnerPortalLayout';
 import { ContractStatusAlerts } from '@/components/partners/ContractStatusAlerts';
+import { StationHistoryDetailsModal } from '@/components/partners/station/StationHistoryDetailsModal';
 import { SGFBadge, SGFButton, SGFCard, SGFInput, SGFKPICard } from '@/components/sgf';
 import {
     AlertCircle,
@@ -473,10 +474,14 @@ function PendingAuthorizations({
     tenantId,
     stationId,
     contractStatus,
+    requestedFuelingId,
+    onCloseRequested,
 }: {
     tenantId: string;
     stationId: string;
     contractStatus?: PartnerContractStatus;
+    requestedFuelingId: string | null;
+    onCloseRequested: () => void;
 }) {
     const [selected, setSelected] = useState<StationAuthorization | null>(null);
     const query = useQuery({
@@ -485,6 +490,16 @@ function PendingAuthorizations({
         refetchInterval: 30_000,
         staleTime: 10_000,
     });
+
+    const requestedAuthorization = requestedFuelingId
+        ? query.data?.find((item) => item.fuelingId === requestedFuelingId) ?? null
+        : null;
+    const activeSelected = selected ?? requestedAuthorization;
+
+    const closeSelected = () => {
+        setSelected(null);
+        onCloseRequested();
+    };
 
     if (query.isLoading) return <LoadingCards />;
     if (query.error) {
@@ -587,12 +602,12 @@ function PendingAuthorizations({
                 </div>
             </SGFCard>
 
-            {selected && (
+            {activeSelected && (
                 <FuelingModal
-                    authorization={selected}
+                    authorization={activeSelected}
                     tenantId={tenantId}
                     stationId={stationId}
-                    onClose={() => setSelected(null)}
+                    onClose={closeSelected}
                 />
             )}
         </>
@@ -609,7 +624,13 @@ function historyStatus(item: StationHistoryItem): {
     return { label: item.workflowStatus.replaceAll('_', ' '), variant: 'default' };
 }
 
-function StationHistory() {
+function StationHistory({
+    requestedFuelingId,
+    onCloseRequested,
+}: {
+    requestedFuelingId: string | null;
+    onCloseRequested: () => void;
+}) {
     const today = useMemo(() => new Date(), []);
     const initialFrom = useMemo(() => {
         const value = new Date(today);
@@ -619,14 +640,21 @@ function StationHistory() {
     const [from, setFrom] = useState(initialFrom);
     const [to, setTo] = useState(isoDate(today));
     const [page, setPage] = useState(0);
+    const [selected, setSelected] = useState<StationHistoryItem | null>(null);
 
     const query = useQuery({
         queryKey: ['station-history', from, to, page],
         queryFn: () => stationPortalApi.getHistory({ from, to, page, pageSize: PAGE_SIZE }),
         placeholderData: (previous) => previous,
     });
+    const requestedItemQuery = useQuery({
+        queryKey: ['station-history-item', requestedFuelingId],
+        queryFn: () => stationPortalApi.getHistoryItem(requestedFuelingId as string),
+        enabled: Boolean(requestedFuelingId),
+        staleTime: 30_000,
+    });
 
-    const items = query.data?.items ?? [];
+    const items = useMemo(() => query.data?.items ?? [], [query.data?.items]);
     const total = query.data?.total ?? 0;
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const pageLiters = items.reduce((sum, item) => sum + item.liters, 0);
@@ -636,6 +664,18 @@ function StationHistory() {
         month: item.plate,
         value: item.totalCost,
     }));
+
+    const requestedItem = requestedFuelingId
+        ? requestedItemQuery.data
+            ?? items.find((item) => item.fuelingId === requestedFuelingId)
+            ?? null
+        : null;
+    const activeSelected = selected ?? requestedItem;
+
+    const closeSelected = () => {
+        setSelected(null);
+        onCloseRequested();
+    };
 
     return (
         <div className="space-y-4">
@@ -679,7 +719,12 @@ function StationHistory() {
                         {items.map((item) => {
                             const status = historyStatus(item);
                             return (
-                                <div key={item.fuelingId} className="grid gap-3 border-b border-slate-100 px-5 py-4 last:border-0 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr] lg:items-center lg:gap-4 lg:px-6">
+                                <button
+                                    key={item.fuelingId}
+                                    type="button"
+                                    onClick={() => setSelected(item)}
+                                    className="grid w-full gap-3 border-b border-slate-100 px-5 py-4 text-left transition last:border-0 hover:bg-slate-50 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr] lg:items-center lg:gap-4 lg:px-6"
+                                >
                                     <div>
                                         <p className="font-black text-slate-900">{item.plate}</p>
                                         <p className="text-xs text-slate-500">{item.brand} {item.model} · <span className="capitalize">{item.fuelType}</span></p>
@@ -705,7 +750,7 @@ function StationHistory() {
                                             <strong>Motivo:</strong> {item.rejectionReason}
                                         </p>
                                     )}
-                                </div>
+                                </button>
                             );
                         })}
                     </div>
@@ -724,6 +769,7 @@ function StationHistory() {
                     </div>
                 </>
             )}
+            <StationHistoryDetailsModal item={activeSelected} onClose={closeSelected} />
         </div>
     );
 }
@@ -977,7 +1023,16 @@ function StationClosing() {
 
 export default function StationPortal() {
     const location = useLocation();
+    const navigate = useNavigate();
     const activeTab = tabFromPath(location.pathname);
+    const requestedFuelingId = useMemo(
+        () => new URLSearchParams(location.search).get('id')
+            ?? new URLSearchParams(location.search).get('fuelingId'),
+        [location.search],
+    );
+    const closeRequestedFueling = useCallback(() => {
+        navigate(location.pathname, { replace: true });
+    }, [location.pathname, navigate]);
 
     const contextQuery = useQuery({
         queryKey: ['station-context'],
@@ -1055,9 +1110,14 @@ export default function StationPortal() {
                         tenantId={context.tenantId}
                         stationId={context.stationId}
                         contractStatus={contractStatus}
+                        requestedFuelingId={requestedFuelingId}
+                        onCloseRequested={closeRequestedFueling}
                     />
                 ) : activeTab === 'history' ? (
-                    <StationHistory />
+                    <StationHistory
+                        requestedFuelingId={requestedFuelingId}
+                        onCloseRequested={closeRequestedFueling}
+                    />
                 ) : activeTab === 'closing' ? (
                     <StationClosing />
                 ) : (

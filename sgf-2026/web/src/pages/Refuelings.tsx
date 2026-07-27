@@ -88,12 +88,12 @@ type RefuelingRow = {
 };
 
 export default function Refuelings() {
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState('');
     const [workflowTab, setWorkflowTab] = useState<WorkflowTab>('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [showAuthorizeModal, setShowAuthorizeModal] = useState(false);
-    const [selectedRefueling, setSelectedRefueling] = useState<RefuelingRow | null>(null);
+    const [manualSelectedRefueling, setSelectedRefueling] = useState<RefuelingRow | null>(null);
     const [reviewReason, setReviewReason] = useState('');
     const [photoViewer, setPhotoViewer] = useState<{ images: string[]; index: number } | null>(null);
     const { setTitle, setDescription, setHeaderAction } = useHeader();
@@ -185,6 +185,19 @@ export default function Refuelings() {
         });
     }, [refuelings, searchTerm, workflowTab]);
 
+    const requestedRefueling = useMemo(() => {
+        if (paramId) return refuelings.find((refueling) => refueling.id === paramId) ?? null;
+        if (!paramSearch) return null;
+        const term = paramSearch.trim().toLowerCase();
+        return refuelings.find((refueling) =>
+            refueling.vehicle?.toLowerCase() === term
+            || refueling.vehicle?.toLowerCase().replace('-', '') === term.replace('-', '')
+            || refueling.driver?.toLowerCase().includes(term)
+            || refueling.station?.toLowerCase().includes(term)
+        ) ?? null;
+    }, [paramId, paramSearch, refuelings]);
+    const selectedRefueling = manualSelectedRefueling ?? requestedRefueling;
+
     const totalLiters = filteredRefuelings.reduce((sum, row) => sum + row.liters, 0);
     const totalCost = filteredRefuelings.reduce((sum, row) => sum + row.cost, 0);
     const anomalyCount = refuelings.filter((row) => row.hasAnomaly).length;
@@ -260,6 +273,16 @@ export default function Refuelings() {
         }
     ];
 
+    const closeSelectedRefueling = () => {
+        setSelectedRefueling(null);
+        setReviewReason('');
+        if (!paramId) return;
+        const next = new URLSearchParams(searchParams);
+        next.delete('id');
+        next.delete('refuelingId');
+        setSearchParams(next, { replace: true });
+    };
+
     const handleValidate = (approved: boolean) => {
         if (!selectedRefueling) return;
         if (!approved && !reviewReason.trim()) return;
@@ -272,10 +295,7 @@ export default function Refuelings() {
                 notes: reviewReason.trim() || undefined,
             },
             {
-                onSuccess: () => {
-                    setSelectedRefueling(null);
-                    setReviewReason('');
-                },
+                onSuccess: closeSelectedRefueling,
             }
         );
     };
@@ -375,10 +395,7 @@ export default function Refuelings() {
 
             <Modal
                 isOpen={!!selectedRefueling}
-                onClose={() => {
-                    setSelectedRefueling(null);
-                    setReviewReason('');
-                }}
+                onClose={closeSelectedRefueling}
                 title="Detalhes do Abastecimento"
                 size="lg"
                 footer={
@@ -392,10 +409,7 @@ export default function Refuelings() {
                                     onClick={() => {
                                         if (!selectedRefueling) return;
                                         cancelAuth.mutate({ id: selectedRefueling.id, reason: reviewReason }, {
-                                            onSuccess: () => {
-                                                setSelectedRefueling(null);
-                                                setReviewReason('');
-                                            },
+                                            onSuccess: closeSelectedRefueling,
                                         });
                                     }}
                                     disabled={cancelAuth.isPending || !reviewReason.trim()}
@@ -426,10 +440,7 @@ export default function Refuelings() {
                                 </>
                             )}
                         </div>
-                        <SGFButton variant="ghost" onClick={() => {
-                            setSelectedRefueling(null);
-                            setReviewReason('');
-                        }}>
+                        <SGFButton variant="ghost" onClick={closeSelectedRefueling}>
                             Fechar
                         </SGFButton>
                     </div>

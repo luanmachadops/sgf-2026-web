@@ -2927,6 +2927,26 @@ export type Database = {
           workflow_status: string
         }[]
       }
+      get_station_history_item: {
+        Args: { p_fueling_id: string }
+        Returns: {
+          brand: string
+          filled_at: string
+          fuel_type: string
+          fueling_id: string
+          has_anomaly: boolean
+          liters: number
+          model: string
+          odometer: number
+          photo_url: string
+          plate: string
+          price_per_liter: number
+          receipt_no: string
+          rejection_reason: string
+          total_cost: number
+          workflow_status: string
+        }[]
+      }
       get_station_monthly_summary: {
         Args: { p_month?: string }
         Returns: {

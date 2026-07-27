@@ -60,7 +60,7 @@ function getDurationInMinutes(startAt: string, endAt: string | null): number {
 }
 
 export default function Trips() {
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [showAnomaliesOnly, setShowAnomaliesOnly] = useState(false);
@@ -120,6 +120,27 @@ export default function Trips() {
             );
         });
     }, [trips, searchTerm]);
+    const requestedTripId = useMemo(() => {
+        if (paramId) return paramId;
+        if (!paramSearch) return null;
+        const term = paramSearch.trim().toLowerCase();
+        return trips.find((trip) =>
+            trip.vehicle?.toLowerCase() === term
+            || trip.vehicle?.toLowerCase().replace('-', '') === term.replace('-', '')
+            || trip.driver?.toLowerCase().includes(term)
+            || trip.purpose?.toLowerCase().includes(term)
+        )?.id ?? null;
+    }, [paramId, paramSearch, trips]);
+    const activeSelectedTripId = selectedTripId ?? requestedTripId;
+
+    const closeSelectedTrip = () => {
+        setSelectedTripId(null);
+        if (!paramId) return;
+        const next = new URLSearchParams(searchParams);
+        next.delete('id');
+        next.delete('tripId');
+        setSearchParams(next, { replace: true });
+    };
 
     const totalDistance = filteredTrips.reduce((sum, trip) => sum + trip.distance, 0);
     const anomalyCount = trips.filter((trip) => trip.hasAnomaly).length;
@@ -266,8 +287,8 @@ export default function Trips() {
             </div>
 
             <TripDetailsModal
-                tripId={selectedTripId}
-                onClose={() => setSelectedTripId(null)}
+                tripId={activeSelectedTripId}
+                onClose={closeSelectedTrip}
             />
         </div>
     );

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useMemo } from 'react';
-import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFButton } from '@/components/sgf/SGFButton';
@@ -30,6 +30,7 @@ import { EditVehicleModal } from '@/components/vehicles/EditVehicleModal';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
 import { RefuelingDetailsModal } from '@/components/refuelings/RefuelingDetailsModal';
 import { MaintenanceDetailsModal } from '@/components/maintenances/MaintenanceDetailsModal';
+import { IssueDetailsModal } from '@/components/issues/IssueDetailsModal';
 import { Modal } from '@/components/ui/Modal';
 import { PhotoViewer } from '@/components/ui/PhotoViewer';
 import { StyledQr } from '@/components/qr/StyledQr';
@@ -66,6 +67,7 @@ export default function VehicleDetails() {
     const { id } = useParams<{ id: string }>();
     const location = useLocation();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const backTo = (location.state as { backTo?: string } | null)?.backTo ?? '/veiculos';
     const queryClient = useQueryClient();
     const [isUploading, setIsUploading] = useState(false);
@@ -77,9 +79,16 @@ export default function VehicleDetails() {
     const [selectedMaintId, setSelectedMaintId] = useState<string | null>(null);
     const [photoIdx, setPhotoIdx] = useState(0);
     const [uploadingMulti, setUploadingMulti] = useState(false);
+    const issueId = searchParams.get('issueId');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const multiInputRef = useRef<HTMLInputElement>(null);
     const tabsRef = useRef<HTMLDivElement>(null);
+
+    const closeIssueDetails = () => {
+        const next = new URLSearchParams(searchParams);
+        next.delete('issueId');
+        setSearchParams(next, { replace: true });
+    };
 
     // ── Veículo ────────────────────────────────────────────────────────────
     const { data: vehicle, isLoading: loadingVehicle, isError: errorVehicle } = useQuery({
@@ -688,6 +697,7 @@ export default function VehicleDetails() {
             <TripDetailsModal tripId={selectedTripId} onClose={() => setSelectedTripId(null)} />
             <RefuelingDetailsModal refuelingId={selectedRefuelId} onClose={() => setSelectedRefuelId(null)} />
             <MaintenanceDetailsModal maintenanceId={selectedMaintId} onClose={() => setSelectedMaintId(null)} />
+            <IssueDetailsModal issueId={issueId} onClose={closeIssueDetails} />
         </div>
     );
 }
