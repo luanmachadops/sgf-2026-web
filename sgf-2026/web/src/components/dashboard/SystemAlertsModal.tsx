@@ -132,9 +132,11 @@ export function SystemAlertsModal({ isOpen: externalIsOpen, onClose: externalOnC
     const driverAlerts = driverCnhQuery.data ?? [];
     const partnerPhotos = partnerPhotosQuery.data ?? new Map<string, string>();
 
-    // Filtra o alerta genérico de CNH da lista operacionais para não duplicar com os motoristas detalhados
+    // Filtra qualquer alerta genérico de CNH para manter APENAS o card detalhado com foto do motorista
     const rawOperationalAlerts = dashboardAlertsQuery.data ?? [];
-    const otherOperationalAlerts = rawOperationalAlerts.filter((a) => a.kind !== 'cnh_expiring');
+    const otherOperationalAlerts = rawOperationalAlerts.filter(
+        (a) => !a.kind.toLowerCase().includes('cnh') && !a.title.toLowerCase().includes('cnh'),
+    );
 
     const totalAlerts = procurementAlerts.length + driverAlerts.length + otherOperationalAlerts.length;
 

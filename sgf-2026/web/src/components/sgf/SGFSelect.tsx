@@ -228,6 +228,13 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
                       )}>
                         <option.icon className="h-3.5 w-3.5" />
                       </div>
+                    ) : Icon ? (
+                      <div className={cn(
+                        "w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0",
+                        currentValue === option.value ? "bg-emerald-100 text-emerald-600" : "bg-slate-50 text-slate-400"
+                      )}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </div>
                     ) : null}
                     {option.label}
                   </span>
