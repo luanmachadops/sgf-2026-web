@@ -2975,6 +2975,21 @@ export type Database = {
       get_user_repair_shop_id: { Args: never; Returns: string }
       get_user_station_id: { Args: never; Returns: string }
       get_user_tenant_id: { Args: never; Returns: string }
+      get_workshop_monthly_summary: {
+        Args: { p_month?: string }
+        Returns: {
+          attested_amount: number
+          balance: number
+          category: string
+          financial_status: string
+          invoiced_amount: number
+          order_id: string
+          paid_amount: number
+          plate: string
+          quoted_amount: number
+          received_at: string
+        }[]
+      }
       is_admin: { Args: never; Returns: boolean }
       is_admin_or_manager: { Args: never; Returns: boolean }
       is_manager: { Args: never; Returns: boolean }

@@ -4,6 +4,41 @@ import type { User } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { resetFotoStorageCache } from '@/lib/fotoStorage';
 
+
+/**
+ * Encerra a sessão de forma CONFIÁVEL antes de navegar.
+ *
+ * O `signOut()` do supabase-js faz a chamada de rede ANTES de apagar o token do
+ * localStorage (GoTrueClient._signOut: `await this.admin.signOut(...)` e só
+ * depois `await this._removeSession()`). Disparar sem `await` e navegar em
+ * seguida mata a página no meio do passo 1 — o token sobrevive, o próximo load
+ * restaura a sessão e o usuário "entra de novo sozinho", sem conseguir trocar
+ * de conta.
+ *
+ * Aqui: espera o signOut com teto de tempo (rede caída não pode travar a saída)
+ * e, garantido, remove as chaves do supabase na mão. Depois disso não há como a
+ * sessão ressuscitar.
+ */
+async function hardSignOut(timeoutMs = 2500): Promise<void> {
+    try {
+        await Promise.race([
+            supabase.auth.signOut(),
+            new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+        ]);
+    } catch (error) {
+        console.warn('signOut falhou; limpando a sessão localmente:', error);
+    }
+
+    // Rede lenta ou 5xx não podem deixar o token para trás.
+    try {
+        for (const key of Object.keys(localStorage)) {
+            if (key.startsWith('sb-') && key.includes('-auth-token')) {
+                localStorage.removeItem(key);
+            }
+        }
+    } catch { /* storage indisponível (modo privado): nada a fazer */ }
+}
+
 function isAbortError(err: unknown): boolean {
     if (!err) return false;
     if (typeof err === 'object' && 'name' in err && (err as { name?: string }).name === 'AbortError') return true;
@@ -104,7 +139,7 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
 
     if (profile && !error) {
         if (!WEB_ROLES.includes(profile.role as WebRole)) {
-            void supabase.auth.signOut();
+            void hardSignOut();
             throw new Error(
                 profile.role === 'motorista'
                     ? 'Motoristas devem usar o aplicativo SGF Motorista.'
@@ -112,7 +147,7 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
             );
         }
         if (profile.access_blocked) {
-            void supabase.auth.signOut();
+            void hardSignOut();
             throw new Error('Seu acesso está bloqueado. Procure a prefeitura.');
         }
         const dept = (profile as unknown as { departments?: { id: string; name: string } | null }).departments;
@@ -139,7 +174,7 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
     // `user_metadata`: esse objeto é editável pelo próprio usuário via
     // supabase.auth.updateUser(), então um fallback autorizativo baseado nele
     // é escalada de privilégio (qualquer conta se declararia 'admin').
-    void supabase.auth.signOut();
+    void hardSignOut();
     throw new Error('Não foi possível carregar seu perfil de acesso. Procure o administrador do sistema.');
 }
 
@@ -316,7 +351,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const logout = async () => {
-        // Clear local state immediately — don't let a hanging signOut block the user
+        // Cada portal tem o seu login. Mandar o posto para /login deixaria ele
+        // na tela do painel, que não é a dele.
+        const loginPath = user?.role === 'POSTO' ? '/posto/login'
+            : user?.role === 'OFICINA' ? '/oficina/login'
+            : '/login';
+
         setUser(null);
         setToken(null);
         persistAuthState(null, null);
@@ -324,12 +364,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // nesta aba gravaria no caminho da prefeitura anterior.
         resetFotoStorageCache();
 
-        // Fire signOut in background (best-effort, never block redirect)
-        supabase.auth.signOut().catch((error) => {
-            console.error('Logout error:', error);
-        });
+        // Precisa AGUARDAR: navegar antes de o token sair do localStorage é o
+        // que fazia o usuário voltar logado no reload.
+        await hardSignOut();
 
-        window.location.href = '/login';
+        // `replace` para o botão voltar não devolver a tela do portal.
+        window.location.replace(loginPath);
     };
 
     return (

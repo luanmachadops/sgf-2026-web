@@ -54,11 +54,17 @@ import {
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-type PortalTab = 'dashboard' | 'orders' | 'details';
+type PortalTab = 'dashboard' | 'orders' | 'closing' | 'details';
+
+/** Competência atual no formato do <input type="month">. */
+function currentMonth(): string {
+    return new Date().toISOString().slice(0, 7);
+}
 
 function tabFromPath(path: string): PortalTab {
     if (path.endsWith('/dados')) return 'details';
     if (path.endsWith('/ordens')) return 'orders';
+    if (path.endsWith('/fechamento')) return 'closing';
     return 'dashboard';
 }
 
@@ -454,6 +460,145 @@ function DetailsView({
     );
 }
 
+
+/** Rótulo curto do eixo financeiro, para a coluna da tabela. */
+const FIN_LABEL: Record<string, string> = {
+    not_started: 'Não iniciado', awaiting_commitment: 'Aguardando empenho',
+    committed: 'Empenhado', invoiced: 'Faturado', attested: 'Atestado', paid: 'Pago',
+};
+
+/**
+ * Fechamento mensal da oficina — o espelho do que o posto já tinha.
+ *
+ * Responde a pergunta que a empresa faz todo mês: "o que entreguei e quanto
+ * tenho a receber?". O saldo é faturado − pago, então pagamento parcial fica
+ * visível em vez de sumir num status.
+ */
+function WorkshopClosing() {
+    const [month, setMonth] = useState(currentMonth);
+    const summaryQuery = useQuery({
+        queryKey: ['workshop-closing', month],
+        queryFn: () => workshopPortalApi.getMonthlySummary(month),
+    });
+
+    const rows = summaryQuery.data ?? [];
+    const totals = rows.reduce(
+        (acc, r) => ({
+            orders: acc.orders + 1,
+            quoted: acc.quoted + r.quotedAmount,
+            invoiced: acc.invoiced + r.invoicedAmount,
+            attested: acc.attested + r.attestedAmount,
+            paid: acc.paid + r.paidAmount,
+            balance: acc.balance + r.balance,
+        }),
+        { orders: 0, quoted: 0, invoiced: 0, attested: 0, paid: 0, balance: 0 },
+    );
+
+    if (summaryQuery.error) {
+        return <ErrorState message={(summaryQuery.error as Error).message} retry={() => void summaryQuery.refetch()} />;
+    }
+
+    return (
+        <div className="space-y-5">
+            <SGFCard variant="bordered" padding="lg">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                    <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Competência</p>
+                        <h3 className="mt-1 text-lg font-black text-slate-950">Conferência para faturamento</h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                            Entram as ordens cujo veículo foi <strong>recebido</strong> pela prefeitura no mês —
+                            é quando o serviço passa a ser faturável.
+                        </p>
+                    </div>
+                    <label className="text-sm font-semibold text-slate-700">
+                        Mês
+                        <input type="month" value={month} max={currentMonth()} onChange={(e) => setMonth(e.target.value)}
+                            className="mt-1 block rounded-full border border-slate-200 bg-white px-4 py-2.5 outline-none focus:border-[var(--sgf-primary)] focus:ring-4 focus:ring-blue-500/10" />
+                    </label>
+                </div>
+            </SGFCard>
+
+            {summaryQuery.isLoading ? (
+                <LoadingCards />
+            ) : rows.length === 0 ? (
+                <SGFCard className="text-center" padding="xl">
+                    <Receipt className="mx-auto h-10 w-10 text-slate-300" />
+                    <h3 className="mt-3 font-bold text-slate-900">Nenhum veículo entregue no período</h3>
+                    <p className="mt-1 text-sm text-slate-500">Selecione outro mês para consultar.</p>
+                </SGFCard>
+            ) : (
+                <>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <SGFCard variant="bordered">
+                            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Faturado</p>
+                            <p className="mt-2 text-2xl font-black text-slate-950">{currency.format(totals.invoiced)}</p>
+                            <p className="mt-1 text-xs text-slate-500">{totals.orders} ordem(ns) no mês</p>
+                        </SGFCard>
+                        <SGFCard variant="bordered">
+                            <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Atestado</p>
+                            <p className="mt-2 text-2xl font-black text-blue-800">{currency.format(totals.attested)}</p>
+                            <p className="mt-1 text-xs text-slate-500">Liberado para pagamento</p>
+                        </SGFCard>
+                        <SGFCard variant="bordered">
+                            <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">Recebido</p>
+                            <p className="mt-2 text-2xl font-black text-emerald-800">{currency.format(totals.paid)}</p>
+                            <p className="mt-1 text-xs text-slate-500">Pagamentos registrados</p>
+                        </SGFCard>
+                        <SGFCard variant="bordered">
+                            <p className="text-xs font-bold uppercase tracking-wide text-amber-600">A receber</p>
+                            <p className="mt-2 text-2xl font-black text-amber-800">{currency.format(totals.balance)}</p>
+                            <p className="mt-1 text-xs text-slate-500">Faturado menos pago</p>
+                        </SGFCard>
+                    </div>
+
+                    <SGFCard padding="none">
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[720px] text-sm">
+                                <thead className="border-b border-slate-100 text-left text-xs font-bold uppercase tracking-wide text-slate-400">
+                                    <tr>
+                                        <th className="px-5 py-3">Veículo</th>
+                                        <th className="px-5 py-3">Entregue em</th>
+                                        <th className="px-5 py-3 text-right">Orçado</th>
+                                        <th className="px-5 py-3 text-right">Faturado</th>
+                                        <th className="px-5 py-3 text-right">Recebido</th>
+                                        <th className="px-5 py-3 text-right">A receber</th>
+                                        <th className="px-5 py-3">Situação</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {rows.map((r) => (
+                                        <tr key={r.orderId}>
+                                            <td className="px-5 py-3">
+                                                <p className="font-bold text-slate-900">{r.plate ?? '—'}</p>
+                                                <p className="text-xs text-slate-500">{r.category ?? '—'}</p>
+                                            </td>
+                                            <td className="px-5 py-3 text-slate-600">
+                                                {r.receivedAt ? date.format(new Date(r.receivedAt)) : '—'}
+                                            </td>
+                                            <td className="px-5 py-3 text-right tabular-nums text-slate-600">{currency.format(r.quotedAmount)}</td>
+                                            <td className="px-5 py-3 text-right tabular-nums font-semibold text-slate-900">{currency.format(r.invoicedAmount)}</td>
+                                            <td className="px-5 py-3 text-right tabular-nums text-emerald-700">{currency.format(r.paidAmount)}</td>
+                                            <td className={`px-5 py-3 text-right tabular-nums font-bold ${r.balance > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
+                                                {currency.format(r.balance)}
+                                            </td>
+                                            <td className="px-5 py-3">
+                                                <SGFBadge variant={r.financialStatus === 'paid' ? 'success' : r.financialStatus === 'attested' ? 'info' : 'warning'}>
+                                                    {FIN_LABEL[r.financialStatus] ?? r.financialStatus}
+                                                </SGFBadge>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </SGFCard>
+                </>
+            )}
+        </div>
+    );
+}
+
+
 export default function WorkshopPortal() {
     const location = useLocation();
     const activeTab = tabFromPath(location.pathname);
@@ -476,6 +621,7 @@ export default function WorkshopPortal() {
     const navItems: PartnerNavItem[] = [
         { label: 'Dashboard', path: '/oficina', icon: LayoutDashboard, end: true },
         { label: 'Ordens de serviço', path: '/oficina/ordens', icon: Home },
+        { label: 'Fechamento', path: '/oficina/fechamento', icon: Receipt },
         { label: 'Meus dados', path: '/oficina/dados', icon: User },
     ];
     const titles: Record<PortalTab, { title: string; description: string }> = {
@@ -486,6 +632,10 @@ export default function WorkshopPortal() {
         orders: {
             title: 'Ordens de serviço',
             description: 'Acompanhe orçamento, execução, retirada e faturamento de cada veículo.',
+        },
+        closing: {
+            title: 'Fechamento mensal',
+            description: 'Confira o que foi entregue no mês e quanto há a receber da prefeitura.',
         },
         details: {
             title: 'Dados da oficina',
@@ -526,6 +676,8 @@ export default function WorkshopPortal() {
                         selectedOrder={selectedOrder}
                         setSelectedOrder={setSelectedOrder}
                     />
+                ) : activeTab === 'closing' ? (
+                    <WorkshopClosing />
                 ) : (
                     <DetailsView context={context} contractStatus={contractStatus} />
                 )}

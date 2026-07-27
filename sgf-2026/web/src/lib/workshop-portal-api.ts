@@ -76,6 +76,21 @@ export interface WorkshopInvoice {
     createdAt: string;
 }
 
+
+/** Linha do fechamento mensal da oficina (uma por OS entregue no mês). */
+export interface WorkshopMonthlyRow {
+    orderId: string;
+    plate: string | null;
+    category: string | null;
+    receivedAt: string | null;
+    quotedAmount: number;
+    invoicedAmount: number;
+    attestedAmount: number;
+    paidAmount: number;
+    balance: number;
+    financialStatus: string;
+}
+
 export interface WorkshopEvent {
     id: string;
     axis: string;
@@ -217,6 +232,33 @@ export const workshopPortalApi = {
                 createdAt: row.created_at,
             })),
         };
+    },
+
+
+    /**
+     * Fechamento mensal: o que a oficina entregou no mês e quanto tem a receber.
+     *
+     * A competência é o mês do RECEBIMENTO do veículo, não o da abertura da OS —
+     * é quando o serviço passa a ser faturável, e é assim que a prefeitura
+     * empenha e paga.
+     */
+    getMonthlySummary: async (month: string): Promise<WorkshopMonthlyRow[]> => {
+        const { data, error } = await supabase.rpc('get_workshop_monthly_summary', {
+            p_month: `${month}-01`,
+        });
+        throwIfError(error);
+        return (data ?? []).map((row) => ({
+            orderId: row.order_id,
+            plate: row.plate,
+            category: row.category,
+            receivedAt: row.received_at,
+            quotedAmount: Number(row.quoted_amount),
+            invoicedAmount: Number(row.invoiced_amount),
+            attestedAmount: Number(row.attested_amount),
+            paidAmount: Number(row.paid_amount),
+            balance: Number(row.balance),
+            financialStatus: row.financial_status,
+        }));
     },
 
     getDetails: async (repairShopId: string): Promise<WorkshopDetails> => {
