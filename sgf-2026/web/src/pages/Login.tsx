@@ -26,7 +26,7 @@ function errorMessage(error: unknown): string {
 
 export default function Login({ portal = 'panel' }: LoginProps) {
     const navigate = useNavigate();
-    const { login, user } = useAuth();
+    const { login, user, isLoading: authLoading } = useAuth();
     const { branding } = useBranding();
     const [view, setView] = useState<'login' | 'forgot'>('login');
     const [email, setEmail] = useState('');
@@ -35,9 +35,13 @@ export default function Login({ portal = 'panel' }: LoginProps) {
     const [successMessage, setSuccessMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
+    // Só redireciona com a sessão JÁ verificada. Enquanto `isLoading`, o `user`
+    // ainda pode ser a cópia cacheada em localStorage de quem acabou de sair —
+    // e mandar o recém-deslogado de volta ao portal é exatamente o sintoma que
+    // se quer evitar aqui.
     useEffect(() => {
-        if (user) navigate(homeForRole(user.role), { replace: true });
-    }, [navigate, user]);
+        if (!authLoading && user) navigate(homeForRole(user.role), { replace: true });
+    }, [authLoading, navigate, user]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

@@ -63,9 +63,10 @@ export type MaintenanceDetailsRow = Tables<'service_orders'> & {
         plate: string;
         brand: string | null;
         model: string | null;
+        photo_url?: string | null;
         departments?: { name: string } | null;
     } | null;
-    profiles?: { full_name: string } | null;
+    profiles?: { full_name: string; photo_url?: string | null } | null;
 };
 
 type Row = MaintenanceDetailsRow;
@@ -100,6 +101,7 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
             return {
                 value: shop.id,
                 label: `${shop.name}${shop.contract_number ? ` · contrato ${shop.contract_number}` : ''}`,
+                photoUrl: shop.photo_url,
                 disabled: expired,
                 disabledReason: expired ? 'Contrato vencido' : undefined,
             };
@@ -178,29 +180,87 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                     )}
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                        {[
-                            { icon: Car, label: 'Veículo', value: m.vehicles ? `${m.vehicles.brand ?? ''} ${m.vehicles.model ?? ''} · ${m.vehicles.plate}`.trim() : '—' },
-                            { icon: User, label: 'Motorista', value: m.profiles?.full_name ?? '—' },
-                            { icon: Gauge, label: 'Odômetro', value: m.odometer != null ? `${Number(m.odometer).toLocaleString('pt-BR')} km` : 'Não informado' },
-                            { icon: Calendar, label: 'Aberta em', value: formatDate(m.created_at) },
-                            { icon: Wrench, label: 'Prioridade', value: PRIORITY_LABEL[m.priority] ?? m.priority },
-                            ...(m.repair_shop ? [{ icon: Building2, label: 'Oficina', value: m.repair_shop }] : []),
-                            ...(m.budget != null ? [{ icon: DollarSign, label: 'Orçamento aprovado', value: formatCurrency(Number(m.budget)) }] : []),
-                            ...(m.cost != null ? [{ icon: DollarSign, label: 'Total pago', value: formatCurrency(Number(m.cost)) }] : []),
-                        ].map((item) => {
-                            const Icon = item.icon;
-                            return (
-                                <div key={item.label} className="flex items-center gap-3">
-                                    <div className="rounded-xl bg-slate-100 p-2.5 text-slate-600">
-                                        <Icon width={18} height={18} />
+                        {/* Veículo com foto */}
+                        <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
+                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                {m.vehicles?.photo_url ? (
+                                    <img src={m.vehicles.photo_url} alt="Veículo" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-slate-400">
+                                        <Car className="h-5 w-5" />
                                     </div>
-                                    <div className="min-w-0">
-                                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{item.label}</p>
-                                        <p className="truncate font-bold text-slate-800">{item.value}</p>
+                                )}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Veículo</p>
+                                <p className="truncate font-bold text-slate-800">
+                                    {m.vehicles ? `${m.vehicles.brand ?? ''} ${m.vehicles.model ?? ''} · ${m.vehicles.plate}`.trim() : '—'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Motorista com foto */}
+                        <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
+                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white">
+                                {m.profiles?.photo_url ? (
+                                    <img src={m.profiles.photo_url} alt="Motorista" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-slate-400">
+                                        <User className="h-5 w-5" />
                                     </div>
+                                )}
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Motorista</p>
+                                <p className="truncate font-bold text-slate-800">{m.profiles?.full_name ?? '—'}</p>
+                            </div>
+                        </div>
+
+                        {/* Odômetro */}
+                        <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                                <Gauge className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Odômetro</p>
+                                <p className="truncate font-bold text-slate-800">{m.odometer != null ? `${Number(m.odometer).toLocaleString('pt-BR')} km` : 'Não informado'}</p>
+                            </div>
+                        </div>
+
+                        {/* Aberta em */}
+                        <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                                <Calendar className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Aberta em</p>
+                                <p className="truncate font-bold text-slate-800">{formatDate(m.created_at)}</p>
+                            </div>
+                        </div>
+
+                        {/* Prioridade */}
+                        <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                                <Wrench className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Prioridade</p>
+                                <p className="truncate font-bold text-slate-800">{PRIORITY_LABEL[m.priority] ?? m.priority}</p>
+                            </div>
+                        </div>
+
+                        {/* Oficina (se houver) */}
+                        {m.repair_shop && (
+                            <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                                    <Building2 className="h-5 w-5" />
                                 </div>
-                            );
-                        })}
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Oficina</p>
+                                    <p className="truncate font-bold text-slate-800">{m.repair_shop}</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {op === 'pending' && (

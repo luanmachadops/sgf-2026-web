@@ -7,6 +7,8 @@ export interface SGFSelectOption {
   value: string;
   label: string;
   icon?: React.ElementType;
+  /** URL da foto/avatar (ex.: foto do motorista, do veículo, da oficina ou posto). */
+  photoUrl?: string | null;
   /** Opção visível mas não selecionável (ex.: posto inativo ou com licitação vencida). */
   disabled?: boolean;
   /** Motivo exibido ao tentar selecionar uma opção desabilitada. */
@@ -156,8 +158,18 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
           )}
         >
           <span className={cn('flex items-center gap-2 truncate pr-2', selectedOption ? 'text-slate-900 font-medium' : 'text-slate-400')}>
-            {selectedOption?.icon && <selectedOption.icon className="h-4 w-4 shrink-0 text-slate-400" />}
-            {!selectedOption?.icon && Icon && <Icon className="h-4 w-4 shrink-0 text-slate-400" />}
+            {selectedOption?.photoUrl ? (
+              <img
+                src={selectedOption.photoUrl}
+                alt=""
+                className="h-6 w-6 rounded-full object-cover shrink-0 border border-slate-200"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : selectedOption?.icon ? (
+              <selectedOption.icon className="h-4 w-4 shrink-0 text-slate-400" />
+            ) : Icon ? (
+              <Icon className="h-4 w-4 shrink-0 text-slate-400" />
+            ) : null}
             {selectedOption ? selectedOption.label : placeholder}
           </span>
           <CaretDown
@@ -202,14 +214,21 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
                   )}
                 >
                   <span className="flex-1 flex items-center gap-2.5 truncate">
-                    {option.icon && (
+                    {option.photoUrl ? (
+                      <img
+                        src={option.photoUrl}
+                        alt=""
+                        className="h-6 w-6 rounded-full object-cover shrink-0 border border-slate-200"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : option.icon ? (
                       <div className={cn(
-                        "w-6 h-6 rounded-full flex items-center justify-center transition-colors",
+                        "w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0",
                         currentValue === option.value ? "bg-emerald-100 text-emerald-600" : "bg-slate-50 text-slate-400"
                       )}>
-                        <option.icon className="h-4 w-4" />
+                        <option.icon className="h-3.5 w-3.5" />
                       </div>
-                    )}
+                    ) : null}
                     {option.label}
                   </span>
                   {currentValue === option.value && (

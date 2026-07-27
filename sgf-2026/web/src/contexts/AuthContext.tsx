@@ -1,42 +1,81 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { User } from '@/types';
-import { supabase } from '@/lib/supabase';
+import { supabase, revokeRefreshToken } from '@/lib/supabase';
 import { resetFotoStorageCache } from '@/lib/fotoStorage';
 
 
-/**
- * Encerra a sessão de forma CONFIÁVEL antes de navegar.
- *
- * O `signOut()` do supabase-js faz a chamada de rede ANTES de apagar o token do
- * localStorage (GoTrueClient._signOut: `await this.admin.signOut(...)` e só
- * depois `await this._removeSession()`). Disparar sem `await` e navegar em
- * seguida mata a página no meio do passo 1 — o token sobrevive, o próximo load
- * restaura a sessão e o usuário "entra de novo sozinho", sem conseguir trocar
- * de conta.
- *
- * Aqui: espera o signOut com teto de tempo (rede caída não pode travar a saída)
- * e, garantido, remove as chaves do supabase na mão. Depois disso não há como a
- * sessão ressuscitar.
- */
-async function hardSignOut(timeoutMs = 2500): Promise<void> {
-    try {
-        await Promise.race([
-            supabase.auth.signOut(),
-            new Promise((resolve) => setTimeout(resolve, timeoutMs)),
-        ]);
-    } catch (error) {
-        console.warn('signOut falhou; limpando a sessão localmente:', error);
-    }
-
-    // Rede lenta ou 5xx não podem deixar o token para trás.
+/** Apaga TODO vestígio de sessão do storage do navegador. */
+function purgeAuthStorage(): void {
     try {
         for (const key of Object.keys(localStorage)) {
-            if (key.startsWith('sb-') && key.includes('-auth-token')) {
+            // Cobre a chave da sessão, os "chunks" (`…-auth-token.0`, `.1`) que o
+            // supabase-js cria quando o JWT é grande, e o code-verifier do PKCE.
+            if (key.startsWith('sb-') && (key.includes('-auth-token') || key.includes('-code-verifier'))) {
                 localStorage.removeItem(key);
             }
         }
     } catch { /* storage indisponível (modo privado): nada a fazer */ }
+
+    // O AuthContext mantém a própria cópia — se ela sobrevivesse, a tela de
+    // login ainda enxergaria um usuário e devolveria o portal antes de o
+    // Supabase confirmar que não há sessão.
+    try {
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+    } catch { /* idem */ }
+}
+
+/**
+ * Encerra a sessão de forma CONFIÁVEL antes de navegar.
+ *
+ * BUG QUE ISTO CORRIGE (portais /posto e /oficina em produção): ao clicar em
+ * "Sair" a tela de login aparecia e o portal voltava sozinho, sem dar tempo de
+ * trocar de conta.
+ *
+ * O `signOut()` do supabase-js chama `_useSession()` ANTES de apagar o token.
+ * Com o token perto de expirar — que é o caso normal numa aba aberta há horas —
+ * esse passo dispara um refresh, e o refresh GRAVA a sessão nova no
+ * localStorage. A versão anterior daqui corria o signOut contra um timeout de
+ * 2,5 s: estourando o teto, ela limpava o storage e navegava enquanto o refresh
+ * ainda estava no ar; o refresh então terminava e REGRAVAVA o token depois da
+ * limpeza. Próximo load, sessão viva, portal de volta.
+ *
+ * A ordem aqui é o conserto: pega o token, limpa o storage PRIMEIRO, desliga o
+ * auto-refresh (o ticker também regrava) e só então revoga no servidor passando
+ * o token na mão. Nada que chegue atrasado tem onde regravar — e uma segunda
+ * limpeza no fim fecha qualquer corrida remanescente.
+ */
+async function hardSignOut(timeoutMs = 2500): Promise<void> {
+    // Token capturado ANTES de limpar: é o que permite revogar no servidor.
+    let accessToken: string | null = null;
+    try {
+        const { data } = await supabase.auth.getSession();
+        accessToken = data.session?.access_token ?? null;
+    } catch { /* sem sessão legível: segue para a limpeza mesmo assim */ }
+
+    // O ticker de auto-refresh regrava a sessão no storage sozinho.
+    // Sem await: o stop passa pela fila de lock do GoTrue e não pode segurar a saída.
+    void supabase.auth.stopAutoRefresh().catch(() => { /* noop */ });
+
+    purgeAuthStorage();
+
+    try {
+        await Promise.race([
+            Promise.all([
+                accessToken ? revokeRefreshToken(accessToken) : Promise.resolve(),
+                // Zera o estado em memória do GoTrue e emite SIGNED_OUT. Escopo
+                // local: a revogação de verdade é a chamada acima.
+                supabase.auth.signOut({ scope: 'local' }),
+            ]),
+            new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+        ]);
+    } catch (error) {
+        console.warn('signOut falhou; a sessão já foi limpa localmente:', error);
+    }
+
+    // Fecha a janela entre a limpeza e agora: qualquer gravação atrasada morre aqui.
+    purgeAuthStorage();
 }
 
 function isAbortError(err: unknown): boolean {

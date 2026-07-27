@@ -77,14 +77,30 @@ export function OpenServiceOrderFromChecklist({ checklist, items, onSuccess, onC
         <div className="space-y-5">
             <div className="grid gap-3 md:grid-cols-2">
                 <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <Car className="h-5 w-5 shrink-0 text-slate-400" />
+                    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                        {checklist.vehicles?.photo_url ? (
+                            <img src={checklist.vehicles.photo_url} alt="" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                            <div className="flex h-full w-full items-center justify-center text-slate-400">
+                                <Car className="h-4.5 w-4.5" />
+                            </div>
+                        )}
+                    </div>
                     <div className="min-w-0">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Veículo</p>
                         <p className="truncate text-sm font-semibold text-slate-800">{vehicleLabel}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <User className="h-5 w-5 shrink-0 text-slate-400" />
+                    <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white">
+                        {checklist.profiles?.photo_url ? (
+                            <img src={checklist.profiles.photo_url} alt="" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                            <div className="flex h-full w-full items-center justify-center text-slate-400">
+                                <User className="h-4.5 w-4.5" />
+                            </div>
+                        )}
+                    </div>
                     <div className="min-w-0">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Motorista</p>
                         <p className="truncate text-sm font-semibold text-slate-800">{driverName}</p>

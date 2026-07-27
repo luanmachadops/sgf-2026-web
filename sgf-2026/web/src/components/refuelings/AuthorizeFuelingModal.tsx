@@ -68,6 +68,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose }: Props) {
                 return {
                     value: s.id,
                     label: `${s.name}${s.code ? ` (${s.code})` : ''}${unavailable ? ` — ${unavailable}` : warning}`,
+                    photoUrl: s.photo_url,
                     disabled: !!unavailable,
                     disabledReason: unavailable ?? undefined,
                 };
@@ -303,6 +304,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose }: Props) {
                         options={drivers.map((driver) => ({
                             value: driver.id,
                             label: driver.full_name,
+                            photoUrl: driver.photo_url,
                         }))}
                         value={driverId}
                         onChange={setDriverId}

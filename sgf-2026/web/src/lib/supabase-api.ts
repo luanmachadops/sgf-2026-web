@@ -1198,7 +1198,7 @@ export const maintenancesApi = {
     getById: async (id: string): Promise<Tables<'service_orders'>> => {
         const { data, error } = await supabase
             .from('service_orders')
-            .select('*, vehicles(id, plate, brand, model, departments(name)), profiles!service_orders_driver_id_fkey(id, full_name)')
+            .select('*, vehicles(id, plate, brand, model, photo_url, departments(name)), profiles!service_orders_driver_id_fkey(id, full_name, photo_url)')
             .eq('id', id)
             .single();
         if (error) handleError(error);
@@ -1266,7 +1266,7 @@ export type ChecklistListRecord = Tables<'checklists'> & {
         department_id: string | null;
         departments?: { id: string; name: string } | null;
     } | null;
-    profiles?: { id: string; full_name: string } | null;
+    profiles?: { id: string; full_name: string; photo_url?: string | null } | null;
     checklist_items?: { id: string; item_key: string; label: string; state: Enums<'checklist_state'> }[];
     /** service_orders.id já aberta a partir deste checklist (se houver). */
     service_orders?: { id: string; status: Enums<'service_order_status'> }[] | null;
@@ -1282,7 +1282,7 @@ export const checklistsApi = {
     }): Promise<Tables<'checklists'>[]> => {
         let query = supabase
             .from('checklists')
-            .select('*, vehicles(id, plate), profiles!checklists_driver_id_fkey(id, full_name)')
+            .select('*, vehicles(id, plate), profiles!checklists_driver_id_fkey(id, full_name, photo_url)')
             .order('created_at', { ascending: false });
 
         if (filters?.vehicleId) query = query.eq('vehicle_id', filters.vehicleId);
@@ -1319,7 +1319,7 @@ export const checklistsApi = {
             .select(
                 `*,
                 ${vehiclesJoin}(id, plate, brand, model, photo_url, department_id, departments(id, name)),
-                profiles!checklists_driver_id_fkey(id, full_name),
+                profiles!checklists_driver_id_fkey(id, full_name, photo_url),
                 checklist_items(id, item_key, label, state),
                 service_orders(id, status)`
             )

@@ -25,6 +25,30 @@ function projectRef(url: string | undefined): string {
 const ref = projectRef(supabaseUrl);
 const storageKey = `sb-${ref}-auth-token`;
 
+/** Chave de storage da sessão. O logout precisa dela para apagar na unha. */
+export const authStorageKey = storageKey;
+
+/**
+ * Revoga o refresh token no servidor SEM depender do estado interno do GoTrue.
+ *
+ * O `signOut()` do supabase-js lê a sessão do storage antes de chamar a API —
+ * se o storage já foi limpo (que é o que o logout faz primeiro, para a sessão
+ * não poder ressuscitar), ele simplesmente não revoga nada. Aqui o token é
+ * passado à mão, então dá para limpar primeiro e revogar depois.
+ */
+export async function revokeRefreshToken(accessToken: string): Promise<void> {
+    if (!supabaseUrl || !supabaseAnonKey || !accessToken) return;
+    await fetch(`${supabaseUrl}/auth/v1/logout?scope=global`, {
+        method: 'POST',
+        headers: {
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+        },
+        keepalive: true, // sobrevive ao unload da página que vem logo em seguida
+    });
+}
+
 // Boot-time cleanup: ao mudar de projeto, qualquer token de projeto antigo persistido
 // em localStorage causaria refresh-token requests bloqueantes (timeout no AuthContext).
 // Removemos chaves de auth Supabase que NÃO pertencem ao projeto atual.
