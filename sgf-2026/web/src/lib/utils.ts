@@ -242,3 +242,57 @@ export function formatDriverLabel(driver?: { name?: string | null; full_name?: s
 
     return `${name} (${shortDept})`;
 }
+
+/**
+ * Retorna os estilos visuais de fundo, borda, texto e ícone de acordo com o nível de prioridade:
+ * - baixa: Emerald / Verde
+ * - media / média: Amber / Amarelo
+ * - alta: Orange / Laranja
+ * - urgente / critica / emergência: Red / Vermelho
+ */
+export function getPriorityStyles(priority?: string | null) {
+    const p = (priority ?? '').toLowerCase();
+    if (p === 'baixa' || p === 'low' || p === '1') {
+        return {
+            bg: 'bg-emerald-50/90',
+            border: 'border-emerald-200',
+            text: 'text-emerald-700',
+            iconBg: 'bg-emerald-100 text-emerald-700',
+            badgeVariant: 'success' as const,
+        };
+    }
+    if (p === 'media' || p === 'média' || p === 'medium' || p === '2' || p === '3') {
+        return {
+            bg: 'bg-amber-50/90',
+            border: 'border-amber-200',
+            text: 'text-amber-800',
+            iconBg: 'bg-amber-100 text-amber-700',
+            badgeVariant: 'warning' as const,
+        };
+    }
+    if (p === 'alta' || p === 'high' || p === '4') {
+        return {
+            bg: 'bg-orange-50/90',
+            border: 'border-orange-200',
+            text: 'text-orange-800',
+            iconBg: 'bg-orange-100 text-orange-700',
+            badgeVariant: 'warning' as const,
+        };
+    }
+    if (p === 'urgente' || p === 'critica' || p === 'crítica' || p === 'emergencia' || p === 'emergência' || p === 'critical' || p === '5') {
+        return {
+            bg: 'bg-red-50/90',
+            border: 'border-red-200',
+            text: 'text-red-800',
+            iconBg: 'bg-red-100 text-red-700',
+            badgeVariant: 'error' as const,
+        };
+    }
+    return {
+        bg: 'bg-slate-50',
+        border: 'border-slate-200',
+        text: 'text-slate-800',
+        iconBg: 'bg-slate-100 text-slate-600',
+        badgeVariant: 'default' as const,
+    };
+}

@@ -12,9 +12,10 @@ import type { Tables } from '@/types/database.types';
 type ChecklistItemRow = { id: string; item_key: string; label: string; state: Tables<'checklist_items'>['state'] };
 
 const priorityOptions = [
-    { value: 'baixa', label: 'Baixa' },
-    { value: 'media', label: 'Média' },
-    { value: 'alta', label: 'Alta' },
+    { value: 'baixa', label: 'Baixa (Verde)' },
+    { value: 'media', label: 'Média (Amarelo)' },
+    { value: 'alta', label: 'Alta (Laranja)' },
+    { value: 'urgente', label: 'Urgente (Vermelho)' },
 ];
 
 interface Props {

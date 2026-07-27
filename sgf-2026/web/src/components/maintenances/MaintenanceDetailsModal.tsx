@@ -23,7 +23,7 @@ import { maintenancesApi } from '@/lib/supabase-api';
 import { useAuthorizeMaintenance, useCancelMaintenance } from '@/hooks/useMaintenances';
 import { useRepairShops } from '@/hooks/useRepairShops';
 import { ServiceOrderFiscalPanel } from './ServiceOrderFiscalPanel';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, getPriorityStyles } from '@/lib/utils';
 import type { Tables } from '@/types/database.types';
 import type { FinStatus, OpStatus } from '@/lib/supabase-api';
 
@@ -179,7 +179,8 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {/* Bloco 1: Veículo e Oficina */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         {/* Veículo com foto */}
                         <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
                             <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
@@ -196,6 +197,42 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                                 <p className="truncate font-bold text-slate-800">
                                     {m.vehicles ? `${m.vehicles.brand ?? ''} ${m.vehicles.model ?? ''} · ${m.vehicles.plate}`.trim() : '—'}
                                 </p>
+                            </div>
+                        </div>
+
+                        {/* Oficina */}
+                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
+                                <Building2 className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Oficina</p>
+                                <p className="truncate font-bold text-slate-800">{m.repair_shop ?? 'Aguardando triagem'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Bloco 2: Aberta em, Hodômetro, Motorista e Prioridade */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {/* Aberta em */}
+                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
+                                <Calendar className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Aberta em</p>
+                                <p className="truncate font-bold text-slate-800">{formatDate(m.created_at)}</p>
+                            </div>
+                        </div>
+
+                        {/* Odômetro / Hodômetro */}
+                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
+                                <Gauge className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Hodômetro</p>
+                                <p className="truncate font-bold text-slate-800">{m.odometer != null ? `${Number(m.odometer).toLocaleString('pt-BR')} km` : 'Não informado'}</p>
                             </div>
                         </div>
 
@@ -216,51 +253,21 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                             </div>
                         </div>
 
-                        {/* Odômetro */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
-                                <Gauge className="h-5 w-5" />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Odômetro</p>
-                                <p className="truncate font-bold text-slate-800">{m.odometer != null ? `${Number(m.odometer).toLocaleString('pt-BR')} km` : 'Não informado'}</p>
-                            </div>
-                        </div>
-
-                        {/* Aberta em */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
-                                <Calendar className="h-5 w-5" />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Aberta em</p>
-                                <p className="truncate font-bold text-slate-800">{formatDate(m.created_at)}</p>
-                            </div>
-                        </div>
-
-                        {/* Prioridade */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
-                                <Wrench className="h-5 w-5" />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Prioridade</p>
-                                <p className="truncate font-bold text-slate-800">{PRIORITY_LABEL[m.priority] ?? m.priority}</p>
-                            </div>
-                        </div>
-
-                        {/* Oficina (se houver) */}
-                        {m.repair_shop && (
-                            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
-                                    <Building2 className="h-5 w-5" />
+                        {/* Prioridade com cor específica do nível */}
+                        {(() => {
+                            const pStyle = getPriorityStyles(m.priority);
+                            return (
+                                <div className={`flex items-center gap-3 rounded-2xl border p-3.5 shadow-xs transition-colors ${pStyle.bg} ${pStyle.border}`}>
+                                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-bold ${pStyle.iconBg}`}>
+                                        <Wrench className="h-5 w-5" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Prioridade</p>
+                                        <p className={`truncate font-bold ${pStyle.text}`}>{PRIORITY_LABEL[m.priority] ?? m.priority}</p>
+                                    </div>
                                 </div>
-                                <div className="min-w-0">
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Oficina</p>
-                                    <p className="truncate font-bold text-slate-800">{m.repair_shop}</p>
-                                </div>
-                            </div>
-                        )}
+                            );
+                        })()}
                     </div>
 
                     {op === 'pending' && (

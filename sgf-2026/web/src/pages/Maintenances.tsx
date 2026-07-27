@@ -139,15 +139,15 @@ const PRIORITY_LABEL: Record<MaintenanceItem['priority'], string> = {
 };
 
 const PRIORITY_VARIANT: Record<MaintenanceItem['priority'], BadgeVariant> = {
-    baixa: 'info',
+    baixa: 'success',
     media: 'warning',
-    alta: 'error',
+    alta: 'warning',
 };
 
 const PRIORITY_BORDER: Record<MaintenanceItem['priority'], string> = {
-    baixa: 'border-l-blue-400',
-    media: 'border-l-amber-400',
-    alta: 'border-l-red-500',
+    baixa: 'border-l-emerald-500',
+    media: 'border-l-amber-500',
+    alta: 'border-l-orange-500',
 };
 
 function operationalVariant(status: OpStatus): BadgeVariant {

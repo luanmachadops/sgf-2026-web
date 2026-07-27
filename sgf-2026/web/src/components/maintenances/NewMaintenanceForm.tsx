@@ -65,9 +65,10 @@ const categoryOptions = [
 ];
 
 const priorityOptions = [
-    { value: 'baixa', label: 'Baixa' },
-    { value: 'media', label: 'Média' },
-    { value: 'alta', label: 'Alta' },
+    { value: 'baixa', label: 'Baixa (Verde)' },
+    { value: 'media', label: 'Média (Amarelo)' },
+    { value: 'alta', label: 'Alta (Laranja)' },
+    { value: 'urgente', label: 'Urgente (Vermelho)' },
 ];
 
 export function NewMaintenanceForm({ onSuccess, onCancel, editData }: NewMaintenanceFormProps) {
