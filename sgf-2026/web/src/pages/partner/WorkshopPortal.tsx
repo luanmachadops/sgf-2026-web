@@ -409,8 +409,14 @@ function DetailsView({
             <div className="grid gap-5 lg:grid-cols-3">
             <SGFCard variant="bordered" className="lg:col-span-2" padding="lg">
                 <div className="flex items-start gap-4">
-                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-50 text-blue-700">
-                        <Wrench className="h-6 w-6" />
+                    <div className="h-16 w-24 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                        {details.photoUrl ? (
+                            <img src={details.photoUrl} alt={details.name} className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-blue-50 text-blue-700">
+                                <Wrench className="h-6 w-6" />
+                            </div>
+                        )}
                     </div>
                     <div>
                         <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Oficina credenciada</p>

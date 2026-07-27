@@ -111,6 +111,7 @@ export interface WorkshopOrderDetails {
 export interface WorkshopDetails {
     id: string;
     name: string;
+    photoUrl?: string | null;
     cnpj: string | null;
     address: string | null;
     city: string | null;
@@ -264,13 +265,14 @@ export const workshopPortalApi = {
     getDetails: async (repairShopId: string): Promise<WorkshopDetails> => {
         const { data, error } = await supabase
             .from('repair_shops')
-            .select('id, name, cnpj, address, city, phone, contract_number, contract_start, contract_end, contract_value, contract_alert_percent, contract_alert_days, is_active, specialties')
+            .select('id, name, photo_url, cnpj, address, city, phone, contract_number, contract_start, contract_end, contract_value, contract_alert_percent, contract_alert_days, is_active, specialties')
             .eq('id', repairShopId)
             .single();
         throwIfError(error);
         return {
             id: data.id,
             name: data.name,
+            photoUrl: data.photo_url,
             cnpj: data.cnpj,
             address: data.address,
             city: data.city,

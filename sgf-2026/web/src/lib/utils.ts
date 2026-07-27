@@ -225,3 +225,20 @@ export function truncate(text: string, length: number): string {
 export function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+/**
+ * Formata o rótulo do motorista para listbox/selects com abreviação/resumo da secretaria.
+ * Exemplo: "João da Silva (Obras)" ou "Maria Oliveira (Saúde)".
+ */
+export function formatDriverLabel(driver?: { name?: string | null; full_name?: string | null; departments?: { name?: string | null } | null } | null): string {
+    if (!driver) return 'Motorista';
+    const name = driver.full_name || driver.name || 'Motorista';
+    const deptName = driver.departments?.name;
+    if (!deptName) return name;
+
+    const shortDept = deptName
+        .replace(/^Secretaria\s+(?:Municipal\s+)?(?:de\s+|da\s+|do\s+)?/i, '')
+        .replace(/^Sec\.\s+/i, '');
+
+    return `${name} (${shortDept})`;
+}

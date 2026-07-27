@@ -31,7 +31,7 @@ import {
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { infractionsApi, driversApi, vehiclesApi, tripsApi, type InfractionCandidate, type VehicleRecord } from '@/lib/supabase-api';
-import { formatCurrency, formatDate, formatPlate } from '@/lib/utils';
+import { formatCurrency, formatDate, formatPlate, formatDriverLabel } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { prepareUpload } from '@/lib/imageUtils';
@@ -638,7 +638,8 @@ function NewInfractionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                                     label="Motorista indicado"
                                     options={drivers.map((d: any) => ({
                                         value: d.id,
-                                        label: d.name ?? d.full_name ?? 'Motorista',
+                                        label: formatDriverLabel(d),
+                                        photoUrl: d.photo_url,
                                     }))}
                                     value={selectedDriverId}
                                     onChange={(val) => setSelectedDriverId(val)}
@@ -771,7 +772,7 @@ function ManageInfractionModal({ infraction, onClose }: { infraction: Infraction
 
     if (!infraction) return null;
     const meta = STATUS_META[infraction.status] ?? STATUS_META.pendente;
-    const driverOptions = drivers.map((d) => ({ value: (d as { id: string }).id, label: (d as { name?: string; full_name?: string }).name ?? (d as { full_name?: string }).full_name ?? 'Motorista' }));
+    const driverOptions = drivers.map((d: any) => ({ value: d.id, label: formatDriverLabel(d), photoUrl: d.photo_url }));
 
     const rawData = infraction.raw as { attachment_url?: string; attachment_name?: string } | null;
     const attachmentUrl = rawData?.attachment_url;

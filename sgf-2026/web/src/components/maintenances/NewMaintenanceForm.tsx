@@ -12,6 +12,7 @@ import { useVehicles } from '@/hooks/useVehicles';
 import { useDrivers } from '@/hooks/useDrivers';
 import { useCreateMaintenance, useUpdateMaintenance } from '@/hooks/useMaintenances';
 import { VehiclePickerField } from '@/components/sgf/VehiclePickerField';
+import { formatDriverLabel } from '@/lib/utils';
 
 // Schema alinhado aos enums do banco (service_orders)
 const maintenanceSchema = z.object({
@@ -163,7 +164,8 @@ export function NewMaintenanceForm({ onSuccess, onCancel, editData }: NewMainten
                             label="Motorista solicitante"
                             options={drivers.map((driver) => ({
                                 value: driver.id,
-                                label: driver.full_name,
+                                label: formatDriverLabel(driver),
+                                photoUrl: driver.photo_url,
                             }))}
                             value={field.value}
                             onChange={field.onChange}

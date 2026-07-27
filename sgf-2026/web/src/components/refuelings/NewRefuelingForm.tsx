@@ -14,6 +14,7 @@ import { useAppSettings } from '@/hooks/useSettings';
 import { useDrivers } from '@/hooks/useDrivers';
 import { getStationUnavailableReason } from '@/lib/stationStatus';
 import { procurementApi } from '@/lib/procurement-api';
+import { formatDriverLabel } from '@/lib/utils';
 
 // Slot de foto: faz upload ao selecionar e devolve a URL pública.
 function PhotoUpload({ label, hint, url, onChange }: { label: string; hint: string; url: string; onChange: (u: string) => void }) {
@@ -290,7 +291,8 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
                     label="Motorista responsável"
                     options={drivers.map((driver) => ({
                         value: driver.id,
-                        label: driver.full_name,
+                        label: formatDriverLabel(driver),
+                        photoUrl: driver.photo_url,
                     }))}
                     value={driverId}
                     onChange={setDriverId}

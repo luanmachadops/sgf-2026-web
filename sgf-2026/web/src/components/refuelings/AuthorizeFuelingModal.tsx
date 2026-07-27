@@ -9,7 +9,7 @@ import { Car, Fuel, User } from '@/components/sgf/icons';
 import { stationsApi, vehiclesApi } from '@/lib/supabase-api';
 import { useCreateFuelAuthorization } from '@/hooks/useRefuelings';
 import { useDrivers } from '@/hooks/useDrivers';
-import { formatPlate } from '@/lib/utils';
+import { formatPlate, formatDriverLabel } from '@/lib/utils';
 import { getStationUnavailableReason } from '@/lib/stationStatus';
 import { procurementApi } from '@/lib/procurement-api';
 
@@ -303,7 +303,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose }: Props) {
                         label="Motorista responsável"
                         options={drivers.map((driver) => ({
                             value: driver.id,
-                            label: driver.full_name,
+                            label: formatDriverLabel(driver),
                             photoUrl: driver.photo_url,
                         }))}
                         value={driverId}
