@@ -27,16 +27,13 @@ export function ProcurementContractFields({
     onContractAlertDaysChange,
 }: ProcurementContractFieldsProps) {
     return (
-        <fieldset className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/40 p-4">
-            <legend className="px-2 text-sm font-bold text-slate-800">Dados da licitação</legend>
-            <p className="text-xs text-slate-500">
-                Estas informações controlam a vigência, o orçamento disponível e os alertas do painel.
-            </p>
+        <fieldset className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/40 p-4">
+            <legend className="px-2 text-xs font-bold uppercase tracking-wider text-slate-700">Dados da licitação</legend>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <SGFInput
                     id={`${idPrefix}-contract-number`}
-                    label="Número da licitação / contrato"
+                    label="Nº Licitação / Contrato"
                     value={contractNumber}
                     onChange={(event) => onContractNumberChange(event.target.value)}
                     placeholder="Ex.: PE 012/2026"
@@ -44,7 +41,7 @@ export function ProcurementContractFields({
                 />
                 <SGFInput
                     id={`${idPrefix}-contract-start`}
-                    label="Início da vigência"
+                    label="Início Vigência"
                     type="date"
                     value={contractStart}
                     onChange={(event) => onContractStartChange(event.target.value)}
@@ -52,7 +49,7 @@ export function ProcurementContractFields({
                 />
                 <SGFInput
                     id={`${idPrefix}-contract-end`}
-                    label="Fim da vigência"
+                    label="Fim Vigência"
                     type="date"
                     value={contractEnd}
                     min={contractStart || undefined}
@@ -61,10 +58,10 @@ export function ProcurementContractFields({
                 />
             </div>
 
-            <div className="grid grid-cols-1 gap-4 border-t border-slate-200 pt-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 border-t border-slate-200/80 pt-3 md:grid-cols-3">
                 <SGFInput
                     id={`${idPrefix}-contract-value`}
-                    label="Valor total da licitação (R$)"
+                    label="Valor Total (R$)"
                     type="number"
                     inputMode="decimal"
                     min="0"
@@ -72,12 +69,11 @@ export function ProcurementContractFields({
                     value={contractValue}
                     onChange={(event) => onContractValueChange(event.target.value)}
                     placeholder="Ex.: 1000000,00"
-                    hint="Teto financeiro para novas operações."
                     fullWidth
                 />
                 <SGFInput
                     id={`${idPrefix}-contract-alert-percent`}
-                    label="Alertar quando restar (%)"
+                    label="Alerta Saldo (%)"
                     type="number"
                     inputMode="numeric"
                     min="0"
@@ -85,12 +81,11 @@ export function ProcurementContractFields({
                     step="1"
                     value={contractAlertPercent}
                     onChange={(event) => onContractAlertPercentChange(event.target.value)}
-                    hint="Padrão: 20% do valor total."
                     fullWidth
                 />
                 <SGFInput
                     id={`${idPrefix}-contract-alert-days`}
-                    label="Alertar vencimento com (dias)"
+                    label="Alerta Vencimento (dias)"
                     type="number"
                     inputMode="numeric"
                     min="1"
@@ -98,7 +93,6 @@ export function ProcurementContractFields({
                     step="1"
                     value={contractAlertDays}
                     onChange={(event) => onContractAlertDaysChange(event.target.value)}
-                    hint="Padrão: 30 dias de antecedência."
                     fullWidth
                 />
             </div>

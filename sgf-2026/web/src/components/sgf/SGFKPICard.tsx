@@ -28,12 +28,19 @@ export interface SGFKPICardProps {
   onClick?: () => void;
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{ value?: number | string }>;
+  label?: string | number;
+}
+
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
+    const value = Number(payload[0].value ?? 0);
     return (
       <div className="bg-[#0F2B2F]/50 border border-white/10 p-[var(--sgf-space-2)] rounded-[var(--sgf-radius-base)] shadow-[var(--sgf-shadow-xl)] backdrop-blur-md text-center">
         <p className="text-[var(--sgf-text-2xs)] text-white/40 font-[var(--sgf-font-bold)] uppercase tracking-wider mb-[var(--sgf-space-1)]">{label}</p>
-        <p className="text-[var(--sgf-text-sm)] font-[var(--sgf-font-black)] text-white">{payload[0].value.toLocaleString('pt-BR')}</p>
+        <p className="text-[var(--sgf-text-sm)] font-[var(--sgf-font-black)] text-white">{value.toLocaleString('pt-BR')}</p>
       </div>
     );
   }
@@ -73,7 +80,7 @@ export const SGFKPICard: React.FC<SGFKPICardProps> = ({
                 <h3 className="text-[var(--sgf-text-2xl)] font-bold text-slate-800 tracking-tight leading-tight">{value}</h3>
                 {percentage !== undefined && trend && (
                   <p className={`mt-1 text-[var(--sgf-text-xs)] font-[var(--sgf-font-bold)] ${trend === 'up' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {trend === 'up' ? '+' : '-'}{percentage}% vs. periodo anterior
+                    {trend === 'up' ? '+' : ''}{percentage}% vs. periodo anterior
                   </p>
                 )}
               </>
@@ -101,7 +108,7 @@ export const SGFKPICard: React.FC<SGFKPICardProps> = ({
                     <Cell
                       key={`cell-${index}`}
                       fill={chartColor}
-                      fillOpacity={0.4 + (index / (chartData.length - 1)) * 0.6}
+                      fillOpacity={0.4 + (index / Math.max(chartData.length - 1, 1)) * 0.6}
                     />
                   ))}
                 </Bar>

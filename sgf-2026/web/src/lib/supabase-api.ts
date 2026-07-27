@@ -1967,15 +1967,17 @@ export const dashboardApi = {
 
         const [fuelingsRes, tripsRes, ordersRes] = await Promise.all([
             supabase.from('fuelings').select('liters, created_at').gte('created_at', startIso),
-            supabase.from('trips').select('vehicle_id, distance_km, status, start_at').gte('start_at', startIso),
+            supabase.from('trips').select('vehicle_id, distance_km, status, start_at, created_at').gte('created_at', startIso),
             supabase.from('service_orders').select('created_at').gte('created_at', startIso),
         ]);
         if (fuelingsRes.error) handleError(fuelingsRes.error);
         if (tripsRes.error) handleError(tripsRes.error);
         if (ordersRes.error) handleError(ordersRes.error);
 
-        const keyOf = (iso: string) => {
+        const keyOf = (iso?: string | null) => {
+            if (!iso) return '';
             const d = new Date(iso);
+            if (Number.isNaN(d.getTime())) return '';
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         };
 
@@ -1989,13 +1991,19 @@ export const dashboardApi = {
             const k = keyOf(r.created_at as string);
             if (k in fuel) fuel[k] += Number(r.liters || 0);
         });
+
         (tripsRes.data || []).forEach((t) => {
-            const k = keyOf(t.start_at as string);
+            const dateStr = (t.start_at || t.created_at) as string;
+            const k = keyOf(dateStr);
             if (k in km) {
-                if (t.status === 'concluida') km[k] += Number(t.distance_km || 0);
+                const status = String(t.status || '').toUpperCase();
+                if (status === 'COMPLETED' || status === 'CONCLUIDA' || status === 'IN_PROGRESS') {
+                    km[k] += Number(t.distance_km || 0);
+                }
                 if (t.vehicle_id) active[k].add(t.vehicle_id as string);
             }
         });
+
         (ordersRes.data || []).forEach((o) => {
             const k = keyOf(o.created_at as string);
             if (k in maint) maint[k] += 1;

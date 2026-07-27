@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
     BarChart,
     Bar,
@@ -11,6 +12,7 @@ import {
 } from 'recharts';
 import { PeriodPresetSelect, PeriodRangeFields, makePeriod, resolvePeriod, type PeriodValue } from './PeriodSelect';
 import { useDepartmentConsumption } from '@/hooks/useDashboard';
+import { departmentsApi } from '@/lib/supabase-api';
 
 /** Rótulo da secretaria escrito na VERTICAL, dentro da barra (de baixo para cima). */
 function VerticalBarLabel(props: { x?: number; y?: number; width?: number; height?: number; value?: string | number }) {
@@ -37,11 +39,60 @@ export default function DepartmentConsumptionChart() {
     const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('1'));
     const { data: rawRows = [], isLoading, isError } = useDepartmentConsumption(resolvePeriod(period));
 
-    // Maiores primeiro (esquerda → direita).
-    const rows = useMemo(
-        () => [...rawRows].sort((a, b) => (Number(b.fuel ?? 0) + Number(b.maintenance ?? 0)) - (Number(a.fuel ?? 0) + Number(a.maintenance ?? 0))),
-        [rawRows],
-    );
+    const { data: departments = [] } = useQuery({
+        queryKey: ['departments'],
+        queryFn: () => departmentsApi.getAll(),
+        staleTime: 5 * 60 * 1000,
+    });
+
+    // Combina dados de consumo reais com todas as secretarias registradas
+    const rows = useMemo(() => {
+        const map = new Map<string, { name: string; fuel: number; maintenance: number }>();
+
+        // 1. Adiciona secretarias cadastradas no sistema com 0
+        if (departments.length > 0) {
+            for (const dep of departments) {
+                map.set(dep.name.toLowerCase(), {
+                    name: dep.name,
+                    fuel: 0,
+                    maintenance: 0,
+                });
+            }
+        }
+
+        // 2. Preenche com os dados de consumo reais
+        for (const r of rawRows) {
+            const key = (r.name || '').toLowerCase();
+            const existing = map.get(key);
+            if (existing) {
+                existing.fuel = Number(r.fuel ?? 0);
+                existing.maintenance = Number(r.maintenance ?? 0);
+            } else {
+                map.set(key, {
+                    name: r.name,
+                    fuel: Number(r.fuel ?? 0),
+                    maintenance: Number(r.maintenance ?? 0),
+                });
+            }
+        }
+
+        // Fallback padrão se não houver secretarias no banco
+        if (map.size === 0) {
+            const defaults = ['Sec. Obras', 'Sec. Saúde', 'Sec. Educação', 'Gabinete'];
+            for (const name of defaults) {
+                map.set(name.toLowerCase(), { name, fuel: 0, maintenance: 0 });
+            }
+        }
+
+        const list = Array.from(map.values());
+        // Ordena por consumo total (maiores primeiro) ou alfabético
+        return list.sort((a, b) => {
+            const totalA = a.fuel + a.maintenance;
+            const totalB = b.fuel + b.maintenance;
+            if (totalA !== totalB) return totalB - totalA;
+            return a.name.localeCompare(b.name);
+        });
+    }, [rawRows, departments]);
 
     // Detecta mobile para mudar o eixo X (nomes vão para dentro das barras) e o scroll.
     const [isMobile, setIsMobile] = useState(false);
@@ -55,6 +106,7 @@ export default function DepartmentConsumptionChart() {
 
     // No mobile, se houver muitas secretarias, libera scroll lateral (largura mínima por barra).
     const minWidth = isMobile ? Math.max(rows.length * 60, 320) : undefined;
+    const isAllZero = rows.every((r) => r.fuel === 0 && r.maintenance === 0);
 
     return (
         <div className="w-full h-full flex flex-col relative">
@@ -80,12 +132,13 @@ export default function DepartmentConsumptionChart() {
                     <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400 font-medium uppercase tracking-widest animate-pulse">
                         Carregando dados...
                     </div>
-                ) : rows.length === 0 || rows.every((r) => r.fuel === 0 && r.maintenance === 0) ? (
-                    <div className="absolute inset-0 flex items-center justify-center text-center text-sm text-slate-400 font-medium px-6">
-                        Nenhum consumo registrado no período.
-                    </div>
                 ) : (
-                    <div className={isMobile ? 'h-full overflow-x-auto' : 'h-full'}>
+                    <div className={isMobile ? 'h-full overflow-x-auto relative' : 'h-full relative'}>
+                        {isAllZero && (
+                            <div className="absolute top-2 right-4 z-10 rounded-full bg-slate-100/90 px-3 py-1 text-[11px] font-semibold text-slate-400 border border-slate-200/60 shadow-2xs backdrop-blur-xs">
+                                Sem lançamentos no período
+                            </div>
+                        )}
                         <div className="h-full" style={{ minWidth }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart

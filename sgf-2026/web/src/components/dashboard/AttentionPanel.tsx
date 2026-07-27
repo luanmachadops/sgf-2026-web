@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { SGFCard } from '@/components/sgf/SGFCard';
-import { AlertCircle, Check, ChevronRight } from '@/components/sgf/icons';
+import { AlertCircle, ChevronRight } from '@/components/sgf/icons';
 import { useDashboardAlerts } from '@/hooks/useDashboard';
 
 /**
@@ -23,7 +23,7 @@ const STYLE: Record<string, { card: string; badge: string; icon: string }> = {
 /** Crítico primeiro: é o que tem consequência legal ou de segurança. */
 const ORDEM: Record<string, number> = { critical: 0, warning: 1, info: 2 };
 
-export function AttentionPanel() {
+export function AttentionPanel({ onOpenModal }: { onOpenModal?: () => void }) {
     const { data: alerts = [], isLoading, isError } = useDashboardAlerts();
 
     if (isLoading) {
@@ -40,19 +40,7 @@ export function AttentionPanel() {
     if (isError) return null;
 
     if (alerts.length === 0) {
-        return (
-            <SGFCard padding="lg" className="border border-emerald-100 bg-emerald-50/40">
-                <div className="flex items-center gap-3">
-                    <div className="rounded-xl bg-emerald-500 p-2 text-white"><Check className="h-4 w-4" /></div>
-                    <div>
-                        <p className="font-bold text-slate-900">Nada pendente por aqui</p>
-                        <p className="text-sm text-slate-500">
-                            Sem CNH vencendo, contrato a expirar ou processo parado esperando você.
-                        </p>
-                    </div>
-                </div>
-            </SGFCard>
-        );
+        return null;
     }
 
     const ordenados = [...alerts].sort(
@@ -73,6 +61,16 @@ export function AttentionPanel() {
                         </p>
                     </div>
                 </div>
+                {onOpenModal && (
+                    <button
+                        type="button"
+                        onClick={onOpenModal}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors shadow-2xs"
+                    >
+                        <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
+                        <span>Abrir modal de avisos</span>
+                    </button>
+                )}
             </div>
 
             <ul className="space-y-2">

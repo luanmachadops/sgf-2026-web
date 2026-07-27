@@ -26,7 +26,7 @@ import {
     Wrench,
     Building2,
 } from '@/components/sgf/icons';
-import { ProcurementAlertsPanel } from '@/components/dashboard/ProcurementAlertsPanel';
+import { SystemAlertsModal } from '@/components/dashboard/SystemAlertsModal';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useBranding } from '@/contexts/BrandingContext';
 import {
@@ -42,6 +42,7 @@ export default function Dashboard() {
     const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler } = useHeader();
     const { branding } = useBranding();
     const [expensePeriod, setExpensePeriod] = useState<PeriodValue>(() => makePeriod('6'));
+    const [isAlertsModalOpen, setIsAlertsModalOpen] = useState<boolean | undefined>(undefined);
 
     // Real Data Hooks
     const { data: resumo, isLoading: isLoadingKPIs } = useDashboardSummary();
@@ -61,13 +62,6 @@ export default function Dashboard() {
         });
     }, [setTitle, setDescription, setSearchPlaceholder, setSearchHandler, navigate]);
 
-    /** Variação vs. mês anterior. Sem base anterior não há percentual honesto. */
-    const delta = (atual?: number, anterior?: number) => {
-        if (!atual || !anterior || anterior === 0) return undefined;
-        return Math.round(((atual - anterior) / anterior) * 100);
-    };
-    const trendOf = (d?: number) => (d === undefined ? undefined : d >= 0 ? 'up' : 'down');
-
     // Formatters for display
     const formatValue = (val: number | undefined) => {
         if (val === undefined) return '0';
@@ -77,13 +71,21 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-6">
-            <ProcurementAlertsPanel />
+            {/* Modal Popup Automático de Avisos (Licitações, CNH, Abastecimentos, Manutenções) */}
+            <SystemAlertsModal isOpen={isAlertsModalOpen} onClose={() => setIsAlertsModalOpen(false)} />
 
             {/* Cabeçalho da Prefeitura (brasão + nome) */}
             <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center ${branding.sealUrl || branding.logoUrl ? '' : 'overflow-hidden rounded-xl bg-[var(--sgf-dark)]'}`}>
-                    {branding.sealUrl || branding.logoUrl ? (
-                        <img src={branding.sealUrl || branding.logoUrl} alt={branding.name} className="h-full w-full object-contain" />
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center ${branding.sealUrl || branding.logoUrl || branding.photoUrl ? '' : 'overflow-hidden rounded-xl bg-[var(--sgf-dark)]'}`}>
+                    {branding.sealUrl || branding.logoUrl || branding.photoUrl ? (
+                        <img
+                            src={branding.sealUrl || branding.logoUrl || branding.photoUrl}
+                            alt={branding.name}
+                            className="h-full w-full object-contain"
+                            onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                        />
                     ) : (
                         <Building2 className="h-6 w-6 text-white" />
                     )}
@@ -99,7 +101,7 @@ export default function Dashboard() {
 
             {/* O que exige ação hoje — antes dos números, porque é o que se faz
                 com a tela aberta. */}
-            <AttentionPanel />
+            <AttentionPanel onOpenModal={() => setIsAlertsModalOpen(true)} />
 
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                 {/* KPIs */}
@@ -121,8 +123,6 @@ export default function Dashboard() {
                         iconColor="text-blue-500"
                         chartColor="#3b82f6"
                         chartData={trends?.fuelLiters ?? []}
-                        percentage={delta(resumo?.combustivel.litrosMes, resumo?.combustivel.litrosMesAnterior)}
-                        trend={trendOf(delta(resumo?.combustivel.litrosMes, resumo?.combustivel.litrosMesAnterior))}
                     />
                     <SGFKPICard
                         title="Manutenções abertas"
@@ -141,29 +141,7 @@ export default function Dashboard() {
                         iconColor="text-rose-500"
                         chartColor="#f43f5e"
                         chartData={trends?.distanceKm ?? []}
-                        percentage={delta(resumo?.viagens.kmMes, resumo?.viagens.kmMesAnterior)}
-                        trend={trendOf(delta(resumo?.viagens.kmMes, resumo?.viagens.kmMesAnterior))}
                     />
-                </div>
-
-                {/* Indicadores que já eram calculados e não apareciam na tela */}
-                <div className="mb-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
-                    {[
-                        { rotulo: 'Disponibilidade da frota', valor: `${resumo?.frota.disponibilidade ?? 0}%`,
-                          nota: `${resumo?.frota.disponiveis ?? 0} liberados · ${resumo?.frota.emManutencao ?? 0} em manutenção` },
-                        { rotulo: 'Consumo médio', valor: `${resumo?.combustivel.kmPorLitro ?? 0} km/L`,
-                          nota: `${resumo?.combustivel.anomaliasMes ?? 0} divergência(s) no mês` },
-                        { rotulo: 'CNH vencendo', valor: String(resumo?.motoristas.cnhVencendo ?? 0),
-                          nota: `${resumo?.motoristas.ativos ?? 0} motorista(s) ativo(s)` },
-                        { rotulo: 'Tempo médio de manutenção', valor: `${resumo?.manutencao.diasResolucao ?? 0} dias`,
-                          nota: `${resumo?.manutencao.aguardandoEmpenho ?? 0} aguardando empenho` },
-                    ].map((item) => (
-                        <div key={item.rotulo} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{item.rotulo}</p>
-                            <p className="mt-1 text-xl font-black text-slate-900">{item.valor}</p>
-                            <p className="mt-0.5 text-[11px] text-slate-500">{item.nota}</p>
-                        </div>
-                    ))}
                 </div>
 
                 {/* Main Content Grid */}
