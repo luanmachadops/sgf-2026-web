@@ -9,7 +9,7 @@ import { FileText, Plus, X, Download, Loader2, Camera, Sparkles } from '@/compon
 import { departmentsApi, vehiclesApi, vehicleDocumentsApi } from '@/lib/supabase-api';
 import { supabase } from '@/lib/supabase';
 import { uploadFoto } from '@/lib/fotoStorage';
-import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
+import { resizeAndConvertToWebP, isImageFile, uploadFileId } from '@/lib/imageUtils';
 import { uploadPrivateDoc } from '@/lib/docStorage';
 import { VehicleAIModal } from '@/components/vehicles/VehicleAIModal';
 import { useAuth } from '@/contexts/AuthContext';
@@ -141,7 +141,7 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
         try {
             setUploadingPhoto(true);
             const blob = await resizeAndConvertToWebP(file, 1000);
-            const fileName = `vehicles/${vehicle.id}-${Date.now()}.webp`;
+            const fileName = `vehicles/${vehicle.id}-${uploadFileId()}.webp`;
             const { publicUrl } = await uploadFoto(fileName, blob, 'image/webp');
             setPhotoUrl(publicUrl);
             toast.success('Foto anexada. Salve para confirmar.');

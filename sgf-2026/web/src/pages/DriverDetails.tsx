@@ -23,7 +23,6 @@ import {
     Car,
 } from '@/components/sgf/icons';
 import { EditDriverModal } from '@/components/drivers/EditDriverModal';
-import { normalizeImageUrl } from '@/lib/imageUtils';
 import { DriverAccessForm } from '@/components/drivers/DriverAccessForm';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
 import { Modal } from '@/components/ui/Modal';
@@ -252,7 +251,7 @@ export default function DriverDetails() {
                                     <div className="aspect-[4/3] w-full bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-center overflow-hidden shadow-inner">
                                         {d.photo_url ? (
                                             <img
-                                                src={normalizeImageUrl(d.photo_url)}
+                                                src={d.photo_url}
                                                 alt={d.full_name}
                                                 className="w-full h-full object-cover"
                                             />

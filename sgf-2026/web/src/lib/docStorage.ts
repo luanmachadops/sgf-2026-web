@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { prepareUpload } from './imageUtils';
+import { prepareUpload, uploadFileId } from './imageUtils';
 
 const DOC_BUCKET = 'documentos';
 
@@ -16,7 +16,7 @@ export async function uploadPrivateDoc(
 ): Promise<string> {
   if (!tenantId) throw new Error('Sem prefeitura definida para o upload do documento.');
   const prepared = await prepareUpload(file, { maxSize: 1600, quality: 0.85 });
-  const path = `${folder}/${tenantId}/${key}-${Date.now()}.${prepared.ext}`;
+  const path = `${folder}/${tenantId}/${key}-${uploadFileId()}.${prepared.ext}`;
   const { error } = await supabase.storage.from(DOC_BUCKET).upload(path, prepared.blob, {
     contentType: prepared.contentType,
     upsert: true,

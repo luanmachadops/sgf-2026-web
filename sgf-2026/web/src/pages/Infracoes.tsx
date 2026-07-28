@@ -34,7 +34,7 @@ import { infractionsApi, driversApi, vehiclesApi, tripsApi, type InfractionCandi
 import { formatCurrency, formatDate, formatPlate, formatDriverLabel } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { uploadFoto } from '@/lib/fotoStorage';
-import { prepareUpload } from '@/lib/imageUtils';
+import { prepareUpload, uploadFileId } from '@/lib/imageUtils';
 import type { Tables } from '@/types/database.types';
 
 type InfractionRow = Tables<'infractions'> & {
@@ -370,7 +370,7 @@ function NewInfractionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
             setUploadingFile(true);
             const prepared = await prepareUpload(file, { maxSize: 1400, quality: 0.8 });
             const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^\w.\-]+/g, '_');
-            const fileName = `infractions/${Date.now()}-${safe}.${prepared.ext}`;
+            const fileName = `infractions/${uploadFileId()}-${safe}.${prepared.ext}`;
             const { publicUrl } = await uploadFoto(fileName, prepared.blob, prepared.contentType);
             setAttachmentUrl(publicUrl);
             setAttachmentName(file.name);

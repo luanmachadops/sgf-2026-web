@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { uploadFoto } from './fotoStorage';
-import { resizeAndConvertToWebP } from './imageUtils';
+import { resizeAndConvertToWebP, uploadFileId } from './imageUtils';
 import { uploadPrivateDoc } from './docStorage';
 
 const DOC_BUCKET = 'documentos';
@@ -100,7 +100,7 @@ export async function extractVehicleWithPhotos(
         } else {
             const blob = await resizeAndConvertToWebP(s.file, 1000);
             const dir = vehicleId ? `vehicles/${vehicleId}` : 'vehicles/ai';
-            const fileName = `${dir}/${s.type}-${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
+            const fileName = `${dir}/${s.type}-${uploadFileId()}.webp`;
             const { publicUrl } = await uploadFoto(fileName, blob, 'image/webp', { tenantId });
             photos.push({ type: s.type, url: publicUrl });
             imagesForAI.push(publicUrl);

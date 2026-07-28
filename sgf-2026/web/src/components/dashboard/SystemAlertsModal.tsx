@@ -18,6 +18,7 @@ import { procurementApi, type ProcurementAlert } from '@/lib/procurement-api';
 import { useDashboardAlerts } from '@/hooks/useDashboard';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { supabase } from '@/lib/supabase';
+import { signFotos } from '@/lib/fotoStorage';
 import { formatDate } from '@/lib/utils';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -83,9 +84,11 @@ export function SystemAlertsModal({ isOpen: externalIsOpen, onClose: externalOnC
                 supabase.from('fuel_stations').select('id, photo_url'),
                 supabase.from('repair_shops').select('id, photo_url'),
             ]);
+            // Único componente que consulta o Supabase direto, então assina
+            // aqui o que a camada de API assinaria por ele.
+            const rows = await signFotos([...(stations.data || []), ...(shops.data || [])]);
             const map = new Map<string, string>();
-            (stations.data || []).forEach((s) => { if (s.photo_url) map.set(s.id, s.photo_url); });
-            (shops.data || []).forEach((s) => { if (s.photo_url) map.set(s.id, s.photo_url); });
+            rows.forEach((s) => { if (s.photo_url) map.set(s.id, s.photo_url); });
             return map;
         },
         staleTime: 5 * 60 * 1000,
@@ -100,6 +103,7 @@ export function SystemAlertsModal({ isOpen: externalIsOpen, onClose: externalOnC
                 .select('id, full_name, photo_url, cnh_expiry, cnh_category')
                 .eq('role', 'motorista')
                 .not('cnh_expiry', 'is', null);
+            await signFotos(data);
 
             const now = new Date();
             now.setHours(0, 0, 0, 0);

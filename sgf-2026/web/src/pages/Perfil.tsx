@@ -9,7 +9,7 @@ import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { uploadFoto } from '@/lib/fotoStorage';
-import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
+import { resizeAndConvertToWebP, isImageFile, uploadFileId } from '@/lib/imageUtils';
 import { maskPhone } from '@/lib/utils';
 
 function getInitials(name: string) {
@@ -70,7 +70,7 @@ export default function Perfil() {
         try {
             setUploading(true);
             const blob = await resizeAndConvertToWebP(file, 512);
-            const { publicUrl } = await uploadFoto(`drivers/${user.id}-${Date.now()}.webp`, blob, 'image/webp');
+            const { publicUrl } = await uploadFoto(`drivers/${user.id}-${uploadFileId()}.webp`, blob, 'image/webp');
             setPhotoUrl(publicUrl);
             toast.success('Foto carregada. Salve para confirmar.');
         } catch (err) {

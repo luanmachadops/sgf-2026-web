@@ -46,7 +46,7 @@ import {
     maintenancesApi,
     type VehicleRecord,
 } from '@/lib/supabase-api';
-import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
+import { resizeAndConvertToWebP, isImageFile, uploadFileId } from '@/lib/imageUtils';
 import { resolveDocUrl } from '@/lib/docStorage';
 import { toast } from 'sonner';
 import type { Tables } from '@/types/database.types';
@@ -179,7 +179,7 @@ export default function VehicleDetails() {
             toast.info('Processando imagem...');
 
             const optimizedBlob = await resizeAndConvertToWebP(file, 1000);
-            const fileName = `vehicles/${vehicle.id}-${Date.now()}.webp`;
+            const fileName = `vehicles/${vehicle.id}-${uploadFileId()}.webp`;
 
             // Garante que a sessão (JWT) está válida e fresca antes do upload.
             // Resolve o race condition em que o storage client envia um header de auth stale.
@@ -216,7 +216,7 @@ export default function VehicleDetails() {
             for (const file of files) {
                 if (!isImageFile(file)) continue;
                 const blob = await resizeAndConvertToWebP(file, 1000);
-                const fileName = `vehicles/${vehicle.id}/foto-${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
+                const fileName = `vehicles/${vehicle.id}/foto-${uploadFileId()}.webp`;
                 const { publicUrl } = await uploadFoto(fileName, blob, 'image/webp');
                 await vehicleDocumentsApi.add({ vehicleId: vehicle.id, url: publicUrl, title: 'Foto do veículo', docType: 'foto' });
                 if (!firstUrl) firstUrl = publicUrl;

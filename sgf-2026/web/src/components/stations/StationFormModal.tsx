@@ -9,7 +9,7 @@ import { useCreateStation, useUpdateStation } from '@/hooks/useStations';
 import { ProcurementContractFields } from '@/components/procurement/ProcurementContractFields';
 import { validateProcurementContract } from '@/lib/procurement-contract';
 import { uploadFoto } from '@/lib/fotoStorage';
-import { resizeAndConvertToWebP, isImageFile, prepareDocumentUpload, formatFileSize, DOCUMENT_ACCEPT } from '@/lib/imageUtils';
+import { resizeAndConvertToWebP, isImageFile, prepareDocumentUpload, formatFileSize, DOCUMENT_ACCEPT, uploadFileId } from '@/lib/imageUtils';
 import { maskCNPJ, maskPhone } from '@/lib/utils';
 import type { Tables } from '@/types/database.types';
 
@@ -122,7 +122,7 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
         try {
             setUploadingPhoto(true);
             const blob = await resizeAndConvertToWebP(file, 1000);
-            const { publicUrl } = await uploadFoto(`stations/${Date.now()}.webp`, blob, 'image/webp');
+            const { publicUrl } = await uploadFoto(`stations/${uploadFileId()}.webp`, blob, 'image/webp');
             setPhotoUrl(publicUrl);
             toast.success('Foto carregada. Salve para confirmar.');
         } catch (err) {
@@ -144,7 +144,7 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
             try {
                 const prepared = await prepareDocumentUpload(file, { maxSize: 1400, quality: 0.8 });
                 const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_');
-                const fileName = `station-docs/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}.${prepared.ext}`;
+                const fileName = `station-docs/${uploadFileId()}-${safe}.${prepared.ext}`;
                 const { publicUrl } = await uploadFoto(fileName, prepared.blob, prepared.contentType);
                 anexados.push({ name: file.name, url: publicUrl, size: file.size, uploadedAt: new Date().toISOString() });
             } catch (err) {

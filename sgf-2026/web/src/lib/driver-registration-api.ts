@@ -1,5 +1,17 @@
 import { supabase } from './supabase';
 
+/**
+ * NOTA (fechamento do bucket `fotos`): esta lib não lê nada do `fotos`, então
+ * não usa o resolver de `fotoStorage`. Auditado campo a campo:
+ * - `cnhUrls` e `cnh_*_path` vivem no bucket privado `documentos` e já vêm
+ *   assinados pela Edge Function `driver-registration`;
+ * - `tenant.logo_url` / `seal_url` são URL pública do bucket `branding`, que
+ *   continua público de propósito — a página de convite renderiza sem sessão e
+ *   não teria como assinar nada.
+ * Se algum dia esta lib passar a devolver campo do `fotos`, envelope o objeto
+ * com `withFotoUrls`.
+ */
+
 type Envelope<T> = { data?: T; error?: string };
 
 export type DriverRegistrationRequest = {

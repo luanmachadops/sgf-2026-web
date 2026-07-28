@@ -26,7 +26,6 @@ import { Modal } from '@/components/ui/Modal';
 import { useHeader } from '@/contexts/HeaderContext';
 import { departmentsApi } from '@/lib/supabase-api';
 import { formatCPF, formatDate, getStatusColor, getStatusLabel, formatPhone, formatCNH } from '@/lib/utils';
-import { normalizeImageUrl } from '@/lib/imageUtils';
 import { useDrivers, type DriverRecord } from '@/hooks/useDrivers';
 import { useAppSettings } from '@/hooks/useSettings';
 
@@ -446,7 +445,7 @@ export default function Drivers() {
                                 </div>
                                 {(row as { photo_url?: string | null }).photo_url && (
                                     <img
-                                        src={normalizeImageUrl((row as { photo_url?: string | null }).photo_url as string)}
+                                        src={(row as { photo_url?: string | null }).photo_url as string}
                                         alt={row.name}
                                         loading="lazy"
                                         className="absolute inset-0 h-[62px] w-[62px] rounded-full object-cover ring-1 ring-slate-200 bg-white"

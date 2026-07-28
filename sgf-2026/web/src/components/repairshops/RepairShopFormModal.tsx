@@ -14,6 +14,7 @@ import { resolveDocUrl, uploadPrivateDoc } from '@/lib/docStorage';
 import {
     resizeAndConvertToWebP, isImageFile,
     formatFileSize, DOCUMENT_ACCEPT,
+    uploadFileId,
 } from '@/lib/imageUtils';
 import { maskCNPJ, maskPhone } from '@/lib/utils';
 import type { Tables } from '@/types/database.types';
@@ -214,7 +215,7 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
         try {
             setUploadingPhoto(true);
             const blob = await resizeAndConvertToWebP(file, 1000);
-            const { publicUrl } = await uploadFoto(`repair-shops/${Date.now()}.webp`, blob, 'image/webp');
+            const { publicUrl } = await uploadFoto(`repair-shops/${uploadFileId()}.webp`, blob, 'image/webp');
             setPhotoUrl(publicUrl);
             toast.success('Foto carregada. Salve para confirmar.');
         } catch (err) {

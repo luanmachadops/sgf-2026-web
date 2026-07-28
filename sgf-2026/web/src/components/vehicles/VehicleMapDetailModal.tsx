@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from '@/components/ui/Modal';
+import { storageThumbUrl } from '@/lib/imageUtils';
 import {
     Car,
     User,
@@ -73,13 +74,9 @@ function getMinutesDiff(iso: string | null): number {
     return Math.floor(ms / 60000);
 }
 
+/** Ver `storageThumbUrl`: com o `fotos` privado o endpoint é `/render/image/sign/`. */
 function thumbUrl(url: string | null | undefined, width = 800): string {
-    if (!url) return '';
-    if (url.includes('/storage/v1/object/public/')) {
-        const base = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/');
-        return `${base}${base.includes('?') ? '&' : '?'}width=${width}&height=360&resize=cover&quality=85`;
-    }
-    return url;
+    return storageThumbUrl(url, { width, height: 360, quality: 85 });
 }
 
 export function VehicleMapDetailModal({

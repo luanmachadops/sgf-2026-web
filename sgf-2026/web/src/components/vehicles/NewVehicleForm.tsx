@@ -11,7 +11,7 @@ import { departmentsApi, vehiclesApi, vehicleDocumentsApi } from '@/lib/supabase
 import { VEHICLE_TYPES, extractVehicleWithPhotos, type ExtractWithPhotosResult, type VehiclePhotoSlot } from '@/lib/vehicleAI';
 import type { TablesInsert } from '@/types/database.types';
 import { useAuth } from '@/contexts/AuthContext';
-import { isImageFile, resizeAndConvertToWebP } from '@/lib/imageUtils';
+import { isImageFile, resizeAndConvertToWebP, uploadFileId } from '@/lib/imageUtils';
 import { supabase } from '@/lib/supabase';
 import { uploadFoto } from '@/lib/fotoStorage';
 
@@ -225,7 +225,7 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
                 try {
                     setIsUploading(true);
                     const optimizedBlob = await resizeAndConvertToWebP(vehiclePhotoFile, 1024);
-                    const fileName = `vehicles/${created.id}-${Date.now()}.webp`;
+                    const fileName = `vehicles/${created.id}-${uploadFileId()}.webp`;
                     const { publicUrl } = await uploadFoto(fileName, optimizedBlob, 'image/webp');
                     await vehiclesApi.updatePhoto(created.id, publicUrl);
                 } catch (e) {
@@ -249,7 +249,7 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
             if (crlvFile) {
                 try {
                     const ext = crlvFile.name.split('.').pop() || 'pdf';
-                    const docPath = `documents/${created.id}/crlv-${Date.now()}.${ext}`;
+                    const docPath = `documents/${created.id}/crlv-${uploadFileId()}.${ext}`;
                     const { error: docError } = await supabase.storage
                         .from('documentos')
                         .upload(docPath, crlvFile, { upsert: true });

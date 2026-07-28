@@ -8,6 +8,7 @@ import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { VehicleMapDetailModal } from '@/components/vehicles/VehicleMapDetailModal';
 import { Car, Navigation, Search, User, Building2, MapPin, Clock, AlertTriangle, Wrench } from '@/components/sgf/icons';
 import { cn, formatDateTime, formatPlate } from '@/lib/utils';
+import { storageThumbUrl } from '@/lib/imageUtils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { supabase } from '@/lib/supabase';
 import { mapApi, departmentsApi, type LiveVehicle } from '@/lib/supabase-api';
@@ -31,17 +32,13 @@ const STATUS_STYLE: Record<LiveVehicle['status'], { color: string; svg: string }
 };
 
 /**
- * Miniatura compacta: se for uma URL pública do Supabase Storage, usa a
- * transformação de imagem (render/image) para baixar uma versão pequena/rápida.
- * Caso contrário, devolve a URL original.
+ * Miniatura compacta: usa a transformação de imagem do Storage para baixar uma
+ * versão pequena/rápida. O bucket `fotos` é privado, então a URL que chega
+ * aqui é assinada e o endpoint correto é `/render/image/sign/` — quem cuida
+ * disso é `storageThumbUrl`.
  */
 function thumbUrl(url: string | null | undefined, width = 96): string {
-    if (!url) return '';
-    if (url.includes('/storage/v1/object/public/')) {
-        const base = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/');
-        return `${base}${base.includes('?') ? '&' : '?'}width=${width}&height=${width}&resize=cover&quality=70`;
-    }
-    return url;
+    return storageThumbUrl(url, { width, height: width, quality: 70 });
 }
 
 function createMarkerIcon(status: LiveVehicle['status'], photo?: string | null) {

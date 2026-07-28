@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { uploadFoto } from '@/lib/fotoStorage';
+import { uploadFoto, withFotoUrls } from '@/lib/fotoStorage';
 import { optimizeImage, validateUploadFile } from '@/lib/imageUtils';
 import type { Json } from '@/types/database.types';
 
@@ -80,7 +80,7 @@ function throwIfError(error: { message: string } | null): void {
     if (error) throw new Error(error.message);
 }
 
-export const stationPortalApi = {
+export const stationPortalApi = withFotoUrls({
     getContext: async (): Promise<StationContext> => {
         const { data, error } = await supabase.rpc('partner_read_context');
         throwIfError(error);
@@ -248,7 +248,9 @@ export const stationPortalApi = {
                 p_liters: input.liters,
                 p_odometer: input.odometer,
                 p_receipt_no: input.receiptNo.trim(),
-                p_photo_url: uploaded.publicUrl,
+                // Grava o PATH, nunca a URL: URL assinada expira, URL pública
+                // morre quando o bucket fechar. A leitura assina na hora.
+                p_photo_url: uploaded.path,
             });
             throwIfError(error);
             const result = data?.[0];
@@ -264,4 +266,4 @@ export const stationPortalApi = {
             throw error;
         }
     },
-};
+});

@@ -200,13 +200,47 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
- * Normaliza URLs de imagens do Supabase Storage.
- * Garante que a URL pública contenha `/storage/v1/object/public/` para exibição direta na tag <img> sem erros 400.
+ * Identificador de arquivo para upload.
+ *
+ * Substitui `Date.now()`: timestamp em milissegundos é enumerável — quem tem
+ * uma URL adivinha as vizinhas variando alguns milissegundos. Com o bucket
+ * privado o risco cai muito, mas o path ainda vaza em log, em `Referer` e em
+ * URL assinada compartilhada, então não custa nada fechar.
  */
-export function normalizeImageUrl(url?: string | null): string {
+export function uploadFileId(): string {
+    return typeof crypto?.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * Miniatura pelo endpoint de transformação do Supabase Storage.
+ *
+ * ARMADILHA QUE ESTA FUNÇÃO EXISTE PARA FECHAR
+ * A transformação tem um endpoint por modo de acesso: `/render/image/public/`
+ * só serve bucket público, e `/render/image/sign/` serve objeto assinado. Com
+ * o `fotos` fechado, as URLs que chegam aqui são assinadas
+ * (`/object/sign/…?token=…`) — reescrever para `/render/image/public/` daria
+ * 400 e as fotos do mapa sumiriam sem que ninguém ligasse o fato à migração.
+ * Reescrevemos preservando o modo, e o `?token=` é mantido porque
+ * `/render/image/sign/` exige o mesmo token do objeto.
+ *
+ * Qualquer URL que não seja de transformação suportada volta intacta.
+ */
+export function storageThumbUrl(
+    url: string | null | undefined,
+    opts: { width: number; height?: number; quality?: number; resize?: 'cover' | 'contain' | 'fill' },
+): string {
     if (!url) return '';
-    if (url.includes('/storage/v1/object/fotos/') && !url.includes('/storage/v1/object/public/fotos/')) {
-        return url.replace('/storage/v1/object/fotos/', '/storage/v1/object/public/fotos/');
-    }
-    return url;
+    const rewritten = url
+        .replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
+        .replace('/storage/v1/object/sign/', '/storage/v1/render/image/sign/');
+    if (rewritten === url) return url;
+
+    const params = new URLSearchParams();
+    params.set('width', String(opts.width));
+    if (opts.height) params.set('height', String(opts.height));
+    params.set('resize', opts.resize ?? 'cover');
+    params.set('quality', String(opts.quality ?? 75));
+    return `${rewritten}${rewritten.includes('?') ? '&' : '?'}${params.toString()}`;
 }

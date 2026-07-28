@@ -10,7 +10,7 @@ import { departmentsApi, driversApi } from '@/lib/supabase-api';
 import { extractDriverFromCNH } from '@/lib/driverAI';
 import { supabase } from '@/lib/supabase';
 import { uploadFoto } from '@/lib/fotoStorage';
-import { resizeAndConvertToWebP, isImageFile, normalizeImageUrl } from '@/lib/imageUtils';
+import { resizeAndConvertToWebP, isImageFile, uploadFileId } from '@/lib/imageUtils';
 import { maskCPF, maskPhone } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Tables, TablesUpdate } from '@/types/database.types';
@@ -135,12 +135,11 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
         try {
             setIsUploading(true);
             const optimizedBlob = await resizeAndConvertToWebP(file, 512);
-            const fileName = `drivers/${driver.id}-${Date.now()}.webp`;
+            const fileName = `drivers/${driver.id}-${uploadFileId()}.webp`;
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error('Sessão expirada. Faça login novamente.');
             const { publicUrl } = await uploadFoto(fileName, optimizedBlob, 'image/webp');
-            const finalUrl = normalizeImageUrl(publicUrl);
-            setPhotoUrl(finalUrl);
+            setPhotoUrl(publicUrl);
             toast.success('Foto carregada. Salve para confirmar.');
         } catch (err) {
             const message = (err as { message?: string })?.message ?? 'Erro ao enviar a foto.';

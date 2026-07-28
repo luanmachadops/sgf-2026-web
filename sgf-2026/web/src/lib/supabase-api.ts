@@ -5,7 +5,8 @@
  */
 
 import { supabase } from './supabase';
-import { uploadFoto } from './fotoStorage';
+import { withFotoUrls } from './fotoStorage';
+import { uploadBranding } from './brandingStorage';
 import { optimizeImage, IMAGE_PRESETS } from './imageUtils';
 import type { Enums, Tables, TablesInsert, TablesUpdate } from '@/types/database.types';
 import type { VehicleStatus, DriverStatus, TripStatus, MaintenanceStatus } from '@/types';
@@ -328,7 +329,7 @@ function decorateVehicle(row: Record<string, unknown>): VehicleRecord {
     } as unknown as VehicleRecord;
 }
 
-export const vehiclesApi = {
+export const vehiclesApi = withFotoUrls({
     getAll: async (filters?: {
         departmentId?: string;
         status?: string;
@@ -436,13 +437,13 @@ export const vehiclesApi = {
         if (error) handleError(error);
         return data;
     },
-};
+});
 
 // ========================================
 // VEHICLE DOCUMENTS / PHOTOS (placa, renavam, hodômetro, extras)
 // ========================================
 
-export const vehicleDocumentsApi = {
+export const vehicleDocumentsApi = withFotoUrls({
     getByVehicle: async (vehicleId: string): Promise<Tables<'vehicle_documents'>[]> => {
         const { data, error } = await supabase
             .from('vehicle_documents')
@@ -467,7 +468,7 @@ export const vehicleDocumentsApi = {
         const { error } = await supabase.from('vehicle_documents').delete().eq('id', id);
         if (error) handleError(error);
     },
-};
+});
 
 // ========================================
 // DRIVERS
@@ -492,7 +493,7 @@ function decorateDriver(profile: Record<string, unknown>): DriverRecord {
     } as unknown as DriverRecord;
 }
 
-export const driversApi = {
+export const driversApi = withFotoUrls({
     getAll: async (filters?: {
         departmentId?: string;
         status?: string;
@@ -578,7 +579,7 @@ export const driversApi = {
         if (error) handleError(error);
         return data as Tables<'profiles'>;
     },
-};
+});
 
 // ========================================
 // TRIPS
@@ -599,7 +600,7 @@ function decorateTrip(row: Record<string, unknown>): TripRecord {
     } as unknown as TripRecord;
 }
 
-export const tripsApi = {
+export const tripsApi = withFotoUrls({
     getAll: async (filters?: {
         vehicleId?: string;
         driverId?: string;
@@ -653,7 +654,7 @@ export const tripsApi = {
         if (error) handleError(error);
         return (data ?? []) as Tables<'trip_locations'>[];
     },
-};
+});
 
 // ========================================
 // MAPA (Centro de Comando) — posições reais
@@ -706,7 +707,7 @@ function buildModel(v: VehicleEmbed): string {
     return [v?.brand, v?.model].filter(Boolean).join(' ') || 'Veículo';
 }
 
-export const mapApi = {
+export const mapApi = withFotoUrls({
     // Rastreamento contínuo: TODOS os veículos com rastreador (device_status, sinal do
     // hardware IOPGPS) — mesmo sem viagem — enriquecidos com motorista/destino quando há
     // viagem ativa. Veículos em viagem SEM rastreador caem no app do motorista (fallback).
@@ -860,7 +861,7 @@ export const mapApi = {
 
         return Array.from(byVehicle.values());
     },
-};
+});
 
 // ========================================
 // INFRAÇÕES (multas)
@@ -876,7 +877,7 @@ export interface InfractionCandidate {
     destination: string | null;
 }
 
-export const infractionsApi = {
+export const infractionsApi = withFotoUrls({
     getAll: async (filters?: { status?: string; search?: string }) => {
         let query = supabase
             .from('infractions')
@@ -1002,7 +1003,7 @@ export const infractionsApi = {
         if (error) handleError(error);
         return data as Tables<'infractions'>;
     },
-};
+});
 
 // ========================================
 // REFUELINGS
@@ -1022,7 +1023,7 @@ function decorateFueling(row: Record<string, unknown>): RefuelingRecord {
 }
 
 // "refuelings" no banco unificado = fuelings (já com colunas de validação/anomalia)
-export const refuelingsApi = {
+export const refuelingsApi = withFotoUrls({
     getAll: async (filters?: {
         vehicleId?: string;
         driverId?: string;
@@ -1148,7 +1149,7 @@ export const refuelingsApi = {
         if (error) handleError(error);
         return data;
     },
-};
+});
 
 // ========================================
 // MAINTENANCES
@@ -1167,7 +1168,7 @@ export interface MaintenanceRequestInput {
     checklistId?: string | null;
 }
 
-export const maintenancesApi = {
+export const maintenancesApi = withFotoUrls({
     getAll: async (filters?: {
         vehicleId?: string;
         status?: string;
@@ -1248,7 +1249,7 @@ export const maintenancesApi = {
         });
         if (error) handleError(error);
     },
-};
+});
 
 // ========================================
 // CHECKLISTS
@@ -1272,7 +1273,7 @@ export type ChecklistListRecord = Tables<'checklists'> & {
     service_orders?: { id: string; status: Enums<'service_order_status'> }[] | null;
 };
 
-export const checklistsApi = {
+export const checklistsApi = withFotoUrls({
     getAll: async (filters?: {
         vehicleId?: string;
         driverId?: string;
@@ -1348,7 +1349,7 @@ export const checklistsApi = {
         if (error) handleError(error);
         return (data ?? []) as Tables<'checklist_items'>[];
     },
-};
+});
 
 // ========================================
 // CONFIGURAÇÕES (app_settings — singleton)
@@ -1376,7 +1377,7 @@ function mapSettings(d: Record<string, unknown> | null): AppSettings {
     };
 }
 
-export const settingsApi = {
+export const settingsApi = withFotoUrls({
     get: async (): Promise<AppSettings> => {
         const { data, error } = await supabase
             .from('app_settings')
@@ -1403,7 +1404,7 @@ export const settingsApi = {
         if (error) handleError(error);
         return mapSettings(data as Record<string, unknown> | null);
     },
-};
+});
 
 // ========================================
 // TENANT (prefeitura — identidade / white-label)
@@ -1471,11 +1472,19 @@ export const tenantApi = {
         if (error) handleError(error);
     },
 
-    /** Upload de imagem de branding (logo/brasão/foto) no bucket público `fotos` — otimizada. */
+    /**
+     * Upload de imagem de marca (logo/brasão/foto) no bucket público
+     * `branding` — otimizada.
+     *
+     * Ia para o `fotos` via `uploadFoto`, que prefixa `tenant/<id>/`: o
+     * arquivo caía em `tenant/<id>/branding/…` de um bucket que está prestes a
+     * ficar privado, e a logo desapareceria das telas pré-login (painel, app e
+     * página de convite) na primeira troca de marca. Ver `brandingStorage.ts`.
+     */
     uploadBrandingImage: async (tenantId: string, kind: 'logo' | 'seal' | 'photo', file: File): Promise<string> => {
         const preset = kind === 'photo' ? IMAGE_PRESETS.photo : IMAGE_PRESETS.logo;
         const opt = await optimizeImage(file, preset);
-        const { publicUrl } = await uploadFoto(`branding/${kind}-${Date.now()}.${opt.ext}`, opt.blob, opt.contentType, { tenantId });
+        const { publicUrl } = await uploadBranding(tenantId, kind, opt.blob, opt.contentType, opt.ext);
         return publicUrl;
     },
 };
@@ -1484,7 +1493,7 @@ export const tenantApi = {
 // DEPARTMENTS
 // ========================================
 
-export const departmentsApi = {
+export const departmentsApi = withFotoUrls({
     getAll: async (): Promise<Tables<'departments'>[]> => {
         const { data, error } = await supabase
             .from('departments')
@@ -1842,13 +1851,13 @@ export const departmentsApi = {
             checklistIssues,
         };
     },
-};
+});
 
 // ========================================
 // DASHBOARD (Supabase Aggregations)
 // ========================================
 
-export const dashboardApi = {
+export const dashboardApi = withFotoUrls({
     getKPIs: async () => {
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -2168,7 +2177,7 @@ export const dashboardApi = {
             };
         });
     },
-};
+});
 
 // ========================================
 // FUEL STATIONS (Postos)
@@ -2184,7 +2193,7 @@ export interface StationDetail {
     recent:        Tables<'fuelings'>[];
 }
 
-export const stationsApi = {
+export const stationsApi = withFotoUrls({
     getAll: async (filters?: { activeOnly?: boolean; search?: string }) => {
         let query = supabase
             .from('fuel_stations')
@@ -2336,13 +2345,13 @@ export const stationsApi = {
             recent: (recentRes.data ?? []) as Tables<'fuelings'>[],
         };
     },
-};
+});
 
 // ========================================
 // USER PROFILE
 // ========================================
 
-export const userProfileApi = {
+export const userProfileApi = withFotoUrls({
     getProfile: async (): Promise<Tables<'profiles'> | null> => {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         if (!authUser) return null;
@@ -2359,7 +2368,7 @@ export const userProfileApi = {
         }
         return data as Tables<'profiles'>;
     },
-};
+});
 
 // ========================================
 // NOTIFICATIONS (alertas para admin/gestor)
@@ -2368,7 +2377,7 @@ export const userProfileApi = {
 // Destinatário = driver_id (= auth.users.id). Vale para admin/gestor e motoristas.
 export type NotificationRecord = Tables<'notifications'>;
 
-export const notificationsApi = {
+export const notificationsApi = withFotoUrls({
     list: async (userId: string, limit = 30): Promise<NotificationRecord[]> => {
         const { data, error } = await supabase
             .from('notifications')
@@ -2435,7 +2444,7 @@ export const notificationsApi = {
         const list = (data ?? []) as NotificationRecord[];
         return { data: list, hasMore: list.length === limit };
     },
-};
+});
 
 // ─── Oficinas mecânicas ─────────────────────────────────────────────────────
 export interface RepairShopDetail {
@@ -2448,7 +2457,7 @@ export interface RepairShopDetail {
     recent:        Tables<'service_orders'>[];
 }
 
-export const repairShopsApi = {
+export const repairShopsApi = withFotoUrls({
     getAll: async (filters?: { activeOnly?: boolean; search?: string }) => {
         let query = supabase.from('repair_shops').select('*').order('name', { ascending: true });
         if (filters?.activeOnly) query = query.eq('is_active', true);
@@ -2569,7 +2578,7 @@ export const repairShopsApi = {
             recent: (recentRes.data ?? []) as Tables<'service_orders'>[],
         };
     },
-};
+});
 
 // ─── Fluxo fiscal da OS (orçamento → empenho → NF → ateste → pagamento) ─────
 //
@@ -2583,7 +2592,7 @@ export type FinStatus = Enums<'service_order_fin_status'>;
 export interface QuoteItem { id: string; kind: 'peca' | 'mao_de_obra'; description: string; qty: number; unit_price: number }
 export interface Quote extends Tables<'service_order_quotes'> { items: QuoteItem[] }
 
-export const serviceOrderFiscalApi = {
+export const serviceOrderFiscalApi = withFotoUrls({
     /** Orçamentos da OS, mais recente primeiro, com itens. */
     quotes: async (orderId: string): Promise<Quote[]> => {
         const { data, error } = await supabase
@@ -2700,7 +2709,7 @@ export const serviceOrderFiscalApi = {
         if (error) handleError(error);
         return (data ?? []) as (Tables<'service_order_events'> & { profiles?: { full_name: string } | null })[];
     },
-};
+});
 
 // ─── Dashboard: agregação no banco ──────────────────────────────────────────
 export interface DashboardSummary {
@@ -2720,7 +2729,7 @@ export interface DashboardAlert {
     link: string;
 }
 
-export const dashboardSummaryApi = {
+export const dashboardSummaryApi = withFotoUrls({
     /**
      * Um JSON pequeno com tudo já somado no Postgres.
      * Substitui o caminho antigo, que baixava service_orders inteira (sem
@@ -2741,4 +2750,4 @@ export const dashboardSummaryApi = {
             title: r.title, detail: r.detail, count: Number(r.count), link: r.link,
         }));
     },
-};
+});

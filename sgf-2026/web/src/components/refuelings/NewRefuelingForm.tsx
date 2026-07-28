@@ -8,7 +8,7 @@ import { VehiclePickerField } from '@/components/sgf/VehiclePickerField';
 import { Loader2, Save, Fuel, Calendar, User, Receipt, DollarSign, ArrowUpRight, Camera, X, Building2 } from '@/components/sgf/icons';
 import { refuelingsApi, stationsApi, vehiclesApi } from '@/lib/supabase-api';
 import { uploadFoto } from '@/lib/fotoStorage';
-import { resizeAndConvertToWebP, isImageFile } from '@/lib/imageUtils';
+import { resizeAndConvertToWebP, isImageFile, uploadFileId } from '@/lib/imageUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppSettings } from '@/hooks/useSettings';
 import { useDrivers } from '@/hooks/useDrivers';
@@ -27,7 +27,7 @@ function PhotoUpload({ label, hint, url, onChange }: { label: string; hint: stri
         try {
             setLoading(true);
             const blob = await resizeAndConvertToWebP(file, 1000);
-            const fileName = `fuelings/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
+            const fileName = `fuelings/${uploadFileId()}.webp`;
             const { publicUrl } = await uploadFoto(fileName, blob, 'image/webp');
             onChange(publicUrl);
         } catch (err) {

@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { uploadFoto } from '@/lib/fotoStorage';
+import { uploadFoto, withFotoUrls } from '@/lib/fotoStorage';
 import { optimizeImage, validateUploadFile } from '@/lib/imageUtils';
 import { uploadPrivateDoc } from '@/lib/docStorage';
 import type { Json } from '@/types/database.types';
@@ -136,7 +136,7 @@ function uniqueId(): string {
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export const workshopPortalApi = {
+export const workshopPortalApi = withFotoUrls({
     getContext: async (): Promise<WorkshopContext> => {
         const { data, error } = await supabase.rpc('partner_read_context');
         throwIfError(error);
@@ -338,7 +338,8 @@ export const workshopPortalApi = {
             const { error } = await supabase.rpc('repair_shop_finish_service_v2', {
                 p_order_id: input.orderId,
                 p_note: input.note.trim(),
-                p_photo_urls: uploaded.map((item) => item.publicUrl),
+                // Path, não URL — ver a mesma nota no portal do posto.
+                p_photo_urls: uploaded.map((item) => item.path),
             });
             throwIfError(error);
         } catch (error) {
@@ -375,4 +376,4 @@ export const workshopPortalApi = {
             throw error;
         }
     },
-};
+});
