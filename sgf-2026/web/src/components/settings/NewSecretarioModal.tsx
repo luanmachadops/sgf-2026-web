@@ -8,6 +8,7 @@ import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { Eye, EyeOff, Loader2, Save, Sparkles } from '@/components/sgf/icons';
 import { departmentsApi } from '@/lib/supabase-api';
 import { managerAccessApi } from '@/lib/backend-api';
+import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
 
 interface NewSecretarioModalProps {
     isOpen: boolean;
@@ -26,7 +27,7 @@ function WhatsAppIcon({ className = 'h-4 w-4' }: { className?: string }) {
 function generateRandomPassword() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
     let res = '';
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < PASSWORD_MIN_LENGTH; i++) {
         res += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return res;
@@ -93,7 +94,7 @@ export function NewSecretarioModal({ isOpen, onClose, defaultDepartmentId }: New
     const handleSubmit = async () => {
         if (!name.trim()) return toast.error('Informe o nome.');
         if (!email.includes('@')) return toast.error('E-mail inválido.');
-        if (password.length < 8) return toast.error('Senha deve ter ao menos 8 caracteres.');
+        if (password.length < PASSWORD_MIN_LENGTH) return toast.error(PASSWORD_MIN_LENGTH_MESSAGE);
         if (!departmentId) return toast.error('Selecione a secretaria.');
         try {
             await createSecretario.mutateAsync();
@@ -170,7 +171,7 @@ export function NewSecretarioModal({ isOpen, onClose, defaultDepartmentId }: New
                             type={showPassword ? 'text' : 'password'}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Mínimo 8 caracteres"
+                            placeholder={PASSWORD_PLACEHOLDER}
                             fullWidth
                             icon={showPassword ? EyeOff : Eye}
                             iconPosition="right"

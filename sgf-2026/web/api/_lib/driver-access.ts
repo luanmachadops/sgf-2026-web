@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { getSupabaseAdmin } from './supabase-admin.js';
 import { assertTargetIsDriver } from './caller.js';
+import { assertStrongPassword } from './password-policy.js';
 
 // Banco unificado: motorista vive em `public.profiles` com role='motorista'.
 // O `id` do profile = `id` do auth.users (trigger handle_new_user já cria a row).
@@ -50,9 +51,7 @@ function statusToDb(status: DriverWebStatus | undefined): DriverDbStatus {
 }
 
 function assertPassword(password: unknown) {
-    if (typeof password !== 'string' || password.length < 8 || password.length > 20) {
-        throw new Error('Senha deve ter entre 6 e 20 caracteres');
-    }
+    assertStrongPassword(password);
 }
 
 function assertCreatePayload(payload: Partial<CreateDriverPayload>) {

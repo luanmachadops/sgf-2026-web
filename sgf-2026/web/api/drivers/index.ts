@@ -1,5 +1,6 @@
 import { createDriver } from '../_lib/driver-access.js';
 import { getCaller, assertCanManageDrivers, resolveScopedDepartment } from '../_lib/caller.js';
+import { checkRateLimit, getClientIp, logRateLimitBlocked, sendRateLimited } from '../_lib/rate-limit.js';
 
 function sendJson(res: any, status: number, body: unknown) {
     res.status(status).json(body);
@@ -13,6 +14,9 @@ function parseBody(req: any) {
     return req.body ?? {};
 }
 
+const WINDOW_SECONDS = 60;
+const MAX_HITS = 10;
+
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {
         res.setHeader('Allow', 'POST');
@@ -22,6 +26,13 @@ export default async function handler(req: any, res: any) {
     try {
         const caller = await getCaller(req);
         assertCanManageDrivers(caller);
+
+        const ip = getClientIp(req);
+        const check = await checkRateLimit('drivers-create', caller.id, ip, WINDOW_SECONDS, MAX_HITS);
+        if (!check.allowed) {
+            await logRateLimitBlocked(caller.id, `Limite de criação de motoristas atingido (${check.currentCount} chamadas/min), IP ${ip}.`);
+            return sendRateLimited(res, check, 'Muitas requisições em pouco tempo. Aguarde e tente novamente.');
+        }
 
         const body = parseBody(req);
         body.departmentId = resolveScopedDepartment(caller, body.departmentId);

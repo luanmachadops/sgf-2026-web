@@ -13,6 +13,7 @@ import { isImageFile } from '@/lib/imageUtils';
 import { maskCPF, maskPhone } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCreateDriver } from '@/hooks/useDrivers';
+import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
 
 const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" {...props}>
@@ -38,6 +39,15 @@ function maskCNH(value: string): string {
     return value.replace(/\D/g, '').slice(0, 11);
 }
 
+/**
+ * Senha inicial derivada do CPF quando o gestor não define uma senha manualmente.
+ * Precisa respeitar a política mínima de PASSWORD_MIN_LENGTH; o CPF sozinho tem só
+ * 11 dígitos, então completamos repetindo o primeiro dígito até atingir o mínimo.
+ */
+function cpfFallbackPassword(cleanCpf: string): string {
+    return cleanCpf.padEnd(PASSWORD_MIN_LENGTH, cleanCpf.charAt(0) || '0');
+}
+
 const driverSchema = z.object({
     name: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
     cpf: z
@@ -56,7 +66,10 @@ const driverSchema = z.object({
     cnhEar: z.boolean().optional().default(false),
     shiftStart: z.string().optional(),
     shiftEnd: z.string().optional(),
-    password: z.string().optional(),
+    password: z.string().optional().refine(
+        (value) => !value || value.trim().length >= PASSWORD_MIN_LENGTH,
+        PASSWORD_MIN_LENGTH_MESSAGE,
+    ),
 });
 
 type DriverFormInput = z.input<typeof driverSchema>;
@@ -112,7 +125,9 @@ export function NewDriverForm({ onSuccess }: NewDriverFormProps) {
             return;
         }
         const cleanCpf = values.cpf.replace(/\D/g, '');
-        const pwd = values.password || cleanCpf.slice(0, 6);
+        const pwd = values.password && values.password.trim().length >= PASSWORD_MIN_LENGTH
+            ? values.password
+            : cpfFallbackPassword(cleanCpf);
         const driverPhone = values.phone ? values.phone.replace(/\D/g, '') : '';
 
         const message = `Olá, *${values.name || 'Motorista'}*!\n\nSeu acesso ao App Frota foi criado com sucesso.\n\n📱 *App:* SGF 2026 Motorista\n👤 *CPF (Login):* ${values.cpf}\n🔑 *Senha:* ${pwd}\n\nFaça o download do app e realize o primeiro login.`;
@@ -140,7 +155,7 @@ export function NewDriverForm({ onSuccess }: NewDriverFormProps) {
     const handleGeneratePassword = () => {
         const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         let pwd = '';
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < PASSWORD_MIN_LENGTH; i++) {
             pwd += chars.charAt(Math.floor(Math.random() * chars.length));
         }
         setValue('password', pwd, { shouldValidate: true });
@@ -216,9 +231,9 @@ export function NewDriverForm({ onSuccess }: NewDriverFormProps) {
     const onSubmit = async (data: DriverFormInput) => {
         try {
             const cleanCpf = data.cpf.replace(/\D/g, '');
-            const generatedPassword = data.password && data.password.trim().length >= 6
+            const generatedPassword = data.password && data.password.trim().length >= PASSWORD_MIN_LENGTH
                 ? data.password
-                : cleanCpf.slice(0, 6);
+                : cpfFallbackPassword(cleanCpf);
 
             await createDriverMutation.mutateAsync({
                 name: data.name.trim(),
@@ -495,7 +510,7 @@ export function NewDriverForm({ onSuccess }: NewDriverFormProps) {
                     </div>
                     <SGFInput
                         type={showPassword ? 'text' : 'password'}
-                        placeholder="Mínimo 8 caracteres"
+                        placeholder={PASSWORD_PLACEHOLDER}
                         autoComplete="new-password"
                         icon={showPassword ? EyeOff : Eye}
                         iconPosition="right"

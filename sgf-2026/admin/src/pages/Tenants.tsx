@@ -6,6 +6,7 @@ import { tenantsApi, provisionTenant, type Tenant } from '@/lib/api';
 import { Card, Button, Input, Badge } from '@/lib/ui';
 import { SGFKPICard, type SGFKPIChartData } from '@/components/sgf';
 import { Building2, ShieldCheck, Sparkle, XCircle } from '@/components/sgf/icons';
+import { PASSWORD_MIN_LENGTH, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
 
 function slugify(s: string) {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -91,11 +92,11 @@ export default function Tenants() {
             <div />
             <Input label="Nome do 1º administrador" value={form.adminName} onChange={(e) => set({ adminName: e.target.value })} />
             <Input label="E-mail do administrador" type="email" value={form.adminEmail} onChange={(e) => set({ adminEmail: e.target.value })} />
-            <Input label="Senha inicial" type="text" value={form.adminPassword} onChange={(e) => set({ adminPassword: e.target.value })} />
+            <Input label="Senha inicial" type="text" value={form.adminPassword} onChange={(e) => set({ adminPassword: e.target.value })} placeholder={PASSWORD_PLACEHOLDER} />
           </div>
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button disabled={create.isPending || !form.name || !form.slug || !form.adminEmail || form.adminPassword.length < 6} onClick={() => create.mutate()}>
+            <Button disabled={create.isPending || !form.name || !form.slug || !form.adminEmail || form.adminPassword.length < PASSWORD_MIN_LENGTH} onClick={() => create.mutate()}>
               {create.isPending ? 'Criando…' : 'Criar prefeitura'}
             </Button>
           </div>

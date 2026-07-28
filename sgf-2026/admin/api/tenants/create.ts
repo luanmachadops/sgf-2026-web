@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { assertStrongPassword } from '../_lib/password-policy.js';
+import { checkRateLimit, getClientIp, logRateLimitBlocked, sendRateLimited } from '../_lib/rate-limit.js';
 
 function getAdmin() {
   const url = process.env.SUPABASE_URL;
@@ -12,7 +14,8 @@ function parseBody(req: any) {
   return req.body ?? {};
 }
 
-async function assertSuperadmin(req: any, admin: ReturnType<typeof getAdmin>) {
+/** Retorna o id do superadmin autenticado, ou lança 401/403. */
+async function assertSuperadmin(req: any, admin: ReturnType<typeof getAdmin>): Promise<string> {
   const header = req.headers?.authorization || req.headers?.Authorization;
   const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) throw Object.assign(new Error('Não autenticado'), { status: 401 });
@@ -20,21 +23,33 @@ async function assertSuperadmin(req: any, admin: ReturnType<typeof getAdmin>) {
   if (error || !data.user) throw Object.assign(new Error('Sessão inválida'), { status: 401 });
   const { data: profile } = await admin.from('profiles').select('role').eq('id', data.user.id).single();
   if (profile?.role !== 'superadmin') throw Object.assign(new Error('Apenas superusuário'), { status: 403 });
+  return data.user.id;
 }
+
+// Criar prefeitura é uma operação rara e pesada (tenant + primeiro admin) —
+// limite mais apertado que as demais rotas de escrita.
+const WINDOW_SECONDS = 60;
+const MAX_HITS = 5;
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).json({ message: 'Method not allowed' }); }
   try {
     const admin = getAdmin();
-    await assertSuperadmin(req, admin);
+    const callerId = await assertSuperadmin(req, admin);
+
+    const ip = getClientIp(req);
+    const check = await checkRateLimit('admin-tenants-create', callerId, ip, WINDOW_SECONDS, MAX_HITS);
+    if (!check.allowed) {
+      await logRateLimitBlocked(callerId, `Limite de criação de prefeituras atingido (${check.currentCount} chamadas/min), IP ${ip}.`);
+      return sendRateLimited(res, check, 'Muitas requisições em pouco tempo. Aguarde e tente novamente.');
+    }
 
     const b = parseBody(req);
     const name = (b.name || '').trim();
     const slug = (b.slug || '').trim().toLowerCase();
     if (!name || !slug) throw Object.assign(new Error('Nome e slug são obrigatórios'), { status: 400 });
-    if (!b.adminEmail || !b.adminPassword || b.adminPassword.length < 6) {
-      throw Object.assign(new Error('Admin: e-mail e senha (mín. 6) são obrigatórios'), { status: 400 });
-    }
+    if (!b.adminEmail) throw Object.assign(new Error('Admin: e-mail é obrigatório'), { status: 400 });
+    assertStrongPassword(b.adminPassword, 'Senha do administrador');
 
     // 1) cria o tenant
     const { data: tenant, error: tErr } = await admin.from('tenants').insert({
