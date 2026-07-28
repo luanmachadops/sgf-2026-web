@@ -8,10 +8,13 @@ import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import type { DriverRecord } from '@/hooks/useDrivers';
 import { useProvisionDriverAccess, useResetDriverPassword } from '@/hooks/useDrivers';
+import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
 
 const accessSchema = z.object({
-    password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres').max(20, 'Senha deve ter no máximo 20 caracteres'),
-    confirmPassword: z.string().min(6, 'Confirme a senha'),
+    password: z.string()
+        .min(PASSWORD_MIN_LENGTH, `Senha deve ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres`)
+        .max(PASSWORD_MAX_LENGTH, `Senha deve ter no máximo ${PASSWORD_MAX_LENGTH} caracteres`),
+    confirmPassword: z.string().min(1, 'Confirme a senha'),
 }).refine((data) => data.password === data.confirmPassword, {
     message: 'As senhas não coincidem',
     path: ['confirmPassword'],
@@ -88,7 +91,7 @@ export function DriverAccessForm({ driver, mode, onSuccess, onCancel }: DriverAc
                 <SGFInput
                     label="Nova senha"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Mínimo de 8 caracteres"
+                    placeholder={PASSWORD_PLACEHOLDER}
                     {...register('password')}
                     error={errors.password?.message}
                     icon={showPassword ? EyeOff : Eye}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button, Input } from '@/lib/ui';
+import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
 
 /**
  * Tela de definição de nova senha. O usuário chega aqui pelo link do e-mail de
@@ -30,7 +31,7 @@ export default function ResetPassword() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr('');
-    if (password.length < 6) { setErr('A senha deve ter ao menos 6 caracteres.'); return; }
+    if (password.length < PASSWORD_MIN_LENGTH) { setErr(PASSWORD_MIN_LENGTH_MESSAGE); return; }
     if (password !== confirm) { setErr('As senhas não coincidem.'); return; }
     setLoading(true);
     try {
@@ -63,7 +64,7 @@ export default function ResetPassword() {
         ) : (
           <form onSubmit={submit} className="space-y-5">
             {err && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{err}</div>}
-            <Input label="Nova senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <Input label="Nova senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={PASSWORD_PLACEHOLDER} required />
             <Input label="Confirmar nova senha" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
             <Button type="submit" disabled={loading} className="w-full">{loading ? 'Salvando…' : 'Salvar nova senha'}</Button>
           </form>

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { managersApi, tenantsApi } from '@/lib/api';
 import { Card, Button, Input } from '@/lib/ui';
+import { PASSWORD_MIN_LENGTH, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
 
 const ROLE_LABEL: Record<string, string> = { admin: 'Administrador', gestor: 'Gestor', secretario: 'Secretário' };
 
@@ -38,7 +39,7 @@ export function ManagersPanel({ tenantId }: { tenantId?: string }) {
     onError: (e) => toast.error((e as Error).message),
   });
 
-  const canSubmit = (fixed || f.tenant_id) && f.email.includes('@') && f.password.length >= 6;
+  const canSubmit = (fixed || f.tenant_id) && f.email.includes('@') && f.password.length >= PASSWORD_MIN_LENGTH;
 
   return (
     <div className="space-y-5">
@@ -64,7 +65,7 @@ export function ManagersPanel({ tenantId }: { tenantId?: string }) {
           </label>
           <Input label="Nome" value={f.name} onChange={(e) => set({ name: e.target.value })} />
           <Input label="E-mail" type="email" value={f.email} onChange={(e) => set({ email: e.target.value })} />
-          <Input label="Senha inicial" type="text" value={f.password} onChange={(e) => set({ password: e.target.value })} placeholder="Mínimo 6 caracteres" />
+          <Input label="Senha inicial" type="text" value={f.password} onChange={(e) => set({ password: e.target.value })} placeholder={PASSWORD_PLACEHOLDER} />
         </div>
         <div className="mt-4 flex justify-end">
           <Button disabled={!canSubmit || create.isPending} onClick={() => create.mutate()}>{create.isPending ? 'Criando…' : 'Criar gestor'}</Button>
@@ -96,7 +97,7 @@ export function ManagersPanel({ tenantId }: { tenantId?: string }) {
                         <button onClick={() => setBlocked.mutate({ userId: m.id, blocked: !m.access_blocked })} className="text-xs font-semibold text-[var(--sgf-primary)] hover:underline">
                           {m.access_blocked ? 'Reativar' : 'Bloquear'}
                         </button>
-                        <button onClick={() => { const p = prompt('Nova senha (mín. 6):'); if (p && p.length >= 6) resetPass.mutate({ userId: m.id, password: p }); }} className="text-xs font-semibold text-slate-500 hover:underline">Redefinir senha</button>
+                        <button onClick={() => { const p = prompt(`Nova senha (mín. ${PASSWORD_MIN_LENGTH}):`); if (p && p.length >= PASSWORD_MIN_LENGTH) resetPass.mutate({ userId: m.id, password: p }); }} className="text-xs font-semibold text-slate-500 hover:underline">Redefinir senha</button>
                       </div>
                     </td>
                   </tr>

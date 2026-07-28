@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { Card, Button, Input } from '@/lib/ui';
+import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
 
 export default function Settings() {
   const { email } = useAuth();
@@ -11,7 +12,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
-    if (password.length < 6) return toast.error('A senha deve ter ao menos 6 caracteres.');
+    if (password.length < PASSWORD_MIN_LENGTH) return toast.error(PASSWORD_MIN_LENGTH_MESSAGE);
     if (password !== confirm) return toast.error('As senhas não conferem.');
     setSaving(true);
     try {
@@ -33,7 +34,7 @@ export default function Settings() {
         <h2 className="mb-1 text-lg font-semibold">Segurança</h2>
         <p className="mb-4 text-sm text-slate-500">Conta: <span className="font-medium text-slate-700">{email}</span></p>
         <div className="space-y-3">
-          <Input label="Nova senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+          <Input label="Nova senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={PASSWORD_PLACEHOLDER} />
           <Input label="Confirmar nova senha" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
           <Button onClick={save} disabled={saving || !password}>{saving ? 'Salvando…' : 'Alterar senha'}</Button>
         </div>

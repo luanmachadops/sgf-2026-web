@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto';
 import { getSupabaseAdmin } from './supabase-admin.js';
 import type { Caller } from './caller.js';
+import { assertStrongPassword } from './password-policy.js';
 
 /**
  * Acesso de PARCEIRO (posto de combustível ou oficina mecânica).
@@ -46,12 +47,17 @@ function assertPartnerType(value: unknown): asserts value is PartnerType {
     }
 }
 
-/** Senha provisória legível: sem caracteres ambíguos, trocada no 1º acesso. */
+/**
+ * Senha provisória legível: sem caracteres ambíguos, trocada no 1º acesso.
+ * 14 caracteres úteis (fora os separadores) — acima do mínimo de
+ * `PASSWORD_MIN_LENGTH`, para não gerar uma senha que a própria política do
+ * sistema rejeitaria.
+ */
 export function generateTempPassword(): string {
     const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-    const bytes = randomBytes(10);
+    const bytes = randomBytes(14);
     const chars = Array.from(bytes, (b) => alphabet[b % alphabet.length]);
-    return `${chars.slice(0, 5).join('')}-${chars.slice(5).join('')}`;
+    return `${chars.slice(0, 5).join('')}-${chars.slice(5, 10).join('')}-${chars.slice(10).join('')}`;
 }
 
 /** Garante que só o admin mexe em acesso de parceiro. */
@@ -131,9 +137,7 @@ export async function createPartnerAccess(caller: Caller, payload: PartnerAccess
     }
 
     const password = payload.password?.trim() || generateTempPassword();
-    if (password.length < 8) {
-        throw Object.assign(new Error('Senha deve ter ao menos 8 caracteres'), { status: 400 });
-    }
+    assertStrongPassword(password);
 
     const { data: authData, error: authError } = await admin.auth.admin.createUser({
         email,

@@ -18,6 +18,7 @@ import {
     type CnhExtraction,
     type RegistrationInvite,
 } from '@/lib/driver-registration-api';
+import { PASSWORD_MIN_LENGTH } from '@/lib/passwordPolicy';
 
 type FormState = {
     fullName: string;
@@ -330,12 +331,12 @@ export default function Convite() {
         }
         if (step === 4) {
             if (
-                form.password.length < 8 ||
+                form.password.length < PASSWORD_MIN_LENGTH ||
                 !/[a-z]/.test(form.password) ||
                 !/[A-Z]/.test(form.password) ||
                 !/\d/.test(form.password)
             ) {
-                setError('Use ao menos 8 caracteres, com maiúscula, minúscula e número.');
+                setError(`Use ao menos ${PASSWORD_MIN_LENGTH} caracteres, com maiúscula, minúscula e número.`);
                 return;
             }
             if (form.password !== form.confirmPassword) {
@@ -626,7 +627,7 @@ export default function Convite() {
                             <Field label="Confirmar senha" type="password" value={form.confirmPassword} onChange={(value) => setField('confirmPassword', value)} autoComplete="new-password" />
                         </div>
                         <div className="rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-                            <p>• mínimo de 8 caracteres</p>
+                            <p>• mínimo de {PASSWORD_MIN_LENGTH} caracteres</p>
                             <p>• uma letra maiúscula e uma minúscula</p>
                             <p>• pelo menos um número</p>
                         </div>

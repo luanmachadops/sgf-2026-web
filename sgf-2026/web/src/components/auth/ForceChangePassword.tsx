@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { SGFButton } from '@/components/sgf/SGFButton';
+import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
 
 function passwordChangeError(error: unknown): string {
     const message = error instanceof Error ? error.message : '';
@@ -27,7 +28,7 @@ export default function ForceChangePassword() {
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
         setErr('');
-        if (password.length < 8) { setErr('A senha deve ter ao menos 8 caracteres.'); return; }
+        if (password.length < PASSWORD_MIN_LENGTH) { setErr(PASSWORD_MIN_LENGTH_MESSAGE); return; }
         if (password !== confirm) { setErr('As senhas não coincidem.'); return; }
         if (!user) { setErr('Sua sessão expirou. Entre novamente para continuar.'); return; }
         setLoading(true);
@@ -76,6 +77,7 @@ export default function ForceChangePassword() {
                         id="first-access-password"
                         type="password"
                         autoComplete="new-password"
+                        placeholder={PASSWORD_PLACEHOLDER}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required

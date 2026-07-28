@@ -5,6 +5,7 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { Lock, Loader2 } from '@/components/sgf/icons';
 import { supabase } from '@/lib/supabase';
+import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
 
 export function ChangePasswordCard() {
     const [password, setPassword] = useState('');
@@ -12,7 +13,7 @@ export function ChangePasswordCard() {
     const [saving, setSaving] = useState(false);
 
     const handleSave = async () => {
-        if (password.length < 8) return toast.error('A senha deve ter ao menos 8 caracteres.');
+        if (password.length < PASSWORD_MIN_LENGTH) return toast.error(PASSWORD_MIN_LENGTH_MESSAGE);
         if (password !== confirm) return toast.error('As senhas não conferem.');
         setSaving(true);
         try {
@@ -43,7 +44,7 @@ export function ChangePasswordCard() {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Mínimo 8 caracteres"
+                    placeholder={PASSWORD_PLACEHOLDER}
                     fullWidth
                 />
                 <SGFInput

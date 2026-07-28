@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { resizeAndConvertToWebP, isImageFile, uploadFileId } from '@/lib/imageUtils';
 import { maskPhone } from '@/lib/utils';
+import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
 
 function getInitials(name: string) {
     const parts = (name || '').trim().split(/\s+/).filter(Boolean);
@@ -102,7 +103,7 @@ export default function Perfil() {
     };
 
     const handlePassword = async () => {
-        if (pwd.length < 8) { toast.error('A senha deve ter ao menos 8 caracteres.'); return; }
+        if (pwd.length < PASSWORD_MIN_LENGTH) { toast.error(PASSWORD_MIN_LENGTH_MESSAGE); return; }
         if (pwd !== pwd2) { toast.error('As senhas não coincidem.'); return; }
         try {
             setPwdSaving(true);
@@ -175,7 +176,7 @@ export default function Perfil() {
                         <h3 className="text-lg font-semibold text-slate-900">Alterar senha</h3>
                     </div>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <SGFInput label="Nova senha" type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder="Mínimo 8 caracteres" fullWidth />
+                        <SGFInput label="Nova senha" type="password" value={pwd} onChange={(e) => setPwd(e.target.value)} placeholder={PASSWORD_PLACEHOLDER} fullWidth />
                         <SGFInput label="Confirmar nova senha" type="password" value={pwd2} onChange={(e) => setPwd2(e.target.value)} fullWidth />
                     </div>
                     <div className="mt-5 flex justify-end">
