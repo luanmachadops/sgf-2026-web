@@ -44,7 +44,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
           <Building2 className="h-5 w-5 text-white" />
         </div>
         <div className="flex flex-col leading-none">
-          <span className="text-[13px] font-semibold tracking-tight text-white">SGF • Superusuário</span>
+          <span className="text-[13px] font-semibold tracking-tight text-white">Exattus Rotta • Superadmin</span>
           <span className="mt-0.5 text-[11px] font-medium tracking-normal text-emerald-400/80">Gestão de Prefeituras</span>
         </div>
         {onClose && (
@@ -126,7 +126,7 @@ function Shell() {
             <button onClick={() => setMobileOpen(true)} className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-black/5" aria-label="Abrir menu">
               <Menu className="h-5 w-5" />
             </button>
-            <span className="text-sm font-bold text-slate-800">SGF • Superusuário</span>
+            <span className="text-sm font-bold text-slate-800">Exattus Rotta • Superadmin</span>
           </div>
 
           <main className="custom-scrollbar flex-1 overflow-y-auto scroll-smooth p-[var(--sgf-space-4)] md:p-[var(--sgf-space-8)]">

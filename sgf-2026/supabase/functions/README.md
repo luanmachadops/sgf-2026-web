@@ -1,4 +1,4 @@
-# Edge Functions — SGF 2026
+# Edge Functions — Exattus Rotta
 
 Código-fonte de todas as edge functions deployadas no projeto Supabase `kgxdrgbxpfoebzrphtqg`.
 

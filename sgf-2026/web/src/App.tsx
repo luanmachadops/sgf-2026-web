@@ -28,6 +28,7 @@ import Stations from '@/pages/Stations';
 import RepairShops from '@/pages/RepairShops';
 import Notificacoes from '@/pages/Notificacoes';
 import Convite from '@/pages/Convite';
+import ResetPassword from '@/pages/ResetPassword';
 import { useAuth } from '@/contexts/AuthContext';
 
 const StationPortal = lazy(() => import('@/pages/partner/StationPortal'));
@@ -73,6 +74,7 @@ function App() {
                 WhatsApp, redireciona para o app. Precisa ficar fora do
                 PrivateRoute: o motorista ainda não tem conta. */}
             <Route path="/convite" element={<Convite />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Protected routes */}
             <Route element={<PrivateRoute allow={['ADMIN', 'MANAGER', 'SUPERADMIN']} />}>

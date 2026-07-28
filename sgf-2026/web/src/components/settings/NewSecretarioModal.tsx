@@ -79,7 +79,7 @@ export function NewSecretarioModal({ isOpen, onClose, defaultDepartmentId }: New
             return toast.error('Preencha ao menos o e-mail e a senha para enviar o acesso por WhatsApp.');
         }
         const deptName = departmentOptions.find(d => d.value === departmentId)?.label || 'Secretaria';
-        const msg = `*Acesso ao SGF 2026 - Painel do Gestor*\n\n` +
+        const msg = `*Acesso ao Exattus Rotta — Painel de Gestão*\n\n` +
             `Olá${name ? `, *${name.trim()}*` : ''}!\n` +
             `Seu acesso de Secretário no sistema de gestão de frota foi criado:\n\n` +
             `📧 *E-mail:* ${email.trim()}\n` +

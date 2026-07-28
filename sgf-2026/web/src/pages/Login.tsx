@@ -108,7 +108,7 @@ export default function Login({ portal = 'panel' }: LoginProps) {
                     <p className="mt-2 text-sm text-slate-500">
                         {branding.city && branding.state 
                             ? `${branding.city} - ${branding.state}` 
-                            : 'Tapejara - PR'}
+                            : 'Gestão inteligente de frotas'}
                     </p>
                 </div>
 
@@ -205,7 +205,7 @@ export default function Login({ portal = 'panel' }: LoginProps) {
 
                 {/* Footer */}
                 <div className="text-center text-xs text-slate-400">
-                    <p>© 2026 SGF 2026 - Todos os direitos reservados</p>
+                    <p>© 2026 Exattus Rotta — Todos os direitos reservados</p>
                     <p className="mt-1">Setor de Obras e Garagem</p>
                 </div>
             </div>

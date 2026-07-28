@@ -183,7 +183,7 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
             void hardSignOut();
             throw new Error(
                 profile.role === 'motorista'
-                    ? 'Motoristas devem usar o aplicativo SGF Motorista.'
+                    ? 'Motoristas devem usar o aplicativo Exattus Rotta.'
                     : 'Seu perfil não possui acesso a este sistema.',
             );
         }

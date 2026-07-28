@@ -50,7 +50,7 @@ export default function ResetPassword() {
       <div className="w-full max-w-sm space-y-5 rounded-3xl bg-white p-8 shadow-2xl">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-900">Definir nova senha</h1>
-          <p className="text-sm text-slate-500">SGF • Superusuário</p>
+          <p className="text-sm text-slate-500">Exattus Rotta • Superadmin</p>
         </div>
 
         {done ? (

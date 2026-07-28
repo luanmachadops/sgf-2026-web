@@ -40,7 +40,7 @@ export default function Login() {
     <div className="grid min-h-screen place-items-center bg-gradient-to-br from-[var(--sgf-dark)] to-[var(--sgf-primary)] p-6">
       <form onSubmit={mode === 'login' ? submit : sendReset} className="w-full max-w-sm space-y-5 rounded-3xl bg-white p-8 shadow-2xl">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-900">SGF • Superusuário</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Exattus Rotta • Superadmin</h1>
           <p className="text-sm text-slate-500">
             {mode === 'login' ? 'Painel de gestão de prefeituras' : 'Recuperar acesso'}
           </p>

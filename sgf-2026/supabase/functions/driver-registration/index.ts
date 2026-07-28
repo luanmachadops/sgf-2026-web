@@ -157,7 +157,7 @@ async function createInvite(req: Request, body: Json) {
   if (error) return response({ error: error.message }, 400);
   // `inviteUrl` é a entrada principal: o motorista realiza todo o cadastro
   // diretamente no navegador, sem depender do aplicativo instalado.
-  const webBase = (Deno.env.get("PUBLIC_WEB_URL") ?? "https://frota-web-tap.vercel.app")
+  const webBase = (Deno.env.get("PUBLIC_WEB_URL") ?? "https://exattusrotta.com.br")
     .replace(/\/$/, "");
   return response({
     data: {
@@ -240,7 +240,7 @@ async function extractCnh(body: Json) {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       "HTTP-Referer": "https://sgf-2026.local",
-      "X-Title": "SGF 2026 - Pré-cadastro CNH",
+      "X-Title": "Exattus Rotta - Pré-cadastro CNH",
     },
     body: JSON.stringify({
       model: AI_MODEL,
@@ -440,7 +440,7 @@ async function notifyApproved(email: string, fullName: string) {
     body: JSON.stringify({
       from,
       to: [email],
-      subject: "Seu acesso ao Frota Municipal foi aprovado",
+      subject: "Seu acesso ao Exattus Rotta foi aprovado",
       html: `<p>Olá, ${fullName}.</p><p>Seu cadastro foi aprovado. Você já pode entrar no aplicativo usando seu CPF e a senha que escolheu.</p>`,
     }),
   });
@@ -511,7 +511,7 @@ async function reviewRequest(req: Request, body: Json) {
   const phone = digits((await sb.from("profiles").select("phone").eq("id", data.auth_user_id).maybeSingle()).data?.phone);
   const whatsappNumber = phone.length >= 10 && phone.length <= 11 ? `55${phone}` : phone;
   const whatsappText = encodeURIComponent(
-    `Olá, ${data.full_name}! Seu cadastro no Frota Municipal foi aprovado. Você já pode entrar no aplicativo com seu CPF e a senha que escolheu.`,
+    `Olá, ${data.full_name}! Seu cadastro no Exattus Rotta foi aprovado. Você já pode entrar no aplicativo com seu CPF e a senha que escolheu.`,
   );
   const whatsappUrl = decision === "approved" && whatsappNumber
     ? `https://wa.me/${whatsappNumber}?text=${whatsappText}`

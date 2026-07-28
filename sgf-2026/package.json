@@ -1,0 +1,27 @@
+{
+  "name": "exattus-rotta-platform",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20 <25"
+  },
+  "scripts": {
+    "install:apps": "npm ci --prefix web && npm ci --prefix admin",
+    "build:web": "npm run build --prefix web",
+    "build:admin": "npm run build --prefix admin",
+    "build:server": "node scripts/build-server.mjs",
+    "build": "npm run install:apps && npm run build:web && npm run build:admin && npm run build:server",
+    "start": "node dist-server/server.mjs",
+    "dev:server": "tsx server/server.ts"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "esbuild": "^0.25.11",
+    "tsx": "^4.20.6",
+    "typescript": "~5.9.3"
+  }
+}

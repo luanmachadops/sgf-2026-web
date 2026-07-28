@@ -253,7 +253,7 @@ export function PartnerPortalLayout({
                         <div className="mx-auto w-full max-w-[1400px]">
                             {children}
                             <footer className="flex items-center justify-between gap-3 py-8 text-xs text-slate-400">
-                                <span>SGF 2026 · {branding.name}</span>
+                                <span>Exattus Rotta · {branding.name}</span>
                                 <span>{systemName}</span>
                             </footer>
                         </div>

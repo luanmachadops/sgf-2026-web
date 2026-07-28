@@ -54,7 +54,7 @@ export default async function handler(req: any, res: any) {
     // 1) cria o tenant
     const { data: tenant, error: tErr } = await admin.from('tenants').insert({
       name, slug, city: b.city || null, state: b.state || null, cnpj: b.cnpj || null,
-      app_name: 'Frota Municipal', login_eyebrow: `PREFEITURA DE ${name.toUpperCase()}`,
+      app_name: 'Exattus Rotta', login_eyebrow: `PREFEITURA DE ${name.toUpperCase()}`,
     }).select('id').single();
     if (tErr) throw Object.assign(new Error(tErr.message), { status: 400 });
 

@@ -50,7 +50,7 @@ const menuSections: MenuSection[] = [
     {
         title: 'Gestão de Ativos',
         items: [
-            { icon: Car, label: 'Frota Municipal', path: '/veiculos' },
+            { icon: Car, label: 'Gestão de Frotas', path: '/veiculos' },
             { icon: Users, label: 'Motoristas', path: '/motoristas' },
             { icon: Fuel, label: 'Abastecimentos', path: '/abastecimentos' },
             { icon: Droplet, label: 'Postos', path: '/postos' },

@@ -1,4 +1,4 @@
-// SGF 2026 Design System Components
+// Exattus Rotta Design System Components
 // Main export file for all SGF custom components
 
 export { SGFButton } from './SGFButton';
@@ -39,4 +39,3 @@ export type { SGFToolbarProps, SGFToolbarFilter } from './SGFToolbar';
 
 export { default as FuelExpenseChart } from './FuelExpenseChart';
 export { default as DepartmentConsumptionChart } from './DepartmentConsumptionChart';
-

@@ -65,7 +65,7 @@ export function exportReportToPDF(opts: ReportExportOptions): void {
     const win = window.open('', '_blank', 'width=900,height=1000');
     if (!win) return;
 
-    const brandName = branding?.name || 'SGF 2026';
+    const brandName = branding?.name || 'Exattus Rotta';
     const brandSub = [branding?.city ? `${branding.city}${branding.state ? '/' + branding.state : ''}` : '', branding?.cnpj ? `CNPJ ${branding.cnpj}` : '']
         .filter(Boolean).join('  •  ') || 'Gestão Pública de Frota';
     const logoImg = branding?.sealUrl || branding?.logoUrl;
@@ -166,9 +166,9 @@ export async function exportReportToExcel(opts: ReportExportOptions): Promise<vo
     const { reportTitle, reportDescription, dataset, filters, branding } = opts;
     const brandLine = branding?.name
         ? `${branding.name}${branding.city ? '  •  ' + branding.city + (branding.state ? '/' + branding.state : '') : ''}`
-        : 'SGF 2026  •  Gestão Pública de Frota';
+        : 'Exattus Rotta  •  Gestão Pública de Frota';
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'SGF 2026';
+    wb.creator = 'Exattus Rotta';
     wb.created = new Date();
 
     const ws = wb.addWorksheet('Relatório', {

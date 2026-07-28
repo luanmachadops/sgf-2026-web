@@ -116,7 +116,7 @@ export default function Convite() {
     const [manualEntry, setManualEntry] = useState(false);
 
     const primary = invite?.tenant.primary_color || '#00A86B';
-    const appName = invite?.tenant.app_name || 'Frota Municipal';
+    const appName = invite?.tenant.app_name || 'Exattus Rotta';
     const organization = invite?.tenant.login_eyebrow || invite?.tenant.name || 'Prefeitura';
     const progress = step >= 5 ? 100 : Math.max(0, step) * 25;
 

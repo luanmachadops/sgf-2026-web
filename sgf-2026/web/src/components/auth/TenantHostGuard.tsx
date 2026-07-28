@@ -13,13 +13,10 @@ import { SGFButton } from '@/components/sgf/SGFButton';
  * protege os dados, mas a tela mentiria — confusão operacional e um prato
  * feito para phishing ("entre no site da sua prefeitura" apontando para outra).
  *
- * CUIDADO QUE ESTE COMPONENTE TOMA
- * `getSlugFromHost()` devolve o primeiro rótulo de qualquer host com 3+ níveis,
- * então em `frota-web-tap.vercel.app` ele devolve `frota-web-tap`, que não é
- * prefeitura nenhuma. Por isso o guard só age quando a slug do host resolve
- * para um tenant REAL — caso contrário (domínio genérico, preview da Vercel,
- * localhost) ele não faz nada. Sem essa checagem, o redirecionamento entraria
- * em loop no domínio atual.
+ * `getSlugFromHost()` ignora os subdomínios reservados do produto (`posto`,
+ * `oficina`, `superadmin`, `www` e `app`). Para outros hosts, o guard só age
+ * quando a slug resolve para um tenant real; localhost e hosts genéricos não
+ * provocam redirecionamento.
  */
 export function TenantHostGuard({ children }: { children: ReactNode }) {
     const { user, logout } = useAuth();

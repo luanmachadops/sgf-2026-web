@@ -4,9 +4,9 @@ import type { TenantBranding } from '@/types';
 export const DEFAULT_BRANDING: TenantBranding = {
     id: '',
     slug: '',
-    name: 'SGF 2026',
-    appName: 'Sistema de Gestão de Frotas',
-    loginEyebrow: 'Painel de Gestão',
+    name: 'Exattus Rotta',
+    appName: 'Exattus Rotta',
+    loginEyebrow: 'Gestão inteligente de frotas',
     primaryColor: '#00A86B',
     darkColor: '#0F2B2F',
     accentColor: '#70C4A8',
@@ -58,7 +58,7 @@ export function getSlugFromHost(): string | null {
     const parts = host.split('.');
     if (parts.length < 3) return null; // sem subdomínio
     const sub = parts[0];
-    if (['www', 'app', 'admin'].includes(sub)) return null;
+    if (['www', 'app', 'admin', 'posto', 'oficina', 'superadmin'].includes(sub)) return null;
     return sub;
 }
 

@@ -105,7 +105,7 @@ Deno.serve(async (req: Request) => {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://sgf-2026.local',
-        'X-Title': 'SGF 2026 - Leitura de CNH',
+        'X-Title': 'Exattus Rotta - Leitura de CNH',
       },
       body: JSON.stringify({
         model: MODEL,

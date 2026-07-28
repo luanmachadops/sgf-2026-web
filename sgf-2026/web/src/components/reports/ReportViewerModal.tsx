@@ -249,7 +249,7 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
                                 <ShieldCheck className="text-white h-6 w-6" />
                             </div>
                             <div>
-                                <p className="text-base font-extrabold text-[#0F2B2F] leading-none">SGF 2026</p>
+                                <p className="text-base font-extrabold text-[#0F2B2F] leading-none">Exattus Rotta</p>
                                 <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Gestão Pública de Frota</p>
                             </div>
                             <div className="ml-auto text-right text-[11px] text-slate-400">
@@ -299,7 +299,7 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
 
                     {/* Rodapé */}
                     <div className="px-6 sm:px-10 py-4 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
-                        <span>SGF 2026 — Sistema de Gestão de Frota</span>
+                        <span>Exattus Rotta — Gestão de Frotas</span>
                         <span>{title}</span>
                     </div>
                 </div>

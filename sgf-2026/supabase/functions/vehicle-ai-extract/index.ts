@@ -127,7 +127,7 @@ Deno.serve(async (req: Request) => {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://sgf-2026.local',
-        'X-Title': 'SGF 2026 - Identificação de veículo',
+        'X-Title': 'Exattus Rotta - Identificação de veículo',
       },
       body: JSON.stringify({
         model: MODEL,

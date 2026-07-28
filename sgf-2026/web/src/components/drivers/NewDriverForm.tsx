@@ -137,7 +137,7 @@ export function NewDriverForm({ onSuccess }: NewDriverFormProps) {
             : cpfFallbackPassword(cleanCpf);
         const driverPhone = values.phone ? values.phone.replace(/\D/g, '') : '';
 
-        const message = `Olá, *${values.name || 'Motorista'}*!\n\nSeu acesso ao App Frota foi criado com sucesso.\n\n📱 *App:* SGF 2026 Motorista\n👤 *CPF (Login):* ${values.cpf}\n🔑 *Senha:* ${pwd}\n\nFaça o download do app e realize o primeiro login.`;
+        const message = `Olá, *${values.name || 'Motorista'}*!\n\nSeu acesso ao aplicativo foi criado com sucesso.\n\n📱 *App:* Exattus Rotta\n👤 *CPF (Login):* ${values.cpf}\n🔑 *Senha:* ${pwd}\n\nAbra o Exattus Rotta e realize o primeiro login.`;
 
         const encodedMessage = encodeURIComponent(message);
         const targetUrl = driverPhone
