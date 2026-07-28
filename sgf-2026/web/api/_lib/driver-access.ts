@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { getSupabaseAdmin } from './supabase-admin.js';
+import { assertTargetIsDriver } from './caller.js';
 
 // Banco unificado: motorista vive em `public.profiles` com role='motorista'.
 // O `id` do profile = `id` do auth.users (trigger handle_new_user já cria a row).
@@ -290,13 +291,17 @@ export async function provisionDriverAccess(driverId: string, payload: DriverAcc
     const supabaseAdmin = getSupabaseAdmin();
     const { data: driver, error: driverError } = await supabaseAdmin
         .from('profiles')
-        .select('id, cpf, full_name')
+        .select('id, cpf, full_name, role')
         .eq('id', driverId)
         .single();
 
     if (driverError || !driver) {
         throw new Error('Motorista não encontrado');
     }
+    // Defesa em profundidade: esta função é exportada e mexe em senha via
+    // service_role. Se algum dia for chamada sem passar por
+    // `assertCanActOnDriver`, o alvo ainda assim não pode ser um admin.
+    assertTargetIsDriver((driver as any).role);
 
     // O profile.id já é o auth user id no banco unificado: apenas atualizar a senha.
     const { error } = await supabaseAdmin.auth.admin.updateUserById(driver.id, {
@@ -318,13 +323,15 @@ export async function resetDriverPassword(driverId: string, payload: DriverAcces
     const supabaseAdmin = getSupabaseAdmin();
     const { data: driver, error: driverError } = await supabaseAdmin
         .from('profiles')
-        .select('id')
+        .select('id, role')
         .eq('id', driverId)
         .single();
 
     if (driverError || !driver) {
         throw new Error('Motorista não encontrado');
     }
+    // Defesa em profundidade — ver comentário em `provisionDriverAccess`.
+    assertTargetIsDriver((driver as any).role);
 
     const { error } = await supabaseAdmin.auth.admin.updateUserById(driver.id, {
         password: payload.password,

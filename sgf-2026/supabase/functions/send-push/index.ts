@@ -35,9 +35,16 @@ type Notif = {
 
 Deno.serve(async (req) => {
   try {
-    // Segredo compartilhado obrigatório quando configurado (env ou app_secrets).
+    // Segredo compartilhado é obrigatório (env ou app_secrets). Fail-closed:
+    // se não houver segredo configurado, é erro de config do servidor — nunca
+    // deixar a função aberta. Só compara o header depois de confirmar que o
+    // segredo existe.
     const secret = await getSecret();
-    if (secret && req.headers.get('x-webhook-secret') !== secret) {
+    if (!secret) {
+      console.error('send-push: PUSH_WEBHOOK_SECRET não configurado (env nem app_secrets) — recusando requisição.');
+      return new Response('server misconfigured', { status: 500 });
+    }
+    if (req.headers.get('x-webhook-secret') !== secret) {
       return new Response('unauthorized', { status: 401 });
     }
 

@@ -19,7 +19,7 @@
 | Painel superadmin | `sgf-2026/admin` | React + Vite + TS, serverless em `admin/api` |
 | App do motorista | https://github.com/luanmachadops/appFrota (repo separado) | **React Native / Expo** (o CLAUDE.md antigo dizia Flutter — está errado) |
 | Banco | Supabase `kgxdrgbxpfoebzrphtqg` (FrotaMunicipal, sa-east-1) | Postgres 17, RLS multi-tenant (tabela `tenants`, coluna `tenant_id` em tudo) |
-| Edge functions | `sgf-2026/supabase/functions` | vehicle-ai-extract, driver-cnh-extract, send-push, notify-push, iopgps-* |
+| Edge functions | `sgf-2026/supabase/functions` | vehicle-ai-extract, driver-cnh-extract, send-push, iopgps-* |
 | Rastreadores | Integração IOPGPS (cron + edge functions) | Status: não testada em campo |
 
 - Papéis em `profiles.role`: `superadmin`, `admin`, `gestor`, `secretario`, `motorista`.
@@ -166,7 +166,7 @@ Typecheck em tudo, commits separados por item, atualize PRODUCAO.md.
 - **4.2 White-label — DECIDIDO (a):** app genérico "SGF Frota" (slug `sgf-frota`, bundle/package `br.com.sgf.frota`), branding via tenant após login. Textos "Prefeitura de Tapejara" substituídos por `tenant?.name` (app, branch `fix/t4-mobile-hardening`).
 - **4.3 Mobile — FEITO** (branch `fix/t4-mobile-hardening` no appFrota): `access_blocked` checado no login/restauração com tela de bloqueio (`a635f09`); `findVehicleByCode` sanitizado contra injeção PostgREST (`877f2d3`); gráfico de manutenção com dados reais de `service_orders` (`992cacc`) — e coluna `service_orders.cost numeric(12,2)` criada em produção (migration `service_orders_cost`, 2026-07-09) para custos reais; versão via `Constants.expoConfig` (`c30eeca`); textos do tenant (`e6ea225`). Obs.: não existia texto "senha = CPF" no app.
 - **Deploy `iopgps-sync` v3 (fix T2) FEITO em 2026-07-09 via MCP** — a correção de escopo por tenant estava só na branch da auditoria; agora está em produção e na main.
-- Pendente: apagar a function órfã `notify-push` do deploy (aprovado pelo usuário; sem ferramenta MCP para delete — fazer via dashboard ou `supabase functions delete notify-push --project-ref kgxdrgbxpfoebzrphtqg`).
+- Feito (2026-07-28, branch `fix/auditoria-2026-07`): código de `notify-push` removido do repo (`sgf-2026/supabase/functions/notify-push/`). Confirmado órfã antes de remover — único trigger com `net.http_post` no banco (`tg_notifications_push`) aponta hardcoded para `send-push`; nenhuma referência a `notify-push` em código nos dois repos. Falta ainda apagar o deploy remoto (sem ferramenta MCP para delete — `supabase functions delete notify-push --project-ref kgxdrgbxpfoebzrphtqg`, requer aprovação humana pois é uma ação de deploy).
 
 ### (referência) T4 — plano original
 
