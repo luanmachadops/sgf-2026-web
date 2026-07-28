@@ -60,6 +60,13 @@ export function assertCanManagePartners(caller: Caller | null): asserts caller i
     if (caller.role !== 'admin') {
         throw Object.assign(new Error('Apenas o administrador pode gerenciar acessos de parceiros'), { status: 403 });
     }
+    // `loadPartnerScoped` compara `parceiro.tenant_id !== caller.tenantId`. Com
+    // os dois lados nulos a comparação passa e o isolamento entre prefeituras
+    // some — então o tenant do chamador tem de existir de verdade. Não há
+    // desvio para superadmin: ele já é barrado pela checagem de role acima.
+    if (!caller.tenantId) {
+        throw Object.assign(new Error('Usuário sem prefeitura vinculada'), { status: 403 });
+    }
 }
 
 /** Carrega o parceiro e recusa se for de outra prefeitura. */
