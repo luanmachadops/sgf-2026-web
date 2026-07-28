@@ -2125,6 +2125,7 @@ export type Database = {
           driver_id: string
           financial_status: Database["public"]["Enums"]["service_order_fin_status"]
           id: string
+          issue_id: string | null
           nad_number: string | null
           odometer: number | null
           opened_by: string
@@ -2154,6 +2155,7 @@ export type Database = {
           driver_id: string
           financial_status?: Database["public"]["Enums"]["service_order_fin_status"]
           id?: string
+          issue_id?: string | null
           nad_number?: string | null
           odometer?: number | null
           opened_by?: string
@@ -2183,6 +2185,7 @@ export type Database = {
           driver_id?: string
           financial_status?: Database["public"]["Enums"]["service_order_fin_status"]
           id?: string
+          issue_id?: string | null
           nad_number?: string | null
           odometer?: number | null
           opened_by?: string
@@ -2216,6 +2219,13 @@ export type Database = {
             columns: ["driver_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_orders_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: true
+            referencedRelation: "issues"
             referencedColumns: ["id"]
           },
           {
@@ -2392,6 +2402,8 @@ export type Database = {
           slug: string
           state: string | null
           status: string
+          support_email: string | null
+          support_phone: string | null
           updated_at: string
         }
         Insert: {
@@ -2414,6 +2426,8 @@ export type Database = {
           slug: string
           state?: string | null
           status?: string
+          support_email?: string | null
+          support_phone?: string | null
           updated_at?: string
         }
         Update: {
@@ -2436,6 +2450,8 @@ export type Database = {
           slug?: string
           state?: string | null
           status?: string
+          support_email?: string | null
+          support_phone?: string | null
           updated_at?: string
         }
         Relationships: []

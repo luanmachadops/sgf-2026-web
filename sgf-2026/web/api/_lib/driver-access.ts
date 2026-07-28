@@ -16,7 +16,7 @@ export interface CreateDriverPayload {
     cnhNumber: string;
     cnhCategory: string;
     cnhExpiryDate: string;
-    birthDate?: string;
+    birthDate: string;
     departmentId?: string;
     phone?: string;
     email?: string;
@@ -26,6 +26,9 @@ export interface CreateDriverPayload {
     /** Quem está cadastrando. Carimbado em profiles para a trilha de auditoria
      *  saber o autor — aqui `auth.uid()` é nulo (service_role). */
     actorId?: string | null;
+    cnhEar?: boolean;
+    shiftStart?: string;
+    shiftEnd?: string;
 }
 
 export interface DriverAccessPayload {
@@ -62,6 +65,7 @@ function assertCreatePayload(payload: Partial<CreateDriverPayload>) {
         'cnhNumber',
         'cnhCategory',
         'cnhExpiryDate',
+        'birthDate',
         'password',
     ] as const;
 
@@ -77,6 +81,20 @@ function assertCreatePayload(payload: Partial<CreateDriverPayload>) {
     }
 
     assertPassword(payload.password);
+
+    const isIsoDate = (value: unknown) =>
+        typeof value === 'string'
+        && /^\d{4}-\d{2}-\d{2}$/.test(value)
+        && !Number.isNaN(Date.parse(`${value}T12:00:00Z`));
+    if (!isIsoDate(payload.birthDate)) {
+        throw new Error('Data de nascimento inválida');
+    }
+    if (!isIsoDate(payload.cnhExpiryDate)) {
+        throw new Error('Validade da CNH inválida');
+    }
+    if (payload.birthDate! > new Date().toISOString().slice(0, 10)) {
+        throw new Error('Data de nascimento não pode estar no futuro');
+    }
 }
 
 export async function createDriver(payload: CreateDriverPayload) {
@@ -131,7 +149,10 @@ export async function createDriver(payload: CreateDriverPayload) {
             cnh_number: payload.cnhNumber,
             cnh_category: payload.cnhCategory,
             cnh_expiry: payload.cnhExpiryDate,
-            birth_date: payload.birthDate || null,
+            birth_date: payload.birthDate,
+            cnh_ear: payload.cnhEar ?? false,
+            shift_start: payload.shiftStart || null,
+            shift_end: payload.shiftEnd || null,
             department_id: payload.departmentId || null,
             ...(payload.tenantId ? { tenant_id: payload.tenantId } : {}),
             phone: payload.phone?.trim() || null,

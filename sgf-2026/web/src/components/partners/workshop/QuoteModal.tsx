@@ -34,7 +34,7 @@ function emptyItem(kind: WorkshopQuoteItem['kind'] = 'peca'): EditableItem {
 }
 
 export function QuoteModal({ order, onClose, onSuccess }: QuoteModalProps) {
-    const [items, setItems] = useState<EditableItem[]>([emptyItem()]);
+    const [items, setItems] = useState<EditableItem[]>(() => [emptyItem()]);
     const [validUntil, setValidUntil] = useState('');
     const [note, setNote] = useState('');
     const [error, setError] = useState('');
@@ -59,6 +59,10 @@ export function QuoteModal({ order, onClose, onSuccess }: QuoteModalProps) {
             if (normalized.some((item) => !item.description)) throw new Error('Descreva todos os itens.');
             if (normalized.some((item) => !Number.isFinite(item.qty) || item.qty <= 0)) throw new Error('Revise as quantidades.');
             if (normalized.some((item) => !Number.isFinite(item.unitPrice) || item.unitPrice < 0)) throw new Error('Revise os preços unitários.');
+            if (!validUntil) throw new Error('Informe a validade do orçamento.');
+            if (validUntil < new Date().toISOString().slice(0, 10)) {
+                throw new Error('A validade do orçamento não pode estar no passado.');
+            }
             return workshopPortalApi.submitQuote({
                 orderId: order.orderId,
                 items: normalized,
@@ -135,7 +139,7 @@ export function QuoteModal({ order, onClose, onSuccess }: QuoteModalProps) {
                 </SGFButton>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <SGFInput label="Válido até" type="date" min={new Date().toISOString().slice(0, 10)}
+                    <SGFInput label="Válido até *" type="date" required min={new Date().toISOString().slice(0, 10)}
                         value={validUntil} onChange={(event) => setValidUntil(event.target.value)} fullWidth />
                     <div className="rounded-2xl bg-blue-50 p-4">
                         <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Total calculado</p>

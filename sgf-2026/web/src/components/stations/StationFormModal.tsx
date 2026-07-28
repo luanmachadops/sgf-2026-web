@@ -7,7 +7,7 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 import { Camera, Loader2, FileText, Plus, X, Download } from '@/components/sgf/icons';
 import { useCreateStation, useUpdateStation } from '@/hooks/useStations';
 import { ProcurementContractFields } from '@/components/procurement/ProcurementContractFields';
-import { validateProcurementContract } from '@/lib/procurement-contract';
+import { assertContractDatesPersisted, validateProcurementContract } from '@/lib/procurement-contract';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { resizeAndConvertToWebP, isImageFile, prepareDocumentUpload, formatFileSize, DOCUMENT_ACCEPT, uploadFileId } from '@/lib/imageUtils';
 import { maskCNPJ, maskPhone } from '@/lib/utils';
@@ -88,17 +88,20 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
             const d = await res.json();
             const fantasia = (d.nome_fantasia || '').trim();
             const razao = (d.razao_social || '').trim();
-            if (!name.trim()) setName(fantasia || razao);
+            setName((current) => current.trim() || fantasia || razao);
             const addr = [d.logradouro, d.numero].filter(Boolean).join(', ');
             const full = [addr, d.bairro].filter(Boolean).join(' - ');
-            if (full) setAddress(full);
-            if (d.municipio) setCity([d.municipio, d.uf].filter(Boolean).join('/'));
+            if (full) setAddress((current) => current.trim() ? current : full);
+            if (d.municipio) {
+                const cityFromCnpj = [d.municipio, d.uf].filter(Boolean).join('/');
+                setCity((current) => current.trim() ? current : cityFromCnpj);
+            }
             if (d.ddd_telefone_1) {
                 let tel = String(d.ddd_telefone_1).replace(/\D/g, '');
                 if (tel.length > 11 && tel.startsWith('55')) tel = tel.slice(2); // remove DDI 55
                 tel = tel.replace(/^0+/, ''); // remove 0 de operadora/prefixo
                 tel = tel.slice(-11); // mantém no máximo DDD + 9 dígitos
-                if (tel.length >= 10) setPhone(maskPhone(tel));
+                if (tel.length >= 10) setPhone((current) => current.trim() ? current : maskPhone(tel));
             }
             toast.success('Dados do CNPJ preenchidos.');
         } catch {
@@ -210,11 +213,13 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
         };
 
         try {
-            if (isEditing && station) {
-                await updateMut.mutateAsync(payload);
-            } else {
-                await createMut.mutateAsync(payload);
-            }
+            const saved = isEditing && station
+                ? await updateMut.mutateAsync(payload)
+                : await createMut.mutateAsync(payload);
+            assertContractDatesPersisted(saved, {
+                contract_start: payload.contract_start,
+                contract_end: payload.contract_end,
+            });
             await qc.invalidateQueries({ queryKey: ['stations'] });
             toast.success(isEditing ? 'Posto atualizado!' : 'Posto cadastrado!');
             onClose();

@@ -113,7 +113,7 @@ export interface CreateDriverRequest {
     cnhNumber: string;
     cnhCategory: string;
     cnhExpiryDate: string;
-    birthDate?: string;
+    birthDate: string;
     departmentId?: string;
     phone?: string;
     email?: string;

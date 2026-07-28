@@ -29,7 +29,8 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
     },
     ref
   ) => {
-    const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
+    const generatedId = React.useId();
+    const inputId = id || `input-${generatedId.replace(/:/g, '')}`;
 
     const baseInputStyles = `
       w-full

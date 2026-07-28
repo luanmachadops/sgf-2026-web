@@ -1428,10 +1428,12 @@ export interface TenantData {
     address: string;
     mayorName: string;
     reportFooter: string;
+    supportPhone: string;
+    supportEmail: string;
     status: string;
 }
 
-const TENANT_COLS = 'id, slug, name, app_name, login_eyebrow, logo_url, seal_url, photo_url, primary_color, dark_color, accent_color, cnpj, city, state, address, mayor_name, report_footer, status';
+const TENANT_COLS = 'id, slug, name, app_name, login_eyebrow, logo_url, seal_url, photo_url, primary_color, dark_color, accent_color, cnpj, city, state, address, mayor_name, report_footer, support_phone, support_email, status';
 
 function mapTenantData(d: Record<string, unknown> | null): TenantData | null {
     if (!d) return null;
@@ -1442,6 +1444,7 @@ function mapTenantData(d: Record<string, unknown> | null): TenantData | null {
         primaryColor: (d.primary_color as string) ?? '#00A86B', darkColor: (d.dark_color as string) ?? '#0F2B2F', accentColor: (d.accent_color as string) ?? '#70C4A8',
         cnpj: (d.cnpj as string) ?? '', city: (d.city as string) ?? '', state: (d.state as string) ?? '',
         address: (d.address as string) ?? '', mayorName: (d.mayor_name as string) ?? '', reportFooter: (d.report_footer as string) ?? '',
+        supportPhone: (d.support_phone as string) ?? '', supportEmail: (d.support_email as string) ?? '',
         status: (d.status as string) ?? 'active',
     };
 }
@@ -1461,7 +1464,7 @@ export const tenantApi = {
             logoUrl: 'logo_url', sealUrl: 'seal_url', photoUrl: 'photo_url',
             primaryColor: 'primary_color', darkColor: 'dark_color', accentColor: 'accent_color',
             cnpj: 'cnpj', city: 'city', state: 'state', address: 'address', mayorName: 'mayor_name',
-            reportFooter: 'report_footer', status: 'status',
+            reportFooter: 'report_footer', supportPhone: 'support_phone', supportEmail: 'support_email', status: 'status',
         };
         (Object.keys(patch) as (keyof TenantData)[]).forEach((k) => {
             if (k === 'id') return;

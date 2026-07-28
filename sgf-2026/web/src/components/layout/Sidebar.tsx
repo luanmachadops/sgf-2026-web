@@ -69,6 +69,13 @@ const menuSections: MenuSection[] = [
         ]
     }
 ];
+const GLOBAL_ONLY_PATHS = new Set([
+    '/postos',
+    '/oficinas',
+    '/secretarias',
+    '/relatorios',
+    '/configuracoes',
+]);
 
 // --- Internal Components ---
 
@@ -82,6 +89,15 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
     const location = useLocation();
     const { user, logout } = useAuth();
     const { branding } = useBranding();
+    const departmentScoped = Boolean(user?.departmentScopeId);
+    const visibleSections = menuSections
+        .map((section) => ({
+            ...section,
+            items: departmentScoped
+                ? section.items.filter((item) => !GLOBAL_ONLY_PATHS.has(item.path))
+                : section.items,
+        }))
+        .filter((section) => section.items.length > 0);
 
     return (
         <div
@@ -149,7 +165,7 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                 "flex-1 overflow-y-auto py-3 custom-scrollbar",
                 isCollapsed ? "px-2" : "px-3"
             )}>
-                {menuSections.map((section, sectionIndex) => (
+                {visibleSections.map((section, sectionIndex) => (
                     <div key={sectionIndex} className="mb-4 last:mb-0">
                         {/* Section header */}
                         {!isCollapsed && (

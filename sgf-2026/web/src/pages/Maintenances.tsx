@@ -28,6 +28,7 @@ import { useMaintenances } from '@/hooks/useMaintenances';
 import { useHeader } from '@/contexts/HeaderContext';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { FinStatus, OpStatus } from '@/lib/supabase-api';
+import { maintenanceManagerNextAction, maintenanceOperationalLabel } from '@/lib/maintenance-status';
 
 type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info';
 
@@ -106,17 +107,6 @@ const WORKFLOW_COLUMNS: WorkflowColumn[] = [
     },
 ];
 
-const OP_LABEL: Record<OpStatus, string> = {
-    pending: 'Em triagem',
-    authorized: 'Autorizada',
-    at_shop: 'Na oficina',
-    awaiting_quote_approval: 'Orçamento em análise',
-    in_progress: 'Em execução',
-    ready: 'Pronta para retirada',
-    received: 'Veículo recebido',
-    cancelled: 'Cancelada',
-};
-
 const FIN_LABEL: Record<FinStatus, string> = {
     not_started: 'Não iniciado',
     awaiting_commitment: 'Aguardando empenho',
@@ -164,17 +154,7 @@ function financialVariant(status: FinStatus): BadgeVariant {
 }
 
 function managerNextAction(item: MaintenanceItem): string {
-    if (item.operationalStatus === 'pending') return 'Revisar e autorizar';
-    if (item.operationalStatus === 'authorized') return 'Confirmar entrega na oficina';
-    if (item.operationalStatus === 'at_shop') return 'Aguardar orçamento da oficina';
-    if (item.operationalStatus === 'awaiting_quote_approval') return 'Analisar orçamento';
-    if (item.operationalStatus === 'in_progress') return 'Acompanhar execução';
-    if (item.operationalStatus === 'ready') return 'Conferir e receber veículo';
-    if (item.operationalStatus === 'cancelled') return 'Processo cancelado';
-    if (item.financialStatus === 'invoiced') return 'Atestar notas fiscais';
-    if (item.financialStatus === 'attested') return 'Registrar pagamento';
-    if (item.financialStatus === 'paid') return 'Processo encerrado';
-    return 'Aguardar nota fiscal';
+    return maintenanceManagerNextAction(item.operationalStatus, item.financialStatus);
 }
 
 function mapRow(row: MaintenanceDetailsRow): MaintenanceItem {
@@ -350,7 +330,7 @@ export default function Maintenances() {
             sortValue: (item) => item.operationalStatus,
             accessor: (item) => (
                 <SGFBadge variant={operationalVariant(item.operationalStatus)}>
-                    {OP_LABEL[item.operationalStatus]}
+                    {maintenanceOperationalLabel(item.operationalStatus, item.financialStatus)}
                 </SGFBadge>
             ),
         },
@@ -515,7 +495,7 @@ export default function Maintenances() {
                                             <p className="mt-3 line-clamp-2 text-xs text-slate-600">{item.description}</p>
                                             <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
                                                 <SGFBadge variant={operationalVariant(item.operationalStatus)} size="sm">
-                                                    {OP_LABEL[item.operationalStatus]}
+                                                    {maintenanceOperationalLabel(item.operationalStatus, item.financialStatus)}
                                                 </SGFBadge>
                                                 <p className="text-[11px] font-semibold text-slate-700">{managerNextAction(item)}</p>
                                                 {item.repairShop && (

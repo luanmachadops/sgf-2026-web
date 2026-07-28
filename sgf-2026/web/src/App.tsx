@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -28,6 +28,7 @@ import Stations from '@/pages/Stations';
 import RepairShops from '@/pages/RepairShops';
 import Notificacoes from '@/pages/Notificacoes';
 import Convite from '@/pages/Convite';
+import { useAuth } from '@/contexts/AuthContext';
 
 const StationPortal = lazy(() => import('@/pages/partner/StationPortal'));
 const WorkshopPortal = lazy(() => import('@/pages/partner/WorkshopPortal'));
@@ -37,6 +38,11 @@ const routeLoading = (
     <div className="h-9 w-9 animate-spin rounded-full border-4 border-[var(--sgf-primary)] border-t-transparent" />
   </div>
 );
+
+function GlobalManagementRoute({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  return user?.departmentScopeId ? <Navigate to="/" replace /> : children;
+}
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -82,14 +88,14 @@ function App() {
                 <Route path="/manutencoes" element={<Maintenances />} />
                 <Route path="/checklists" element={<Checklists />} />
                 <Route path="/infracoes" element={<Infracoes />} />
-                <Route path="/relatorios" element={<Reports />} />
-                <Route path="/secretarias" element={<Departments />} />
-                <Route path="/secretarias/:id" element={<Departments />} />
-                <Route path="/postos" element={<Stations />} />
-                <Route path="/postos/:id" element={<Stations />} />
-                <Route path="/oficinas" element={<RepairShops />} />
-                <Route path="/oficinas/:id" element={<RepairShops />} />
-                <Route path="/configuracoes" element={<Configuracoes />} />
+                <Route path="/relatorios" element={<GlobalManagementRoute><Reports /></GlobalManagementRoute>} />
+                <Route path="/secretarias" element={<GlobalManagementRoute><Departments /></GlobalManagementRoute>} />
+                <Route path="/secretarias/:id" element={<GlobalManagementRoute><Departments /></GlobalManagementRoute>} />
+                <Route path="/postos" element={<GlobalManagementRoute><Stations /></GlobalManagementRoute>} />
+                <Route path="/postos/:id" element={<GlobalManagementRoute><Stations /></GlobalManagementRoute>} />
+                <Route path="/oficinas" element={<GlobalManagementRoute><RepairShops /></GlobalManagementRoute>} />
+                <Route path="/oficinas/:id" element={<GlobalManagementRoute><RepairShops /></GlobalManagementRoute>} />
+                <Route path="/configuracoes" element={<GlobalManagementRoute><Configuracoes /></GlobalManagementRoute>} />
                 <Route path="/perfil" element={<Perfil />} />
                 <Route path="/notificacoes" element={<Notificacoes />} />
               </Route>

@@ -25,7 +25,8 @@ export const SGFTextarea = React.forwardRef<HTMLTextAreaElement, SGFTextareaProp
     },
     ref
   ) => {
-    const textareaId = id || `textarea-${Math.random().toString(36).substr(2, 9)}`;
+    const generatedId = React.useId();
+    const textareaId = id || `textarea-${generatedId.replace(/:/g, '')}`;
     const currentLength = typeof value === 'string' ? value.length : 0;
 
     const baseStyles = `

@@ -307,6 +307,15 @@ export const workshopPortalApi = withFotoUrls({
             p_note: input.note?.trim() || undefined,
         });
         throwIfError(error);
+        const { data: saved, error: verifyError } = await supabase
+            .from('service_order_quotes')
+            .select('valid_until')
+            .eq('id', data)
+            .single();
+        throwIfError(verifyError);
+        if ((saved?.valid_until ?? null) !== (input.validUntil || null)) {
+            throw new Error('A validade do orçamento não foi confirmada pelo banco. Revise e tente novamente.');
+        }
         return data;
     },
 

@@ -48,6 +48,12 @@ function cpfFallbackPassword(cleanCpf: string): string {
     return cleanCpf.padEnd(PASSWORD_MIN_LENGTH, cleanCpf.charAt(0) || '0');
 }
 
+const requiredDate = (label: string) => z
+    .string()
+    .min(1, `${label} é obrigatória`)
+    .regex(/^\d{4}-\d{2}-\d{2}$/, `${label} inválida`)
+    .refine((value) => !Number.isNaN(Date.parse(`${value}T12:00:00`)), `${label} inválida`);
+
 const driverSchema = z.object({
     name: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
     cpf: z
@@ -57,12 +63,13 @@ const driverSchema = z.object({
         .refine((value) => value.replace(/\D/g, '').length === 11, 'CPF inválido'),
     departmentId: z.string().uuid('Secretaria é obrigatória'),
     registrationNumber: z.string().optional(),
-    birthDate: z.string().optional(),
+    birthDate: requiredDate('Data de nascimento')
+        .refine((value) => value <= new Date().toISOString().slice(0, 10), 'Data de nascimento não pode estar no futuro'),
     phone: z.string().optional(),
     email: z.string().email('E-mail inválido').optional().or(z.literal('')),
     licenseNumber: z.string().optional(),
     licenseCategory: z.string().optional(),
-    licenseExpiry: z.string().optional(),
+    licenseExpiry: requiredDate('Validade da CNH'),
     cnhEar: z.boolean().optional().default(false),
     shiftStart: z.string().optional(),
     shiftEnd: z.string().optional(),
@@ -241,8 +248,8 @@ export function NewDriverForm({ onSuccess }: NewDriverFormProps) {
                 registrationNumber: (data.registrationNumber || '').trim() || cleanCpf.slice(0, 8),
                 cnhNumber: (data.licenseNumber || '').replace(/\D/g, '') || cleanCpf,
                 cnhCategory: data.licenseCategory || 'B',
-                cnhExpiryDate: data.licenseExpiry || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                birthDate: data.birthDate || undefined,
+                cnhExpiryDate: data.licenseExpiry,
+                birthDate: data.birthDate,
                 departmentId: data.departmentId,
                 phone: (data.phone || '').replace(/\D/g, ''),
                 email: (data.email || '').trim().toLowerCase() || `${cleanCpf}@prefeitura.local`,
@@ -255,9 +262,9 @@ export function NewDriverForm({ onSuccess }: NewDriverFormProps) {
 
             toast.success('Motorista cadastrado com sucesso!');
             onSuccess();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error creating driver:', error);
-            toast.error(error?.message || 'Erro ao cadastrar motorista. Tente novamente.');
+            toast.error(error instanceof Error ? error.message : 'Erro ao cadastrar motorista. Tente novamente.');
         }
     };
 

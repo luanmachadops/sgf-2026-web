@@ -17,6 +17,8 @@ export interface TenantBranding {
     address?: string;
     mayorName?: string;
     reportFooter?: string;
+    supportPhone?: string;
+    supportEmail?: string;
     status?: string;
 }
 

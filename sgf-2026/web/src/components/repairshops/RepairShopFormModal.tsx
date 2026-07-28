@@ -8,7 +8,7 @@ import { Camera, Loader2, FileText, X, Download, Search } from '@/components/sgf
 import { useCreateRepairShop, useUpdateRepairShop, useRepairShops } from '@/hooks/useRepairShops';
 import { useAuth } from '@/contexts/AuthContext';
 import { ProcurementContractFields } from '@/components/procurement/ProcurementContractFields';
-import { validateProcurementContract } from '@/lib/procurement-contract';
+import { assertContractDatesPersisted, validateProcurementContract } from '@/lib/procurement-contract';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { resolveDocUrl, uploadPrivateDoc } from '@/lib/docStorage';
 import {
@@ -166,14 +166,14 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
             const fantasia = (d.nome_fantasia || '').trim();
             const razao = (d.razao_social || '').trim();
             const shopName = fantasia || razao;
-            if (shopName) setName(shopName);
+            if (shopName) setName((current) => current.trim() ? current : shopName);
 
             const addrParts = [d.logradouro, d.numero, d.complemento].filter(Boolean).join(', ');
             const fullAddr = [addrParts, d.bairro].filter(Boolean).join(' - ');
-            if (fullAddr) setAddress(fullAddr);
+            if (fullAddr) setAddress((current) => current.trim() ? current : fullAddr);
 
             const cidadeUf = [d.municipio, d.uf].filter(Boolean).join('/');
-            if (cidadeUf) setCity(cidadeUf);
+            if (cidadeUf) setCity((current) => current.trim() ? current : cidadeUf);
 
             const rawTel = d.ddd_telefone_1 || d.telefone || d.ddd_telefone_2 || '';
             if (rawTel) {
@@ -181,7 +181,7 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
                 if (tel.length > 11 && tel.startsWith('55')) tel = tel.slice(2);
                 tel = tel.replace(/^0+/, '');
                 tel = tel.slice(-11);
-                if (tel.length >= 10) setPhone(maskPhone(tel));
+                if (tel.length >= 10) setPhone((current) => current.trim() ? current : maskPhone(tel));
             }
 
             toast.success('Dados da oficina preenchidos a partir do CNPJ.');
@@ -313,8 +313,13 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
         };
 
         try {
-            if (isEditing && shop) await updateMut.mutateAsync(payload);
-            else await createMut.mutateAsync(payload);
+            const saved = isEditing && shop
+                ? await updateMut.mutateAsync(payload)
+                : await createMut.mutateAsync(payload);
+            assertContractDatesPersisted(saved, {
+                contract_start: payload.contract_start,
+                contract_end: payload.contract_end,
+            });
             await qc.invalidateQueries({ queryKey: ['repairShops'] });
             toast.success(isEditing ? 'Oficina atualizada!' : 'Oficina cadastrada!');
             onClose();

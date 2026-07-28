@@ -27,3 +27,15 @@ export function validateProcurementContract(values: ProcurementContractValues): 
 
     return null;
 }
+
+export function assertContractDatesPersisted(
+    saved: { contract_start?: string | null; contract_end?: string | null },
+    expected: { contract_start: string | null; contract_end: string | null },
+): void {
+    if (
+        (saved.contract_start ?? null) !== expected.contract_start
+        || (saved.contract_end ?? null) !== expected.contract_end
+    ) {
+        throw new Error('As datas da licitação não foram confirmadas pelo banco. Revise os dados e tente novamente.');
+    }
+}

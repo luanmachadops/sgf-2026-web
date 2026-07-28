@@ -7,6 +7,7 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 import { Check, DollarSign, FileText, Loader2, X } from '@/components/sgf/icons';
 import { serviceOrderFiscalApi, type FinStatus, type OpStatus } from '@/lib/supabase-api';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { maintenanceOperationalLabel } from '@/lib/maintenance-status';
 
 interface Props {
     orderId: string;
@@ -45,11 +46,6 @@ const ETAPAS: { n: number; label: string; quem: string; done: (op: OpStatus, fin
     { n: 12, label: 'Pagamento e arquivamento',            quem: 'Contabilidade', done: (_, fin) => FIN_ORDER.indexOf(fin) >= 5 },
 ];
 
-const OP_LABEL: Record<string, string> = {
-    pending: 'Pendente', authorized: 'Autorizada', at_shop: 'Na oficina',
-    awaiting_quote_approval: 'Aguardando aprovação do orçamento', in_progress: 'Em execução',
-    ready: 'Pronta para retirada', received: 'Veículo recebido', cancelled: 'Cancelada',
-};
 const FIN_LABEL: Record<string, string> = {
     not_started: 'Não iniciado', awaiting_commitment: 'Aguardando empenho', committed: 'Empenhado',
     invoiced: 'Faturado', attested: 'Atestado', paid: 'Pago',
@@ -146,7 +142,7 @@ export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialS
             <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-2xl border border-slate-200 p-3">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Situação do veículo</p>
-                    <p className="mt-1 text-sm font-bold text-slate-800">{OP_LABEL[op] ?? op}</p>
+                    <p className="mt-1 text-sm font-bold text-slate-800">{maintenanceOperationalLabel(op, fin)}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 p-3">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Situação do processo</p>

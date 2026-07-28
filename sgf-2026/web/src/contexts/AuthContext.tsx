@@ -151,6 +151,7 @@ type TenantRow = {
     primary_color: string | null; dark_color: string | null; accent_color: string | null;
     cnpj: string | null; city: string | null; state: string | null; address: string | null;
     mayor_name: string | null; report_footer: string | null; status: string | null;
+    support_phone: string | null; support_email: string | null;
 };
 
 function mapTenant(t: TenantRow | null | undefined): import('@/types').TenantBranding | undefined {
@@ -162,6 +163,7 @@ function mapTenant(t: TenantRow | null | undefined): import('@/types').TenantBra
         primaryColor: t.primary_color ?? undefined, darkColor: t.dark_color ?? undefined, accentColor: t.accent_color ?? undefined,
         cnpj: t.cnpj ?? undefined, city: t.city ?? undefined, state: t.state ?? undefined, address: t.address ?? undefined,
         mayorName: t.mayor_name ?? undefined, reportFooter: t.report_footer ?? undefined, status: t.status ?? undefined,
+        supportPhone: t.support_phone ?? undefined, supportEmail: t.support_email ?? undefined,
     };
 }
 
@@ -172,7 +174,7 @@ function mapTenant(t: TenantRow | null | undefined): import('@/types').TenantBra
 async function fetchUserProfile(authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }): Promise<User> {
     const { data: profile, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, department_id, tenant_id, station_id, repair_shop_id, access_blocked, created_at, photo_url, must_change_password, departments(id, name), tenants(id, slug, name, app_name, login_eyebrow, logo_url, seal_url, photo_url, primary_color, dark_color, accent_color, cnpj, city, state, address, mayor_name, report_footer, status)')
+        .select('id, full_name, email, role, department_id, tenant_id, station_id, repair_shop_id, access_blocked, created_at, photo_url, must_change_password, departments(id, name), tenants(*)')
         .eq('id', authUser.id)
         .maybeSingle();
 
