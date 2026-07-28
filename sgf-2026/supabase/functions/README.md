@@ -6,8 +6,7 @@ Código-fonte de todas as edge functions deployadas no projeto Supabase `kgxdrgb
 |---|---|---|---|
 | `vehicle-ai-extract` | ✅ | `web/src/lib/vehicleAI.ts` | Extração de dados do veículo/CRLV via OpenRouter (`OPENROUTER_API_KEY`, `OPENROUTER_MODEL`). |
 | `driver-cnh-extract` | ✅ | `web/src/lib/driverAI.ts` | Extração de dados da CNH via OpenRouter. |
-| `send-push` | ❌ | Trigger `tg_notifications_push` (pg_net) no INSERT de `notifications` | **Endpoint aberto** — configurar o secret `PUSH_WEBHOOK_SECRET` na função e enviar o header `x-webhook-secret` no trigger. |
-| `notify-push` | ✅ | **Ninguém** (órfã) | Duplicata mais nova de `send-push`, pensada para Database Webhook que nunca foi configurado. Consolidar: ou migrar o trigger para ela, ou removê-la. |
+| `send-push` | ❌ | Trigger `tg_notifications_push` (pg_net) no INSERT de `notifications` | Protegida por segredo compartilhado (`PUSH_WEBHOOK_SECRET`, env ou `app_secrets`), obrigatório e fail-closed (2026-07-28: `secret` ausente agora retorna 500, antes pulava a checagem — auditoria `fix/auditoria-2026-07`). |
 | `iopgps-sync` | ❌ (cron via `x-cron-secret`) | Cron + painel | Sincroniza rastreadores IOPGPS. |
 | `iopgps-command` | ✅ | Admin | Envia comandos ao rastreador. |
 | `iopgps-history` | ✅ | — | Histórico de posições IOPGPS. |
