@@ -1,5 +1,6 @@
 import React from 'react';
 import type { IconType } from './icons';
+import { Eye, EyeOff } from './icons';
 
 export interface SGFInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -25,12 +26,16 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
       id,
       inputClassName = '',
       onIconClick,
+      type,
       ...props
     },
     ref
   ) => {
     const generatedId = React.useId();
     const inputId = id || `input-${generatedId.replace(/:/g, '')}`;
+    const hasCustomPasswordToggle = Boolean(Icon && iconPosition === 'right' && onIconClick);
+    const isPassword = type === 'password' && !hasCustomPasswordToggle;
+    const [passwordVisible, setPasswordVisible] = React.useState(false);
 
     const baseInputStyles = `
       w-full min-w-0
@@ -56,6 +61,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
         ? 'pl-11'
         : 'pr-11'
       : '';
+    const passwordStyles = isPassword ? 'pr-12' : '';
 
     return (
       <div className={`${fullWidth ? 'w-full' : ''} min-w-0 ${className}`}>
@@ -88,7 +94,8 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
           <input
             ref={ref}
             id={inputId}
-            className={`${baseInputStyles} ${stateStyles} ${iconStyles} ${inputClassName}`.trim().replace(/\s+/g, ' ')}
+            type={isPassword && passwordVisible ? 'text' : type}
+            className={`${baseInputStyles} ${stateStyles} ${iconStyles} ${passwordStyles} ${inputClassName}`.trim().replace(/\s+/g, ' ')}
             {...props}
           />
 
@@ -106,6 +113,18 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
                 <Icon width={18} height={18} />
               </div>
             )
+          )}
+
+          {isPassword && (
+            <button
+              type="button"
+              onClick={() => setPasswordVisible((visible) => !visible)}
+              className="absolute right-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-700 focus:outline-none"
+              aria-label={passwordVisible ? 'Ocultar senha' : 'Mostrar senha'}
+              title={passwordVisible ? 'Ocultar senha' : 'Mostrar senha'}
+            >
+              {passwordVisible ? <EyeOff width={18} height={18} /> : <Eye width={18} height={18} />}
+            </button>
           )}
         </div>
 

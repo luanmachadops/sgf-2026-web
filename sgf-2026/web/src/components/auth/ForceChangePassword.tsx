@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { SGFButton } from '@/components/sgf/SGFButton';
+import { SGFInput } from '@/components/sgf/SGFInput';
 import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
 
 function passwordChangeError(error: unknown): string {
@@ -69,35 +70,27 @@ export default function ForceChangePassword() {
                         {err}
                     </div>
                 )}
-                <div>
-                    <label htmlFor="first-access-password" className="mb-1 block text-xs font-semibold text-slate-500">
-                        Nova senha
-                    </label>
-                    <input
-                        id="first-access-password"
-                        type="password"
-                        autoComplete="new-password"
-                        placeholder={PASSWORD_PLACEHOLDER}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-[var(--sgf-primary)] focus:outline-none focus:ring-4 focus:ring-emerald-500/10"
-                    />
-                </div>
-                <div>
-                    <label htmlFor="first-access-password-confirmation" className="mb-1 block text-xs font-semibold text-slate-500">
-                        Confirmar nova senha
-                    </label>
-                    <input
-                        id="first-access-password-confirmation"
-                        type="password"
-                        autoComplete="new-password"
-                        value={confirm}
-                        onChange={(e) => setConfirm(e.target.value)}
-                        required
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-[var(--sgf-primary)] focus:outline-none focus:ring-4 focus:ring-emerald-500/10"
-                    />
-                </div>
+                <SGFInput
+                    id="first-access-password"
+                    label="Nova senha"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder={PASSWORD_PLACEHOLDER}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    fullWidth
+                />
+                <SGFInput
+                    id="first-access-password-confirmation"
+                    label="Confirmar nova senha"
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    required
+                    fullWidth
+                />
                 <SGFButton
                     type="submit"
                     size="lg"

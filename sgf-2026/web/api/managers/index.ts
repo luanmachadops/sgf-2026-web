@@ -23,10 +23,12 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-        // Apenas o ADMIN cria usuários do painel (secretários/gestores).
+        // Administrador e gestor podem criar secretários da própria prefeitura.
         const caller = await getCaller(req);
         if (!caller) throw Object.assign(new Error('Não autenticado'), { status: 401 });
-        if (caller.role !== 'admin') throw Object.assign(new Error('Apenas o administrador pode criar secretários'), { status: 403 });
+        if (!['admin', 'gestor'].includes(caller.role)) {
+            throw Object.assign(new Error('Apenas administradores e gestores podem criar secretários'), { status: 403 });
+        }
 
         const ip = getClientIp(req);
         const check = await checkRateLimit('managers-create', caller.id, ip, WINDOW_SECONDS, MAX_HITS);

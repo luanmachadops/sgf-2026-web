@@ -53,9 +53,12 @@ export function assertTargetIsDriver(role: string | null | undefined): void {
 /** Lê e valida o JWT do header Authorization, retornando o perfil do chamador. */
 export async function getCaller(req: any): Promise<Caller | null> {
     const header = req.headers?.authorization || req.headers?.Authorization;
+    const fallbackToken = req.headers?.['x-access-token'] || req.headers?.['X-Access-Token'];
     const token = typeof header === 'string' && header.startsWith('Bearer ')
         ? header.slice(7)
-        : null;
+        : typeof fallbackToken === 'string' && fallbackToken
+            ? fallbackToken
+            : null;
     if (!token) return null;
 
     const admin = getSupabaseAdmin();

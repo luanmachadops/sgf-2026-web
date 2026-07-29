@@ -50,15 +50,21 @@ class BackendApiError extends Error {
 async function request<T>(path: string, init: RequestInit): Promise<T> {
     const apiUrl = resolveApiUrl();
 
-    // Envia o token da sessão para a serverless validar quem está chamando (RBAC).
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-
-    const headers = {
+    const buildHeaders = (token?: string) => ({
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(token ? {
+            Authorization: `Bearer ${token}`,
+            // Alguns proxies de hospedagem removem Authorization. Este cabeçalho
+            // carrega o mesmo JWT e é validado do mesmo modo no servidor.
+            'X-Access-Token': token,
+        } : {}),
         ...(init.headers || {}),
-    };
+    });
+
+    // Envia o token da sessão para a API validar quem está chamando (RBAC).
+    const { data: { session } } = await supabase.auth.getSession();
+    let token = session?.access_token;
+    let headers = buildHeaders(token);
 
     let response: Response;
     try {
@@ -66,7 +72,7 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
             ...init,
             headers,
         });
-    } catch (err) {
+    } catch {
         // Se falhar a conexão direta com http://localhost:3000 (servidor backend offline),
         // tenta o endpoint relativo `/api` (Serverless / Proxy).
         if (apiUrl.includes('localhost:3000')) {
@@ -80,6 +86,18 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
             }
         } else {
             throw new BackendApiError('Não foi possível conectar ao servidor de API.', 503);
+        }
+    }
+
+    // Uma sessão aberta pode estar com o access token no limite da validade.
+    // Renova uma única vez e repete a ação, sem criar laço de requisições.
+    if (response.status === 401 && token) {
+        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+        const refreshedToken = refreshed.session?.access_token;
+        if (!refreshError && refreshedToken) {
+            token = refreshedToken;
+            headers = buildHeaders(token);
+            response = await fetch(`${apiUrl}${path}`, { ...init, headers });
         }
     }
 

@@ -29,9 +29,14 @@ export function PwaInstallPrompt() {
         const dismissed = window.sessionStorage.getItem('exattus-pwa-install-dismissed') === '1';
 
         const onBeforeInstall = (event: Event) => {
-            event.preventDefault();
-            setInstallEvent(event as BeforeInstallPromptEvent);
-            if (!dismissed && (mobileViewport || forcePreview)) setVisible(true);
+            // No mobile usamos o nosso painel e chamamos prompt() no clique.
+            // No desktop não interceptamos o evento: o navegador pode exibir
+            // a experiência nativa e não registra o aviso de prompt suprimido.
+            if (mobileViewport || forcePreview) {
+                event.preventDefault();
+                setInstallEvent(event as BeforeInstallPromptEvent);
+                if (!dismissed) setVisible(true);
+            }
         };
         const onInstalled = () => {
             setInstalled(true);

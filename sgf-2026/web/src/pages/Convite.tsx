@@ -7,6 +7,8 @@ import {
     Camera,
     Check,
     CheckCircle,
+    Eye,
+    EyeOff,
     FileText,
     Lock,
     Pencil,
@@ -818,17 +820,31 @@ function Field({
     inputMode,
     autoComplete,
 }: FieldProps) {
+    const [passwordVisible, setPasswordVisible] = useState(false);
+    const isPassword = type === 'password';
     return (
         <label className="block">
             <span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}</span>
-            <input
-                type={type}
-                value={value}
-                onChange={(event) => onChange(event.target.value)}
-                inputMode={inputMode}
-                autoComplete={autoComplete}
-                className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 sm:text-sm"
-            />
+            <span className="relative block">
+                <input
+                    type={isPassword && passwordVisible ? 'text' : type}
+                    value={value}
+                    onChange={(event) => onChange(event.target.value)}
+                    inputMode={inputMode}
+                    autoComplete={autoComplete}
+                    className={`h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 sm:text-sm ${isPassword ? 'pr-12' : ''}`}
+                />
+                {isPassword && (
+                    <button
+                        type="button"
+                        onClick={() => setPasswordVisible((visible) => !visible)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
+                        aria-label={passwordVisible ? 'Ocultar senha' : 'Mostrar senha'}
+                    >
+                        {passwordVisible ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                )}
+            </span>
         </label>
     );
 }

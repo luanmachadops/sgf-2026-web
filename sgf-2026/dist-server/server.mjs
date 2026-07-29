@@ -25784,7 +25784,8 @@ function assertTargetIsDriver(role) {
 }
 async function getCaller(req) {
   const header = req.headers?.authorization || req.headers?.Authorization;
-  const token = typeof header === "string" && header.startsWith("Bearer ") ? header.slice(7) : null;
+  const fallbackToken = req.headers?.["x-access-token"] || req.headers?.["X-Access-Token"];
+  const token = typeof header === "string" && header.startsWith("Bearer ") ? header.slice(7) : typeof fallbackToken === "string" && fallbackToken ? fallbackToken : null;
   if (!token) return null;
   const admin = getSupabaseAdmin();
   const { data, error } = await admin.auth.getUser(token);
@@ -26396,7 +26397,9 @@ async function handler5(req, res) {
   try {
     const caller = await getCaller(req);
     if (!caller) throw Object.assign(new Error("N\xE3o autenticado"), { status: 401 });
-    if (caller.role !== "admin") throw Object.assign(new Error("Apenas o administrador pode criar secret\xE1rios"), { status: 403 });
+    if (!["admin", "gestor"].includes(caller.role)) {
+      throw Object.assign(new Error("Apenas administradores e gestores podem criar secret\xE1rios"), { status: 403 });
+    }
     const ip = getClientIp(req);
     const check = await checkRateLimit("managers-create", caller.id, ip, WINDOW_SECONDS4, MAX_HITS4);
     if (!check.allowed) {
