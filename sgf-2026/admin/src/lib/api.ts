@@ -8,6 +8,12 @@ export type Contract = Tables<'tenant_contracts'>;
 export type AiUsage = Tables<'ai_usage'>;
 export type AiLimit = Tables<'tenant_ai_limits'>;
 export type Tracker = Tables<'trackers'>;
+export interface ContractDocument {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+}
 // Sugestões de modelos (o modelo real é detectado pela IOPGPS via IMEI e pode ser
 // qualquer aparelho suportado por eles — o campo aceita texto livre).
 export const TRACKER_MODELS = ['SL48', 'SL48-4G', 'SL46-4G', 'S5', 'S20', 'GT06N'] as const;
@@ -43,6 +49,19 @@ export const tenantsApi = {
     const { data, error } = await supabase.from('tenants').insert(patch).select('*').single();
     return bail(data, error)!;
   },
+  uploadBrandingImage: async (tenantId: string, kind: 'photo' | 'seal' | 'logo', file: File): Promise<string> => {
+    if (!file.type.startsWith('image/')) throw new Error('Selecione um arquivo de imagem.');
+    if (file.size > 5 * 1024 * 1024) throw new Error('A imagem deve ter no máximo 5 MB.');
+    const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const path = `${tenantId}/${kind}-${Date.now()}.${extension}`;
+    const { error } = await supabase.storage.from('branding').upload(path, file, {
+      cacheControl: '3600',
+      contentType: file.type,
+      upsert: false,
+    });
+    if (error) throw new Error(error.message);
+    return supabase.storage.from('branding').getPublicUrl(path).data.publicUrl;
+  },
 };
 
 export const invoicesApi = {
@@ -69,13 +88,40 @@ export const contractsApi = {
     const { data, error } = await q;
     return bail(data ?? [], error);
   },
-  create: async (patch: TablesInsert<'tenant_contracts'>): Promise<void> => {
-    const { error } = await supabase.from('tenant_contracts').insert(patch);
-    bail(null, error);
+  create: async (patch: TablesInsert<'tenant_contracts'>): Promise<Contract> => {
+    const { data, error } = await supabase.from('tenant_contracts').insert(patch).select('*').single();
+    return bail(data, error)!;
   },
   update: async (id: string, patch: TablesUpdate<'tenant_contracts'>): Promise<void> => {
     const { error } = await supabase.from('tenant_contracts').update(patch).eq('id', id);
     bail(null, error);
+  },
+  documents: (contract: Contract): ContractDocument[] => {
+    return Array.isArray(contract.documents) ? contract.documents as unknown as ContractDocument[] : [];
+  },
+  uploadDocuments: async (contract: Contract, files: File[]): Promise<ContractDocument[]> => {
+    const previous = contractsApi.documents(contract);
+    const uploaded: ContractDocument[] = [];
+    for (const [index, file] of files.entries()) {
+      if (file.size > 20 * 1024 * 1024) throw new Error(`${file.name} ultrapassa o limite de 20 MB.`);
+      const safeName = file.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-');
+      const path = `${contract.tenant_id}/contracts/${contract.id}/${Date.now()}-${index}-${safeName}`;
+      const { error } = await supabase.storage.from('documentos').upload(path, file, {
+        cacheControl: '3600',
+        contentType: file.type || 'application/octet-stream',
+        upsert: false,
+      });
+      if (error) throw new Error(`Falha ao enviar ${file.name}: ${error.message}`);
+      uploaded.push({ name: file.name, path, size: file.size, type: file.type });
+    }
+    const documents = [...previous, ...uploaded];
+    await contractsApi.update(contract.id, { documents: documents as unknown as TablesUpdate<'tenant_contracts'>['documents'] });
+    return documents;
+  },
+  openDocument: async (document: ContractDocument): Promise<void> => {
+    const { data, error } = await supabase.storage.from('documentos').createSignedUrl(document.path, 60);
+    if (error || !data?.signedUrl) throw new Error(error?.message || 'Não foi possível abrir o documento.');
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
   },
 };
 

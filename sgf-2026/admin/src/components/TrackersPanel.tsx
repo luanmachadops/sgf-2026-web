@@ -7,6 +7,8 @@ import { VehiclePicker } from '@/components/VehiclePicker';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { Camera } from '@/components/sgf/icons';
 import { Card, Button } from '@/lib/ui';
+import { SGFSelect } from '@/components/sgf';
+import { TenantIdentity } from '@/components/TenantIdentity';
 
 // Estilo padrão dos campos (mesma altura/design do SGFInput) reutilizado em toda a página.
 const LABEL_CLS = 'mb-[var(--sgf-space-2)] block text-[var(--sgf-text-sm)] font-semibold text-[var(--sgf-text-primary)]';
@@ -40,7 +42,7 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
     queryKey: ['vehicles', tenantId ?? 'all'],
     queryFn: () => vehiclesApi.list(tenantId),
   });
-  const tName = useMemo(() => Object.fromEntries(tenants.map((t) => [t.id, t.name])), [tenants]);
+  const tenantById = useMemo(() => Object.fromEntries(tenants.map((t) => [t.id, t])), [tenants]);
 
   // Veículos agrupados por prefeitura (para filtrar as opções por tenant do rastreador).
   const vehiclesByTenant = useMemo(() => {
@@ -106,13 +108,9 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
         <p className="mb-4 text-sm text-slate-500">Informe o IMEI e clique em <span className="font-semibold">Detectar</span> — o modelo é identificado automaticamente na IOPGPS. Depois vincule ao veículo.</p>
         <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {!fixed && (
-            <label className="block">
-              <span className={LABEL_CLS}>Prefeitura</span>
-              <select value={f.tenant_id} onChange={(e) => set({ tenant_id: e.target.value, vehicle_id: '' })} className={FIELD_CLS}>
-                <option value="">Selecione…</option>
-                {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </label>
+            <SGFSelect label="Prefeitura" fullWidth value={f.tenant_id}
+              onChange={(tenant_id) => set({ tenant_id, vehicle_id: '' })}
+              options={tenants.map((t) => ({ value: t.id, label: t.name }))} />
           )}
           <label className="block">
             <span className={LABEL_CLS}>Identificador (IMEI/ID)</span>
@@ -194,7 +192,7 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
                   const opts = vehiclesByTenant.get(t.tenant_id) ?? [];
                   return (
                     <tr key={t.id} className="border-b border-slate-100">
-                      {!fixed && <td className="px-5 py-3 text-slate-600">{tName[t.tenant_id] ?? '—'}</td>}
+                      {!fixed && <td className="px-5 py-3 text-slate-600"><TenantIdentity tenant={tenantById[t.tenant_id]} /></td>}
                       <td className="px-5 py-3 font-mono text-slate-800">{t.identifier}</td>
                       <td className="px-5 py-3">{t.label ?? '—'}</td>
                       <td className="px-5 py-3">

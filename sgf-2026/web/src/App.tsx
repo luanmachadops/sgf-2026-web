@@ -29,6 +29,7 @@ import RepairShops from '@/pages/RepairShops';
 import Notificacoes from '@/pages/Notificacoes';
 import Convite from '@/pages/Convite';
 import ResetPassword from '@/pages/ResetPassword';
+import SuspendedAccess from '@/pages/SuspendedAccess';
 import { useAuth } from '@/contexts/AuthContext';
 
 const StationPortal = lazy(() => import('@/pages/partner/StationPortal'));
@@ -75,6 +76,7 @@ function App() {
                 PrivateRoute: o motorista ainda não tem conta. */}
             <Route path="/convite" element={<Convite />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/acesso-suspenso" element={<SuspendedAccess />} />
 
             {/* Protected routes */}
             <Route element={<PrivateRoute allow={['ADMIN', 'MANAGER', 'SUPERADMIN']} />}>

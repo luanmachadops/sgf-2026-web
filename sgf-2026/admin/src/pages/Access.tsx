@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { tenantsApi } from '@/lib/api';
 import { Card, Badge } from '@/lib/ui';
 import { ManagersPanel } from '@/components/ManagersPanel';
+import { TenantIdentity } from '@/components/TenantIdentity';
 
 function daysSince(iso: string | null): number {
   if (!iso) return 0;
@@ -42,7 +43,7 @@ export default function Access() {
                 {trials.map((t) => (
                   <tr key={t.id} className="border-b border-slate-100">
                     <td className="px-5 py-3 font-medium text-slate-800">
-                      <Link to={`/prefeituras/${t.id}`} className="hover:text-[var(--sgf-primary)] hover:underline">{t.name}</Link>
+                      <Link to={`/prefeituras/${t.id}`} className="block hover:text-[var(--sgf-primary)] hover:underline"><TenantIdentity tenant={t} /></Link>
                     </td>
                     <td className="px-5 py-3 text-slate-600">{t.created_at ? new Date(t.created_at).toLocaleDateString('pt-BR') : '—'}</td>
                     <td className="px-5 py-3">

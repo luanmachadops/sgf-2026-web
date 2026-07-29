@@ -9,6 +9,7 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import type { User } from '@/types';
+import { authErrorMessage } from '@/lib/authErrors';
 
 interface LoginProps {
     portal?: 'panel' | 'posto' | 'oficina';
@@ -21,7 +22,7 @@ function homeForRole(role: User['role']): string {
 }
 
 function errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : 'Não foi possível concluir a operação.';
+    return authErrorMessage(error);
 }
 
 export default function Login({ portal = 'panel' }: LoginProps) {
@@ -68,9 +69,7 @@ export default function Login({ portal = 'panel' }: LoginProps) {
         } catch (err: unknown) {
             if (view === 'login') {
                 const message = errorMessage(err);
-                setError(message === 'Invalid login credentials'
-                    ? 'E-mail ou senha inválidos.'
-                    : message);
+                setError(message);
             } else {
                 setError(errorMessage(err));
             }

@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { User } from '@/types';
 import { supabase, revokeRefreshToken } from '@/lib/supabase';
 import { resetFotoStorageCache } from '@/lib/fotoStorage';
+import { authErrorMessage, rememberSuspendedTenant } from '@/lib/authErrors';
 
 
 /** Apaga TODO vestígio de sessão do storage do navegador. */
@@ -189,10 +190,24 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
         }
         if (profile.access_blocked) {
             void hardSignOut();
-            throw new Error('Seu acesso está bloqueado. Procure a prefeitura.');
+            throw new Error('Seu acesso está bloqueado. Entre em contato com o suporte para mais informações.');
         }
         const dept = (profile as unknown as { departments?: { id: string; name: string } | null }).departments;
-        const tenant = mapTenant((profile as unknown as { tenants?: TenantRow | null }).tenants);
+        const tenantRow = (profile as unknown as { tenants?: TenantRow | null }).tenants;
+        const tenant = mapTenant(tenantRow);
+        if (tenantRow?.status === 'suspended') {
+            rememberSuspendedTenant({
+                name: tenantRow.name,
+                supportEmail: tenantRow.support_email ?? undefined,
+                supportPhone: tenantRow.support_phone ?? undefined,
+            });
+            persistAuthState(null, null);
+            void hardSignOut();
+            if (window.location.pathname !== '/acesso-suspenso') {
+                window.location.replace('/acesso-suspenso');
+            }
+            throw new Error('O serviço desta prefeitura está temporariamente suspenso.');
+        }
         return {
             id: profile.id,
             email: profile.email ?? authUser.email ?? '',
@@ -357,6 +372,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
     }, [cachedAuth.user?.id, queryClient]);
 
+    // Se o superadmin suspender a prefeitura enquanto o painel estiver aberto,
+    // bloqueia a sessão imediatamente. O carregamento inicial acima continua
+    // sendo a garantia principal para navegadores sem Realtime disponível.
+    useEffect(() => {
+        const tenantId = user?.tenantId;
+        if (!tenantId) return;
+        const channel = supabase
+            .channel(`tenant-access-${tenantId}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'tenants',
+                filter: `id=eq.${tenantId}`,
+            }, (payload) => {
+                const next = payload.new as TenantRow;
+                if (next.status !== 'suspended') return;
+                rememberSuspendedTenant({
+                    name: next.name || user.tenant?.name || 'sua prefeitura',
+                    supportEmail: next.support_email ?? user.tenant?.supportEmail,
+                    supportPhone: next.support_phone ?? user.tenant?.supportPhone,
+                });
+                setUser(null);
+                setToken(null);
+                persistAuthState(null, null);
+                void hardSignOut();
+                window.location.replace('/acesso-suspenso');
+            })
+            .subscribe();
+        return () => {
+            void supabase.removeChannel(channel);
+        };
+    }, [user?.tenant?.name, user?.tenant?.supportEmail, user?.tenant?.supportPhone, user?.tenantId]);
+
     const login = async (email: string, password: string): Promise<User> => {
         setIsLoading(true);
         try {
@@ -365,9 +413,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 password,
             });
 
-            if (error) {
-                throw new Error(error.message);
-            }
+            if (error) throw new Error(authErrorMessage(error));
 
             if (data.session) {
                 setToken(data.session.access_token);

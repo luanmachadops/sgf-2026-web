@@ -7,6 +7,7 @@ import { Card, Button, Input, Badge } from '@/lib/ui';
 import { SGFKPICard, type SGFKPIChartData } from '@/components/sgf';
 import { Building2, ShieldCheck, Sparkle, XCircle } from '@/components/sgf/icons';
 import { PASSWORD_MIN_LENGTH, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
+import { TenantIdentity } from '@/components/TenantIdentity';
 
 function slugify(s: string) {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -38,14 +39,25 @@ export default function Tenants() {
   const { data: tenants = [], isLoading } = useQuery({ queryKey: ['tenants'], queryFn: tenantsApi.list });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ name: '', slug: '', city: '', state: '', cnpj: '', adminName: '', adminEmail: '', adminPassword: '' });
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [sealFile, setSealFile] = useState<File | null>(null);
   const set = (p: Partial<typeof form>) => setForm((f) => ({ ...f, ...p }));
 
   const create = useMutation({
-    mutationFn: () => provisionTenant(form),
+    mutationFn: async () => {
+      const result = await provisionTenant(form);
+      const branding: { photo_url?: string; seal_url?: string } = {};
+      if (photoFile) branding.photo_url = await tenantsApi.uploadBrandingImage(result.tenantId, 'photo', photoFile);
+      if (sealFile) branding.seal_url = await tenantsApi.uploadBrandingImage(result.tenantId, 'seal', sealFile);
+      if (Object.keys(branding).length) await tenantsApi.update(result.tenantId, branding);
+      return result;
+    },
     onSuccess: () => {
       toast.success('Prefeitura criada com o primeiro administrador.');
       setOpen(false);
       setForm({ name: '', slug: '', city: '', state: '', cnpj: '', adminName: '', adminEmail: '', adminPassword: '' });
+      setPhotoFile(null);
+      setSealFile(null);
       qc.invalidateQueries({ queryKey: ['tenants'] });
     },
     onError: (e) => toast.error((e as Error).message),
@@ -93,6 +105,16 @@ export default function Tenants() {
             <Input label="Nome do 1º administrador" value={form.adminName} onChange={(e) => set({ adminName: e.target.value })} />
             <Input label="E-mail do administrador" type="email" value={form.adminEmail} onChange={(e) => set({ adminEmail: e.target.value })} />
             <Input label="Senha inicial" type="text" value={form.adminPassword} onChange={(e) => set({ adminPassword: e.target.value })} placeholder={PASSWORD_PLACEHOLDER} />
+            <label className="block">
+              <span className="mb-2 block text-sm font-semibold text-slate-700">Foto da prefeitura</span>
+              <input type="file" accept="image/*" onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+                className="block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-emerald-100 file:px-3 file:py-2 file:font-semibold file:text-emerald-700" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-semibold text-slate-700">Brasão</span>
+              <input type="file" accept="image/*" onChange={(e) => setSealFile(e.target.files?.[0] ?? null)}
+                className="block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm file:mr-3 file:rounded-full file:border-0 file:bg-emerald-100 file:px-3 file:py-2 file:font-semibold file:text-emerald-700" />
+            </label>
           </div>
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
@@ -112,7 +134,7 @@ export default function Tenants() {
             <tbody>
               {tenants.map((t) => (
                 <tr key={t.id} onClick={() => navigate(`/prefeituras/${t.id}`)} className="cursor-pointer border-b border-slate-100 transition-colors hover:bg-slate-50">
-                  <td className="px-5 py-3 font-medium text-slate-800">{t.name}</td>
+                  <td className="px-5 py-3"><TenantIdentity tenant={t} /></td>
                   <td className="px-5 py-3 text-slate-600">{t.city ? `${t.city}${t.state ? '/' + t.state : ''}` : '—'}</td>
                   <td className="px-5 py-3 text-slate-500">{t.slug}</td>
                   <td className="px-5 py-3"><Badge status={t.status} /></td>

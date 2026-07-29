@@ -3,12 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { invoicesApi, tenantsApi } from '@/lib/api';
 import { Card, Button, Input, Badge, fmtBrl } from '@/lib/ui';
+import { SGFSelect } from '@/components/sgf';
+import { TenantIdentity } from '@/components/TenantIdentity';
 
 export default function Invoices() {
   const qc = useQueryClient();
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: tenantsApi.list });
   const { data: invoices = [], isLoading } = useQuery({ queryKey: ['invoices'], queryFn: () => invoicesApi.list() });
-  const tName = useMemo(() => Object.fromEntries(tenants.map((t) => [t.id, t.name])), [tenants]);
+  const tenantById = useMemo(() => Object.fromEntries(tenants.map((t) => [t.id, t])), [tenants]);
 
   const [f, setF] = useState({ tenant_id: '', competencia: '', amount: '', due_date: '' });
   const set = (p: Partial<typeof f>) => setF((c) => ({ ...c, ...p }));
@@ -41,12 +43,8 @@ export default function Invoices() {
       <Card>
         <h2 className="mb-3 text-lg font-semibold">Lançar fatura</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-500">Prefeitura</span>
-            <select value={f.tenant_id} onChange={(e) => set({ tenant_id: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-              <option value="">Selecione…</option>
-              {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </label>
+          <SGFSelect label="Prefeitura" fullWidth value={f.tenant_id} onChange={(tenant_id) => set({ tenant_id })}
+            options={tenants.map((t) => ({ value: t.id, label: t.name }))} />
           <Input label="Competência (AAAA-MM)" value={f.competencia} onChange={(e) => set({ competencia: e.target.value })} placeholder="2026-06" />
           <Input label="Valor (R$)" type="number" value={f.amount} onChange={(e) => set({ amount: e.target.value })} />
           <Input label="Vencimento" type="date" value={f.due_date} onChange={(e) => set({ due_date: e.target.value })} />
@@ -65,7 +63,7 @@ export default function Invoices() {
             <tbody>
               {invoices.map((i) => (
                 <tr key={i.id} className="border-b border-slate-100">
-                  <td className="px-5 py-3">{tName[i.tenant_id] ?? '—'}</td>
+                  <td className="px-5 py-3"><TenantIdentity tenant={tenantById[i.tenant_id]} /></td>
                   <td className="px-5 py-3">{i.competencia}</td>
                   <td className="px-5 py-3">{fmtBrl(Number(i.amount))}</td>
                   <td className="px-5 py-3">{i.due_date ?? '—'}</td>

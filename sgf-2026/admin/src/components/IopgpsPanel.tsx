@@ -5,6 +5,8 @@ import { iopgpsApi } from '@/lib/iopgpsApi';
 import { trackersApi, tenantsApi } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { Card, Button, Input } from '@/lib/ui';
+import { SGFSelect } from '@/components/sgf';
+import { TenantIdentity } from '@/components/TenantIdentity';
 
 function ago(iso: string | null): string {
   if (!iso) return '—';
@@ -31,7 +33,7 @@ export function IopgpsPanel({ tenantId }: { tenantId?: string }) {
   // Mapas auxiliares para enriquecer a tabela.
   const trkByVehicle = useMemo(() => Object.fromEntries(trackers.filter((t) => t.vehicle_id).map((t) => [t.vehicle_id!, t])), [trackers]);
   const trkById = useMemo(() => Object.fromEntries(trackers.map((t) => [t.id, t])), [trackers]);
-  const tName = useMemo(() => Object.fromEntries(tenants.map((t) => [t.id, t.name])), [tenants]);
+  const tenantById = useMemo(() => Object.fromEntries(tenants.map((t) => [t.id, t])), [tenants]);
 
   // Placas dos veículos referenciados.
   const vehicleIds = useMemo(() => Array.from(new Set(status.map((s) => s.vehicle_id).filter(Boolean))) as string[], [status]);
@@ -87,7 +89,7 @@ export function IopgpsPanel({ tenantId }: { tenantId?: string }) {
                   const trk = (s.vehicle_id && trkByVehicle[s.vehicle_id]) || trkById[s.tracker_id];
                   return (
                     <tr key={s.tracker_id} className="border-b border-slate-100">
-                      {!fixed && <td className="px-5 py-3 text-slate-600">{tName[s.tenant_id] ?? '—'}</td>}
+                      {!fixed && <td className="px-5 py-3 text-slate-600"><TenantIdentity tenant={tenantById[s.tenant_id]} /></td>}
                       <td className="px-5 py-3 font-medium text-slate-800">{(s.vehicle_id && plates[s.vehicle_id]) || trk?.label || '—'}</td>
                       <td className="px-5 py-3 font-mono text-xs text-slate-600">{s.imei}</td>
                       <td className="px-5 py-3">
@@ -149,13 +151,9 @@ function CredentialsCard({ fixed, tenantId, tenants, onSaved }: {
         <div className="mt-4 space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {!fixed && (
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold text-slate-500">Prefeitura (vazio = global)</span>
-                <select value={f.tenant_id} onChange={(e) => set({ tenant_id: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                  <option value="">Global (todas)</option>
-                  {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
+              <SGFSelect label="Prefeitura (vazio = global)" fullWidth value={f.tenant_id} placeholder="Global (todas)"
+                onChange={(tenant_id) => set({ tenant_id })}
+                options={[{ value: '', label: 'Global (todas)' }, ...tenants.map((t) => ({ value: t.id, label: t.name }))]} />
             )}
             <Input label="Base URL" value={f.base_url} onChange={(e) => set({ base_url: e.target.value })} />
             <Input label="appid" value={f.appid} onChange={(e) => set({ appid: e.target.value })} />

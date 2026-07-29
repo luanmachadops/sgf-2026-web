@@ -38,5 +38,10 @@ export function Badge({ status }: { status: string }) {
   return <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${map[status] ?? 'bg-slate-100 text-slate-600'}`}>{label[status] ?? status}</span>;
 }
 
-export const fmtUsd = (n: number) => `$${n.toFixed(2)}`;
+export const fmtUsd = (n: number) => n.toLocaleString('pt-BR', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 6,
+  maximumFractionDigits: 8,
+});
 export const fmtBrl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

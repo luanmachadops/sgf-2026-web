@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { aiApi, tenantsApi } from '@/lib/api';
 import { Card, Button, Input, fmtUsd } from '@/lib/ui';
+import { TenantIdentity } from '@/components/TenantIdentity';
 
 export default function AiUsage() {
   const qc = useQueryClient();
@@ -54,11 +55,11 @@ export default function AiUsage() {
               const over = cap > 0 && p.cost >= Number(cap);
               return (
                 <tr key={t.id} className="border-b border-slate-100">
-                  <td className="px-5 py-3 font-medium">{t.name}</td>
+                  <td className="px-5 py-3"><TenantIdentity tenant={t} /></td>
                   <td className="px-5 py-3">{p.calls}</td>
                   <td className={`px-5 py-3 ${over ? 'font-bold text-red-600' : ''}`}>{fmtUsd(p.cost)}</td>
                   <td className="px-5 py-3">
-                    <Input type="number" value={edit[t.id] ?? String(cap ?? 0)} onChange={(e) => setEdit((s) => ({ ...s, [t.id]: e.target.value }))} className="w-28" />
+                    <Input type="number" min="0" step="0.000001" value={edit[t.id] ?? String(cap ?? 0)} onChange={(e) => setEdit((s) => ({ ...s, [t.id]: e.target.value }))} className="w-36" />
                   </td>
                   <td className="px-5 py-3 text-right">
                     <Button variant="ghost" onClick={() => save.mutate({ tenantId: t.id, cap: Number(edit[t.id] ?? cap) || 0 })}>Salvar</Button>

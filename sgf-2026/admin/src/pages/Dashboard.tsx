@@ -57,7 +57,7 @@ export default function Dashboard() {
                   <p className="px-6 text-center text-sm font-medium text-slate-400">Nenhum custo de IA no período.</p>
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <AreaChart data={trend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="aiGreen" x1="0" y1="0" x2="0" y2="1">
@@ -89,7 +89,7 @@ export default function Dashboard() {
                   <p className="px-6 text-center text-sm font-medium text-slate-400">Nenhuma fatura no período.</p>
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <BarChart data={trend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 600 }} dy={10} />

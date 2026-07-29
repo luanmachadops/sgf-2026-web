@@ -82,9 +82,9 @@ export const SGFKPICard: React.FC<SGFKPICardProps> = ({
         </div>
 
         {/* Right Side: Chart */}
-        <div className="w-[80px] h-[80px] shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-500">
+        <div className="h-[80px] w-[80px] min-h-0 min-w-0 shrink-0 opacity-60 transition-opacity duration-500 group-hover:opacity-100">
           {chartData.length > 0 && (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={chartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
                 <XAxis dataKey="month" hide />
                 <Tooltip
@@ -101,7 +101,7 @@ export const SGFKPICard: React.FC<SGFKPICardProps> = ({
                     <Cell
                       key={`cell-${index}`}
                       fill={chartColor}
-                      fillOpacity={0.4 + (index / (chartData.length - 1)) * 0.6}
+                      fillOpacity={0.4 + (index / Math.max(chartData.length - 1, 1)) * 0.6}
                     />
                   ))}
                 </Bar>

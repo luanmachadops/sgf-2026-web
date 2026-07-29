@@ -29,6 +29,17 @@ async function assertSuperadmin(req: any, admin: ReturnType<typeof getAdmin>): P
 const WINDOW_SECONDS = 60;
 const MAX_HITS = 10;
 
+async function findUserByEmail(admin: ReturnType<typeof getAdmin>, email: string) {
+  for (let page = 1; page <= 20; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw Object.assign(new Error(error.message), { status: 400 });
+    const match = data.users.find((user) => user.email?.toLowerCase() === email);
+    if (match) return match;
+    if (data.users.length < 1000) break;
+  }
+  return null;
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).json({ message: 'Method not allowed' }); }
   try {
@@ -55,20 +66,58 @@ export default async function handler(req: any, res: any) {
         email, password: b.password, email_confirm: true,
         user_metadata: { full_name: b.name || 'Gestor', role, tenant_id: b.tenantId },
       });
-      if (aErr || !authData.user) throw Object.assign(new Error(aErr?.message || 'Falha ao criar gestor'), { status: 400 });
+      let authUser = authData.user;
+      let createdNow = !!authUser;
 
-      const { error: pErr } = await admin.from('profiles').update({
-        full_name: b.name || 'Gestor', email, role, tenant_id: b.tenantId, access_blocked: false,
-      }).eq('id', authData.user.id);
-      if (pErr) { await admin.auth.admin.deleteUser(authData.user.id); throw Object.assign(new Error(pErr.message), { status: 400 }); }
-      return res.status(201).json({ ok: true, userId: authData.user.id });
+      // Um e-mail pode já existir por cadastro anterior, convite ou acesso
+      // bloqueado. Nesse caso, o superadmin deve conseguir vinculá-lo novamente
+      // sem receber "User already registered".
+      if (!authUser && aErr) {
+        authUser = await findUserByEmail(admin, email);
+        createdNow = false;
+      }
+      if (!authUser) throw Object.assign(new Error(aErr?.message || 'Falha ao criar gestor'), { status: 400 });
+      const fullName = (b.name || '').trim() || String(authUser.user_metadata?.full_name || 'Gestor');
+
+      const { error: updateAuthError } = await admin.auth.admin.updateUserById(authUser.id, {
+        email,
+        password: b.password,
+        email_confirm: true,
+        ban_duration: 'none',
+        user_metadata: {
+          ...(authUser.user_metadata ?? {}),
+          full_name: fullName,
+          role,
+          tenant_id: b.tenantId,
+        },
+      });
+      if (updateAuthError) {
+        if (createdNow) await admin.auth.admin.deleteUser(authUser.id);
+        throw Object.assign(new Error(updateAuthError.message), { status: 400 });
+      }
+
+      const { error: pErr } = await admin.from('profiles').upsert({
+        id: authUser.id,
+        full_name: fullName,
+        email,
+        role,
+        tenant_id: b.tenantId,
+        access_blocked: false,
+      }, { onConflict: 'id' });
+      if (pErr) {
+        if (createdNow) await admin.auth.admin.deleteUser(authUser.id);
+        throw Object.assign(new Error(pErr.message), { status: 400 });
+      }
+      return res.status(createdNow ? 201 : 200).json({ ok: true, userId: authUser.id, reused: !createdNow });
     }
 
     if (action === 'setBlocked') {
       const { userId, blocked } = b;
       if (!userId) throw Object.assign(new Error('userId obrigatório'), { status: 400 });
-      await admin.auth.admin.updateUserById(userId, { ban_duration: blocked ? '876000h' : 'none' });
-      await admin.from('profiles').update({ access_blocked: !!blocked }).eq('id', userId);
+      const { error: authError } = await admin.auth.admin.updateUserById(userId, { ban_duration: blocked ? '876000h' : 'none' });
+      if (authError) throw Object.assign(new Error(authError.message), { status: 400 });
+      const { error: profileError } = await admin.from('profiles').update({ access_blocked: !!blocked }).eq('id', userId);
+      if (profileError) throw Object.assign(new Error(profileError.message), { status: 400 });
       return res.status(200).json({ ok: true });
     }
 
@@ -76,7 +125,8 @@ export default async function handler(req: any, res: any) {
       const { userId, password } = b;
       if (!userId) throw Object.assign(new Error('userId obrigatório'), { status: 400 });
       assertStrongPassword(password);
-      await admin.auth.admin.updateUserById(userId, { password });
+      const { error } = await admin.auth.admin.updateUserById(userId, { password });
+      if (error) throw Object.assign(new Error(error.message), { status: 400 });
       return res.status(200).json({ ok: true });
     }
 

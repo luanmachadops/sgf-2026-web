@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { CaretDown, Check } from './icons';
 import { cn } from '@/lib/utils';
@@ -56,7 +56,8 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
     const containerRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLDivElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
-    const selectId = id || `select-${Math.random().toString(36).substr(2, 9)}`;
+    const generatedId = useId();
+    const selectId = id || `select-${generatedId}`;
 
     const currentValue = controlledValue !== undefined ? controlledValue : internalValue;
     const selectedOption = options.find((opt) => opt.value === currentValue);

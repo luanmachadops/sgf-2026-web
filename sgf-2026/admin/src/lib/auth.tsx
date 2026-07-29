@@ -12,6 +12,18 @@ interface AuthState {
 
 const Ctx = createContext<AuthState | undefined>(undefined);
 
+function authErrorMessage(error: unknown): string {
+  const code = typeof error === 'object' && error && 'code' in error
+    ? String((error as { code?: string }).code ?? '')
+    : '';
+  const message = error instanceof Error ? error.message : '';
+  if (code === 'user_banned' || message.toLowerCase().includes('user is banned')) {
+    return 'Seu acesso está bloqueado. Entre em contato com o suporte para mais informações.';
+  }
+  if (code === 'invalid_credentials' || message === 'Invalid login credentials') return 'E-mail ou senha inválidos.';
+  return message || 'Não foi possível entrar.';
+}
+
 async function loadRole(userId: string): Promise<boolean> {
   const { data } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
   return data?.role === 'superadmin';
@@ -42,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (e: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email: e, password });
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(authErrorMessage(error));
     const ok = await loadRole(data.user.id);
     if (!ok) {
       await supabase.auth.signOut();

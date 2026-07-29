@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { managersApi, tenantsApi } from '@/lib/api';
 import { Card, Button, Input } from '@/lib/ui';
 import { PASSWORD_MIN_LENGTH, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
+import { SGFSelect } from '@/components/sgf';
+import { TenantIdentity } from '@/components/TenantIdentity';
 
 const ROLE_LABEL: Record<string, string> = { admin: 'Administrador', gestor: 'Gestor', secretario: 'Secretário' };
 
@@ -16,7 +18,7 @@ export function ManagersPanel({ tenantId }: { tenantId?: string }) {
     queryKey: ['managers', tenantId ?? 'all'],
     queryFn: () => managersApi.list(tenantId),
   });
-  const tName = useMemo(() => Object.fromEntries(tenants.map((t) => [t.id, t.name])), [tenants]);
+  const tenantById = useMemo(() => Object.fromEntries(tenants.map((t) => [t.id, t])), [tenants]);
 
   const [f, setF] = useState({ tenant_id: tenantId ?? '', role: 'gestor', name: '', email: '', password: '' });
   const set = (p: Partial<typeof f>) => setF((c) => ({ ...c, ...p }));
@@ -48,21 +50,14 @@ export function ManagersPanel({ tenantId }: { tenantId?: string }) {
         <p className="mb-4 text-sm text-slate-500">Cria o login do gestor/administrador da prefeitura (acesso ao painel do gestor).</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {!fixed && (
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-slate-500">Prefeitura</span>
-              <select value={f.tenant_id} onChange={(e) => set({ tenant_id: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                <option value="">Selecione…</option>
-                {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </label>
+            <SGFSelect label="Prefeitura" fullWidth value={f.tenant_id} onChange={(tenant_id) => set({ tenant_id })}
+              options={tenants.map((t) => ({ value: t.id, label: t.name }))} />
           )}
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-slate-500">Papel</span>
-            <select value={f.role} onChange={(e) => set({ role: e.target.value })} className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-              <option value="gestor">Gestor (acesso total da prefeitura)</option>
-              <option value="admin">Administrador</option>
-            </select>
-          </label>
+          <SGFSelect label="Papel" fullWidth value={f.role} onChange={(role) => set({ role })}
+            options={[
+              { value: 'gestor', label: 'Gestor (acesso total da prefeitura)' },
+              { value: 'admin', label: 'Administrador' },
+            ]} />
           <Input label="Nome" value={f.name} onChange={(e) => set({ name: e.target.value })} />
           <Input label="E-mail" type="email" value={f.email} onChange={(e) => set({ email: e.target.value })} />
           <Input label="Senha inicial" type="text" value={f.password} onChange={(e) => set({ password: e.target.value })} placeholder={PASSWORD_PLACEHOLDER} />
@@ -83,7 +78,7 @@ export function ManagersPanel({ tenantId }: { tenantId?: string }) {
               <tbody>
                 {managers.map((m) => (
                   <tr key={m.id} className="border-b border-slate-100">
-                    {!fixed && <td className="px-5 py-3 text-slate-600">{m.tenant_id ? (tName[m.tenant_id] ?? '—') : '—'}</td>}
+                    {!fixed && <td className="px-5 py-3 text-slate-600"><TenantIdentity tenant={m.tenant_id ? tenantById[m.tenant_id] : null} /></td>}
                     <td className="px-5 py-3 font-medium text-slate-800">{m.full_name ?? '—'}</td>
                     <td className="px-5 py-3 text-slate-600">{m.email ?? '—'}</td>
                     <td className="px-5 py-3">{ROLE_LABEL[m.role] ?? m.role}</td>
