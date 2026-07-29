@@ -7,7 +7,7 @@
     "node": ">=20 <25"
   },
   "scripts": {
-    "postinstall": "npm run build",
+    "postinstall": "node scripts/hostinger-build.mjs",
     "install:apps": "npm ci --prefix web && npm ci --prefix admin",
     "build:web": "npm run build --prefix web",
     "build:admin": "npm run build --prefix admin",
@@ -17,6 +17,7 @@
     "dev:server": "tsx server/server.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.94.0",
     "express": "^5.1.0"
   },
   "devDependencies": {
