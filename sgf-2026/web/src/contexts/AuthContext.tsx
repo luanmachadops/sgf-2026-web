@@ -97,23 +97,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function loadCachedAuth() {
-    try {
-        const storedUser = localStorage.getItem('user');
-        const storedToken = localStorage.getItem('token');
-
-        return {
-            user: storedUser ? JSON.parse(storedUser) as User : null,
-            token: storedToken,
-        };
-    } catch (error) {
-        console.warn('Failed to restore cached auth state:', error);
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
-        return { user: null, token: null };
-    }
-}
-
 function persistAuthState(nextUser: User | null, nextToken: string | null) {
     if (nextUser && nextToken) {
         localStorage.setItem('token', nextToken);
@@ -175,7 +158,7 @@ function mapTenant(t: TenantRow | null | undefined): import('@/types').TenantBra
 async function fetchUserProfile(authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }): Promise<User> {
     const { data: profile, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, department_id, tenant_id, station_id, repair_shop_id, access_blocked, created_at, photo_url, must_change_password, departments(id, name), tenants(*)')
+        .select('id, full_name, email, role, department_id, tenant_id, station_id, repair_shop_id, access_blocked, allowed_modules, created_at, photo_url, must_change_password, departments(id, name), tenants(*)')
         .eq('id', authUser.id)
         .maybeSingle();
 
@@ -213,6 +196,8 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
             email: profile.email ?? authUser.email ?? '',
             name: profile.full_name || 'Usuário',
             role: mapDbRole(profile.role),
+            accountRole: profile.role as User['accountRole'],
+            allowedModules: (profile as unknown as { allowed_modules?: string[] }).allowed_modules,
             departmentId: profile.department_id || undefined,
             departmentName: dept?.name,
             photoUrl: profile.photo_url || undefined,
@@ -235,20 +220,25 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [cachedAuth] = useState(loadCachedAuth);
     const queryClient = useQueryClient();
-    const [user, setUser] = useState<User | null>(cachedAuth.user);
-    const [token, setToken] = useState<string | null>(cachedAuth.token);
+    // O perfil só passa a existir na interface depois que a sessão do Supabase
+    // foi confirmada. Não usamos mais o usuário duplicado do localStorage como
+    // autorização visual: era isso que mantinha a "sessão fantasma".
+    const [user, setUser] = useState<User | null>(null);
+    const [token, setToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         let isMounted = true;
-        let lastUserId: string | null = cachedAuth.user?.id ?? null;
+        let lastUserId: string | null = null;
 
         // Safety timeout: always resolve loading after 10s regardless of Supabase response
         const safetyTimeout = setTimeout(() => {
             if (isMounted) {
                 console.warn('Auth init timed out — forcing isLoading = false');
+                setUser(null);
+                setToken(null);
+                persistAuthState(null, null);
                 setIsLoading(false);
             }
         }, 10_000);
@@ -370,7 +360,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             clearTimeout(safetyTimeout);
             subscription?.unsubscribe();
         };
-    }, [cachedAuth.user?.id, queryClient]);
+    }, [queryClient]);
+
+    useEffect(() => {
+        const handleInvalidAuth = () => {
+            setUser(null);
+            setToken(null);
+            persistAuthState(null, null);
+            void hardSignOut().finally(() => {
+                if (!window.location.pathname.endsWith('/login')) {
+                    window.location.replace('/login');
+                }
+            });
+        };
+        window.addEventListener('sgf:auth-invalid', handleInvalidAuth);
+        return () => window.removeEventListener('sgf:auth-invalid', handleInvalidAuth);
+    }, []);
 
     // Se o superadmin suspender a prefeitura enquanto o painel estiver aberto,
     // bloqueia a sessão imediatamente. O carregamento inicial acima continua
@@ -404,6 +409,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             void supabase.removeChannel(channel);
         };
     }, [user?.tenant?.name, user?.tenant?.supportEmail, user?.tenant?.supportPhone, user?.tenantId]);
+
+    // Permissões e bloqueios definidos em /acessos passam a valer sem exigir
+    // que o usuário atualize a página ou faça um novo login.
+    useEffect(() => {
+        if (!user?.id) return;
+        const channel = supabase
+            .channel(`profile-access-${user.id}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'profiles',
+                filter: `id=eq.${user.id}`,
+            }, (payload) => {
+                const next = payload.new as {
+                    access_blocked?: boolean;
+                    allowed_modules?: string[];
+                    full_name?: string;
+                    photo_url?: string | null;
+                };
+                if (next.access_blocked) {
+                    window.dispatchEvent(new CustomEvent('sgf:auth-invalid'));
+                    return;
+                }
+                setUser((current) => {
+                    if (!current) return current;
+                    const updated = {
+                        ...current,
+                        name: next.full_name || current.name,
+                        photoUrl: next.photo_url ?? current.photoUrl,
+                        allowedModules: next.allowed_modules ?? current.allowedModules,
+                    };
+                    persistAuthState(updated, token);
+                    return updated;
+                });
+            })
+            .subscribe();
+        return () => {
+            void supabase.removeChannel(channel);
+        };
+    }, [token, user?.id]);
 
     const login = async (email: string, password: string): Promise<User> => {
         setIsLoading(true);

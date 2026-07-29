@@ -91,7 +91,7 @@ export const SGFKPICard: React.FC<SGFKPICardProps> = ({
         {/* Right Side: Chart */}
         <div className="w-[80px] h-[80px] shrink-0 opacity-60 group-hover:opacity-100 transition-opacity duration-500">
           {chartData.length > 0 && (
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
               <BarChart data={chartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
                 <XAxis dataKey="month" hide />
                 <Tooltip

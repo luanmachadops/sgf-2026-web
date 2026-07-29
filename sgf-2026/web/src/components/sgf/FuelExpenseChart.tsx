@@ -86,7 +86,7 @@ export default function FuelExpenseChart() {
                             </div>
                         </div>
 
-                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                             <PieChart>
                                 {rings.map((ring) => (
                                     <Pie

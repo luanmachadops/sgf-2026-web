@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Modal } from '@/components/ui/Modal';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { CheckCircle, Clipboard, Qr, ShieldCheck, XCircle } from '@/components/sgf/icons';
 import { useBranding } from '@/contexts/BrandingContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { departmentsApi } from '@/lib/supabase-api';
+import { supabase } from '@/lib/supabase';
 import {
     driverRegistrationManagerApi,
     type DriverRegistrationRequest,
@@ -36,6 +38,7 @@ function statusLabel(status: DriverRegistrationRequest['status']) {
 
 export function DriverRegistrationCenter({ isOpen, onClose }: Props) {
     const { branding } = useBranding();
+    const { user } = useAuth();
     const queryClient = useQueryClient();
     const [tab, setTab] = useState<'requests' | 'invite'>('requests');
     const [status, setStatus] = useState('pending');
@@ -57,6 +60,33 @@ export function DriverRegistrationCenter({ isOpen, onClose }: Props) {
         queryFn: () => driverRegistrationManagerApi.listRequests(status),
         enabled: isOpen && tab === 'requests',
     });
+
+    useEffect(() => {
+        if (!isOpen || !user?.tenantId) return;
+        const channel = supabase
+            .channel(`driver-registration-live-${user.tenantId}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'driver_registration_requests',
+                filter: `tenant_id=eq.${user.tenantId}`,
+            }, (payload) => {
+                void queryClient.invalidateQueries({ queryKey: ['driver-registration-requests'] });
+                void queryClient.invalidateQueries({ queryKey: ['drivers'] });
+                if (payload.eventType === 'INSERT') {
+                    const request = payload.new as { full_name?: string };
+                    toast.info(
+                        request.full_name
+                            ? `${request.full_name} enviou um novo cadastro.`
+                            : 'Um novo cadastro de motorista foi enviado.',
+                    );
+                }
+            })
+            .subscribe();
+        return () => {
+            void supabase.removeChannel(channel);
+        };
+    }, [isOpen, queryClient, user?.tenantId]);
 
     const createInvite = useMutation({
         mutationFn: async () => {

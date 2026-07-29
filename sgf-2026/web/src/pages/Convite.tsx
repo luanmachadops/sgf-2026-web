@@ -116,6 +116,7 @@ export default function Convite() {
     const [cpfCheckAttempt, setCpfCheckAttempt] = useState(0);
     const [documentStage, setDocumentStage] = useState<DocumentStage>('idle');
     const [manualEntry, setManualEntry] = useState(false);
+    const [acceptedTerms, setAcceptedTerms] = useState(false);
 
     const primary = invite?.tenant.primary_color || '#00A86B';
     const appName = invite?.tenant.app_name || 'Exattus Rotta';
@@ -184,6 +185,33 @@ export default function Convite() {
             if (photoUrl) URL.revokeObjectURL(photoUrl);
         };
     }, [photoUrl]);
+
+    // A tela de protocolo se atualiza sozinha. O token de acompanhamento é
+    // secreto e permite consultar somente esta solicitação, sem abrir leitura
+    // pública da fila no Realtime.
+    useEffect(() => {
+        if (!protocol || step !== 5 || status === 'approved' || status === 'rejected') return;
+        let active = true;
+        const check = async () => {
+            try {
+                const result = await driverRegistrationPublicApi.status(
+                    protocol.requestId,
+                    protocol.trackingToken,
+                );
+                if (!active) return;
+                setStatus(result.status);
+                setManagerNote(result.manager_note ?? null);
+            } catch {
+                // Mantém a tela utilizável em uma oscilação de rede e tenta
+                // novamente no próximo intervalo.
+            }
+        };
+        const interval = window.setInterval(() => { void check(); }, 4_000);
+        return () => {
+            active = false;
+            window.clearInterval(interval);
+        };
+    }, [protocol, status, step]);
 
     useEffect(() => {
         const cpf = digits(form.cpf);
@@ -345,6 +373,10 @@ export default function Convite() {
                 setError('As senhas não coincidem.');
                 return;
             }
+            if (!acceptedTerms) {
+                setError('Você precisa aceitar os Termos de Uso e o tratamento de dados conforme a LGPD.');
+                return;
+            }
             void submit();
             return;
         }
@@ -372,6 +404,8 @@ export default function Convite() {
                 cnhFrontPath: cnhPath,
                 manualEntry,
                 aiConfidence,
+                acceptedTerms,
+                termsVersion: '2026-07-29',
             });
             const nextProtocol = {
                 requestId: result.requestId,
@@ -639,6 +673,29 @@ export default function Convite() {
                             <p className="mt-1 text-sm text-slate-500">CPF {form.cpf} · CNH {form.cnhNumber}</p>
                             <p className="text-sm text-slate-500">Validade {formatDate(form.cnhExpiry)} · {form.email}</p>
                         </div>
+                        <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${acceptedTerms ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+                            <input
+                                type="checkbox"
+                                checked={acceptedTerms}
+                                onChange={(event) => {
+                                    setAcceptedTerms(event.target.checked);
+                                    setError('');
+                                }}
+                                className="mt-1 h-4 w-4 rounded border-slate-300 accent-emerald-600"
+                            />
+                            <span className="text-sm leading-6 text-slate-600">
+                                Li e aceito os{' '}
+                                <a
+                                    href="/termos-e-privacidade"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="font-bold text-emerald-700 underline underline-offset-2"
+                                >
+                                    Termos de Uso e a Política de Privacidade
+                                </a>
+                                , e estou ciente de que meus dados serão tratados conforme a LGPD.
+                            </span>
+                        </label>
                     </Card>
                 )}
 
@@ -682,6 +739,15 @@ export default function Convite() {
                                 {busy ? <Spinner small light /> : 'Atualizar situação'}
                             </button>
                         )}
+                        {status === 'approved' && (
+                            <a
+                                href="/login"
+                                className="inline-flex h-12 items-center justify-center rounded-full px-7 text-sm font-bold text-white shadow-lg transition hover:brightness-110"
+                                style={{ backgroundColor: primary }}
+                            >
+                                Fazer login
+                            </a>
+                        )}
                     </Card>
                 )}
 
@@ -713,7 +779,10 @@ export default function Convite() {
             </main>
 
             <footer className="px-4 pb-8 text-center text-xs text-slate-400">
-                Seus dados e documentos são usados exclusivamente para análise do cadastro no {appName}.
+                Seus dados e documentos são tratados conforme a LGPD para análise e operação do cadastro no {appName}.{' '}
+                <a href="/termos-e-privacidade" target="_blank" rel="noreferrer" className="font-semibold underline">
+                    Termos e privacidade
+                </a>
             </footer>
         </PublicShell>
     );

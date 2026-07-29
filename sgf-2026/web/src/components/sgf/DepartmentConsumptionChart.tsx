@@ -140,7 +140,7 @@ export default function DepartmentConsumptionChart() {
                             </div>
                         )}
                         <div className="h-full" style={{ minWidth }}>
-                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                                 <BarChart
                                     data={rows}
                                     margin={{ top: 20, right: 10, left: 0, bottom: 5 }}

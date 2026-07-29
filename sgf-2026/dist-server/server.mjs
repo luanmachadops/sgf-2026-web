@@ -437,7 +437,7 @@ function __addDisposableResource(env, value, async) {
   return value;
 }
 function __disposeResources(env) {
-  function fail(e) {
+  function fail2(e) {
     env.error = env.hasError ? new _SuppressedError(e, env.error, "An error was suppressed during disposal.") : e;
     env.hasError = true;
   }
@@ -449,12 +449,12 @@ function __disposeResources(env) {
         if (r.dispose) {
           var result = r.dispose.call(r.value);
           if (r.async) return s |= 2, Promise.resolve(result).then(next, function(e) {
-            fail(e);
+            fail2(e);
             return next();
           });
         } else s |= 1;
       } catch (e) {
-        fail(e);
+        fail2(e);
       }
     }
     if (s === 1) return env.hasError ? Promise.reject(env.error) : Promise.resolve();
@@ -8419,7 +8419,7 @@ function __addDisposableResource2(env, value, async) {
   return value;
 }
 function __disposeResources2(env) {
-  function fail(e) {
+  function fail2(e) {
     env.error = env.hasError ? new _SuppressedError2(e, env.error, "An error was suppressed during disposal.") : e;
     env.hasError = true;
   }
@@ -8431,12 +8431,12 @@ function __disposeResources2(env) {
         if (r.dispose) {
           var result = r.dispose.call(r.value);
           if (r.async) return s |= 2, Promise.resolve(result).then(next, function(e) {
-            fail(e);
+            fail2(e);
             return next();
           });
         } else s |= 1;
       } catch (e) {
-        fail(e);
+        fail2(e);
       }
     }
     if (s === 1) return env.hasError ? Promise.reject(env.error) : Promise.resolve();
@@ -25783,9 +25783,18 @@ function assertTargetIsDriver(role) {
   }
 }
 async function getCaller(req) {
-  const header = req.headers?.authorization || req.headers?.Authorization;
-  const fallbackToken = req.headers?.["x-access-token"] || req.headers?.["X-Access-Token"];
-  const token = typeof header === "string" && header.startsWith("Bearer ") ? header.slice(7) : typeof fallbackToken === "string" && fallbackToken ? fallbackToken : null;
+  const firstHeaderValue = (value) => {
+    if (typeof value === "string") return value;
+    if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+    return null;
+  };
+  const header = firstHeaderValue(
+    req.headers?.authorization ?? req.headers?.Authorization ?? (typeof req.get === "function" ? req.get("authorization") : null)
+  );
+  const fallbackToken = firstHeaderValue(
+    req.headers?.["x-access-token"] ?? req.headers?.["X-Access-Token"] ?? (typeof req.get === "function" ? req.get("x-access-token") : null)
+  );
+  const token = header?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || fallbackToken?.trim() || null;
   if (!token) return null;
   const admin = getSupabaseAdmin();
   const { data, error } = await admin.auth.getUser(token);
@@ -26341,7 +26350,7 @@ async function handler4(req, res) {
 // web/api/_lib/manager-access.ts
 async function createManager(payload) {
   const supabaseAdmin = getSupabaseAdmin();
-  const role = payload.role === "gestor" ? "gestor" : "secretario";
+  const role = payload.role === "admin" ? "admin" : payload.role === "gestor" ? "gestor" : "secretario";
   const email = (payload.email || "").trim().toLowerCase();
   if (!payload.name?.trim()) throw Object.assign(new Error("Nome \xE9 obrigat\xF3rio"), { status: 400 });
   if (!email || !email.includes("@")) throw Object.assign(new Error("E-mail inv\xE1lido"), { status: 400 });
@@ -26406,12 +26415,144 @@ async function handler5(req, res) {
       await logRateLimitBlocked(caller.id, `Limite de cria\xE7\xE3o de gestores/secret\xE1rios atingido (${check.currentCount} chamadas/min), IP ${ip}.`);
       return sendRateLimited(res, check, "Muitas requisi\xE7\xF5es em pouco tempo. Aguarde e tente novamente.");
     }
-    const manager = await createManager({ ...parseBody5(req), tenantId: caller.tenantId, actorId: caller.id });
-    return sendJson5(res, 201, manager);
+    const manager2 = await createManager({ ...parseBody5(req), tenantId: caller.tenantId, actorId: caller.id });
+    return sendJson5(res, 201, manager2);
   } catch (error) {
     const status = error?.status ?? 400;
     const message = error instanceof Error ? error.message : "Erro ao criar acesso";
     return sendJson5(res, status, { message });
+  }
+}
+
+// web/api/access/index.ts
+var MODULES = /* @__PURE__ */ new Set([
+  "dashboard",
+  "map",
+  "notifications",
+  "fleet",
+  "drivers",
+  "trips",
+  "refuelings",
+  "stations",
+  "maintenances",
+  "repair_shops",
+  "checklists",
+  "infractions",
+  "departments",
+  "reports",
+  "settings"
+]);
+var ROLES = /* @__PURE__ */ new Set(["admin", "gestor", "secretario", "motorista"]);
+function bodyOf(req) {
+  return typeof req.body === "string" ? JSON.parse(req.body) : req.body ?? {};
+}
+function fail(message, status) {
+  throw Object.assign(new Error(message), { status });
+}
+function cleanModules(value) {
+  if (!Array.isArray(value)) return [...MODULES];
+  const modules = [...new Set(value.filter((item) => typeof item === "string"))];
+  if (modules.some((module) => !MODULES.has(module))) fail("H\xE1 m\xF3dulos de acesso inv\xE1lidos.", 400);
+  return modules;
+}
+async function manager(req) {
+  const caller = await getCaller(req);
+  if (!caller) fail("N\xE3o autenticado", 401);
+  if (!["admin", "gestor"].includes(caller.role)) {
+    fail("Apenas administradores e gestores podem gerenciar acessos.", 403);
+  }
+  if (!caller.tenantId) fail("Usu\xE1rio sem prefeitura vinculada.", 403);
+  return caller;
+}
+async function targetInTenant(id, tenantId) {
+  const { data } = await getSupabaseAdmin().from("profiles").select("id, role, tenant_id").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  if (!data) fail("Acesso n\xE3o encontrado nesta prefeitura.", 404);
+  return data;
+}
+async function handler6(req, res) {
+  try {
+    const caller = await manager(req);
+    const admin = getSupabaseAdmin();
+    if (req.method === "GET") {
+      const { data, error } = await admin.from("profiles").select("id, full_name, email, cpf, role, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name)").eq("tenant_id", caller.tenantId).in("role", [...ROLES]).order("full_name");
+      if (error) throw error;
+      return res.status(200).json(data ?? []);
+    }
+    const body = bodyOf(req);
+    if (req.method === "POST") {
+      const role = String(body.role ?? "").toLowerCase();
+      if (!ROLES.has(role)) fail("Cargo inv\xE1lido.", 400);
+      if (role === "admin" && caller.role !== "admin") {
+        fail("Somente um administrador pode criar outro administrador.", 403);
+      }
+      const allowedModules = role === "motorista" ? [] : cleanModules(body.allowedModules);
+      let created;
+      if (role === "motorista") {
+        created = await preRegisterDriver({
+          cpf: String(body.cpf ?? ""),
+          name: String(body.name ?? ""),
+          registrationNumber: String(body.registrationNumber ?? ""),
+          departmentId: body.departmentId || void 0,
+          tenantId: caller.tenantId,
+          actorId: caller.id
+        });
+      } else {
+        created = await createManager({
+          name: String(body.name ?? ""),
+          email: String(body.email ?? ""),
+          password: String(body.password ?? ""),
+          departmentId: body.departmentId || void 0,
+          role,
+          tenantId: caller.tenantId,
+          actorId: caller.id
+        });
+      }
+      const { data: profile, error } = await admin.from("profiles").update({ allowed_modules: allowedModules, updated_by: caller.id }).eq("id", created.id).select("id, full_name, email, cpf, role, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name)").single();
+      if (error) {
+        await admin.auth.admin.deleteUser(created.id);
+        throw error;
+      }
+      return res.status(201).json({
+        ...profile,
+        tempPassword: created.tempPassword ?? null
+      });
+    }
+    const id = String(body.id ?? "");
+    if (!id) fail("Informe o acesso.", 400);
+    const target = await targetInTenant(id, caller.tenantId);
+    if (target.id === caller.id && (req.method === "DELETE" || body.accessBlocked === true)) {
+      fail("Voc\xEA n\xE3o pode excluir ou desativar o pr\xF3prio acesso.", 400);
+    }
+    if (caller.role === "gestor" && target.role === "admin") {
+      fail("Gestores n\xE3o podem alterar administradores.", 403);
+    }
+    if (req.method === "PATCH") {
+      const update = { updated_by: caller.id };
+      if (typeof body.accessBlocked === "boolean") {
+        update.access_blocked = body.accessBlocked;
+        if (target.role === "motorista") {
+          update.driver_status = body.accessBlocked ? "inativo" : "ativo";
+        }
+      }
+      if (body.allowedModules !== void 0 && target.role !== "motorista") {
+        update.allowed_modules = cleanModules(body.allowedModules);
+      }
+      const { data, error } = await admin.from("profiles").update(update).eq("id", id).select("id, full_name, email, cpf, role, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name)").single();
+      if (error) throw error;
+      return res.status(200).json(data);
+    }
+    if (req.method === "DELETE") {
+      const { error } = await admin.auth.admin.deleteUser(id);
+      if (error) throw error;
+      return res.status(204).end();
+    }
+    res.setHeader("Allow", "GET, POST, PATCH, DELETE");
+    return res.status(405).json({ message: "M\xE9todo n\xE3o permitido." });
+  } catch (error) {
+    const status = error?.status ?? 400;
+    return res.status(status).json({
+      message: error instanceof Error ? error.message : "N\xE3o foi poss\xEDvel gerenciar o acesso."
+    });
   }
 }
 
@@ -26559,7 +26700,7 @@ var MAX_HITS_BY_ACTION = {
   unblock: 20
 };
 var DEFAULT_MAX_HITS = 10;
-async function handler6(req, res) {
+async function handler7(req, res) {
   try {
     const caller = await getCaller(req);
     assertCanManagePartners(caller);
@@ -35635,7 +35776,7 @@ async function iopgpsToken(admin, tenantId) {
   await admin.from("iopgps_credentials").update({ access_token: token, token_expires_at: new Date(expiresAtMs).toISOString(), updated_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", row.id);
   return { token, baseUrl: row.base_url };
 }
-async function handler7(req, res) {
+async function handler8(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -35691,7 +35832,7 @@ async function assertSuperadmin(req, admin) {
   const { data: profile } = await admin.from("profiles").select("role").eq("id", data.user.id).single();
   if (profile?.role !== "superadmin") throw Object.assign(new Error("Apenas superusu\xE1rio"), { status: 403 });
 }
-async function handler8(req, res) {
+async function handler9(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -35828,7 +35969,7 @@ async function findUserByEmail(admin, email) {
   }
   return null;
 }
-async function handler9(req, res) {
+async function handler10(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -35941,7 +36082,7 @@ async function assertSuperadmin3(req, admin) {
 }
 var WINDOW_SECONDS7 = 60;
 var MAX_HITS6 = 5;
-async function handler10(req, res) {
+async function handler11(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -36021,7 +36162,7 @@ function isSuperadminRequest(req) {
   if (forcedSurface === "web") return false;
   return cleanHostname(req) === SUPERADMIN_HOST;
 }
-function invoke(handler11, params = {}) {
+function invoke(handler12, params = {}) {
   return async (req, res, next) => {
     const legacyReq = Object.create(req);
     Object.defineProperty(legacyReq, "query", {
@@ -36030,28 +36171,28 @@ function invoke(handler11, params = {}) {
       value: { ...req.query, ...params, ...req.params }
     });
     try {
-      await handler11(legacyReq, res);
+      await handler12(legacyReq, res);
     } catch (error) {
       next(error);
     }
   };
 }
-function adminOnly(handler11) {
+function adminOnly(handler12) {
   return (req, res, next) => {
     if (!isSuperadminRequest(req)) {
       res.status(404).json({ message: "Endpoint n\xE3o encontrado." });
       return;
     }
-    void invoke(handler11)(req, res, next);
+    void invoke(handler12)(req, res, next);
   };
 }
-function webOnly(handler11) {
+function webOnly(handler12) {
   return (req, res, next) => {
     if (isSuperadminRequest(req)) {
       res.status(404).json({ message: "Endpoint n\xE3o encontrado." });
       return;
     }
-    void invoke(handler11)(req, res, next);
+    void invoke(handler12)(req, res, next);
   };
 }
 app.all("/api/drivers", webOnly(handler));
@@ -36059,13 +36200,14 @@ app.all("/api/drivers/pre-register", webOnly(handler2));
 app.all("/api/drivers/:id/provision-access", webOnly(handler3));
 app.all("/api/drivers/:id/reset-password", webOnly(handler4));
 app.all("/api/managers", (req, res, next) => {
-  const handler11 = isSuperadminRequest(req) ? handler9 : handler5;
-  void invoke(handler11)(req, res, next);
+  const handler12 = isSuperadminRequest(req) ? handler10 : handler5;
+  void invoke(handler12)(req, res, next);
 });
-app.all("/api/partners", webOnly(handler6));
-app.all("/api/tenants/create", adminOnly(handler10));
-app.all("/api/iopgps-device", adminOnly(handler7));
-app.all("/api/iopgps", adminOnly(handler8));
+app.all("/api/access", webOnly(handler6));
+app.all("/api/partners", webOnly(handler7));
+app.all("/api/tenants/create", adminOnly(handler11));
+app.all("/api/iopgps-device", adminOnly(handler8));
+app.all("/api/iopgps", adminOnly(handler9));
 app.get("/health", (_req, res) => {
   res.status(200).json({
     ok: true,

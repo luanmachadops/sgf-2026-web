@@ -7,6 +7,7 @@ import webDriversPreRegister from '../web/api/drivers/pre-register.js';
 import webDriverProvisionAccess from '../web/api/drivers/[id]/provision-access.js';
 import webDriverResetPassword from '../web/api/drivers/[id]/reset-password.js';
 import webManagers from '../web/api/managers/index.js';
+import webAccess from '../web/api/access/index.js';
 import webPartners from '../web/api/partners/index.js';
 
 import adminIopgpsDevice from '../admin/api/iopgps-device.js';
@@ -91,6 +92,7 @@ app.all('/api/managers', (req, res, next) => {
   const handler = isSuperadminRequest(req) ? adminManagers : webManagers;
   void invoke(handler)(req, res, next);
 });
+app.all('/api/access', webOnly(webAccess));
 app.all('/api/partners', webOnly(webPartners));
 
 // APIs exclusivas do painel do superadministrador.

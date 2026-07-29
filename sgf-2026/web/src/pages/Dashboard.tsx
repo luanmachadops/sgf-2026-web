@@ -176,7 +176,7 @@ export default function Dashboard() {
                                         </p>
                                     </div>
                                 ) : (
-                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                                         <AreaChart
                                             data={expenseData || []}
                                             margin={{ top: 10, right: 10, left: 0, bottom: 0 }}

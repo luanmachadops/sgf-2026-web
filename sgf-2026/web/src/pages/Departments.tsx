@@ -305,7 +305,7 @@ function DepartmentOverviewPage() {
                         {fuelChartData.length === 0 ? (
                             <div className="flex h-full items-center justify-center text-sm text-slate-400">Sem dados no período.</div>
                         ) : (
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                                 <BarChart data={fuelChartData} layout="vertical" margin={{ top: 6, right: 12, left: 0, bottom: 6 }}>
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
                                     <XAxis type="number" hide />
@@ -335,7 +335,7 @@ function DepartmentOverviewPage() {
                         {maintChartData.length === 0 || maintChartData.every((d) => d.maintenanceCount === 0) ? (
                             <div className="flex h-full items-center justify-center text-sm text-slate-400">Sem manutenções no período.</div>
                         ) : (
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                                 <BarChart data={maintChartData} layout="vertical" margin={{ top: 6, right: 12, left: 0, bottom: 6 }}>
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
                                     <XAxis type="number" allowDecimals={false} hide />
@@ -758,7 +758,7 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                     </div>
 
                     <div className="h-[320px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                             <AreaChart data={detail.monthlyFuelCost} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="departmentFuel" x1="0" y1="0" x2="0" y2="1">
@@ -783,7 +783,7 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                     </div>
 
                     <div className="h-[320px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                             <BarChart data={detail.monthlyTripDistance} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} />

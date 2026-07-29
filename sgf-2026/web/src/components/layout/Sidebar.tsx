@@ -23,6 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
+import { canAccessModule, type AccessModule } from '@/lib/accessModules';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -36,36 +37,44 @@ import {
 } from "@/components/ui/alert-dialog";
 
 // --- Configuration ---
-type MenuItem = { icon: typeof Car; label: string; path: string; badge?: string };
+type MenuItem = {
+    icon: typeof Car;
+    label: string;
+    path: string;
+    badge?: string;
+    module?: AccessModule;
+    accessManagersOnly?: boolean;
+};
 type MenuSection = { title: string; items: MenuItem[] };
 const menuSections: MenuSection[] = [
     {
         title: 'Inteligência',
         items: [
-            { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-            { icon: Map, label: 'Mapa', path: '/mapa' },
-            { icon: Bell, label: 'Notificações', path: '/notificacoes' },
+            { icon: LayoutDashboard, label: 'Dashboard', path: '/', module: 'dashboard' },
+            { icon: Map, label: 'Mapa', path: '/mapa', module: 'map' },
+            { icon: Bell, label: 'Notificações', path: '/notificacoes', module: 'notifications' },
         ]
     },
     {
         title: 'Gestão de Ativos',
         items: [
-            { icon: Car, label: 'Gestão de Frotas', path: '/veiculos' },
-            { icon: Users, label: 'Motoristas', path: '/motoristas' },
-            { icon: Fuel, label: 'Abastecimentos', path: '/abastecimentos' },
-            { icon: Droplet, label: 'Postos', path: '/postos' },
-            { icon: Wrench, label: 'Manutenções', path: '/manutencoes' },
-            { icon: Building2, label: 'Oficinas', path: '/oficinas' },
-            { icon: Clipboard, label: 'Checklists', path: '/checklists' },
-            { icon: Receipt, label: 'Infrações', path: '/infracoes' },
-            { icon: Building2, label: 'Secretarias', path: '/secretarias' },
-            { icon: FileText, label: 'Relatórios & Auditoria', path: '/relatorios' },
+            { icon: Car, label: 'Gestão de Frotas', path: '/veiculos', module: 'fleet' },
+            { icon: Users, label: 'Motoristas', path: '/motoristas', module: 'drivers' },
+            { icon: Fuel, label: 'Abastecimentos', path: '/abastecimentos', module: 'refuelings' },
+            { icon: Droplet, label: 'Postos', path: '/postos', module: 'stations' },
+            { icon: Wrench, label: 'Manutenções', path: '/manutencoes', module: 'maintenances' },
+            { icon: Building2, label: 'Oficinas', path: '/oficinas', module: 'repair_shops' },
+            { icon: Clipboard, label: 'Checklists', path: '/checklists', module: 'checklists' },
+            { icon: Receipt, label: 'Infrações', path: '/infracoes', module: 'infractions' },
+            { icon: Building2, label: 'Secretarias', path: '/secretarias', module: 'departments' },
+            { icon: FileText, label: 'Relatórios & Auditoria', path: '/relatorios', module: 'reports' },
         ]
     },
     {
         title: 'Sistema',
         items: [
-            { icon: Settings2, label: 'Configurações', path: '/configuracoes' },
+            { icon: ShieldCheck, label: 'Gerenciar acessos', path: '/acessos', accessManagersOnly: true },
+            { icon: Settings2, label: 'Configurações', path: '/configuracoes', module: 'settings' },
         ]
     }
 ];
@@ -90,12 +99,14 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
     const { user, logout } = useAuth();
     const { branding } = useBranding();
     const departmentScoped = Boolean(user?.departmentScopeId);
+    const canManageAccess = user?.accountRole === 'admin' || user?.accountRole === 'gestor';
     const visibleSections = menuSections
         .map((section) => ({
             ...section,
-            items: departmentScoped
-                ? section.items.filter((item) => !GLOBAL_ONLY_PATHS.has(item.path))
-                : section.items,
+            items: section.items
+                .filter((item) => !item.accessManagersOnly || canManageAccess)
+                .filter((item) => !item.module || canAccessModule(user?.allowedModules, item.module))
+                .filter((item) => !departmentScoped || !GLOBAL_ONLY_PATHS.has(item.path)),
         }))
         .filter((section) => section.items.length > 0);
 

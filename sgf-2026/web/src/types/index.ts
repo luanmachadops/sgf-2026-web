@@ -28,6 +28,10 @@ export interface User {
     email: string;
     name: string;
     role: 'ADMIN' | 'MANAGER' | 'VIEWER' | 'SUPERADMIN' | 'POSTO' | 'OFICINA';
+    /** Papel original do banco, usado para diferenciar gestor e secretário. */
+    accountRole?: 'admin' | 'gestor' | 'secretario' | 'motorista' | 'superadmin' | 'posto' | 'oficina';
+    /** Módulos liberados pelo administrador/gestor. */
+    allowedModules?: string[];
     departmentId?: string;
     departmentName?: string;
     /** Motorista pré-cadastrado com senha = CPF: precisa trocar antes de usar o sistema. */

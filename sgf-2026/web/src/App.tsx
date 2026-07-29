@@ -33,6 +33,9 @@ import SuspendedAccess from '@/pages/SuspendedAccess';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppLaunchSplash } from '@/components/pwa/AppLaunchSplash';
 import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt';
+import { canAccessModule, type AccessModule } from '@/lib/accessModules';
+import AccessManagement from '@/pages/AccessManagement';
+import TermsAndPrivacy from '@/pages/TermsAndPrivacy';
 
 const StationPortal = lazy(() => import('@/pages/partner/StationPortal'));
 const WorkshopPortal = lazy(() => import('@/pages/partner/WorkshopPortal'));
@@ -46,6 +49,18 @@ const routeLoading = (
 function GlobalManagementRoute({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   return user?.departmentScopeId ? <Navigate to="/" replace /> : children;
+}
+
+function ModuleRoute({ module, children }: { module: AccessModule; children: ReactNode }) {
+  const { user } = useAuth();
+  return canAccessModule(user?.allowedModules, module) ? children : <Navigate to="/perfil" replace />;
+}
+
+function AccessManagersRoute({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  return user?.accountRole === 'admin' || user?.accountRole === 'gestor'
+    ? children
+    : <Navigate to="/" replace />;
 }
 
 // Create a query client
@@ -78,33 +93,35 @@ function App() {
                 WhatsApp, redireciona para o app. Precisa ficar fora do
                 PrivateRoute: o motorista ainda não tem conta. */}
             <Route path="/convite" element={<Convite />} />
+            <Route path="/termos-e-privacidade" element={<TermsAndPrivacy />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/acesso-suspenso" element={<SuspendedAccess />} />
 
             {/* Protected routes */}
             <Route element={<PrivateRoute allow={['ADMIN', 'MANAGER', 'SUPERADMIN']} />}>
               <Route element={<MainLayout />}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/mapa" element={<MapPage />} />
-                <Route path="/veiculos" element={<Vehicles />} />
-                <Route path="/veiculos/:id" element={<VehicleDetails />} />
-                <Route path="/motoristas" element={<Drivers />} />
-                <Route path="/motoristas/:id" element={<DriverDetails />} />
-                <Route path="/viagens" element={<Trips />} />
-                <Route path="/abastecimentos" element={<Refuelings />} />
-                <Route path="/manutencoes" element={<Maintenances />} />
-                <Route path="/checklists" element={<Checklists />} />
-                <Route path="/infracoes" element={<Infracoes />} />
-                <Route path="/relatorios" element={<GlobalManagementRoute><Reports /></GlobalManagementRoute>} />
-                <Route path="/secretarias" element={<GlobalManagementRoute><Departments /></GlobalManagementRoute>} />
-                <Route path="/secretarias/:id" element={<GlobalManagementRoute><Departments /></GlobalManagementRoute>} />
-                <Route path="/postos" element={<GlobalManagementRoute><Stations /></GlobalManagementRoute>} />
-                <Route path="/postos/:id" element={<GlobalManagementRoute><Stations /></GlobalManagementRoute>} />
-                <Route path="/oficinas" element={<GlobalManagementRoute><RepairShops /></GlobalManagementRoute>} />
-                <Route path="/oficinas/:id" element={<GlobalManagementRoute><RepairShops /></GlobalManagementRoute>} />
-                <Route path="/configuracoes" element={<GlobalManagementRoute><Configuracoes /></GlobalManagementRoute>} />
+                <Route path="/" element={<ModuleRoute module="dashboard"><Dashboard /></ModuleRoute>} />
+                <Route path="/mapa" element={<ModuleRoute module="map"><MapPage /></ModuleRoute>} />
+                <Route path="/veiculos" element={<ModuleRoute module="fleet"><Vehicles /></ModuleRoute>} />
+                <Route path="/veiculos/:id" element={<ModuleRoute module="fleet"><VehicleDetails /></ModuleRoute>} />
+                <Route path="/motoristas" element={<ModuleRoute module="drivers"><Drivers /></ModuleRoute>} />
+                <Route path="/motoristas/:id" element={<ModuleRoute module="drivers"><DriverDetails /></ModuleRoute>} />
+                <Route path="/viagens" element={<ModuleRoute module="trips"><Trips /></ModuleRoute>} />
+                <Route path="/abastecimentos" element={<ModuleRoute module="refuelings"><Refuelings /></ModuleRoute>} />
+                <Route path="/manutencoes" element={<ModuleRoute module="maintenances"><Maintenances /></ModuleRoute>} />
+                <Route path="/checklists" element={<ModuleRoute module="checklists"><Checklists /></ModuleRoute>} />
+                <Route path="/infracoes" element={<ModuleRoute module="infractions"><Infracoes /></ModuleRoute>} />
+                <Route path="/relatorios" element={<ModuleRoute module="reports"><GlobalManagementRoute><Reports /></GlobalManagementRoute></ModuleRoute>} />
+                <Route path="/secretarias" element={<ModuleRoute module="departments"><GlobalManagementRoute><Departments /></GlobalManagementRoute></ModuleRoute>} />
+                <Route path="/secretarias/:id" element={<ModuleRoute module="departments"><GlobalManagementRoute><Departments /></GlobalManagementRoute></ModuleRoute>} />
+                <Route path="/postos" element={<ModuleRoute module="stations"><GlobalManagementRoute><Stations /></GlobalManagementRoute></ModuleRoute>} />
+                <Route path="/postos/:id" element={<ModuleRoute module="stations"><GlobalManagementRoute><Stations /></GlobalManagementRoute></ModuleRoute>} />
+                <Route path="/oficinas" element={<ModuleRoute module="repair_shops"><GlobalManagementRoute><RepairShops /></GlobalManagementRoute></ModuleRoute>} />
+                <Route path="/oficinas/:id" element={<ModuleRoute module="repair_shops"><GlobalManagementRoute><RepairShops /></GlobalManagementRoute></ModuleRoute>} />
+                <Route path="/configuracoes" element={<ModuleRoute module="settings"><GlobalManagementRoute><Configuracoes /></GlobalManagementRoute></ModuleRoute>} />
+                <Route path="/acessos" element={<AccessManagersRoute><AccessManagement /></AccessManagersRoute>} />
                 <Route path="/perfil" element={<Perfil />} />
-                <Route path="/notificacoes" element={<Notificacoes />} />
+                <Route path="/notificacoes" element={<ModuleRoute module="notifications"><Notificacoes /></ModuleRoute>} />
               </Route>
             </Route>
 

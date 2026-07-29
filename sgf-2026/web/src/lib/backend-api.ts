@@ -61,9 +61,20 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
         ...(init.headers || {}),
     });
 
-    // Envia o token da sessão para a API validar quem está chamando (RBAC).
+    // O AuthContext persiste uma cópia do access token que acabou de ser
+    // validado no login. Em alguns navegadores o GoTrue pode demorar para
+    // reconstruir `getSession()` depois de trocar de aba; nesse intervalo a UI
+    // já está autenticada, mas a chamada antiga saía sem Authorization.
     const { data: { session } } = await supabase.auth.getSession();
     let token = session?.access_token;
+    if (!token && typeof window !== 'undefined') {
+        try {
+            token = window.localStorage.getItem('token') ?? undefined;
+        } catch {
+            // Storage indisponível: a API responderá 401 e o fluxo abaixo
+            // encerrará a sessão visual de modo seguro.
+        }
+    }
     let headers = buildHeaders(token);
 
     let response: Response;
@@ -112,6 +123,10 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
             message = apiMessage || data.error || message;
         } catch {
             // Ignore body parsing errors and use fallback message.
+        }
+
+        if (response.status === 401 && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('sgf:auth-invalid'));
         }
 
         throw new BackendApiError(message, response.status);
@@ -216,6 +231,47 @@ export const managerAccessApi = {
             method: 'POST',
             body: JSON.stringify({ ...payload, role: 'secretario' }),
         }),
+};
+
+export type ManagedAccessRole = 'admin' | 'gestor' | 'secretario' | 'motorista';
+
+export interface ManagedAccess {
+    id: string;
+    full_name: string;
+    email: string | null;
+    cpf: string | null;
+    role: ManagedAccessRole;
+    department_id: string | null;
+    access_blocked: boolean;
+    allowed_modules: string[];
+    driver_status: string | null;
+    created_at: string;
+    departments?: { id: string; name: string } | null;
+    tempPassword?: string | null;
+}
+
+export interface CreateManagedAccess {
+    role: ManagedAccessRole;
+    name: string;
+    email?: string;
+    cpf?: string;
+    registrationNumber?: string;
+    password?: string;
+    departmentId?: string;
+    allowedModules: string[];
+}
+
+export const accessManagementApi = {
+    list: () => request<ManagedAccess[]>('/access', { method: 'GET' }),
+    create: (payload: CreateManagedAccess) =>
+        request<ManagedAccess>('/access', { method: 'POST', body: JSON.stringify(payload) }),
+    update: (id: string, payload: { accessBlocked?: boolean; allowedModules?: string[] }) =>
+        request<ManagedAccess>('/access', {
+            method: 'PATCH',
+            body: JSON.stringify({ id, ...payload }),
+        }),
+    remove: (id: string) =>
+        request<void>('/access', { method: 'DELETE', body: JSON.stringify({ id }) }),
 };
 
 export { BackendApiError };

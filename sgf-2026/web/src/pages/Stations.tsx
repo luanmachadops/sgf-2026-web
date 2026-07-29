@@ -451,7 +451,7 @@ function StationDetailPage({ stationId }: { stationId: string }) {
                     <h3 className="text-lg font-semibold text-slate-900">Evolução do consumo</h3>
                     <p className="text-sm text-slate-500">Litros e gasto nos últimos 6 meses</p>
                     <div className="h-[320px] mt-4">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                             <AreaChart data={detail.monthly} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="stationCost" x1="0" y1="0" x2="0" y2="1">
@@ -478,7 +478,7 @@ function StationDetailPage({ stationId }: { stationId: string }) {
                                 Nenhum abastecimento registrado.
                             </div>
                         ) : (
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                                 <BarChart data={fuelData} layout="vertical" margin={{ top: 6, right: 12, left: 0, bottom: 6 }}>
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
                                     <XAxis type="number" hide />

@@ -740,12 +740,15 @@ export type Database = {
           invite_id: string
           manager_note: string | null
           phone: string | null
+          privacy_accepted_at: string | null
           registration_number: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           status: string
           submitted_at: string
           tenant_id: string
+          terms_accepted_at: string | null
+          terms_version: string | null
           tracking_token_hash: string
           updated_at: string
         }
@@ -768,12 +771,15 @@ export type Database = {
           invite_id: string
           manager_note?: string | null
           phone?: string | null
+          privacy_accepted_at?: string | null
           registration_number?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
           submitted_at?: string
           tenant_id: string
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           tracking_token_hash: string
           updated_at?: string
         }
@@ -796,12 +802,15 @@ export type Database = {
           invite_id?: string
           manager_note?: string | null
           phone?: string | null
+          privacy_accepted_at?: string | null
           registration_number?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
           submitted_at?: string
           tenant_id?: string
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           tracking_token_hash?: string
           updated_at?: string
         }
@@ -1539,6 +1548,7 @@ export type Database = {
       profiles: {
         Row: {
           access_blocked: boolean
+          allowed_modules: string[]
           birth_date: string | null
           cnh_category: string | null
           cnh_ear: boolean
@@ -1571,6 +1581,7 @@ export type Database = {
         }
         Insert: {
           access_blocked?: boolean
+          allowed_modules?: string[]
           birth_date?: string | null
           cnh_category?: string | null
           cnh_ear?: boolean
@@ -1603,6 +1614,7 @@ export type Database = {
         }
         Update: {
           access_blocked?: boolean
+          allowed_modules?: string[]
           birth_date?: string | null
           cnh_category?: string | null
           cnh_ear?: boolean

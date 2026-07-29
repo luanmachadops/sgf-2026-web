@@ -52,13 +52,24 @@ export function assertTargetIsDriver(role: string | null | undefined): void {
 
 /** Lê e valida o JWT do header Authorization, retornando o perfil do chamador. */
 export async function getCaller(req: any): Promise<Caller | null> {
-    const header = req.headers?.authorization || req.headers?.Authorization;
-    const fallbackToken = req.headers?.['x-access-token'] || req.headers?.['X-Access-Token'];
-    const token = typeof header === 'string' && header.startsWith('Bearer ')
-        ? header.slice(7)
-        : typeof fallbackToken === 'string' && fallbackToken
-            ? fallbackToken
-            : null;
+    const firstHeaderValue = (value: unknown): string | null => {
+        if (typeof value === 'string') return value;
+        if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+        return null;
+    };
+    const header = firstHeaderValue(
+        req.headers?.authorization
+        ?? req.headers?.Authorization
+        ?? (typeof req.get === 'function' ? req.get('authorization') : null),
+    );
+    const fallbackToken = firstHeaderValue(
+        req.headers?.['x-access-token']
+        ?? req.headers?.['X-Access-Token']
+        ?? (typeof req.get === 'function' ? req.get('x-access-token') : null),
+    );
+    const token = header?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim()
+        || fallbackToken?.trim()
+        || null;
     if (!token) return null;
 
     const admin = getSupabaseAdmin();

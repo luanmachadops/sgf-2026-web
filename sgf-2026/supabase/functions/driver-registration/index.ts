@@ -10,6 +10,7 @@ const JSON_HEADERS = { ...CORS, "Content-Type": "application/json" };
 const BUCKET = "documentos";
 const AI_MODEL = Deno.env.get("OPENROUTER_MODEL") ?? "google/gemini-3.6-flash";
 const ALLOWED_MANAGER_ROLES = new Set(["admin", "gestor", "secretario", "superadmin"]);
+const CURRENT_TERMS_VERSION = "2026-07-29";
 
 type Json = Record<string, unknown>;
 type InviteRow = {
@@ -284,6 +285,7 @@ async function submitRegistration(body: Json) {
   const password = cleanText(body.password, 128);
   const departmentId = invite.department_id ?? cleanText(body.departmentId, 50);
   const manualEntry = body.manualEntry === true;
+  const acceptedTerms = body.acceptedTerms === true;
   const frontPath = cleanText(body.cnhFrontPath, 500) || null;
   const backPath = cleanText(body.cnhBackPath, 500) || null;
   const storagePrefix = `driver-registration/${invite.id}/`;
@@ -297,6 +299,9 @@ async function submitRegistration(body: Json) {
   if (!email.includes("@") || email !== confirmEmail) return response({ error: "Os e-mails informados não coincidem." }, 400);
   if (password.length < 8 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
     return response({ error: "A senha deve ter ao menos 8 caracteres, com maiúscula, minúscula e número." }, 400);
+  }
+  if (!acceptedTerms) {
+    return response({ error: "É necessário aceitar os Termos de Uso e o tratamento de dados conforme a LGPD." }, 400);
   }
   if (manualEntry) {
     if (frontPath || backPath) return response({ error: "O preenchimento manual não deve incluir arquivos da CNH." }, 400);
@@ -380,6 +385,9 @@ async function submitRegistration(body: Json) {
       cnh_back_path: backPath,
       document_entry_mode: manualEntry ? "manual" : "photo",
       ai_confidence: typeof body.aiConfidence === "number" ? body.aiConfidence : null,
+      terms_accepted_at: new Date().toISOString(),
+      privacy_accepted_at: new Date().toISOString(),
+      terms_version: cleanText(body.termsVersion, 30) || CURRENT_TERMS_VERSION,
     }).select("id").single();
     if (requestError) throw requestError;
 
@@ -389,6 +397,19 @@ async function submitRegistration(body: Json) {
       status: nextUseCount >= invite.max_uses ? "exhausted" : "active",
     }).eq("id", invite.id).eq("use_count", invite.use_count).select("id").maybeSingle();
     if (!consumed) throw new Error("Este convite acabou de ser utilizado. Solicite um novo link ao gestor.");
+
+    // A notificação usa o próprio perfil criado como entidade destinatária.
+    // Gestores enxergam as notificações do tenant pela política já existente.
+    await sb.from("notifications").insert({
+      driver_id: userId,
+      tenant_id: invite.tenant_id,
+      type: "info",
+      title: "Novo cadastro de motorista",
+      body: `${fullName} enviou os dados e aguarda análise.`,
+      link: "/motoristas",
+      entity_type: "driver_registration_request",
+      entity_id: request.id,
+    });
 
     return response({ data: { requestId: request.id, trackingToken, status: "pending" } }, 201);
   } catch (error) {

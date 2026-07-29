@@ -294,7 +294,7 @@ function RepairShopDetailPage({ shopId }: { shopId: string }) {
                     <h3 className="text-lg font-semibold text-slate-900">Evolução do gasto</h3>
                     <p className="text-sm text-slate-500">Custo das ordens nos últimos 6 meses</p>
                     <div className="mt-4 h-[320px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                             <AreaChart data={detail.monthly} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="shopCost" x1="0" y1="0" x2="0" y2="1">

@@ -6,7 +6,7 @@ export interface CreateManagerPayload {
     email: string;
     password: string;
     departmentId?: string;
-    role?: 'secretario' | 'gestor';
+    role?: 'admin' | 'secretario' | 'gestor';
     tenantId?: string | null;
     /** Quem está criando o acesso. Carimbado em profiles para a trilha de
      *  auditoria saber o autor — aqui `auth.uid()` é nulo (service_role). */
@@ -19,7 +19,11 @@ export interface CreateManagerPayload {
  */
 export async function createManager(payload: CreateManagerPayload) {
     const supabaseAdmin = getSupabaseAdmin();
-    const role = payload.role === 'gestor' ? 'gestor' : 'secretario';
+    const role = payload.role === 'admin'
+        ? 'admin'
+        : payload.role === 'gestor'
+            ? 'gestor'
+            : 'secretario';
     const email = (payload.email || '').trim().toLowerCase();
 
     if (!payload.name?.trim()) throw Object.assign(new Error('Nome é obrigatório'), { status: 400 });

@@ -183,7 +183,7 @@ function StationDashboard({ status }: { status?: PartnerContractStatus }) {
                         <p className="text-sm text-slate-400">Valores registrados nos últimos 6 meses</p>
                     </div>
                     <div className="mt-6 h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                             <AreaChart data={monthly}>
                                 <defs>
                                     <linearGradient id="stationAmount" x1="0" y1="0" x2="0" y2="1">
@@ -206,7 +206,7 @@ function StationDashboard({ status }: { status?: PartnerContractStatus }) {
                     <h3 className="font-semibold text-slate-800">Situação dos registros</h3>
                     <p className="text-sm text-slate-400">Distribuição do histórico do posto</p>
                     <div className="mt-4 h-[210px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 1, height: 1 }}>
                             <RechartsPieChart>
                                 <Pie data={pie} dataKey="count" nameKey="name" innerRadius={55} outerRadius={82} paddingAngle={3}>
                                     {pie.map((item, index) => <Cell key={item.status} fill={colors[index % colors.length]} />)}
