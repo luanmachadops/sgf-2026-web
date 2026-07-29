@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Modal } from '@/components/ui/Modal';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { CheckCircle, Clipboard, Qr, ShieldCheck, XCircle } from '@/components/sgf/icons';
+import { useBranding } from '@/contexts/BrandingContext';
 import { departmentsApi } from '@/lib/supabase-api';
 import {
     driverRegistrationManagerApi,
@@ -18,6 +19,14 @@ type Props = {
 
 type GeneratedInvite = Awaited<ReturnType<typeof driverRegistrationManagerApi.createInvite>>;
 
+function WhatsAppIcon({ className = 'h-4 w-4' }: { className?: string }) {
+    return (
+        <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M.057 24l1.687-6.163a11.87 11.87 0 0 1-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.81 11.81 0 0 1 8.413 3.488 11.82 11.82 0 0 1 3.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 0 1-5.688-1.448L.057 24Zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l.999 1.59-1.048 3.83 3.916-1.027.876.518Z" />
+        </svg>
+    );
+}
+
 function statusLabel(status: DriverRegistrationRequest['status']) {
     if (status === 'approved') return 'Aprovado';
     if (status === 'rejected') return 'Rejeitado';
@@ -26,6 +35,7 @@ function statusLabel(status: DriverRegistrationRequest['status']) {
 }
 
 export function DriverRegistrationCenter({ isOpen, onClose }: Props) {
+    const { branding } = useBranding();
     const queryClient = useQueryClient();
     const [tab, setTab] = useState<'requests' | 'invite'>('requests');
     const [status, setStatus] = useState('pending');
@@ -92,14 +102,6 @@ export function DriverRegistrationCenter({ isOpen, onClose }: Props) {
         onError: (error) => toast.error((error as Error).message),
     });
 
-    useEffect(() => {
-        if (!isOpen) {
-            setSelected(null);
-            setGenerated(null);
-            setNote('');
-        }
-    }, [isOpen]);
-
     const pendingCount = status === 'pending' ? (requestsQuery.data?.length ?? 0) : 0;
 
     const copy = async (value: string, success: string) => {
@@ -111,10 +113,54 @@ export function DriverRegistrationCenter({ isOpen, onClose }: Props) {
         }
     };
 
+    const sendInviteByWhatsApp = () => {
+        if (!generated) return;
+
+        const departmentName = departments.find((department) => department.id === departmentId)?.name;
+        const municipality = [branding.city, branding.state].filter(Boolean).join('/');
+        const appName = branding.appName || 'Exattus Rotta';
+        const expiresAt = new Date(generated.expiresAt).toLocaleString('pt-BR');
+        const usesLabel = generated.maxUses === 1 ? '1 utilização' : `${generated.maxUses} utilizações`;
+        const identification = [
+            municipality ? `📍 *Município:* ${municipality}` : null,
+            departmentName ? `🏛️ *Secretaria:* ${departmentName}` : '🏛️ *Secretaria:* escolha durante o cadastro',
+        ].filter(Boolean).join('\n');
+        const message = [
+            `*Convite para cadastro de motorista — ${appName}*`,
+            '',
+            `Olá! Você recebeu um convite para realizar seu cadastro como motorista${branding.name ? ` da *${branding.name}*` : ''}.`,
+            '',
+            identification,
+            '',
+            '*Como realizar o cadastro:*',
+            '1. Acesse o link abaixo;',
+            '2. Preencha seus dados e envie os documentos solicitados;',
+            '3. Crie sua senha pessoal;',
+            '4. Aguarde a análise do gestor.',
+            '',
+            `🔗 *Link de cadastro:*\n${generated.inviteUrl}`,
+            '',
+            `🔐 *Código do convite:* ${generated.token}`,
+            `⏳ *Válido até:* ${expiresAt}`,
+            `👤 *Limite:* ${usesLabel}`,
+            '',
+            '_Por segurança, não encaminhe este convite para outras pessoas._',
+        ].join('\n');
+
+        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+    };
+
+    const handleClose = () => {
+        setSelected(null);
+        setGenerated(null);
+        setNote('');
+        onClose();
+    };
+
     return (
         <Modal
             isOpen={isOpen}
-            onClose={onClose}
+            onClose={handleClose}
             title="Cadastro pelo motorista"
             description="Envie um convite e analise os dados preenchidos pelo navegador."
             size="xl"
@@ -214,6 +260,14 @@ export function DriverRegistrationCenter({ isOpen, onClose }: Props) {
                                     <div className="flex flex-wrap gap-2">
                                         <SGFButton
                                             variant="primary"
+                                            icon={WhatsAppIcon}
+                                            onClick={sendInviteByWhatsApp}
+                                        >
+                                            Enviar pelo WhatsApp
+                                        </SGFButton>
+                                        <SGFButton
+                                            variant="ghost"
+                                            className="!text-white hover:!bg-white/10"
                                             icon={Clipboard}
                                             onClick={() => copy(generated.inviteUrl, 'Link copiado.')}
                                         >

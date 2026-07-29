@@ -36,9 +36,9 @@ export const SGFButton = React.forwardRef<HTMLButtonElement, SGFButtonProps>(
     `;
 
     const variantStyles = {
-      primary: 'bg-[var(--sgf-primary)] text-white hover:brightness-110 focus:ring-emerald-500/20 shadow-[var(--sgf-shadow-sm)] hover:shadow-[var(--sgf-shadow-md)] active:scale-[0.98]',
-      secondary: 'bg-[var(--sgf-dark)] text-white hover:brightness-110 focus:ring-slate-500/20 shadow-[var(--sgf-shadow-sm)] hover:shadow-[var(--sgf-shadow-md)] active:scale-[0.98]',
-      outline: 'border-2 border-[var(--sgf-primary)] text-[var(--sgf-primary)] hover:bg-emerald-50 focus:ring-emerald-500/20 active:scale-[0.98]',
+      primary: 'bg-[var(--sgf-primary)] !text-white hover:brightness-110 focus:ring-[var(--sgf-focus-ring)] shadow-[var(--sgf-shadow-sm)] hover:shadow-[var(--sgf-shadow-md)] active:scale-[0.98]',
+      secondary: 'bg-[var(--sgf-dark)] !text-white hover:brightness-110 focus:ring-[var(--sgf-focus-ring)] shadow-[var(--sgf-shadow-sm)] hover:shadow-[var(--sgf-shadow-md)] active:scale-[0.98]',
+      outline: 'border-2 border-[var(--sgf-primary)] text-[var(--sgf-primary)] hover:bg-[var(--sgf-primary-soft)] focus:ring-[var(--sgf-focus-ring)] active:scale-[0.98]',
       ghost: 'text-[var(--sgf-text-secondary)] hover:bg-slate-100 hover:text-[var(--sgf-text-primary)] focus:ring-slate-500/20',
       danger: 'bg-[var(--sgf-error)] text-white hover:brightness-110 focus:ring-red-500/20 shadow-[var(--sgf-shadow-sm)] hover:shadow-[var(--sgf-shadow-md)] active:scale-[0.98]',
     };

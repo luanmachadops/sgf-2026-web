@@ -36,7 +36,7 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
             onClick={() => onChange(!checked)}
             className={cn(
                 'relative h-6 w-11 shrink-0 rounded-full transition-colors',
-                checked ? 'bg-emerald-500' : 'bg-slate-300',
+                checked ? 'bg-[var(--sgf-primary)]' : 'bg-slate-300',
                 disabled && 'cursor-default',
             )}
         >
@@ -189,12 +189,12 @@ export default function Configuracoes() {
                                         onClick={() => setFuelPriceMode(opt.value)}
                                         className={cn(
                                             'relative flex flex-col gap-3 rounded-2xl border-2 p-5 text-left transition-all',
-                                            active ? 'border-emerald-500 bg-emerald-50/50' : 'border-slate-200 hover:border-emerald-200',
+                                            active ? 'border-[var(--sgf-primary)] bg-[var(--sgf-primary-soft)]' : 'border-slate-200 hover:border-[var(--sgf-primary)]',
                                             !editingFuelPrice && 'cursor-default hover:border-slate-200',
                                         )}
                                     >
-                                        {active && <span className="absolute right-4 top-4 text-emerald-500"><CheckCircle className="h-5 w-5" /></span>}
-                                        <div className={cn('flex h-11 w-11 items-center justify-center rounded-xl', active ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500')}>
+                                        {active && <span className="absolute right-4 top-4 text-[var(--sgf-primary)]"><CheckCircle className="h-5 w-5" /></span>}
+                                        <div className={cn('flex h-11 w-11 items-center justify-center rounded-xl', active ? 'bg-[var(--sgf-primary-soft)] text-[var(--sgf-primary)]' : 'bg-slate-100 text-slate-500')}>
                                             <Icon className="h-5 w-5" />
                                         </div>
                                         <div>

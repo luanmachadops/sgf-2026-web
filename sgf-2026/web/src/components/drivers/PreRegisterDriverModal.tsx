@@ -1,16 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
-import { Loader2, Save, Sparkles } from '@/components/sgf/icons';
+import { FileSpreadsheet, Loader2, Save, Sparkles, Upload } from '@/components/sgf/icons';
 import { departmentsApi } from '@/lib/supabase-api';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePreRegisterDriver, usePreRegisterDriversBulk } from '@/hooks/useDrivers';
 import { maskCPF } from '@/lib/utils';
 import type { PreRegisterDriverRequest } from '@/lib/backend-api';
+import { organizeDriverImportFile } from '@/lib/driverImportAI';
 
 interface PreRegisterDriverModalProps {
     isOpen: boolean;
@@ -57,6 +58,10 @@ export function PreRegisterDriverModal({ isOpen, onClose }: PreRegisterDriverMod
 
     // Import
     const [csv, setCsv] = useState('');
+    const [fileName, setFileName] = useState('');
+    const [useAI, setUseAI] = useState(true);
+    const [isReadingFile, setIsReadingFile] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Credenciais provisórias geradas (exibidas UMA única vez, após o cadastro)
     const [issued, setIssued] = useState<{ cpf: string; name: string; tempPassword: string }[] | null>(null);
@@ -76,8 +81,28 @@ export function PreRegisterDriverModal({ isOpen, onClose }: PreRegisterDriverMod
     const parsed = useMemo(() => (mode === 'import' ? parseSpreadsheet(csv) : []), [mode, csv]);
 
     const resetAndClose = () => {
-        setCpf(''); setName(''); setRegistrationNumber(''); setCsv(''); setMode('single'); setIssued(null);
+        setCpf(''); setName(''); setRegistrationNumber(''); setCsv(''); setFileName(''); setMode('single'); setIssued(null);
         onClose();
+    };
+
+    const processImportFile = async (file: File) => {
+        setIsReadingFile(true);
+        setFileName(file.name);
+        try {
+            const rows = await organizeDriverImportFile(file, useAI);
+            if (rows.length === 0) throw new Error('Nenhum motorista foi reconhecido no arquivo.');
+            setCsv([
+                'nome;cpf;matricula',
+                ...rows.map((row) => [row.name, row.cpf, row.registrationNumber ?? ''].join(';')),
+            ].join('\n'));
+            toast.success(`${rows.length} motorista${rows.length > 1 ? 's' : ''} reconhecido${rows.length > 1 ? 's' : ''}. Revise antes de importar.`);
+        } catch (error) {
+            setFileName('');
+            toast.error((error as Error).message || 'Não foi possível ler o arquivo.');
+        } finally {
+            setIsReadingFile(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
     };
 
     const copyCredentials = (rows: { cpf: string; name: string; tempPassword: string }[]) => {
@@ -131,7 +156,7 @@ export function PreRegisterDriverModal({ isOpen, onClose }: PreRegisterDriverMod
         }
     };
 
-    const isBusy = preRegister.isPending || preRegisterBulk.isPending;
+    const isBusy = preRegister.isPending || preRegisterBulk.isPending || isReadingFile;
 
     return (
         <Modal
@@ -223,8 +248,48 @@ export function PreRegisterDriverModal({ isOpen, onClose }: PreRegisterDriverMod
                 ) : (
                     <div className="space-y-3">
                         <SGFSelect label="Secretaria (aplicada a todos)" options={departmentOptions} value={departmentId} onChange={setDepartmentId} placeholder="Selecione a secretaria" disabled={Boolean(user?.departmentScopeId)} fullWidth />
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                                        <FileSpreadsheet className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-800">Arquivo de motoristas</p>
+                                        <p className="text-xs text-slate-500">PDF, Excel, CSV, PNG ou JPG · até 15 MB</p>
+                                    </div>
+                                </div>
+                                <SGFButton
+                                    variant="outline"
+                                    size="sm"
+                                    icon={isReadingFile ? Loader2 : Upload}
+                                    disabled={isReadingFile}
+                                    onClick={() => fileInputRef.current?.click()}
+                                >
+                                    {isReadingFile ? 'Organizando...' : 'Selecionar arquivo'}
+                                </SGFButton>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".pdf,.xlsx,.xls,.csv,.txt,image/png,image/jpeg,image/webp"
+                                    className="hidden"
+                                    onChange={(event) => {
+                                        const file = event.target.files?.[0];
+                                        if (file) void processImportFile(file);
+                                    }}
+                                />
+                            </div>
+                            {fileName && <p className="mt-3 truncate rounded-lg bg-white px-3 py-2 text-xs font-medium text-slate-600">{fileName}</p>}
+                            <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-violet-200 bg-violet-50/70 p-3">
+                                <input type="checkbox" checked={useAI} onChange={(event) => setUseAI(event.target.checked)} className="mt-0.5 h-4 w-4 accent-violet-600" />
+                                <span>
+                                    <span className="flex items-center gap-1.5 text-sm font-bold text-violet-800"><Sparkles className="h-4 w-4" /> Organização inteligente com IA</span>
+                                    <span className="mt-0.5 block text-xs leading-5 text-violet-700">Identifica nome, CPF e matrícula mesmo em documentos desorganizados, PDFs digitalizados e fotos.</span>
+                                </span>
+                            </label>
+                        </div>
                         <div>
-                            <label className="mb-1.5 block text-sm font-medium text-slate-700">Dados (CSV)</label>
+                            <label className="mb-1.5 block text-sm font-medium text-slate-700">Dados reconhecidos (revise antes de importar)</label>
                             <textarea
                                 value={csv}
                                 onChange={(e) => setCsv(e.target.value)}

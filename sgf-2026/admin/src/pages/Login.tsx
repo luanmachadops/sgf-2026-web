@@ -37,8 +37,8 @@ export default function Login() {
   };
 
   return (
-    <div className="grid min-h-screen place-items-center bg-gradient-to-br from-[var(--sgf-dark)] to-[var(--sgf-primary)] p-6">
-      <form onSubmit={mode === 'login' ? submit : sendReset} className="w-full max-w-sm space-y-5 rounded-3xl bg-white p-8 shadow-2xl">
+    <div className="sgf-auth-background grid min-h-screen place-items-center p-6">
+      <form onSubmit={mode === 'login' ? submit : sendReset} className="relative z-[1] w-full max-w-sm space-y-5 rounded-3xl bg-white p-8 shadow-2xl">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-900">Exattus Rotta • Superadmin</h1>
           <p className="text-sm text-slate-500">

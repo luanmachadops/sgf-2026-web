@@ -3,11 +3,48 @@
 
 @source "../index.html";
 @source "./src/**/*.{js,ts,jsx,tsx}";
+@source "../../web/src/components/branding/TenantBrandingPreviewModal.tsx";
 
 html, body, #root { height: 100%; }
 body { margin: 0; background: var(--sgf-surface, #F5F7F9); color: var(--sgf-text-primary, #1F2937); }
+
+.sgf-auth-background {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 75% 20%, color-mix(in srgb, var(--sgf-primary) 36%, transparent), transparent 32%),
+    linear-gradient(145deg, var(--sgf-dark), color-mix(in srgb, var(--sgf-dark) 75%, #000));
+}
+
+.sgf-auth-background::before {
+  position: absolute;
+  width: min(82vw, 620px);
+  aspect-ratio: 1;
+  right: -14%;
+  bottom: -42%;
+  z-index: -1;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--sgf-primary) 22%, transparent);
+  filter: blur(34px);
+  content: "";
+  pointer-events: none;
+}
 
 /* Scrollbar sutil (igual ao painel do gestor) */
 .custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(148,163,184,0.4) transparent; }
 .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(148,163,184,0.4); border-radius: 9999px; }
+
+/* Evita o zoom automático do Safari/iOS sem bloquear o zoom de acessibilidade. */
+@media (max-width: 767px) {
+  input:not([type="file"]):not([type="color"]),
+  textarea,
+  select,
+  [contenteditable="true"] {
+    min-width: 0;
+    max-width: 100%;
+    font-size: 16px !important;
+    transform: none !important;
+  }
+}

@@ -7,6 +7,8 @@ import { Card, Button, Input, Badge } from '@/lib/ui';
 import { SGFCard, SGFSelect } from '@/components/sgf';
 import { ArrowLeft, Building2, Receipt, User, Map, ShieldCheck } from '@/components/sgf/icons';
 import { ManagersPanel } from '@/components/ManagersPanel';
+import { TenantBrandingPreviewModal } from '@/components/branding/TenantBrandingPreviewModal';
+import { Eye } from '@/components/sgf/icons';
 
 type Tab = 'identidade' | 'acessos';
 
@@ -19,6 +21,7 @@ export default function TenantDetail() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [tab, setTab] = useState<Tab>('identidade');
+  const [showPreview, setShowPreview] = useState(false);
   useEffect(() => { if (data) setT(data); }, [data]);
 
   if (isLoading || !t) return <p className="text-slate-400">Carregando…</p>;
@@ -69,10 +72,10 @@ export default function TenantDetail() {
         <div className="flex min-w-0 items-center gap-4">
           <Button variant="ghost" onClick={() => navigate('/prefeituras')}><ArrowLeft className="h-4 w-4" /> Voltar</Button>
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--sgf-dark)]">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center">
               {t.photo_url || t.seal_url || t.logo_url
-                ? <img src={(t.photo_url || t.seal_url || t.logo_url)!} alt={t.name} className="h-full w-full object-cover" />
-                : <Building2 className="h-6 w-6 text-white" />}
+                ? <img src={(t.photo_url || t.seal_url || t.logo_url)!} alt={t.name} className="h-full w-full object-contain" />
+                : <div className="flex h-full w-full items-center justify-center rounded-xl bg-[var(--sgf-dark)]"><Building2 className="h-6 w-6 text-white" /></div>}
             </div>
             <div className="min-w-0">
               <h1 className="flex items-center gap-2 truncate text-2xl font-bold text-slate-900">
@@ -148,18 +151,48 @@ export default function TenantDetail() {
               </label>
             ))}
           </div>
-          <div className="mt-4 flex flex-wrap gap-4">
+          <div className="mt-5 flex flex-wrap items-end justify-between gap-4 border-t border-slate-100 pt-5">
+            <div>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Cores do painel</p>
+              <div className="flex flex-wrap gap-3">
             {([['Primária', 'primary_color'], ['Escura', 'dark_color'], ['Destaque', 'accent_color']] as const).map(([lbl, key]) => (
-              <label key={key} className="flex items-center gap-2 text-sm text-slate-600">
-                <input type="color" value={(t[key] as string) || '#000000'} onChange={(e) => set({ [key]: e.target.value } as Partial<Tenant>)} className="h-9 w-12 rounded border border-slate-200" />
-                {lbl}
+              <label key={key} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                <input aria-label={`Cor ${lbl.toLowerCase()}`} type="color" value={(t[key] as string) || '#000000'} onChange={(e) => set({ [key]: e.target.value } as Partial<Tenant>)} className="h-8 w-10 cursor-pointer rounded-lg border-0 bg-transparent p-0" />
+                <span>
+                  <span className="block text-[10px] uppercase tracking-wide text-slate-400">{lbl}</span>
+                  <span className="font-mono text-xs">{(t[key] as string) || '#000000'}</span>
+                </span>
               </label>
             ))}
+              </div>
+            </div>
+            <Button variant="outline" onClick={() => setShowPreview(true)}>
+              <Eye className="h-4 w-4" /> Visualizar painel
+            </Button>
           </div>
         </Card>
       )}
 
       {tab === 'acessos' && <ManagersPanel tenantId={t.id} />}
+
+      <TenantBrandingPreviewModal
+        open={showPreview}
+        onClose={() => setShowPreview(false)}
+        branding={{
+          name: t.name,
+          slug: t.slug,
+          appName: t.app_name ?? undefined,
+          loginEyebrow: t.login_eyebrow ?? undefined,
+          logoUrl: t.logo_url ?? undefined,
+          sealUrl: t.seal_url ?? undefined,
+          photoUrl: t.photo_url ?? undefined,
+          primaryColor: t.primary_color ?? undefined,
+          darkColor: t.dark_color ?? undefined,
+          accentColor: t.accent_color ?? undefined,
+          city: t.city ?? undefined,
+          state: t.state ?? undefined,
+        }}
+      />
     </div>
   );
 }

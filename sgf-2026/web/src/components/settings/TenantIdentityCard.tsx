@@ -3,11 +3,12 @@ import { toast } from 'sonner';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { Building2, Loader2, Edit, Save } from '@/components/sgf/icons';
+import { Building2, Loader2, Edit, Save, Eye } from '@/components/sgf/icons';
 import { tenantApi, type TenantData } from '@/lib/supabase-api';
 import { useAuth } from '@/contexts/AuthContext';
 import { applyBrandingColors } from '@/lib/tenantBranding';
 import { maskCNPJ } from '@/lib/utils';
+import { TenantBrandingPreviewModal } from '@/components/branding/TenantBrandingPreviewModal';
 
 type ImageKind = 'logo' | 'seal' | 'photo';
 
@@ -37,6 +38,7 @@ export function TenantIdentityCard() {
     const [saving, setSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [uploading, setUploading] = useState<ImageKind | null>(null);
+    const [showPreview, setShowPreview] = useState(false);
 
     useEffect(() => {
         tenantApi.getCurrent().then((t) => {
@@ -69,7 +71,26 @@ export function TenantIdentityCard() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            await tenantApi.update(tenant.id, tenant);
+            await tenantApi.update(tenant.id, {
+                slug: tenant.slug,
+                name: tenant.name,
+                appName: tenant.appName,
+                loginEyebrow: tenant.loginEyebrow,
+                logoUrl: tenant.logoUrl,
+                sealUrl: tenant.sealUrl,
+                photoUrl: tenant.photoUrl,
+                primaryColor: tenant.primaryColor,
+                darkColor: tenant.darkColor,
+                accentColor: tenant.accentColor,
+                cnpj: tenant.cnpj,
+                city: tenant.city,
+                state: tenant.state,
+                address: tenant.address,
+                mayorName: tenant.mayorName,
+                reportFooter: tenant.reportFooter,
+                supportPhone: tenant.supportPhone,
+                supportEmail: tenant.supportEmail,
+            });
             applyBrandingColors({ ...tenant } as never);
             await refreshUser();
             setInitialTenant(tenant);
@@ -92,6 +113,7 @@ export function TenantIdentityCard() {
         : 'bg-white text-slate-900';
 
     return (
+        <>
         <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
@@ -102,6 +124,9 @@ export function TenantIdentityCard() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
+                    <SGFButton variant="outline" size="sm" onClick={() => setShowPreview(true)} icon={Eye}>
+                        Prévia
+                    </SGFButton>
                     {!isEditing ? (
                         <SGFButton size="sm" onClick={() => setIsEditing(true)} icon={Edit}>
                             Editar
@@ -127,6 +152,7 @@ export function TenantIdentityCard() {
 
             <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <SGFInput label="Nome da prefeitura" value={tenant.name} readOnly={!isEditing} inputClassName={inputClasses} onChange={(e) => set({ name: e.target.value })} placeholder="Prefeitura Municipal de..." fullWidth />
+                <SGFInput label="Slug / endereço da prefeitura" value={tenant.slug} readOnly={!isEditing} inputClassName={inputClasses} onChange={(e) => set({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })} placeholder="nome-da-prefeitura" fullWidth />
                 <SGFInput label="Nome no app (mobile)" value={tenant.appName} readOnly={!isEditing} inputClassName={inputClasses} onChange={(e) => set({ appName: e.target.value })} placeholder="Exattus Rotta" fullWidth />
                 <SGFInput label="CNPJ" value={tenant.cnpj ? maskCNPJ(tenant.cnpj) : ''} readOnly={!isEditing} inputClassName={inputClasses} onChange={(e) => set({ cnpj: maskCNPJ(e.target.value) })} placeholder="00.000.000/0001-00" fullWidth />
                 <SGFInput label="Prefeito(a)" value={tenant.mayorName} readOnly={!isEditing} inputClassName={inputClasses} onChange={(e) => set({ mayorName: e.target.value })} fullWidth />
@@ -140,16 +166,25 @@ export function TenantIdentityCard() {
 
             <div className="mt-5">
                 <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Cores do tema</p>
-                <div className="flex flex-wrap gap-4">
+                <div className="flex flex-wrap gap-3">
                     {([['Primária', 'primaryColor'], ['Escura', 'darkColor'], ['Destaque', 'accentColor']] as const).map(([lbl, key]) => (
-                        <label key={key} className="flex items-center gap-2 text-sm text-slate-700">
-                            <input type="color" value={(tenant[key] as string) || '#000000'} disabled={!isEditing} onChange={(e) => set({ [key]: e.target.value } as Partial<TenantData>)} className="h-8 w-11 cursor-pointer rounded border border-slate-200 !opacity-100" />
-                            {lbl}
+                        <label key={key} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                            <input aria-label={`Cor ${lbl.toLowerCase()}`} type="color" value={(tenant[key] as string) || '#000000'} disabled={!isEditing} onChange={(e) => set({ [key]: e.target.value } as Partial<TenantData>)} className="h-8 w-10 cursor-pointer rounded-lg border-0 bg-transparent p-0 !opacity-100" />
+                            <span>
+                                <span className="block text-[10px] uppercase tracking-wide text-slate-400">{lbl}</span>
+                                <span className="font-mono text-xs">{(tenant[key] as string) || '#000000'}</span>
+                            </span>
                         </label>
                     ))}
                 </div>
             </div>
         </SGFCard>
+        <TenantBrandingPreviewModal
+            open={showPreview}
+            onClose={() => setShowPreview(false)}
+            branding={tenant}
+        />
+        </>
     );
 }
 

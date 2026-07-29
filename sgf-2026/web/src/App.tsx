@@ -31,6 +31,8 @@ import Convite from '@/pages/Convite';
 import ResetPassword from '@/pages/ResetPassword';
 import SuspendedAccess from '@/pages/SuspendedAccess';
 import { useAuth } from '@/contexts/AuthContext';
+import { AppLaunchSplash } from '@/components/pwa/AppLaunchSplash';
+import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt';
 
 const StationPortal = lazy(() => import('@/pages/partner/StationPortal'));
 const WorkshopPortal = lazy(() => import('@/pages/partner/WorkshopPortal'));
@@ -66,6 +68,7 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <BrandingProvider>
+          <AppLaunchSplash />
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
@@ -122,6 +125,7 @@ function App() {
             {/* Catch all */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <PwaInstallPrompt />
           </BrandingProvider>
         </AuthProvider>
       </BrowserRouter>

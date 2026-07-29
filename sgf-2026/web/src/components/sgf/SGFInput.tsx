@@ -33,7 +33,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
     const inputId = id || `input-${generatedId.replace(/:/g, '')}`;
 
     const baseInputStyles = `
-      w-full
+      w-full min-w-0
       px-[var(--sgf-input-padding-x)]
       py-[var(--sgf-input-padding-y)]
       bg-white
@@ -49,7 +49,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
 
     const stateStyles = error
       ? 'border-red-300 focus:border-red-500 focus:ring-red-500/10'
-      : 'border-slate-200 hover:border-slate-300 focus:border-[var(--sgf-primary)] focus:ring-emerald-500/10';
+      : 'border-slate-200 hover:border-slate-300 focus:border-[var(--sgf-primary)] focus:ring-[var(--sgf-focus-ring)]';
 
     const iconStyles = Icon
       ? iconPosition === 'left'
@@ -58,7 +58,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
       : '';
 
     return (
-      <div className={`${fullWidth ? 'w-full' : ''} ${className}`}>
+      <div className={`${fullWidth ? 'w-full' : ''} min-w-0 ${className}`}>
         {label && (
           <label
             htmlFor={inputId}
@@ -68,7 +68,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
           </label>
         )}
 
-        <div className="relative">
+        <div className="relative min-w-0">
           {Icon && iconPosition === 'left' && (
             onIconClick ? (
               <button

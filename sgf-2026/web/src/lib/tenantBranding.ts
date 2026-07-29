@@ -12,6 +12,29 @@ export const DEFAULT_BRANDING: TenantBranding = {
     accentColor: '#70C4A8',
 };
 
+function hexToRgba(hex: string, alpha: number): string {
+    const clean = hex.replace('#', '');
+    const normalized = clean.length === 3
+        ? clean.split('').map((character) => character + character).join('')
+        : clean;
+    if (!/^[\da-f]{6}$/i.test(normalized)) return `rgba(0, 168, 107, ${alpha})`;
+    const value = Number.parseInt(normalized, 16);
+    return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+}
+
+function contrastColor(hex: string): '#111827' | '#FFFFFF' {
+    const clean = hex.replace('#', '');
+    const normalized = clean.length === 3
+        ? clean.split('').map((character) => character + character).join('')
+        : clean;
+    if (!/^[\da-f]{6}$/i.test(normalized)) return '#FFFFFF';
+    const value = Number.parseInt(normalized, 16);
+    const red = (value >> 16) & 255;
+    const green = (value >> 8) & 255;
+    const blue = value & 255;
+    return (red * 299 + green * 587 + blue * 114) / 1000 > 150 ? '#111827' : '#FFFFFF';
+}
+
 /** Aplica as cores do tenant nas CSS vars do design system (sobrescreve por prefeitura). */
 export function applyBrandingColors(b?: TenantBranding | null) {
     const root = document.documentElement;
@@ -21,6 +44,26 @@ export function applyBrandingColors(b?: TenantBranding | null) {
     root.style.setProperty('--sgf-primary', primary);
     root.style.setProperty('--sgf-dark', dark);
     root.style.setProperty('--sgf-light', accent);
+    root.style.setProperty('--sgf-accent', accent);
+    root.style.setProperty('--sgf-primary-contrast', contrastColor(primary));
+    root.style.setProperty('--sgf-dark-contrast', contrastColor(dark));
+    root.style.setProperty('--sgf-accent-contrast', contrastColor(accent));
+    root.style.setProperty('--sgf-primary-soft', hexToRgba(primary, 0.1));
+    root.style.setProperty('--sgf-primary-muted', hexToRgba(primary, 0.18));
+    root.style.setProperty('--sgf-focus-ring', hexToRgba(primary, 0.16));
+
+    // Sincroniza os tokens compatíveis com os componentes Tailwind/Radix.
+    root.style.setProperty('--primary', primary);
+    root.style.setProperty('--secondary', dark);
+    root.style.setProperty('--accent', accent);
+    root.style.setProperty('--ring', primary);
+    root.style.setProperty('--chart-1', primary);
+    root.style.setProperty('--chart-2', accent);
+    root.style.setProperty('--chart-3', dark);
+    root.style.setProperty('--sidebar', dark);
+    root.style.setProperty('--sidebar-primary', primary);
+    root.style.setProperty('--sidebar-accent', hexToRgba(primary, 0.22));
+    root.style.setProperty('--sidebar-ring', primary);
 
     // Update favicon dynamically to tenant logo/seal
     if (typeof window !== 'undefined') {

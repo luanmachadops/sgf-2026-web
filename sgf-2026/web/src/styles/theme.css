@@ -18,6 +18,13 @@
   --sgf-dark: hsl(188, 49%, 12%);        /* #0F2B2F - Primary Dark Ocean */
   --sgf-primary: hsl(160, 100%, 33%);    /* #00A86B - Emerald Green */
   --sgf-light: hsl(161, 33%, 60%);       /* #70C4A8 - Mint Accent */
+  --sgf-accent: var(--sgf-light);
+  --sgf-primary-contrast: #FFFFFF;
+  --sgf-dark-contrast: #FFFFFF;
+  --sgf-accent-contrast: #111827;
+  --sgf-primary-soft: rgba(0, 168, 107, 0.1);
+  --sgf-primary-muted: rgba(0, 168, 107, 0.18);
+  --sgf-focus-ring: rgba(0, 168, 107, 0.16);
   
   --sgf-surface: #F8FAFC;                /* Light gray background */
   --sgf-surface-elevated: #FFFFFF;       /* White cards */

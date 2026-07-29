@@ -105,7 +105,7 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                 "flex flex-col h-full transition-all duration-300",
                 isCollapsed ? "w-[64px] items-center" : "w-[240px]",
             )}
-            style={{ backgroundColor: '#0F2B2F' }}
+            style={{ backgroundColor: 'var(--sgf-dark)' }}
         >
             {/* Logo Section */}
             <div className={cn(
@@ -142,7 +142,7 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                 {!isCollapsed && (
                     <div className="flex flex-col leading-none">
                         <span className="text-[13px] font-semibold text-white tracking-tight truncate max-w-[150px]">{branding.name}</span>
-                        <span className="text-[11px] font-medium text-emerald-400/80 mt-0.5 tracking-normal">{branding.city ? `${branding.city}${branding.state ? '/' + branding.state : ''}` : 'Gestão Pública'}</span>
+                        <span className="mt-0.5 text-[11px] font-medium tracking-normal text-[var(--sgf-light)]">{branding.city ? `${branding.city}${branding.state ? '/' + branding.state : ''}` : 'Gestão Pública'}</span>
                     </div>
                 )}
 
@@ -197,7 +197,7 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                                                     ? "justify-center px-0 w-10 h-9 mx-auto"
                                                     : "px-2 gap-2.5",
                                                 isActive
-                                                    ? 'bg-emerald-500 text-white shadow-md shadow-emerald-900/40'
+                                                    ? 'bg-[var(--sgf-primary)] text-[var(--sgf-primary-contrast)] shadow-md'
                                                     : 'text-white/50 hover:bg-white/[0.06] hover:text-white/90'
                                             )
                                         }
@@ -239,7 +239,7 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                 )}>
                     {/* Avatar */}
                     <div className={cn(
-                        "shrink-0 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-400 flex items-center justify-center",
+                        "shrink-0 rounded-lg bg-[var(--sgf-primary)] flex items-center justify-center",
                         isCollapsed ? "h-8 w-8" : "h-8 w-8"
                     )}>
                         <User className="h-4 w-4 text-white" />
@@ -267,7 +267,7 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                                 <LogOut className="h-4 w-4" />
                             </button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent className="bg-[#0F2B2F] border-white/10 text-white">
+                        <AlertDialogContent className="bg-[var(--sgf-dark)] border-white/10 text-white">
                             <AlertDialogHeader>
                                 <AlertDialogTitle className="text-white">Deseja realmente sair?</AlertDialogTitle>
                                 <AlertDialogDescription className="text-white/60">

@@ -52,13 +52,13 @@ export function SGFToolbar({
     >
       {hasSearch && (
         <div className="group relative w-full md:max-w-sm">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-emerald-500" />
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[var(--sgf-primary)]" />
           <input
             type="text"
             value={searchValue ?? ''}
             onChange={(event) => onSearchChange?.(event.target.value)}
             placeholder={searchPlaceholder}
-            className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm font-medium text-slate-700 shadow-[var(--sgf-shadow-xs)] transition-all placeholder:text-slate-400 hover:border-emerald-500/50 hover:bg-slate-50/50 focus:border-[var(--sgf-primary)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-500/10"
+            className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm font-medium text-slate-700 shadow-[var(--sgf-shadow-xs)] transition-all placeholder:text-slate-400 hover:border-[var(--sgf-primary)] hover:bg-slate-50/50 focus:border-[var(--sgf-primary)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[var(--sgf-focus-ring)]"
           />
         </div>
       )}
@@ -74,7 +74,7 @@ export function SGFToolbar({
                 options={filter.options}
                 placeholder={filter.placeholder}
                 icon={filter.icon}
-                triggerClassName="!py-2.5 !px-4 !text-sm !font-medium !rounded-full !shadow-[var(--sgf-shadow-xs)] hover:!border-emerald-500/50 hover:!bg-slate-50/50"
+                triggerClassName="!py-2.5 !px-4 !text-sm !font-medium !rounded-full !shadow-[var(--sgf-shadow-xs)] hover:!border-[var(--sgf-primary)] hover:!bg-slate-50/50"
               />
             </div>
           ))}

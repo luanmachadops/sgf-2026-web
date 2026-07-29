@@ -41,7 +41,7 @@ export default function Dashboard() {
     const navigate = useNavigate();
     const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler } = useHeader();
     const { branding } = useBranding();
-    const [expensePeriod, setExpensePeriod] = useState<PeriodValue>(() => makePeriod('6'));
+    const [expensePeriod, setExpensePeriod] = useState<PeriodValue>(() => makePeriod('1'));
     const [isAlertsModalOpen, setIsAlertsModalOpen] = useState<boolean | undefined>(undefined);
 
     // Real Data Hooks
@@ -111,8 +111,8 @@ export default function Dashboard() {
                         value={`${resumo?.frota.emUso ?? 0} de ${resumo?.frota.total ?? 0}`}
                         loading={isLoadingKPIs}
                         icon={Truck}
-                        iconColor="text-emerald-500"
-                        chartColor="#10b981"
+                        iconColor="text-[var(--sgf-primary)]"
+                        chartColor="var(--sgf-primary)"
                         chartData={trends?.activeFleet ?? []}
                     />
                     <SGFKPICard
@@ -183,8 +183,8 @@ export default function Dashboard() {
                                         >
                                             <defs>
                                                 <linearGradient id="colorGreen" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                                    <stop offset="5%" stopColor="var(--sgf-primary)" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="var(--sgf-primary)" stopOpacity={0} />
                                                 </linearGradient>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
@@ -203,15 +203,15 @@ export default function Dashboard() {
                                             />
                                             <Tooltip
                                                 animationDuration={0}
-                                                cursor={{ stroke: '#10b981', strokeWidth: 1, strokeDasharray: '4 4' }}
+                                                cursor={{ stroke: 'var(--sgf-primary)', strokeWidth: 1, strokeDasharray: '4 4' }}
                                                 content={({ active, payload, label }) => {
                                                     if (active && payload && payload.length) {
                                                         return (
                                                             <div className="bg-white border border-slate-100 p-3 rounded-2xl shadow-xl">
                                                                 <p className="text-xs font-bold text-slate-400 uppercase mb-2">{label}</p>
                                                                 <div className="space-y-1">
-                                                                    <p className="text-sm font-black text-emerald-600 flex items-center gap-2">
-                                                                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                                                    <p className="flex items-center gap-2 text-sm font-black text-[var(--sgf-primary)]">
+                                                                        <span className="h-2 w-2 rounded-full bg-[var(--sgf-primary)]"></span>
                                                                         {formatCurrency(payload[0].value as number)}
                                                                     </p>
                                                                 </div>
@@ -224,7 +224,7 @@ export default function Dashboard() {
                                             <Area
                                                 type="monotone"
                                                 dataKey="total"
-                                                stroke="#10b981"
+                                                stroke="var(--sgf-primary)"
                                                 strokeWidth={2}
                                                 fillOpacity={1}
                                                 fill="url(#colorGreen)"

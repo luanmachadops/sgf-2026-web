@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Person, User } from '@/components/sgf/icons';
+import { Menu, User } from '@/components/sgf/icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHeader } from '@/contexts/HeaderContext';
 import {
@@ -54,11 +54,11 @@ export default function Header({ onMenuClick }: HeaderProps) {
                                 <span className="w-full truncate text-[13px] font-semibold text-slate-700">{user?.name?.split(' ')[0] || 'Gestor'}</span>
                                 <span className="w-full truncate text-[11px] font-medium uppercase tracking-[0.04em] text-slate-400">{user?.role || 'Admin'}</span>
                             </div>
-                            <div className="h-8 w-8 md:h-9 md:w-9 rounded-full overflow-hidden border-2 border-emerald-500/20 shadow-sm shrink-0">
+                            <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border-2 border-[var(--sgf-primary-muted)] shadow-sm md:h-9 md:w-9">
                                 {user?.photoUrl ? (
                                     <img src={user.photoUrl} alt={user.name} className="w-full h-full object-cover" />
                                 ) : (
-                                    <div className="w-full h-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                                    <div className="flex h-full w-full items-center justify-center bg-[var(--sgf-primary-soft)] text-[var(--sgf-primary)]">
                                         <User className="h-4 w-4 md:h-5 md:w-5" />
                                     </div>
                                 )}

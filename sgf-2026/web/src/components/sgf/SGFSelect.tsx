@@ -152,7 +152,7 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
             'transition-all duration-[var(--sgf-transition-base)]',
             'outline-none cursor-pointer',
             'hover:border-slate-300',
-            isOpen ? 'ring-4 ring-emerald-500/10 border-[var(--sgf-primary)] bg-white' : 'border-slate-200 shadow-[var(--sgf-shadow-xs)]',
+            isOpen ? 'ring-4 ring-[var(--sgf-focus-ring)] border-[var(--sgf-primary)] bg-white' : 'border-slate-200 shadow-[var(--sgf-shadow-xs)]',
             disabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : '',
             error && 'border-red-300 focus:border-red-500 focus:ring-red-500/10',
             triggerClassName
@@ -176,7 +176,7 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
           <CaretDown
             className={cn(
               "h-2.5 w-2.5 text-slate-400 transition-transform duration-[var(--sgf-transition-base)] shrink-0",
-              isOpen && 'transform rotate-180 text-emerald-600'
+              isOpen && 'transform rotate-180 text-[var(--sgf-primary)]'
             )}
           />
         </div>
@@ -207,9 +207,9 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
                     option.disabled
                       ? 'opacity-40 cursor-not-allowed text-slate-400'
                       : cn(
-                          'cursor-pointer hover:bg-emerald-50 hover:text-emerald-900',
+                          'cursor-pointer hover:bg-[var(--sgf-primary-soft)] hover:text-[var(--sgf-primary)]',
                           currentValue === option.value
-                            ? 'bg-emerald-50/80 text-emerald-700 font-bold'
+                            ? 'bg-[var(--sgf-primary-soft)] text-[var(--sgf-primary)] font-bold'
                             : 'text-slate-600 font-medium'
                         )
                   )}
@@ -225,14 +225,14 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
                     ) : option.icon ? (
                       <div className={cn(
                         "w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0",
-                        currentValue === option.value ? "bg-emerald-100 text-emerald-600" : "bg-slate-50 text-slate-400"
+                        currentValue === option.value ? "bg-[var(--sgf-primary-soft)] text-[var(--sgf-primary)]" : "bg-slate-50 text-slate-400"
                       )}>
                         <option.icon className="h-3.5 w-3.5" />
                       </div>
                     ) : Icon ? (
                       <div className={cn(
                         "w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0",
-                        currentValue === option.value ? "bg-emerald-100 text-emerald-600" : "bg-slate-50 text-slate-400"
+                        currentValue === option.value ? "bg-[var(--sgf-primary-soft)] text-[var(--sgf-primary)]" : "bg-slate-50 text-slate-400"
                       )}>
                         <Icon className="h-3.5 w-3.5" />
                       </div>
@@ -240,8 +240,8 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
                     {option.label}
                   </span>
                   {currentValue === option.value && (
-                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 shadow-sm animate-in zoom-in-50 duration-300">
-                      <Check className="h-3 w-3 text-white stroke-[3]" />
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--sgf-primary)] text-[var(--sgf-primary-contrast)] shadow-sm animate-in zoom-in-50 duration-300">
+                      <Check className="h-3 w-3 stroke-[3]" />
                     </div>
                   )}
                 </div>

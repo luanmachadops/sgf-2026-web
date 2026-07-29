@@ -46,7 +46,7 @@ export const SGFTextarea = React.forwardRef<HTMLTextAreaElement, SGFTextareaProp
 
     const stateStyles = error
       ? 'border-red-300 focus:border-red-500 focus:ring-red-500/10'
-      : 'border-slate-200 hover:border-slate-300 focus:border-[var(--sgf-primary)] focus:ring-emerald-500/10';
+      : 'border-slate-200 hover:border-slate-300 focus:border-[var(--sgf-primary)] focus:ring-[var(--sgf-focus-ring)]';
 
     return (
       <div className={`${fullWidth ? 'w-full' : ''} ${className}`}>

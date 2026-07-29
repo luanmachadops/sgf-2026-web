@@ -79,8 +79,8 @@ export default function Login({ portal = 'panel' }: LoginProps) {
     };
 
     return (
-        <div className="flex min-h-screen bg-gradient-to-br from-[var(--sgf-dark)] to-[var(--sgf-primary)]">
-            <div className="m-auto w-full max-w-md space-y-8 rounded-[2.5rem] bg-white p-12 shadow-2xl">
+        <div className="sgf-auth-background flex min-h-screen p-4 sm:p-6">
+            <div className="relative z-[1] m-auto w-full max-w-md space-y-8 rounded-[2.5rem] bg-white p-8 shadow-2xl sm:p-12">
                 {/* Logo */}
                 <div className="text-center">
                     <div className={`mx-auto flex h-20 w-20 items-center justify-center ${branding.logoUrl || branding.sealUrl ? '' : 'overflow-hidden rounded-3xl bg-[var(--sgf-primary)] shadow-lg shadow-emerald-500/30'}`}>
@@ -91,23 +91,14 @@ export default function Login({ portal = 'panel' }: LoginProps) {
                         )}
                     </div>
                     <h1 className="mt-6 text-3xl font-bold text-gray-900">{branding.name}</h1>
-                    <p className={`mx-auto mt-3 w-fit rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] ${
-                        portal === 'posto'
-                            ? 'bg-amber-50 text-amber-700'
-                            : portal === 'oficina'
-                                ? 'bg-blue-50 text-blue-700'
-                                : 'bg-emerald-50 text-[var(--sgf-primary)]'
-                    }`}>
+                    <p className="mt-2 text-sm text-slate-500">
                         {portal === 'posto'
                             ? 'Sistema de Abastecimento'
                             : portal === 'oficina'
                                 ? 'Sistema de Manutenção'
-                                : (branding.loginEyebrow || 'Painel de Gestão')}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-500">
-                        {branding.city && branding.state 
-                            ? `${branding.city} - ${branding.state}` 
-                            : 'Gestão inteligente de frotas'}
+                                : branding.city && branding.state
+                                    ? `${branding.city} - ${branding.state}`
+                                    : 'Gestão inteligente de frotas'}
                     </p>
                 </div>
 
