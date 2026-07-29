@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Exattus Rotta">
+  <rect width="64" height="64" rx="16" fill="#0F2B2F"/>
+  <path d="M17 18h30v8H26v5h17v7H26v6h21v8H17z" fill="#fff"/>
+  <path d="M43 29c7 1 11 6 11 13 0 5-2 9-6 12l-6-6c2-2 3-4 3-6 0-3-2-5-6-5z" fill="#F26A1F"/>
+</svg>

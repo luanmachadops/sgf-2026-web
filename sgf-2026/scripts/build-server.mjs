@@ -8,6 +8,6 @@ await build({
   format: 'esm',
   target: 'node20',
   external: ['express'],
-  sourcemap: true,
+  sourcemap: false,
   minify: false,
 });
