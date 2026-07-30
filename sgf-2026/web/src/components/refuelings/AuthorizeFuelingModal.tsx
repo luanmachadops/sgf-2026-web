@@ -9,7 +9,7 @@ import { Car, Fuel, User } from '@/components/sgf/icons';
 import { stationsApi, vehiclesApi } from '@/lib/supabase-api';
 import { useCreateFuelAuthorization } from '@/hooks/useRefuelings';
 import { useDrivers } from '@/hooks/useDrivers';
-import { formatPlate, formatDriverLabel } from '@/lib/utils';
+import { formatPlate, formatDriverLabel, matchesSearch } from '@/lib/utils';
 import { getStationUnavailableReason } from '@/lib/stationStatus';
 import { procurementApi } from '@/lib/procurement-api';
 
@@ -92,14 +92,14 @@ function AuthorizeFuelingModalContent({ isOpen, onClose }: Props) {
     const selectedVehicle = useMemo(() => vehicles.find((v) => v.id === vehicleId), [vehicles, vehicleId]);
 
     const filteredVehicles = useMemo(() => {
-        const search = vehicleSearch.toLowerCase().trim();
-        if (!search) return vehicles;
         return vehicles.filter(
-            (v) =>
-                (v.plate || '').toLowerCase().includes(search) ||
-                (v.brand || '').toLowerCase().includes(search) ||
-                (v.model || '').toLowerCase().includes(search) ||
-                (v.unit_code || '').toLowerCase().includes(search)
+            (v) => matchesSearch(
+                vehicleSearch,
+                v.plate,
+                v.brand,
+                v.model,
+                v.unit_code,
+            )
         );
     }, [vehicles, vehicleSearch]);
 

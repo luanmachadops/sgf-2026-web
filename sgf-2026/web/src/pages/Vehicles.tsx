@@ -13,7 +13,7 @@ import { NewVehicleForm } from '@/components/vehicles/NewVehicleForm';
 import { ImportVehiclesModal } from '@/components/vehicles/ImportVehiclesModal';
 import { useHeader } from '@/contexts/HeaderContext';
 import { departmentsApi } from '@/lib/supabase-api';
-import { formatDistance, formatPlate, getStatusColor, getStatusLabel } from '@/lib/utils';
+import { formatDistance, formatPlate, getStatusColor, getStatusLabel, normalizeSearchIdentifier } from '@/lib/utils';
 import { useVehicles } from '@/hooks/useVehicles';
 import type { VehicleRecord } from '@/lib/supabase-api';
 
@@ -83,11 +83,9 @@ export default function Vehicles() {
         }
 
         if (paramSearch) {
-            const term = paramSearch.trim().toLowerCase();
+            const term = normalizeSearchIdentifier(paramSearch);
             const exactMatch = vehicles.find(
-                (v) =>
-                    v.plate?.toLowerCase() === term ||
-                    v.plate?.toLowerCase().replace('-', '') === term.replace('-', '')
+                (v) => normalizeSearchIdentifier(v.plate) === term
             );
             if (exactMatch) {
                 navigate(`/veiculos/${exactMatch.id}`, { replace: true });

@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SGFInput } from '@/components/sgf/SGFInput';
-import { SGFButton } from '@/components/sgf/SGFButton';
 import { Car } from '@/components/sgf/icons';
-import { formatPlate } from '@/lib/utils';
+import { formatPlate, matchesSearch } from '@/lib/utils';
 
 export interface VehicleLike {
     id: string;
@@ -45,12 +44,14 @@ export function VehiclePickerField({
     const selected = vehicles.find((v) => v.id === value);
 
     const filtered = vehicles.filter((v) => {
-        const s = search.toLowerCase();
-        return (v.plate || '').toLowerCase().includes(s)
-            || (v.brand || '').toLowerCase().includes(s)
-            || (v.model || '').toLowerCase().includes(s)
-            || (v.unit_code || '').toLowerCase().includes(s)
-            || (v.departments?.name || '').toLowerCase().includes(s);
+        return matchesSearch(
+            search,
+            v.plate,
+            v.brand,
+            v.model,
+            v.unit_code,
+            v.departments?.name,
+        );
     });
 
     useEffect(() => {

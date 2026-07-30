@@ -45,6 +45,7 @@ import {
 } from '@/lib/reportExport';
 import { useBranding } from '@/contexts/BrandingContext';
 import { toast } from 'sonner';
+import { matchesSearch } from '@/lib/utils';
 
 const EMPTY_DATASET: ReportDataset = { columns: [], rows: [], kpis: [], charts: [] };
 const CHART_COLORS = ['#00A86B', '#0F2B2F', '#70C4A8', '#3B82F6', '#F59E0B', '#8B5CF6', '#DC2626', '#64748B'];
@@ -99,13 +100,6 @@ function reportIdentityLines(branding: ReportBranding): string[] {
     ].filter(Boolean).join(' — ');
     if (location) lines.push(location);
     return lines;
-}
-
-function normalizeSearch(value: unknown): string {
-    return String(value ?? '')
-        .normalize('NFD')
-        .replace(/\p{Diacritic}/gu, '')
-        .toLocaleLowerCase('pt-BR');
 }
 
 function chartTick(value: number, format?: string): string {
@@ -227,14 +221,13 @@ export function ReportViewerModal({
     }, [contextColumn, dataset.rows]);
 
     const filteredRows = useMemo(() => {
-        const normalizedQuery = normalizeSearch(rowSearch.trim());
         return dataset.rows.filter((row) => {
             if (contextColumn && contextValue && String(row[contextColumn.key] ?? '') !== contextValue) {
                 return false;
             }
-            if (!normalizedQuery) return true;
-            return dataset.columns.some((column) =>
-                normalizeSearch(row[column.key]).includes(normalizedQuery)
+            return matchesSearch(
+                rowSearch,
+                ...dataset.columns.map((column) => String(row[column.key] ?? '')),
             );
         });
     }, [contextColumn, contextValue, dataset.columns, dataset.rows, rowSearch]);

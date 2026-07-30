@@ -24,7 +24,7 @@ import {
 import { useHeader } from '@/contexts/HeaderContext';
 import { checklistsApi, departmentsApi } from '@/lib/supabase-api';
 import type { ChecklistListRecord } from '@/lib/supabase-api';
-import { formatDateTime, formatPlate } from '@/lib/utils';
+import { formatDateTime, formatPlate, matchesSearch } from '@/lib/utils';
 
 export default function Checklists() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -86,13 +86,14 @@ export default function Checklists() {
     );
 
     const rows = useMemo(() => {
-        const term = searchTerm.trim().toLowerCase();
         return (checklists as ChecklistListRecord[]).filter((c) => {
-            if (!term) return true;
-            const plate = c.vehicles?.plate?.toLowerCase() ?? '';
-            const driver = c.profiles?.full_name?.toLowerCase() ?? '';
-            const vehicle = [c.vehicles?.brand, c.vehicles?.model].filter(Boolean).join(' ').toLowerCase();
-            return plate.includes(term) || driver.includes(term) || vehicle.includes(term);
+            const vehicle = [c.vehicles?.brand, c.vehicles?.model].filter(Boolean).join(' ');
+            return matchesSearch(
+                searchTerm,
+                c.vehicles?.plate,
+                c.profiles?.full_name,
+                vehicle,
+            );
         });
     }, [checklists, searchTerm]);
 
@@ -105,11 +106,12 @@ export default function Checklists() {
         const all = checklists as ChecklistListRecord[];
         if (paramId) return all.find((checklist) => checklist.id === paramId) ?? null;
         if (!paramSearch) return null;
-        const term = paramSearch.trim().toLowerCase();
         return all.find((checklist) =>
-            checklist.vehicles?.plate?.toLowerCase() === term
-            || checklist.vehicles?.plate?.toLowerCase().replace('-', '') === term.replace('-', '')
-            || checklist.profiles?.full_name?.toLowerCase().includes(term)
+            matchesSearch(
+                paramSearch,
+                checklist.vehicles?.plate,
+                checklist.profiles?.full_name,
+            )
         ) ?? null;
     }, [checklists, paramId, paramSearch]);
     const selected = rows.find((checklist) => checklist.id === selectedId)

@@ -15,7 +15,7 @@ import {
     Users,
     Route,
 } from '@/components/sgf/icons';
-import { formatDate, formatDateTime, formatDistance, getStatusLabel, getStatusColor } from '@/lib/utils';
+import { formatDate, formatDateTime, formatDistance, getStatusLabel, getStatusColor, matchesSearch } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useTrips } from '@/hooks/useTrips';
 import type { TripRecord } from '@/lib/supabase-api';
@@ -112,23 +112,14 @@ export default function Trips() {
 
     const filteredTrips = useMemo(() => {
         return trips.filter((trip) => {
-            const term = searchTerm.trim().toLowerCase();
-            if (!term) return true;
-            return (
-                trip.vehicle.toLowerCase().includes(term) ||
-                trip.driver.toLowerCase().includes(term)
-            );
+            return matchesSearch(searchTerm, trip.vehicle, trip.driver, trip.purpose);
         });
     }, [trips, searchTerm]);
     const requestedTripId = useMemo(() => {
         if (paramId) return paramId;
         if (!paramSearch) return null;
-        const term = paramSearch.trim().toLowerCase();
         return trips.find((trip) =>
-            trip.vehicle?.toLowerCase() === term
-            || trip.vehicle?.toLowerCase().replace('-', '') === term.replace('-', '')
-            || trip.driver?.toLowerCase().includes(term)
-            || trip.purpose?.toLowerCase().includes(term)
+            matchesSearch(paramSearch, trip.vehicle, trip.driver, trip.purpose)
         )?.id ?? null;
     }, [paramId, paramSearch, trips]);
     const activeSelectedTripId = selectedTripId ?? requestedTripId;

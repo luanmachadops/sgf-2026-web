@@ -18,7 +18,7 @@ import {
     User,
     MapPin,
 } from '@/components/sgf/icons';
-import { formatDate, formatCurrency, cn, formatPlate } from '@/lib/utils';
+import { formatDate, formatCurrency, cn, formatPlate, matchesSearch } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { NewRefuelingForm } from '@/components/refuelings/NewRefuelingForm';
@@ -173,29 +173,31 @@ export default function Refuelings() {
 
     const filteredRefuelings = useMemo(() => {
         return refuelings.filter((refueling) => {
-            const term = searchTerm.trim().toLowerCase();
-            const matchesSearch = !term
-                || refueling.vehicle.toLowerCase().includes(term)
-                || refueling.driver.toLowerCase().includes(term)
-                || refueling.station.toLowerCase().includes(term);
+            const matchesTerm = matchesSearch(
+                searchTerm,
+                refueling.vehicle,
+                refueling.driver,
+                refueling.station,
+            );
             const matchesWorkflow = !workflowTab
                 || (workflowTab === 'pending_validation' && refueling.workflowStatus === 'concluido')
                 || (workflowTab === 'rejected'
                     && ['rejeitado_admin', 'rejeitado_motorista'].includes(refueling.workflowStatus))
                 || refueling.workflowStatus === workflowTab;
-            return matchesSearch && matchesWorkflow;
+            return matchesTerm && matchesWorkflow;
         });
     }, [refuelings, searchTerm, workflowTab]);
 
     const requestedRefueling = useMemo(() => {
         if (paramId) return refuelings.find((refueling) => refueling.id === paramId) ?? null;
         if (!paramSearch) return null;
-        const term = paramSearch.trim().toLowerCase();
         return refuelings.find((refueling) =>
-            refueling.vehicle?.toLowerCase() === term
-            || refueling.vehicle?.toLowerCase().replace('-', '') === term.replace('-', '')
-            || refueling.driver?.toLowerCase().includes(term)
-            || refueling.station?.toLowerCase().includes(term)
+            matchesSearch(
+                paramSearch,
+                refueling.vehicle,
+                refueling.driver,
+                refueling.station,
+            )
         ) ?? null;
     }, [paramId, paramSearch, refuelings]);
     const selectedRefueling = manualSelectedRefueling ?? requestedRefueling;

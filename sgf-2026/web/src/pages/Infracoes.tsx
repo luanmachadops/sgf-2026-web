@@ -31,7 +31,7 @@ import {
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { infractionsApi, driversApi, vehiclesApi, tripsApi, type InfractionCandidate, type VehicleRecord } from '@/lib/supabase-api';
-import { formatCurrency, formatDate, formatPlate, formatDriverLabel } from '@/lib/utils';
+import { formatCurrency, formatDate, formatPlate, formatDriverLabel, matchesSearch } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { prepareUpload, uploadFileId } from '@/lib/imageUtils';
@@ -413,10 +413,7 @@ function NewInfractionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
     });
 
     const filteredVehicles = vehicles.filter((v) => {
-        const search = plate.toLowerCase();
-        return (v.plate || '').toLowerCase().includes(search) ||
-               (v.brand || '').toLowerCase().includes(search) ||
-               (v.model || '').toLowerCase().includes(search);
+        return matchesSearch(plate, v.plate, v.brand, v.model);
     });
 
     const filteredTrips = tripsOnDate.filter((t) => {

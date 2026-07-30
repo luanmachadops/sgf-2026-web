@@ -7,7 +7,7 @@ import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { VehicleMapDetailModal } from '@/components/vehicles/VehicleMapDetailModal';
 import { Car, Navigation, Search, User, Building2, MapPin, Clock, AlertTriangle, Wrench } from '@/components/sgf/icons';
-import { cn, formatDateTime, formatPlate } from '@/lib/utils';
+import { cn, formatDateTime, formatPlate, matchesSearch, normalizeSearchIdentifier } from '@/lib/utils';
 import { storageThumbUrl } from '@/lib/imageUtils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { supabase } from '@/lib/supabase';
@@ -161,7 +161,8 @@ export default function MapPage() {
     useEffect(() => {
         if (urlVehicleId && vehicles.length > 0) {
             const found = vehicles.find(
-                (v) => v.id === urlVehicleId || v.plate?.toUpperCase() === urlVehicleId.toUpperCase()
+                (v) => v.id === urlVehicleId
+                    || normalizeSearchIdentifier(v.plate) === normalizeSearchIdentifier(urlVehicleId)
             );
             if (found) {
                 setSelectedVehicle(found.id);
@@ -238,16 +239,13 @@ export default function MapPage() {
     );
 
     const filteredVehicles = vehicles.filter((v) => {
-        const matchesSearch =
-            v.plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            v.driver.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            v.vehicleModel.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesTerm = matchesSearch(searchTerm, v.plate, v.driver, v.vehicleModel);
         const matchesStatus = statusFilter === 'all' || v.status === statusFilter;
         const matchesDepartment =
             departmentFilter === 'all' ||
             v.department === departmentFilter ||
             (v.department && v.department.toLowerCase() === departmentFilter.toLowerCase());
-        return matchesSearch && matchesStatus && matchesDepartment;
+        return matchesTerm && matchesStatus && matchesDepartment;
     });
 
     const statusCounts = vehicles.reduce((acc, v) => {

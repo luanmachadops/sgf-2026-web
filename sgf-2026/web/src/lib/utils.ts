@@ -85,6 +85,54 @@ export function formatPlate(plate: string | null | undefined): string {
 }
 
 /**
+ * Normaliza textos de pesquisa sem perder a leitura humana.
+ *
+ * Para placas, códigos, CPF e outros identificadores, pontuação é apenas
+ * apresentação. Assim, `ABC-1234`, `ABC1234` e `abc 1234` encontram o mesmo
+ * registro, enquanto nomes continuam tolerando acentos e caixa.
+ */
+export function normalizeSearchText(value: string | null | undefined): string {
+    return (value ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+}
+
+export function normalizeSearchIdentifier(value: string | null | undefined): string {
+    return normalizeSearchText(value).replace(/[^a-z0-9]/g, '');
+}
+
+export function matchesSearch(
+    query: string | null | undefined,
+    ...values: Array<string | number | null | undefined>
+): boolean {
+    const normalizedQuery = normalizeSearchText(query);
+    if (!normalizedQuery) return true;
+
+    const compactQuery = normalizeSearchIdentifier(normalizedQuery);
+    return values.some((value) => {
+        const normalizedValue = normalizeSearchText(String(value ?? ''));
+        if (normalizedValue.includes(normalizedQuery)) return true;
+        return compactQuery.length > 0
+            && normalizeSearchIdentifier(normalizedValue).includes(compactQuery);
+    });
+}
+
+/**
+ * Hodômetro é persistido como inteiro. Aceita dígitos puros e a apresentação
+ * brasileira com ponto de milhar, rejeitando decimais ambíguos como `2.1`.
+ */
+export function parseWholeKilometers(value: string | null | undefined): number | null {
+    const normalized = (value ?? '').trim();
+    if (/^\d+$/.test(normalized)) return Number(normalized);
+    if (/^\d{1,3}(?:\.\d{3})+$/.test(normalized)) {
+        return Number(normalized.replace(/\./g, ''));
+    }
+    return null;
+}
+
+/**
  * Format phone number — tolerante a null/undefined.
  */
 export function formatPhone(phone: string | null | undefined): string {

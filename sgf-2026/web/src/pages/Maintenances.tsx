@@ -26,7 +26,7 @@ import {
 } from '@/components/maintenances/MaintenanceDetailsModal';
 import { useMaintenances } from '@/hooks/useMaintenances';
 import { useHeader } from '@/contexts/HeaderContext';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, matchesSearch } from '@/lib/utils';
 import type { FinStatus, OpStatus } from '@/lib/supabase-api';
 import { maintenanceManagerNextAction, maintenanceOperationalLabel } from '@/lib/maintenance-status';
 
@@ -244,31 +244,32 @@ export default function Maintenances() {
     const requestedMaintenanceId = useMemo(() => {
         if (paramId) return paramId;
         if (!paramSearch) return null;
-        const term = paramSearch.trim().toLowerCase();
         return (rows as MaintenanceDetailsRow[])
             .map(mapRow)
             .find((maintenance) =>
-                maintenance.plate?.toLowerCase() === term
-                || maintenance.plate?.toLowerCase().replace('-', '') === term.replace('-', '')
-                || maintenance.driver?.toLowerCase().includes(term)
-                || maintenance.repairShop?.toLowerCase().includes(term)
+                matchesSearch(
+                    paramSearch,
+                    maintenance.plate,
+                    maintenance.driver,
+                    maintenance.repairShop,
+                )
             )?.id ?? null;
     }, [paramId, paramSearch, rows]);
     const activeSelectedId = selectedId ?? requestedMaintenanceId;
 
     const filtered = useMemo(() => {
-        const term = search.trim().toLocaleLowerCase('pt-BR');
         return maintenances.filter((item) => {
-            const matchesSearch = !term || [
+            const matchesTerm = matchesSearch(
+                search,
                 item.plate,
                 item.vehicleLabel,
                 item.department,
                 item.driver,
                 item.category,
                 item.description,
-                item.repairShop ?? '',
-            ].some((value) => value.toLocaleLowerCase('pt-BR').includes(term));
-            return matchesSearch && (!priority || item.priority === priority);
+                item.repairShop,
+            );
+            return matchesTerm && (!priority || item.priority === priority);
         });
     }, [maintenances, priority, search]);
 

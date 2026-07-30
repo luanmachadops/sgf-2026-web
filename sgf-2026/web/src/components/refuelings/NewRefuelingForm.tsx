@@ -13,8 +13,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAppSettings } from '@/hooks/useSettings';
 import { useDrivers } from '@/hooks/useDrivers';
 import { getStationUnavailableReason } from '@/lib/stationStatus';
+import { formatDriverLabel, parseWholeKilometers } from '@/lib/utils';
 import { procurementApi } from '@/lib/procurement-api';
-import { formatDriverLabel } from '@/lib/utils';
 
 // Slot de foto: faz upload ao selecionar e devolve a URL pública.
 function PhotoUpload({ label, hint, url, onChange }: { label: string; hint: string; url: string; onChange: (u: string) => void }) {
@@ -225,6 +225,8 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
 
     const isSaving = createMutation.isPending;
 
+    const parsedOdometer = useMemo(() => parseWholeKilometers(odometer), [odometer]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
@@ -245,7 +247,9 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
         if (!user?.tenantId) return setError('Sessão expirada. Faça login novamente.');
         if (!liters || Number(liters) <= 0) return setError('Informe a quantidade de litros.');
         if (!pricePerLiter || Number(pricePerLiter) <= 0) return setError('Informe o preço por litro.');
-        if (!odometer || Number(odometer) < 0) return setError('Informe o odômetro.');
+        if (parsedOdometer === null || !Number.isSafeInteger(parsedOdometer) || parsedOdometer < 0) {
+            return setError('Informe o hodômetro em quilômetros inteiros. Ex.: 45230 ou 45.230.');
+        }
         if (!requisitionUrl || !odometerPhotoUrl) {
             return setError('Anexe a requisição e a foto do hodômetro.');
         }
@@ -257,7 +261,7 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
                 fuel_type: fuelType,
                 liters: Number(liters),
                 price_per_liter: Number(pricePerLiter),
-                odometer: Number(odometer),
+                odometer: parsedOdometer,
                 station_id: stationId || null,
                 // Snapshot do nome do posto (caso o cadastro mude depois)
                 station: stationId ? (stations.find((s) => s.id === stationId)?.name ?? null) : (station.trim() || null),
@@ -322,13 +326,15 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
                 />
 
                 <SGFInput
-                    label="Odômetro Atual (km)"
-                    type="number"
-                    placeholder="Ex: 45230"
+                    label="Hodômetro Atual (km)"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Ex.: 45.230"
                     value={odometer}
-                    onChange={(e) => setOdometer(e.target.value)}
+                    onChange={(e) => setOdometer(e.target.value.replace(/[^\d.]/g, ''))}
                     fullWidth
                     icon={ArrowUpRight}
+                    hint="Informe quilômetros inteiros; ponto é aceito apenas como separador de milhar."
                 />
                 <SGFSelect
                     label="Posto"

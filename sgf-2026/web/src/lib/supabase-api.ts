@@ -8,6 +8,7 @@ import { supabase } from './supabase';
 import { withFotoUrls } from './fotoStorage';
 import { uploadBranding } from './brandingStorage';
 import { optimizeImage, IMAGE_PRESETS } from './imageUtils';
+import { normalizeSearchIdentifier } from './utils';
 import type { Enums, Tables, TablesInsert, TablesUpdate } from '@/types/database.types';
 import type { VehicleStatus, DriverStatus, TripStatus, MaintenanceStatus } from '@/types';
 import {
@@ -39,6 +40,15 @@ export type VehicleRecord = Omit<Tables<'vehicles'>, 'status'> & {
     status: VehicleStatus;
     departments?: { id: string; name: string } | null;
 };
+
+function postgrestSearchTerms(value: string): string[] {
+    const readable = value
+        .trim()
+        .replace(/[(),.%]/g, ' ')
+        .replace(/\s+/g, ' ');
+    const compact = normalizeSearchIdentifier(value);
+    return [...new Set([readable, compact])].filter(Boolean);
+}
 
 // Trip decorada pela camada de API: status em EN + aliases de colunas (start_time/end_time/...).
 export type TripRecord = Omit<Tables<'trips'>, 'status'> & {
@@ -349,9 +359,12 @@ export const vehiclesApi = withFotoUrls({
             query = query.eq('status', webToDbVehicleStatus(filters.status as VehicleStatus));
         }
         if (filters?.search) {
-            query = query.or(
-                `plate.ilike.%${filters.search}%,brand.ilike.%${filters.search}%,model.ilike.%${filters.search}%`
-            );
+            const searchFilters = postgrestSearchTerms(filters.search).flatMap((term) => [
+                `plate.ilike.%${term}%`,
+                `brand.ilike.%${term}%`,
+                `model.ilike.%${term}%`,
+            ]);
+            if (searchFilters.length > 0) query = query.or(searchFilters.join(','));
         }
         if (filters?.page !== undefined && filters?.limit) {
             const from = filters.page * filters.limit;
@@ -1132,6 +1145,9 @@ export const refuelingsApi = withFotoUrls({
         photo_receipt_url?: string | null;
         full_tank?: boolean;
     }): Promise<string> => {
+        if (!Number.isSafeInteger(input.odometer) || input.odometer < 0) {
+            throw new Error('Informe o hodômetro em quilômetros inteiros.');
+        }
         const { data, error } = await supabase.rpc('manager_create_direct_fueling', {
             p_vehicle_id: input.vehicle_id,
             p_driver_id: input.driver_id,
