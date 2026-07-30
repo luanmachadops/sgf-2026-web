@@ -941,8 +941,73 @@ async function fuelByStation(f?: ReportFilterInput): Promise<ReportDataset> {
         notes: [
             'Apresentado reúne registros concluídos e validados; rejeições não compõem litros nem valores.',
             'O saldo da licitação é acumulado do contrato e não muda com o filtro de período ou secretaria.',
-            'Faturado e pago estão identificados como não controlados até a implantação do fechamento fiscal do posto.',
-            'Este resumo é gerencial e ainda não representa o fechamento fiscal mensal congelado, que será tratado em etapa específica.',
+            'Os marcos faturado e pago são controlados no fechamento fiscal mensal por protocolo.',
+            'Consulte o relatório Fechamento Fiscal dos Postos para a fotografia congelada, empenho, nota, ateste e pagamento.',
+        ],
+    };
+}
+
+async function stationFiscalClosing(f?: ReportFilterInput): Promise<ReportDataset> {
+    const { data, error } = await supabase.rpc('get_station_closing_register', {
+        p_from: f?.dateFrom,
+        p_to: f?.dateTo,
+    });
+    if (error) throw error;
+    const rows = (data ?? []).map((row) => ({
+        protocol: row.protocol,
+        station: row.station_name,
+        competence: row.competence,
+        records: Number(row.record_count),
+        amount: Number(row.total_amount),
+        closingStatus: row.closing_status.replaceAll('_', ' '),
+        fiscalStatus: row.fiscal_status.replaceAll('_', ' '),
+        commitment: row.commitment_number ?? '—',
+        nad: row.nad_number ?? '—',
+        invoice: row.invoice_number ?? '—',
+        invoiced: Number(row.invoice_amount ?? 0),
+        paid: Number(row.paid_amount ?? 0),
+        balance: Math.max(Number(row.invoice_amount ?? row.total_amount) - Number(row.paid_amount ?? 0), 0),
+        hash: row.snapshot_hash,
+    }));
+    const total = rows.reduce((sum, row) => sum + row.amount, 0);
+    const paid = rows.reduce((sum, row) => sum + row.paid, 0);
+    const fiscalStatuses = new Map<string, number>();
+    for (const row of rows) fiscalStatuses.set(row.fiscalStatus, (fiscalStatuses.get(row.fiscalStatus) ?? 0) + row.amount);
+    return {
+        kpis: [
+            { label: 'Fechamentos', value: NUM(rows.length) },
+            { label: 'Valor fechado', value: BRL(total) },
+            { label: 'Valor pago', value: BRL(paid) },
+            { label: 'Saldo em trâmite', value: BRL(Math.max(total - paid, 0)) },
+        ],
+        columns: [
+            { key: 'protocol', label: 'Protocolo', filterable: true, minWidth: 150 },
+            { key: 'station', label: 'Posto', filterable: true, minWidth: 180 },
+            { key: 'competence', label: 'Competência', format: 'date', minWidth: 100 },
+            { key: 'records', label: 'Registros', align: 'right', format: 'integer', minWidth: 85 },
+            { key: 'amount', label: 'Valor fechado', align: 'right', format: 'currency', minWidth: 125 },
+            { key: 'closingStatus', label: 'Conferência', filterable: true, minWidth: 110 },
+            { key: 'fiscalStatus', label: 'Situação fiscal', filterable: true, minWidth: 145 },
+            { key: 'commitment', label: 'Empenho', filterable: true, minWidth: 120 },
+            { key: 'nad', label: 'NAD', defaultVisible: false, minWidth: 100 },
+            { key: 'invoice', label: 'Nota fiscal', filterable: true, minWidth: 110 },
+            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 110 },
+            { key: 'balance', label: 'Saldo', align: 'right', format: 'currency', minWidth: 110 },
+            { key: 'hash', label: 'Hash SHA-256', defaultVisible: false, minWidth: 300 },
+        ],
+        rows,
+        charts: [{
+            title: 'Valores por situação fiscal',
+            description: 'Distribuição dos fechamentos conforme o estágio atual.',
+            type: 'bar',
+            valueFormat: 'currency',
+            data: [...fiscalStatuses].map(([label, value]) => ({ label, value })),
+        }],
+        notes: [
+            'Cada protocolo representa uma fotografia imutável dos registros validados na competência.',
+            'O hash SHA-256 permite verificar a integridade do conteúdo congelado.',
+            'O empenho exibido deve ser anterior ao fornecimento; a nota, o ateste e o pagamento são etapas posteriores.',
         ],
     };
 }
@@ -1109,6 +1174,7 @@ const FETCHERS: Record<string, (f?: ReportFilterInput) => Promise<ReportDataset>
     'efficiency-report': efficiencyReport,
     'infractions': infractionsReport,
     'fuel-by-station': fuelByStation,
+    'station-fiscal-closing': stationFiscalClosing,
     'maintenance-by-shop': maintenanceByShop,
 };
 

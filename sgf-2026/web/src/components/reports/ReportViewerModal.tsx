@@ -70,6 +70,7 @@ const contextKeyByReport: Record<string, string> = {
     'efficiency-report': 'department',
     infractions: 'status',
     'fuel-by-station': 'station',
+    'station-fiscal-closing': 'station',
     'maintenance-by-shop': 'shop',
 };
 

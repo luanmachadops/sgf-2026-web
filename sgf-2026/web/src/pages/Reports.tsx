@@ -106,6 +106,13 @@ const reports: Report[] = [
         category: 'financial',
     },
     {
+        id: 'station-fiscal-closing',
+        title: 'Fechamento Fiscal dos Postos',
+        description: 'Protocolos mensais, empenho, nota fiscal, ateste, pagamento e integridade.',
+        icon: <Receipt className="h-6 w-6" />,
+        category: 'financial',
+    },
+    {
         id: 'maintenance-by-shop',
         title: 'Manutenções por Oficina',
         description: 'Ordens, orçamento aprovado, custo final e processos em aberto por oficina.',

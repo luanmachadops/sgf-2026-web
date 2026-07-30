@@ -40,10 +40,12 @@ import {
 } from '@/components/sgf/icons';
 import {
     stationPortalApi,
+    type StationContext,
     type StationAuthorization,
     type StationHistoryItem,
     type StationMonthlySummary,
 } from '@/lib/station-portal-api';
+import { stationClosingApi } from '@/lib/station-closing-api';
 import {
     procurementApi,
     type PartnerContractStatus,
@@ -912,13 +914,40 @@ function summaryTotals(rows: StationMonthlySummary[]) {
     });
 }
 
-function StationClosing() {
+function StationClosing({ context }: { context: StationContext }) {
     const [month, setMonth] = useState(currentMonth);
+    const [invoiceNumber, setInvoiceNumber] = useState('');
+    const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
     const summaryQuery = useQuery({
         queryKey: ['station-closing', month],
         queryFn: () => stationPortalApi.getMonthlySummary(month),
     });
     const totals = summaryTotals(summaryQuery.data ?? []);
+    const closingsQuery = useQuery({ queryKey: ['station-closing-register'], queryFn: stationClosingApi.list });
+    const closing = closingsQuery.data?.find((item) => item.competence.startsWith(month));
+    const submitClosing = useMutation({
+        mutationFn: () => stationClosingApi.submit(month),
+        onSuccess: () => {
+            toast.success('Fechamento enviado com protocolo e hash de integridade.');
+            void closingsQuery.refetch();
+        },
+        onError: (error) => toast.error((error as Error).message),
+    });
+    const submitInvoice = useMutation({
+        mutationFn: () => {
+            if (!closing || !invoiceFile || !invoiceNumber.trim()) throw new Error('Informe a nota fiscal e anexe o documento.');
+            return stationClosingApi.submitInvoice({
+                closing, invoiceNumber: invoiceNumber.trim(),
+                issuedOn: new Date().toISOString().slice(0, 10),
+                file: invoiceFile, tenantId: context.tenantId,
+            });
+        },
+        onSuccess: () => {
+            toast.success('Nota fiscal anexada ao protocolo.');
+            void closingsQuery.refetch();
+        },
+        onError: (error) => toast.error((error as Error).message),
+    });
 
     if (summaryQuery.error) {
         return (
@@ -1016,6 +1045,49 @@ function StationClosing() {
                             <p>Existem lançamentos aguardando validação. Aguarde a conferência antes de emitir a NF definitiva.</p>
                         </div>
                     )}
+                    <SGFCard variant="bordered" padding="lg">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Protocolo digital</p>
+                                <h3 className="mt-1 font-black text-slate-950">{closing?.protocol ?? 'Fechamento ainda não enviado'}</h3>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    {closing
+                                        ? `${closing.closingStatus} · ${closing.fiscalStatus.replaceAll('_', ' ')} · hash ${closing.snapshotHash.slice(0, 12)}…`
+                                        : 'O envio congela os registros validados e gera prova de integridade.'}
+                                </p>
+                            </div>
+                            {!closing ? (
+                                <SGFButton
+                                    icon={FileText}
+                                    loading={submitClosing.isPending}
+                                    disabled={totals.pending > 0 || totals.validated === 0}
+                                    onClick={() => submitClosing.mutate()}
+                                >
+                                    Fechar e enviar mês
+                                </SGFButton>
+                            ) : null}
+                        </div>
+                        {closing?.fiscalStatus === 'coberto' ? (
+                            <div className="mt-5 grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-[1fr_1fr_auto]">
+                                <SGFInput label="Número da nota fiscal" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} fullWidth />
+                                <label className="self-end rounded-2xl border border-dashed border-slate-300 px-4 py-3 text-sm">
+                                    <span className="block truncate">{invoiceFile?.name ?? 'Anexar PDF ou imagem da NF'}</span>
+                                    <input className="sr-only" type="file" accept="application/pdf,image/*" onChange={(event) => setInvoiceFile(event.target.files?.[0] ?? null)} />
+                                </label>
+                                <SGFButton className="self-end" loading={submitInvoice.isPending} onClick={() => submitInvoice.mutate()}>Enviar NF</SGFButton>
+                            </div>
+                        ) : null}
+                        {closing?.nextPaymentDate ? (
+                            <p className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm text-blue-800">
+                                Pagamento programado para <strong>{date.format(new Date(`${closing.nextPaymentDate}T12:00:00`))}</strong>.
+                            </p>
+                        ) : null}
+                        {closing?.lastPaymentDate ? (
+                            <p className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800">
+                                Pagamento confirmado em <strong>{date.format(new Date(`${closing.lastPaymentDate}T12:00:00`))}</strong>.
+                            </p>
+                        ) : null}
+                    </SGFCard>
                 </>
             )}
         </div>
@@ -1127,7 +1199,7 @@ export default function StationPortal() {
                         onCloseRequested={closeRequestedFueling}
                     />
                 ) : activeTab === 'closing' ? (
-                    <StationClosing />
+                    <StationClosing context={context} />
                 ) : (
                     <StationDetails stationId={context.stationId} contractUsage={contractUsage} />
                 )}

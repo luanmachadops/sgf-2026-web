@@ -3039,6 +3039,94 @@ export type Database = {
           validated_count: number
         }[]
       }
+      get_station_closing_register: {
+        Args: { p_from?: string; p_to?: string; p_station_id?: string }
+        Returns: {
+          closing_id: string; protocol: string; station_id: string; station_name: string
+          station_cnpj: string | null; contract_number: string | null; competence: string
+          closing_status: string; fiscal_status: string; record_count: number
+          total_quantity: number; total_amount: number; snapshot_hash: string
+          submitted_at: string; reviewed_at: string | null; commitment_number: string | null
+          nad_number: string | null; commitment_amount: number | null; invoice_id: string | null
+          invoice_number: string | null; invoice_amount: number | null; invoice_issued_on: string | null
+          invoice_status: string | null; invoice_attested_at: string | null
+          scheduled_amount: number; paid_amount: number; next_payment_date: string | null
+          last_payment_date: string | null
+        }[]
+      }
+      get_station_closing_audit_report: {
+        Args: { p_closing_id: string }
+        Returns: {
+          closing_id: string; closing_protocol: string; competence: string; station_name: string
+          station_cnpj: string | null; contract_number: string | null; closing_status: string
+          fiscal_status: string; snapshot_hash: string; source_kind: string
+          source_protocol: string; executed_at: string; plate: string; vehicle_name: string
+          department_name: string | null; driver_name: string | null; authorizer_name: string | null
+          item_kind: string; item_name: string; unit: string; quantity: number
+          unit_price: number; total_cost: number; previous_odometer: number | null
+          odometer: number | null; distance_km: number | null; efficiency: number | null
+          receipt_number: string | null; evidence_count: number; has_anomaly: boolean
+          anomaly_note: string | null
+        }[]
+      }
+      get_station_fiscal_dashboard: {
+        Args: { p_station_id?: string; p_months?: number }
+        Returns: {
+          station_id: string; station_name: string; total_closings: number
+          pending_review: number; pending_commitment: number; pending_invoice: number
+          pending_attestation: number; pending_payment: number; paid_closings: number
+          closed_amount: number; invoiced_amount: number; paid_amount: number
+          open_amount: number; integrity_failures: number
+        }[]
+      }
+      partner_submit_station_monthly_closing: {
+        Args: { p_month: string }
+        Returns: string
+      }
+      manager_review_station_closing: {
+        Args: { p_closing_id: string; p_approved: boolean; p_note?: string }
+        Returns: undefined
+      }
+      manager_link_station_closing_commitment: {
+        Args: { p_closing_id: string; p_commitment_id: string }
+        Returns: undefined
+      }
+      manager_list_station_commitments: {
+        Args: { p_station_id?: string }
+        Returns: {
+          commitment_id: string; station_id: string; station_name: string
+          commitment_number: string; nad_number: string | null; amount: number
+          allocated_amount: number; available_amount: number; issued_on: string
+          valid_from: string; valid_until: string; document_path: string; status: string
+        }[]
+      }
+      manager_register_station_commitment: {
+        Args: {
+          p_station_id: string; p_commitment_number: string; p_nad_number: string
+          p_amount: number; p_issued_on: string; p_valid_from: string
+          p_valid_until: string; p_document_path: string
+        }
+        Returns: string
+      }
+      partner_submit_station_closing_invoice: {
+        Args: {
+          p_closing_id: string; p_invoice_number: string; p_amount: number
+          p_issued_on: string; p_document_path: string
+        }
+        Returns: string
+      }
+      manager_attest_station_closing_invoice: {
+        Args: { p_invoice_id: string; p_note?: string }
+        Returns: undefined
+      }
+      manager_schedule_station_closing_payment: {
+        Args: { p_closing_id: string; p_amount: number; p_scheduled_on: string; p_note?: string }
+        Returns: string
+      }
+      manager_confirm_station_closing_payment: {
+        Args: { p_payment_id: string; p_paid_on: string; p_reference: string; p_receipt_path?: string }
+        Returns: undefined
+      }
       get_station_pending_authorizations: {
         Args: never
         Returns: {

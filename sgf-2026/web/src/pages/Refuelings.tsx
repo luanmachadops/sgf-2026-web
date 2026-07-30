@@ -24,6 +24,7 @@ import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { NewRefuelingForm } from '@/components/refuelings/NewRefuelingForm';
 import { AuthorizeFuelingModal } from '@/components/refuelings/AuthorizeFuelingModal';
 import { StationOperationsPanel } from '@/components/refuelings/StationOperationsPanel';
+import { StationClosingsPanel } from '@/components/refuelings/StationClosingsPanel';
 import { useRefuelings, useValidateRefueling, useCancelFuelAuthorization } from '@/hooks/useRefuelings';
 import type { Tables } from '@/types/database.types';
 
@@ -395,6 +396,7 @@ export default function Refuelings() {
             </div>
 
             <StationOperationsPanel />
+            <StationClosingsPanel />
 
             <Modal
                 isOpen={!!selectedRefueling}
