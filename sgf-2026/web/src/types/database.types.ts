@@ -3054,6 +3054,38 @@ export type Database = {
           price_per_liter: number
         }[]
       }
+      partner_get_pending_station_operations: {
+        Args: never
+        Returns: {
+          operation_id: string
+          protocol: string
+          plate: string
+          brand: string
+          model: string
+          item_kind: string
+          item_name: string
+          unit: string
+          authorized_quantity: number
+          unit_price: number
+          authorized_at: string
+          expires_at: string
+          note: string | null
+        }[]
+      }
+      partner_complete_station_operation: {
+        Args: {
+          p_operation_id: string
+          p_quantity: number
+          p_odometer: number
+          p_receipt_number: string
+          p_evidence_path: string
+        }
+        Returns: {
+          total_cost: number
+          unit_price: number
+          protocol: string
+        }[]
+      }
       get_tenant_branding: {
         Args: { p_slug: string }
         Returns: {
@@ -3167,6 +3199,73 @@ export type Database = {
           p_vehicle_id: string
         }
         Returns: string
+      }
+      manager_create_station_operation: {
+        Args: {
+          p_vehicle_id: string
+          p_driver_id: string
+          p_station_id: string
+          p_catalog_item_id: string
+          p_quantity: number
+          p_expires_at?: string
+          p_note?: string
+        }
+        Returns: string
+      }
+      manager_get_station_operations: {
+        Args: {
+          p_from?: string
+          p_to?: string
+          p_station_id?: string
+        }
+        Returns: {
+          operation_id: string
+          protocol: string
+          station_name: string
+          plate: string
+          vehicle_name: string
+          driver_name: string
+          department_name: string
+          authorizer_name: string
+          item_kind: string
+          item_name: string
+          unit: string
+          quantity: number | null
+          unit_price: number
+          total_cost: number | null
+          odometer: number | null
+          receipt_number: string | null
+          evidence_path: string | null
+          status: string
+          authorized_at: string
+          executed_at: string | null
+          rejection_reason: string | null
+        }[]
+      }
+      manager_list_station_catalog: {
+        Args: {
+          p_station_id?: string
+          p_include_inactive?: boolean
+        }
+        Returns: {
+          item_id: string
+          station_id: string
+          station_name: string
+          kind: string
+          name: string
+          unit: string
+          unit_price: number | null
+          active: boolean
+          requires_odometer: boolean
+        }[]
+      }
+      manager_review_station_operation: {
+        Args: {
+          p_operation_id: string
+          p_approved: boolean
+          p_note?: string
+        }
+        Returns: undefined
       }
       manager_create_service_order: {
         Args: {

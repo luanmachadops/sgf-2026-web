@@ -18,6 +18,7 @@ import { PartnerPortalLayout, type PartnerNavItem } from '@/components/partners/
 import { ContractStatusAlerts } from '@/components/partners/ContractStatusAlerts';
 import { ContractUsagePanel } from '@/components/procurement/ContractUsageGauge';
 import { StationHistoryDetailsModal } from '@/components/partners/station/StationHistoryDetailsModal';
+import { StationSupplementalOperations } from '@/components/partners/station/StationSupplementalOperations';
 import { SGFBadge, SGFButton, SGFCard, SGFInput, SGFKPICard } from '@/components/sgf';
 import {
     AlertCircle,
@@ -604,6 +605,8 @@ function PendingAuthorizations({
                     </table>
                 </div>
             </SGFCard>
+
+            <StationSupplementalOperations tenantId={tenantId} stationId={stationId} />
 
             {activeSelected && (
                 <FuelingModal
