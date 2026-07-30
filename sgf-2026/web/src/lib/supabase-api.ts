@@ -432,11 +432,11 @@ export const vehiclesApi = withFotoUrls({
         return decorateVehicle(data as Record<string, unknown>);
     },
 
-    delete: async (id: string): Promise<void> => {
-        const { error } = await supabase
-            .from('vehicles')
-            .delete()
-            .eq('id', id);
+    delete: async (id: string, plateConfirmation: string): Promise<void> => {
+        const { error } = await supabase.rpc('manager_delete_vehicle', {
+            p_vehicle_id: id,
+            p_plate_confirmation: plateConfirmation,
+        });
         if (error) handleError(error);
     },
 
@@ -1471,6 +1471,13 @@ export const tenantApi = {
         const { data, error } = await supabase.from('tenants').select(TENANT_COLS).limit(1).maybeSingle();
         if (error) handleError(error);
         return mapTenantData(data as Record<string, unknown> | null);
+    },
+
+    /** Superadministrador: lista global para escolher o tenant de uma operação. */
+    getAll: async (): Promise<TenantData[]> => {
+        const { data, error } = await supabase.from('tenants').select(TENANT_COLS).order('name');
+        if (error) handleError(error);
+        return (data ?? []).map((tenant) => mapTenantData(tenant as Record<string, unknown>)!);
     },
 
     update: async (id: string, patch: Partial<TenantData>): Promise<void> => {

@@ -52,7 +52,7 @@ export function useDeleteVehicle() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (id: string) => vehiclesApi.delete(id),
+        mutationFn: ({ id, plate }: { id: string; plate: string }) => vehiclesApi.delete(id, plate),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['vehicles'] });
         },

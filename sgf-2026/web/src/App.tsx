@@ -58,7 +58,9 @@ function ModuleRoute({ module, children }: { module: AccessModule; children: Rea
 
 function AccessManagersRoute({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  return user?.accountRole === 'admin' || user?.accountRole === 'gestor'
+  return user?.accountRole === 'admin'
+    || user?.accountRole === 'gestor'
+    || user?.accountRole === 'superadmin'
     ? children
     : <Navigate to="/" replace />;
 }

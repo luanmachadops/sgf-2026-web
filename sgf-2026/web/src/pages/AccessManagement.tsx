@@ -16,7 +16,7 @@ import {
     type ManagedAccess,
     type ManagedAccessRole,
 } from '@/lib/backend-api';
-import { departmentsApi } from '@/lib/supabase-api';
+import { departmentsApi, tenantApi } from '@/lib/supabase-api';
 import { PASSWORD_MIN_LENGTH } from '@/lib/passwordPolicy';
 
 const ROLE_LABEL: Record<ManagedAccessRole, string> = {
@@ -103,6 +103,7 @@ export default function AccessManagement() {
     const [registrationNumber, setRegistrationNumber] = useState('');
     const [password, setPassword] = useState('');
     const [departmentId, setDepartmentId] = useState('');
+    const [tenantId, setTenantId] = useState('');
     const [allowedModules, setAllowedModules] = useState<string[]>([...ALL_ACCESS_MODULES]);
     const [editModules, setEditModules] = useState<string[]>([]);
 
@@ -119,6 +120,11 @@ export default function AccessManagement() {
         queryKey: ['departments', 'access-management'],
         queryFn: departmentsApi.getAll,
     });
+    const tenants = useQuery({
+        queryKey: ['tenants', 'access-management'],
+        queryFn: tenantApi.getAll,
+        enabled: user?.accountRole === 'superadmin',
+    });
 
     const roleOptions = useMemo(() => {
         const roles: Array<{ value: string; label: string }> = [
@@ -126,13 +132,21 @@ export default function AccessManagement() {
             { value: 'motorista', label: 'Motorista' },
             { value: 'gestor', label: 'Gestor' },
         ];
-        if (user?.accountRole === 'admin') roles.push({ value: 'admin', label: 'Administrador' });
+        if (user?.accountRole === 'admin' || user?.accountRole === 'superadmin') {
+            roles.push({ value: 'admin', label: 'Administrador' });
+        }
         return roles;
     }, [user?.accountRole]);
 
-    const departmentOptions = (departments.data ?? []).map((item) => ({
+    const departmentOptions = (departments.data ?? [])
+        .filter((item) => user?.accountRole !== 'superadmin' || !tenantId || item.tenant_id === tenantId)
+        .map((item) => ({
         value: item.id,
         label: item.name,
+        }));
+    const tenantOptions = (tenants.data ?? []).map((tenant) => ({
+        value: tenant.id,
+        label: tenant.name,
     }));
 
     const resetCreate = () => {
@@ -143,6 +157,7 @@ export default function AccessManagement() {
         setRegistrationNumber('');
         setPassword('');
         setDepartmentId('');
+        setTenantId('');
         setAllowedModules([...ALL_ACCESS_MODULES]);
     };
 
@@ -195,6 +210,7 @@ export default function AccessManagement() {
             if (password.length < PASSWORD_MIN_LENGTH) return toast.error(`A senha deve ter ao menos ${PASSWORD_MIN_LENGTH} caracteres.`);
         }
         if (role === 'secretario' && !departmentId) return toast.error('Selecione a secretaria.');
+        if (user?.accountRole === 'superadmin' && !tenantId) return toast.error('Selecione a prefeitura.');
         if (role !== 'motorista' && allowedModules.length === 0) return toast.error('Selecione ao menos uma aba.');
 
         createAccess.mutate({
@@ -205,6 +221,7 @@ export default function AccessManagement() {
             registrationNumber: registrationNumber.trim(),
             password,
             departmentId: departmentId || undefined,
+            tenantId: tenantId || undefined,
             allowedModules,
         });
     };
@@ -263,6 +280,7 @@ export default function AccessManagement() {
                                         <p className="truncate text-sm text-slate-500">
                                             {access.email || access.cpf || 'Sem identificação'} · {ROLE_LABEL[access.role]}
                                             {access.departments?.name ? ` · ${access.departments.name}` : ''}
+                                            {user?.accountRole === 'superadmin' && access.tenants?.name ? ` · ${access.tenants.name}` : ''}
                                         </p>
                                     </div>
                                 </div>
@@ -320,6 +338,19 @@ export default function AccessManagement() {
                 )}
             >
                 <div className="space-y-5">
+                    {user?.accountRole === 'superadmin' && (
+                        <SGFSelect
+                            label="Prefeitura"
+                            value={tenantId}
+                            onChange={(value) => {
+                                setTenantId(value);
+                                setDepartmentId('');
+                            }}
+                            options={tenantOptions}
+                            placeholder="Selecione a prefeitura"
+                            fullWidth
+                        />
+                    )}
                     <SGFSelect
                         label="Cargo"
                         value={role}

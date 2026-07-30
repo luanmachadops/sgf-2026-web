@@ -1,6 +1,6 @@
 import React, { useRef, useState, useMemo } from 'react';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
@@ -10,13 +10,10 @@ import {
     ArrowLeft,
     Edit2,
     Fuel,
-    Directions,
-    DocumentText,
     FileText,
     Gauge,
     Car,
     Camera,
-    ArrowSync,
     Building2,
     Loader2,
     Route,
@@ -25,13 +22,15 @@ import {
     ChevronLeft,
     ChevronRight,
     User,
+    Trash2,
 } from '@/components/sgf/icons';
 import { EditVehicleModal } from '@/components/vehicles/EditVehicleModal';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
 import { RefuelingDetailsModal } from '@/components/refuelings/RefuelingDetailsModal';
 import { MaintenanceDetailsModal } from '@/components/maintenances/MaintenanceDetailsModal';
 import { IssueDetailsModal } from '@/components/issues/IssueDetailsModal';
-import { Modal } from '@/components/ui/Modal';
+import { Modal, ModalFooter } from '@/components/ui/Modal';
+import { SGFInput } from '@/components/sgf/SGFInput';
 import { PhotoViewer } from '@/components/ui/PhotoViewer';
 import { StyledQr } from '@/components/qr/StyledQr';
 import { downloadVehicleQr } from '@/lib/vehicleQr';
@@ -51,6 +50,7 @@ import { resolveDocUrl } from '@/lib/docStorage';
 import { toast } from 'sonner';
 import type { Tables } from '@/types/database.types';
 import { VehicleChecklistsTab } from '@/components/vehicles/VehicleChecklistsTab';
+import { useAuth } from '@/contexts/AuthContext';
 
 const FUEL_LABEL: Record<string, string> = {
     diesel: 'Diesel',
@@ -58,6 +58,12 @@ const FUEL_LABEL: Record<string, string> = {
     etanol: 'Etanol',
     flex: 'Flex',
 };
+
+const NON_PLATE_CHARACTERS = /[^A-Z0-9]/g;
+
+function normalizePlate(value: string): string {
+    return value.toUpperCase().replace(NON_PLATE_CHARACTERS, '');
+}
 
 type VehicleRow = VehicleRecord & {
     photo_url: string | null;
@@ -70,6 +76,7 @@ export default function VehicleDetails() {
     const [searchParams, setSearchParams] = useSearchParams();
     const backTo = (location.state as { backTo?: string } | null)?.backTo ?? '/veiculos';
     const queryClient = useQueryClient();
+    const { user } = useAuth();
     const [isUploading, setIsUploading] = useState(false);
     const [isEditOpen, setEditOpen] = useState(false);
     const [isQrOpen, setQrOpen] = useState(false);
@@ -79,10 +86,26 @@ export default function VehicleDetails() {
     const [selectedMaintId, setSelectedMaintId] = useState<string | null>(null);
     const [photoIdx, setPhotoIdx] = useState(0);
     const [uploadingMulti, setUploadingMulti] = useState(false);
+    const [isDeleteOpen, setDeleteOpen] = useState(false);
+    const [plateConfirmation, setPlateConfirmation] = useState('');
     const issueId = searchParams.get('issueId');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const multiInputRef = useRef<HTMLInputElement>(null);
     const tabsRef = useRef<HTMLDivElement>(null);
+    const canDeleteVehicle = ['admin', 'gestor', 'superadmin'].includes(user?.accountRole ?? '');
+
+    const deleteVehicle = useMutation({
+        mutationFn: ({ vehicleId, plate }: { vehicleId: string; plate: string }) =>
+            vehiclesApi.delete(vehicleId, plate),
+        onSuccess: async () => {
+            await queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+            toast.success('Veículo excluído com sucesso.');
+            navigate('/veiculos', { replace: true });
+        },
+        onError: (error) => {
+            toast.error((error as Error).message || 'Não foi possível excluir o veículo.');
+        },
+    });
 
     const closeIssueDetails = () => {
         const next = new URLSearchParams(searchParams);
@@ -285,6 +308,7 @@ export default function VehicleDetails() {
 
     const v = vehicle as unknown as VehicleRow;
     const fuelLabel = v.fuel_type ? (FUEL_LABEL[String(v.fuel_type).toLowerCase()] ?? String(v.fuel_type)) : '—';
+    const plateMatches = normalizePlate(plateConfirmation) === normalizePlate(v.plate ?? '');
 
     // ── Colunas das tabs ───────────────────────────────────────────────────
     type TripRow = (typeof trips)[number] & {
@@ -370,8 +394,6 @@ export default function VehicleDetails() {
     ];
 
     const departmentName = v.departments?.name ?? '—';
-
-    const statusDotColor = v.status === 'AVAILABLE' ? 'bg-emerald-500' : v.status === 'MAINTENANCE' ? 'bg-amber-500' : 'bg-slate-400';
 
     return (
         <div className="space-y-6">
@@ -604,6 +626,24 @@ export default function VehicleDetails() {
                                         Baixar Documento (PDF)
                                     </SGFButton>
                                 </div>
+                                {canDeleteVehicle && (
+                                    <div className="mt-4 border-t border-red-100 pt-4">
+                                        <p className="mb-2 text-xs text-slate-500">
+                                            A exclusão é permanente e exige a confirmação da placa.
+                                        </p>
+                                        <SGFButton
+                                            variant="danger"
+                                            icon={Trash2}
+                                            onClick={() => {
+                                                setPlateConfirmation('');
+                                                setDeleteOpen(true);
+                                            }}
+                                            className="w-full"
+                                        >
+                                            Excluir veículo
+                                        </SGFButton>
+                                    </div>
+                                )}
                             </SGFCard>
                         </div>
                     </div>
@@ -684,6 +724,55 @@ export default function VehicleDetails() {
                     >
                         Baixar QR Code (PNG)
                     </SGFButton>
+                </div>
+            </Modal>
+
+            <Modal
+                isOpen={isDeleteOpen}
+                onClose={() => {
+                    if (deleteVehicle.isPending) return;
+                    setDeleteOpen(false);
+                    setPlateConfirmation('');
+                }}
+                title="Excluir veículo"
+                description="Esta ação é permanente. Registros históricos protegidos podem impedir a exclusão."
+                size="sm"
+                footer={(
+                    <ModalFooter>
+                        <SGFButton
+                            variant="ghost"
+                            disabled={deleteVehicle.isPending}
+                            onClick={() => setDeleteOpen(false)}
+                        >
+                            Cancelar
+                        </SGFButton>
+                        <SGFButton
+                            variant="danger"
+                            icon={Trash2}
+                            loading={deleteVehicle.isPending}
+                            disabled={!plateMatches}
+                            onClick={() => deleteVehicle.mutate({
+                                vehicleId: v.id,
+                                plate: plateConfirmation,
+                            })}
+                        >
+                            Excluir definitivamente
+                        </SGFButton>
+                    </ModalFooter>
+                )}
+            >
+                <div className="space-y-4">
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                        Para confirmar, digite a placa <strong className="font-mono">{formatPlate(v.plate)}</strong>.
+                    </div>
+                    <SGFInput
+                        label="Placa do veículo"
+                        value={plateConfirmation}
+                        onChange={(event) => setPlateConfirmation(event.target.value.toUpperCase())}
+                        placeholder={formatPlate(v.plate)}
+                        autoComplete="off"
+                        fullWidth
+                    />
                 </div>
             </Modal>
 

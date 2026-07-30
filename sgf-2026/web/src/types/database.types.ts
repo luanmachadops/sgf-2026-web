@@ -3288,6 +3288,13 @@ export type Database = {
         }
         Returns: string
       }
+      manager_delete_vehicle: {
+        Args: {
+          p_plate_confirmation: string
+          p_vehicle_id: string
+        }
+        Returns: undefined
+      }
       manager_create_station_operation: {
         Args: {
           p_vehicle_id: string

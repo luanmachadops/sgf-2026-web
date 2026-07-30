@@ -99,7 +99,9 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
     const { user, logout } = useAuth();
     const { branding } = useBranding();
     const departmentScoped = Boolean(user?.departmentScopeId);
-    const canManageAccess = user?.accountRole === 'admin' || user?.accountRole === 'gestor';
+    const canManageAccess = user?.accountRole === 'admin'
+        || user?.accountRole === 'gestor'
+        || user?.accountRole === 'superadmin';
     const visibleSections = menuSections
         .map((section) => ({
             ...section,

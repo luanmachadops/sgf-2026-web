@@ -241,12 +241,14 @@ export interface ManagedAccess {
     email: string | null;
     cpf: string | null;
     role: ManagedAccessRole;
+    tenant_id: string;
     department_id: string | null;
     access_blocked: boolean;
     allowed_modules: string[];
     driver_status: string | null;
     created_at: string;
     departments?: { id: string; name: string } | null;
+    tenants?: { id: string; name: string } | null;
     tempPassword?: string | null;
 }
 
@@ -258,6 +260,7 @@ export interface CreateManagedAccess {
     registrationNumber?: string;
     password?: string;
     departmentId?: string;
+    tenantId?: string;
     allowedModules: string[];
 }
 
