@@ -16,11 +16,11 @@ import {
 } from 'recharts';
 import { PartnerPortalLayout, type PartnerNavItem } from '@/components/partners/PartnerPortalLayout';
 import { ContractStatusAlerts } from '@/components/partners/ContractStatusAlerts';
+import { ContractUsagePanel } from '@/components/procurement/ContractUsageGauge';
 import { StationHistoryDetailsModal } from '@/components/partners/station/StationHistoryDetailsModal';
 import { SGFBadge, SGFButton, SGFCard, SGFInput, SGFKPICard } from '@/components/sgf';
 import {
     AlertCircle,
-    BarChart3,
     Camera,
     Car,
     CheckCircle,
@@ -47,6 +47,7 @@ import {
     procurementApi,
     type PartnerContractStatus,
     type PartnerDashboardData,
+    type ProcurementContractUsage,
 } from '@/lib/procurement-api';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -119,7 +120,7 @@ const stationStatusLabel: Record<string, string> = {
     lancado_direto: 'Lançamento direto',
 };
 
-function StationDashboard({ status }: { status?: PartnerContractStatus }) {
+function StationDashboard({ usage }: { usage?: ProcurementContractUsage }) {
     const query = useQuery({
         queryKey: ['partner-dashboard', 'posto'],
         queryFn: procurementApi.getPartnerDashboard,
@@ -137,10 +138,10 @@ function StationDashboard({ status }: { status?: PartnerContractStatus }) {
         name: stationStatusLabel[item.status] ?? item.status.replaceAll('_', ' '),
     }));
     const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#64748b'];
-    const remaining = status?.remainingValue;
 
     return (
         <div className="space-y-6">
+            {usage ? <ContractUsagePanel usage={usage} /> : null}
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <SGFKPICard
                     title="Autorizações pendentes"
@@ -167,10 +168,10 @@ function StationDashboard({ status }: { status?: PartnerContractStatus }) {
                     chartData={monthly.map((item) => ({ month: item.month, value: item.liters ?? 0 }))}
                 />
                 <SGFKPICard
-                    title={remaining == null ? 'Gasto no mês' : 'Saldo da licitação'}
-                    value={currency.format(remaining ?? data.metrics.monthAmount ?? 0)}
+                    title="Realizado no mês"
+                    value={currency.format(data.metrics.monthAmount ?? 0)}
                     icon={DollarSign}
-                    iconColor={remaining != null && remaining <= 0 ? 'text-red-500' : 'text-emerald-600'}
+                    iconColor="text-emerald-600"
                     chartColor="#00A86B"
                     chartData={monthly.map((item) => ({ month: item.month, value: item.amount }))}
                 />
@@ -303,6 +304,8 @@ function FuelingModal({
         onSuccess: (result) => {
             void queryClient.invalidateQueries({ queryKey: ['station-pending'] });
             void queryClient.invalidateQueries({ queryKey: ['station-history'] });
+            void queryClient.invalidateQueries({ queryKey: ['partner-contract-usage', 'posto'] });
+            void queryClient.invalidateQueries({ queryKey: ['partner-dashboard', 'posto'] });
             toast.success(`Abastecimento registrado: ${currency.format(result.totalCost)}.`);
             onClose();
         },
@@ -776,10 +779,10 @@ function StationHistory({
 
 function StationDetails({
     stationId,
-    contractStatus,
+    contractUsage,
 }: {
     stationId: string;
-    contractStatus?: PartnerContractStatus;
+    contractUsage?: ProcurementContractUsage;
 }) {
     const query = useQuery({
         queryKey: ['station-details', stationId],
@@ -798,12 +801,7 @@ function StationDetails({
 
     return (
         <div className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <SGFKPICard title="Valor da licitação" value={station.contractValue == null ? 'Não informado' : currency.format(station.contractValue)} icon={FileText} iconColor="text-blue-500" />
-                <SGFKPICard title="Valor comprometido" value={currency.format(contractStatus?.committedValue ?? 0)} icon={DollarSign} iconColor="text-amber-500" />
-                <SGFKPICard title="Saldo disponível" value={contractStatus?.remainingValue == null ? 'Não calculado' : currency.format(contractStatus.remainingValue)} icon={DollarSign} iconColor={contractStatus?.remainingValue === 0 ? 'text-red-500' : 'text-emerald-500'} />
-                <SGFKPICard title="Saldo percentual" value={contractStatus?.remainingPercent == null ? '—' : `${number.format(contractStatus.remainingPercent)}%`} icon={BarChart3} iconColor="text-emerald-500" />
-            </div>
+            {contractUsage ? <ContractUsagePanel usage={contractUsage} /> : null}
 
             <div className="grid gap-4 lg:grid-cols-2">
             <SGFCard className="border border-slate-100 shadow-sm" padding="lg">
@@ -1047,6 +1045,13 @@ export default function StationPortal() {
         staleTime: 30_000,
     });
     const contractStatus = contractQuery.data;
+    const contractUsageQuery = useQuery({
+        queryKey: ['partner-contract-usage', 'posto'],
+        queryFn: procurementApi.getPartnerContractUsage,
+        enabled: Boolean(context),
+        staleTime: 30_000,
+    });
+    const contractUsage = contractUsageQuery.data;
 
     const navItems: PartnerNavItem[] = [
         { label: 'Dashboard', path: '/posto', icon: LayoutDashboard, end: true },
@@ -1104,7 +1109,7 @@ export default function StationPortal() {
                         retry={() => void contextQuery.refetch()}
                     />
                 ) : activeTab === 'dashboard' ? (
-                    <StationDashboard status={contractStatus} />
+                    <StationDashboard usage={contractUsage} />
                 ) : activeTab === 'pending' ? (
                     <PendingAuthorizations
                         tenantId={context.tenantId}
@@ -1121,7 +1126,7 @@ export default function StationPortal() {
                 ) : activeTab === 'closing' ? (
                     <StationClosing />
                 ) : (
-                    <StationDetails stationId={context.stationId} contractStatus={contractStatus} />
+                    <StationDetails stationId={context.stationId} contractUsage={contractUsage} />
                 )}
             </div>
         </PartnerPortalLayout>

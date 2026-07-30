@@ -3,6 +3,7 @@
 // que abastecem tanto a pré-visualização na tela quanto as exportações (PDF/Excel).
 
 import type { PostgrestError } from '@supabase/supabase-js';
+import { procurementApi, type ProcurementContractUsage } from './procurement-api';
 import { supabase } from './supabase';
 
 export interface ReportColumn {
@@ -23,7 +24,7 @@ export interface ReportKpi {
 export interface ReportChart {
     title: string;
     description?: string;
-    type: 'bar' | 'donut';
+    type: 'bar' | 'donut' | 'gauge';
     valueFormat?: 'integer' | 'decimal' | 'currency' | 'percent';
     data: { label: string; value: number }[];
 }
@@ -818,7 +819,11 @@ async function fuelByStation(f?: ReportFilterInput): Promise<ReportDataset> {
         fuel_stations: { name?: string | null } | null;
         vehicles: { department_id?: string | null } | null;
     };
-    let list = await fetchAllRows(query) as unknown as FuelRow[];
+    const [fuelRows, contractUsage] = await Promise.all([
+        fetchAllRows(query) as unknown as Promise<FuelRow[]>,
+        procurementApi.getContractUsage(),
+    ]);
+    let list = fuelRows;
     list = list.filter((row) => withinRange(row.filled_at ?? row.created_at, from, to));
     if (f?.departmentId) {
         list = list.filter((row) => row.vehicles?.department_id === f.departmentId);
@@ -858,29 +863,51 @@ async function fuelByStation(f?: ReportFilterInput): Promise<ReportDataset> {
         grouped.set(row.station_id, current);
     }
 
-    const rows = [...grouped.values()]
-        .sort((a, b) => b.presented - a.presented)
-        .map((row) => ({
-            station: row.station,
-            fuelings: row.count,
-            liters: Number(row.liters.toFixed(2)),
-            presented: Number(row.presented.toFixed(2)),
-            validated: Number(row.validated.toFixed(2)),
-            pending: Number(row.pending.toFixed(2)),
-            rejected: row.rejected,
-        }));
+    const rows = contractUsage
+        .filter((usage) => usage.partnerKind === 'posto')
+        .map((usage) => {
+            const activity = grouped.get(usage.partnerId) ?? {
+                station: usage.partnerName,
+                count: 0,
+                liters: 0,
+                presented: 0,
+                validated: 0,
+                pending: 0,
+                rejected: 0,
+            };
+            return {
+                station: usage.partnerName,
+                fuelings: activity.count,
+                liters: Number(activity.liters.toFixed(2)),
+                presented: Number(activity.presented.toFixed(2)),
+                validated: Number(activity.validated.toFixed(2)),
+                pending: Number(activity.pending.toFixed(2)),
+                rejected: activity.rejected,
+                contractValue: usage.contractValue ?? 'Não informado',
+                reserved: Number(usage.reservedValue.toFixed(2)),
+                realized: Number(usage.realizedValue.toFixed(2)),
+                disputed: Number(usage.disputedValue.toFixed(2)),
+                remaining: usage.remainingValue ?? 'Não calculado',
+                consumedPercent: usage.consumedPercent ?? 'Sem teto',
+                invoiced: 'Ainda não controlado',
+                paid: 'Ainda não controlado',
+            };
+        })
+        .sort((a, b) => b.presented - a.presented);
     const total = rows.reduce((sum, row) => ({
         fuelings: sum.fuelings + row.fuelings,
         liters: sum.liters + row.liters,
         validated: sum.validated + row.validated,
-    }), { fuelings: 0, liters: 0, validated: 0 });
+        contracted: sum.contracted + (typeof row.contractValue === 'number' ? row.contractValue : 0),
+        remaining: sum.remaining + (typeof row.remaining === 'number' ? row.remaining : 0),
+    }), { fuelings: 0, liters: 0, validated: 0, contracted: 0, remaining: 0 });
 
     return {
         kpis: [
-            { label: 'Postos com movimento', value: NUM(rows.length) },
+            { label: 'Postos cadastrados', value: NUM(rows.length) },
             { label: 'Abastecimentos', value: NUM(total.fuelings) },
-            { label: 'Litros apresentados', value: `${NUM(total.liters, 0)} L` },
-            { label: 'Valor validado', value: BRL(total.validated) },
+            { label: 'Total contratado', value: BRL(total.contracted) },
+            { label: 'Saldo disponível', value: BRL(total.remaining) },
         ],
         columns: [
             { key: 'station', label: 'Posto', filterable: true, minWidth: 180 },
@@ -890,20 +917,31 @@ async function fuelByStation(f?: ReportFilterInput): Promise<ReportDataset> {
             { key: 'validated', label: 'Validado', align: 'right', format: 'currency', minWidth: 115 },
             { key: 'pending', label: 'Pendente', align: 'right', format: 'currency', minWidth: 115 },
             { key: 'rejected', label: 'Rejeitados', align: 'right', format: 'integer', minWidth: 95 },
+            { key: 'contractValue', label: 'Contratado', align: 'right', format: 'currency', minWidth: 120 },
+            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 110 },
+            { key: 'realized', label: 'Realizado acumulado', align: 'right', format: 'currency', minWidth: 145 },
+            { key: 'disputed', label: 'Em contestação', align: 'right', format: 'currency', defaultVisible: false, minWidth: 125 },
+            { key: 'remaining', label: 'Saldo disponível', align: 'right', format: 'currency', minWidth: 130 },
+            { key: 'consumedPercent', label: '% consumido', align: 'right', format: 'percent', minWidth: 105 },
+            { key: 'invoiced', label: 'Faturado', defaultVisible: false, minWidth: 145 },
+            { key: 'paid', label: 'Pago', defaultVisible: false, minWidth: 145 },
         ],
         rows,
         charts: [{
-            title: 'Valor validado por posto',
-            description: 'Comparativo dos valores aprovados no período.',
-            type: 'bar',
-            valueFormat: 'currency',
-            data: topChartData(rows.map((row) => ({
-                label: String(row.station),
-                value: Number(row.validated),
-            }))),
+            title: 'Termômetro das licitações dos postos',
+            description: 'Percentual consumido do valor contratado; a faixa de atenção começa em 80%.',
+            type: 'gauge',
+            valueFormat: 'percent',
+            data: topChartData(rows.flatMap((row) =>
+                typeof row.consumedPercent === 'number'
+                    ? [{ label: String(row.station), value: row.consumedPercent }]
+                    : []
+            )),
         }],
         notes: [
             'Apresentado reúne registros concluídos e validados; rejeições não compõem litros nem valores.',
+            'O saldo da licitação é acumulado do contrato e não muda com o filtro de período ou secretaria.',
+            'Faturado e pago estão identificados como não controlados até a implantação do fechamento fiscal do posto.',
             'Este resumo é gerencial e ainda não representa o fechamento fiscal mensal congelado, que será tratado em etapa específica.',
         ],
     };
@@ -931,7 +969,11 @@ async function maintenanceByShop(f?: ReportFilterInput): Promise<ReportDataset> 
         repair_shops: { name?: string | null } | null;
         vehicles: { department_id?: string | null } | null;
     };
-    let list = await fetchAllRows(query) as unknown as OrderRow[];
+    const [orderRows, contractUsage] = await Promise.all([
+        fetchAllRows(query) as unknown as Promise<OrderRow[]>,
+        procurementApi.getContractUsage(),
+    ]);
+    let list = orderRows;
     list = list.filter((row) =>
         withinRange(row.received_at ?? row.completed_at ?? row.created_at, from, to)
     );
@@ -961,7 +1003,7 @@ async function maintenanceByShop(f?: ReportFilterInput): Promise<ReportDataset> 
         };
         current.orders += 1;
         current.budget += Number(row.budget ?? 0);
-        current.cost += Number(row.cost ?? 0);
+        current.cost += Number(Number(row.cost ?? 0) > 0 ? row.cost : row.budget ?? 0);
         if (['at_shop', 'awaiting_quote_approval', 'in_progress', 'ready'].includes(row.operational_status)) {
             current.execution += 1;
         }
@@ -970,30 +1012,55 @@ async function maintenanceByShop(f?: ReportFilterInput): Promise<ReportDataset> 
         grouped.set(row.repair_shop_id, current);
     }
 
-    const rows = [...grouped.values()]
-        .sort((a, b) => b.budget - a.budget)
-        .map((row) => ({
-            shop: row.shop,
-            orders: row.orders,
-            budget: Number(row.budget.toFixed(2)),
-            cost: Number(row.cost.toFixed(2)),
-            execution: row.execution,
-            openFinance: row.openFinance,
-            paid: row.paid,
-        }));
+    const usageByShop = new Map(
+        contractUsage
+            .filter((item) => item.partnerKind === 'oficina')
+            .map((item) => [item.partnerId, item] satisfies [string, ProcurementContractUsage]),
+    );
+    const rows = [...usageByShop.values()]
+        .map((usage) => {
+            const activity = grouped.get(usage.partnerId) ?? {
+                shop: usage.partnerName,
+                orders: 0,
+                budget: 0,
+                cost: 0,
+                execution: 0,
+                openFinance: 0,
+                paid: 0,
+            };
+            return {
+                shop: usage.partnerName,
+                orders: activity.orders,
+                budget: Number(activity.budget.toFixed(2)),
+                cost: Number(activity.cost.toFixed(2)),
+                execution: activity.execution,
+                openFinance: activity.openFinance,
+                paidOrders: activity.paid,
+                contractValue: usage.contractValue ?? 'Não informado',
+                reserved: Number(usage.reservedValue.toFixed(2)),
+                realized: Number(usage.realizedValue.toFixed(2)),
+                invoiced: Number((usage.invoicedValue ?? 0).toFixed(2)),
+                paid: Number((usage.paidValue ?? 0).toFixed(2)),
+                remaining: usage.remainingValue ?? 'Não calculado',
+                consumedPercent: usage.consumedPercent ?? 'Sem teto',
+            };
+        })
+        .sort((a, b) => b.cost - a.cost);
     const totals = rows.reduce((sum, row) => ({
         orders: sum.orders + row.orders,
         budget: sum.budget + row.budget,
         cost: sum.cost + row.cost,
         openFinance: sum.openFinance + row.openFinance,
-    }), { orders: 0, budget: 0, cost: 0, openFinance: 0 });
+        contracted: sum.contracted + (typeof row.contractValue === 'number' ? row.contractValue : 0),
+        remaining: sum.remaining + (typeof row.remaining === 'number' ? row.remaining : 0),
+    }), { orders: 0, budget: 0, cost: 0, openFinance: 0, contracted: 0, remaining: 0 });
 
     return {
         kpis: [
-            { label: 'Oficinas com movimento', value: NUM(rows.length) },
+            { label: 'Oficinas cadastradas', value: NUM(rows.length) },
             { label: 'Ordens de serviço', value: NUM(totals.orders) },
-            { label: 'Orçado', value: BRL(totals.budget) },
-            { label: 'Processos financeiros abertos', value: NUM(totals.openFinance) },
+            { label: 'Total contratado', value: BRL(totals.contracted) },
+            { label: 'Saldo disponível', value: BRL(totals.remaining) },
         ],
         columns: [
             { key: 'shop', label: 'Oficina', filterable: true, minWidth: 180 },
@@ -1002,22 +1069,31 @@ async function maintenanceByShop(f?: ReportFilterInput): Promise<ReportDataset> 
             { key: 'cost', label: 'Custo final', align: 'right', format: 'currency', minWidth: 115 },
             { key: 'execution', label: 'Em execução', align: 'right', format: 'integer', minWidth: 105 },
             { key: 'openFinance', label: 'Financeiro aberto', align: 'right', format: 'integer', minWidth: 130 },
-            { key: 'paid', label: 'Pagas', align: 'right', format: 'integer', minWidth: 80 },
+            { key: 'paidOrders', label: 'OS pagas', align: 'right', format: 'integer', defaultVisible: false, minWidth: 85 },
+            { key: 'contractValue', label: 'Contratado', align: 'right', format: 'currency', minWidth: 120 },
+            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 110 },
+            { key: 'realized', label: 'Realizado acumulado', align: 'right', format: 'currency', minWidth: 145 },
+            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 110 },
+            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 110 },
+            { key: 'remaining', label: 'Saldo disponível', align: 'right', format: 'currency', minWidth: 130 },
+            { key: 'consumedPercent', label: '% consumido', align: 'right', format: 'percent', minWidth: 105 },
         ],
         rows,
         charts: [{
-            title: 'Custo final por oficina',
-            description: 'Comparativo das ordens com competência no período.',
-            type: 'bar',
-            valueFormat: 'currency',
-            data: topChartData(rows.map((row) => ({
-                label: String(row.shop),
-                value: Number(row.cost),
-            }))),
+            title: 'Termômetro das licitações das oficinas',
+            description: 'Percentual consumido do valor contratado; a faixa de atenção começa em 80%.',
+            type: 'gauge',
+            valueFormat: 'percent',
+            data: topChartData(rows.flatMap((row) =>
+                typeof row.consumedPercent === 'number'
+                    ? [{ label: String(row.shop), value: row.consumedPercent }]
+                    : []
+            )),
         }],
         notes: [
             'A competência usa recebimento; na ausência, conclusão e depois abertura da ordem.',
-            'Custo final registrado não equivale automaticamente a valor liquidado ou pago.',
+            'O saldo da licitação é acumulado do contrato e não muda com o filtro de período ou secretaria.',
+            'Reservado e realizado consomem o teto; faturado e pago são marcos da mesma despesa e não são somados novamente.',
         ],
     };
 }

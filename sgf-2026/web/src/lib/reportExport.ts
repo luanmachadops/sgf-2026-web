@@ -152,6 +152,33 @@ const LOGO_SVG = `
 function chartHtml(chart: ReportChart, primary: string): string {
     const data = chart.data.filter((item) => item.value >= 0).slice(0, 8);
     if (data.length === 0) return '';
+    if (chart.type === 'gauge') {
+        return `
+          <section class="chart-block">
+            <div class="chart-heading">
+              <h2>${escapeHtml(chart.title)}</h2>
+              ${chart.description ? `<p>${escapeHtml(chart.description)}</p>` : ''}
+            </div>
+            <div class="chart-gauges">
+              ${data.slice(0, 4).map((item) => {
+                  const bounded = Math.min(Math.max(item.value, 0), 100);
+                  return `
+                    <div class="print-gauge">
+                      <strong>${escapeHtml(item.label)}</strong>
+                      <svg viewBox="0 0 100 58" aria-hidden="true">
+                        <path d="M 12 48 A 38 38 0 0 1 88 48" pathLength="100" fill="none" stroke="#22c55e" stroke-width="10" stroke-dasharray="58 42"/>
+                        <path d="M 12 48 A 38 38 0 0 1 88 48" pathLength="100" fill="none" stroke="#facc15" stroke-width="10" stroke-dasharray="18 82" stroke-dashoffset="-60"/>
+                        <path d="M 12 48 A 38 38 0 0 1 88 48" pathLength="100" fill="none" stroke="#f59e0b" stroke-width="10" stroke-dasharray="13 87" stroke-dashoffset="-80"/>
+                        <path d="M 12 48 A 38 38 0 0 1 88 48" pathLength="100" fill="none" stroke="#dc2626" stroke-width="10" stroke-dasharray="5 95" stroke-dashoffset="-95"/>
+                        <line x1="50" y1="48" x2="16" y2="48" stroke="#0f2b2f" stroke-width="2.5" stroke-linecap="round" transform="rotate(${(bounded * 1.8).toFixed(1)} 50 48)"/>
+                        <circle cx="50" cy="48" r="4" fill="#0f2b2f"/>
+                      </svg>
+                      <span>${escapeHtml(formatReportValue(item.value, 'percent'))} consumido</span>
+                    </div>`;
+              }).join('')}
+            </div>
+          </section>`;
+    }
     const max = Math.max(...data.map((item) => item.value), 1);
     return `
       <section class="chart-block">
@@ -342,6 +369,11 @@ export function buildReportPrintHtml(
   .chart-track { height:5px; overflow:hidden; border-radius:999px; background:#e8efed; }
   .chart-fill { display:block; height:100%; border-radius:999px; }
   .chart-row strong { color:#${dark}; text-align:right; }
+  .chart-gauges { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-top:7px; }
+  .print-gauge { min-width:0; padding:5px 6px; border-radius:6px; background:#f8fafc; text-align:center; }
+  .print-gauge strong { display:block; overflow:hidden; color:#${dark}; font-size:6.8px; text-overflow:ellipsis; white-space:nowrap; }
+  .print-gauge svg { display:block; width:100%; height:48px; margin:1px auto -3px; }
+  .print-gauge span { color:#475569; font-size:6.5px; font-weight:750; }
   .table-scroll { width:100%; margin-top:10px; overflow:hidden; }
   table { width:${tableRenderWidth}px; border-collapse:collapse; table-layout:fixed; font-size:${layout.fontSize}px; zoom:${tableZoom}; }
   thead { display:table-header-group; }

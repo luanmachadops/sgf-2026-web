@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
+import { ContractUsageGauge } from '@/components/procurement/ContractUsageGauge';
 import {
     ArrowLeft,
     Calendar,
@@ -663,8 +664,20 @@ export function ReportViewerModal({
                                     <h3 className="font-bold text-[var(--sgf-dark)]">{chart.title}</h3>
                                     {chart.description && <p className="mt-1 text-xs text-slate-500">{chart.description}</p>}
                                     <div className="mt-4 h-64">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            {chart.type === 'donut' ? (
+                                        {chart.type === 'gauge' ? (
+                                            <div className="grid h-full grid-cols-2 gap-3 overflow-y-auto">
+                                                {chart.data.slice(0, 6).map((item) => (
+                                                    <div key={item.label} className="rounded-xl bg-slate-50 px-2 pt-2">
+                                                        <p className="truncate text-center text-xs font-bold text-slate-700" title={item.label}>
+                                                            {item.label}
+                                                        </p>
+                                                        <ContractUsageGauge value={item.value} className="max-w-[180px]" />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                {chart.type === 'donut' ? (
                                                 <PieChart>
                                                     <Pie
                                                         data={chart.data}
@@ -688,7 +701,7 @@ export function ReportViewerModal({
                                                         formatter={(value) => <span className="text-xs text-slate-600">{value}</span>}
                                                     />
                                                 </PieChart>
-                                            ) : (
+                                                ) : (
                                                 <BarChart data={chart.data} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
                                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                                                     <XAxis
@@ -706,8 +719,9 @@ export function ReportViewerModal({
                                                     <Tooltip />
                                                     <Bar dataKey="value" fill="var(--sgf-primary)" radius={[6, 6, 0, 0]} />
                                                 </BarChart>
-                                            )}
-                                        </ResponsiveContainer>
+                                                )}
+                                            </ResponsiveContainer>
+                                        )}
                                     </div>
                                 </div>
                             ))}

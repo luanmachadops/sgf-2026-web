@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -14,6 +15,8 @@ import { useAppSettings } from '@/hooks/useSettings';
 import { SGFBadge, SGFButton, SGFCard, SGFKPICard, SGFTable, SGFToolbar, type SGFTableColumn } from '@/components/sgf';
 import { RepairShopFormModal } from '@/components/repairshops/RepairShopFormModal';
 import { PartnerAccessCard } from '@/components/partners/PartnerAccessCard';
+import { ContractUsagePanel } from '@/components/procurement/ContractUsageGauge';
+import { procurementApi } from '@/lib/procurement-api';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { resolveDocUrl } from '@/lib/docStorage';
 import { differenceInDays, parseISO } from 'date-fns';
@@ -49,6 +52,19 @@ function RepairShopsListPage() {
     const [formOpen, setFormOpen] = useState(false);
 
     const { data: shops = [], isLoading } = useRepairShops({ search: search || undefined });
+    const { data: contractUsage = [] } = useQuery({
+        queryKey: ['procurement-contract-usage'],
+        queryFn: procurementApi.getContractUsage,
+        staleTime: 30_000,
+    });
+    const usageByShop = useMemo(
+        () => new Map(
+            contractUsage
+                .filter((item) => item.partnerKind === 'oficina')
+                .map((item) => [item.partnerId, item]),
+        ),
+        [contractUsage],
+    );
     const { data: appSettings } = useAppSettings();
     const contractDays = appSettings?.contractAlertDays ?? 30;
 
@@ -111,6 +127,21 @@ function RepairShopsListPage() {
             accessor: (s) => <ContractBadge end={s.contract_end} alertDays={contractDays} />,
         },
         {
+            header: '% consumido',
+            className: 'text-right',
+            headerClassName: 'text-right',
+            accessor: (s) => {
+                const usage = usageByShop.get(s.id);
+                if (usage?.consumedPercent == null) return <span className="text-xs text-slate-400">Sem teto</span>;
+                const tone = usage.consumedPercent >= 95
+                    ? 'text-red-600'
+                    : usage.consumedPercent >= 80
+                        ? 'text-amber-600'
+                        : 'text-emerald-700';
+                return <span className={`text-sm font-black tabular-nums ${tone}`}>{usage.consumedPercent.toLocaleString('pt-BR')}%</span>;
+            },
+        },
+        {
             header: 'Status',
             accessor: (s) => s.is_active
                 ? <SGFBadge variant="success">Ativa</SGFBadge>
@@ -150,6 +181,11 @@ function RepairShopDetailPage({ shopId }: { shopId: string }) {
     const navigate = useNavigate();
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const { data: detail, isLoading } = useRepairShopDetail(shopId);
+    const { data: contractUsage = [] } = useQuery({
+        queryKey: ['procurement-contract-usage'],
+        queryFn: procurementApi.getContractUsage,
+        staleTime: 30_000,
+    });
     const [editOpen, setEditOpen] = useState(false);
 
     const docs = useMemo(
@@ -188,6 +224,10 @@ function RepairShopDetailPage({ shopId }: { shopId: string }) {
         setTitle(detail.shop.name);
         setDescription(`${detail.shop.code ?? ''} ${detail.shop.city ? `· ${detail.shop.city}` : ''}`.trim());
     }, [detail, setDescription, setTitle]);
+    const selectedContractUsage = useMemo(
+        () => contractUsage.find((item) => item.partnerKind === 'oficina' && item.partnerId === shopId),
+        [contractUsage, shopId],
+    );
 
     if (isLoading) {
         return <div className="flex h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>;
@@ -198,6 +238,7 @@ function RepairShopDetailPage({ shopId }: { shopId: string }) {
 
     return (
         <div className="space-y-6">
+            {selectedContractUsage ? <ContractUsagePanel usage={selectedContractUsage} /> : null}
             {/* Cabeçalho da Oficina com Foto */}
             <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                 <div className="h-16 w-24 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">

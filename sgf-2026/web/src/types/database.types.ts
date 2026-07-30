@@ -2884,6 +2884,31 @@ export type Database = {
           remaining_value: number
         }[]
       }
+      get_partner_contract_usage: {
+        Args: never
+        Returns: {
+          can_create_new: boolean
+          consumed_percent: number
+          consumed_value: number
+          contract_end: string
+          contract_number: string
+          contract_start: string
+          contract_value: number
+          days_remaining: number
+          disputed_value: number
+          invoiced_value: number
+          is_active: boolean
+          month_contract_percent: number
+          month_realized_value: number
+          paid_value: number
+          partner_id: string
+          partner_kind: string
+          partner_name: string
+          realized_value: number
+          remaining_value: number
+          reserved_value: number
+        }[]
+      }
       get_partner_dashboard: {
         Args: never
         Returns: {
@@ -2909,6 +2934,31 @@ export type Database = {
           remaining_percent: number
           remaining_value: number
           severity: string
+        }[]
+      }
+      get_procurement_contract_usage: {
+        Args: never
+        Returns: {
+          can_create_new: boolean
+          consumed_percent: number
+          consumed_value: number
+          contract_end: string
+          contract_number: string
+          contract_start: string
+          contract_value: number
+          days_remaining: number
+          disputed_value: number
+          invoiced_value: number
+          is_active: boolean
+          month_contract_percent: number
+          month_realized_value: number
+          paid_value: number
+          partner_id: string
+          partner_kind: string
+          partner_name: string
+          realized_value: number
+          remaining_value: number
+          reserved_value: number
         }[]
       }
       get_repair_shop_orders: {

@@ -16,10 +16,10 @@ import {
 import { OrderDetailsModal } from '@/components/partners/workshop/OrderDetailsModal';
 import { PartnerPortalLayout, type PartnerNavItem } from '@/components/partners/PartnerPortalLayout';
 import { ContractStatusAlerts } from '@/components/partners/ContractStatusAlerts';
+import { ContractUsagePanel } from '@/components/procurement/ContractUsageGauge';
 import { SGFBadge, SGFButton, SGFCard, SGFKPICard } from '@/components/sgf';
 import {
     AlertCircle,
-    BarChart3,
     Clock,
     DollarSign,
     FileText,
@@ -41,8 +41,8 @@ import {
 } from '@/lib/workshop-portal-api';
 import {
     procurementApi,
-    type PartnerContractStatus,
     type PartnerDashboardData,
+    type ProcurementContractUsage,
 } from '@/lib/procurement-api';
 import {
     FINANCIAL_LABELS,
@@ -105,7 +105,7 @@ const monthLabel = (key: string) => {
         .replace('.', '');
 };
 
-function WorkshopDashboard({ status }: { status?: PartnerContractStatus }) {
+function WorkshopDashboard({ usage }: { usage?: ProcurementContractUsage }) {
     const query = useQuery({
         queryKey: ['partner-dashboard', 'oficina'],
         queryFn: procurementApi.getPartnerDashboard,
@@ -126,6 +126,7 @@ function WorkshopDashboard({ status }: { status?: PartnerContractStatus }) {
 
     return (
         <div className="space-y-6">
+            {usage ? <ContractUsagePanel usage={usage} /> : null}
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <SGFKPICard
                     title="Ordens em aberto"
@@ -152,10 +153,10 @@ function WorkshopDashboard({ status }: { status?: PartnerContractStatus }) {
                     chartData={monthly.map((item) => ({ month: item.month, value: item.count }))}
                 />
                 <SGFKPICard
-                    title={status?.remainingValue == null ? 'Faturado no mês' : 'Saldo da licitação'}
-                    value={currency.format(status?.remainingValue ?? data.metrics.monthInvoiced ?? 0)}
+                    title="Faturado no mês"
+                    value={currency.format(data.metrics.monthInvoiced ?? 0)}
                     icon={DollarSign}
-                    iconColor={status?.remainingValue === 0 ? 'text-red-500' : 'text-emerald-600'}
+                    iconColor="text-emerald-600"
                     chartColor="#00A86B"
                     chartData={monthly.map((item) => ({ month: item.month, value: item.amount }))}
                 />
@@ -375,10 +376,10 @@ function OrdersView({
 
 function DetailsView({
     context,
-    contractStatus,
+    contractUsage,
 }: {
     context: WorkshopContext;
-    contractStatus?: PartnerContractStatus;
+    contractUsage?: ProcurementContractUsage;
 }) {
     const detailsQuery = useQuery({
         queryKey: ['workshop-details', context.repairShopId],
@@ -399,12 +400,7 @@ function DetailsView({
     const details: WorkshopDetails = detailsQuery.data;
     return (
         <div className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <SGFKPICard title="Valor da licitação" value={details.contractValue == null ? 'Não informado' : currency.format(details.contractValue)} icon={FileText} iconColor="text-blue-500" />
-                <SGFKPICard title="Valor comprometido" value={currency.format(contractStatus?.committedValue ?? 0)} icon={DollarSign} iconColor="text-amber-500" />
-                <SGFKPICard title="Saldo disponível" value={contractStatus?.remainingValue == null ? 'Não calculado' : currency.format(contractStatus.remainingValue)} icon={DollarSign} iconColor={contractStatus?.remainingValue === 0 ? 'text-red-500' : 'text-emerald-500'} />
-                <SGFKPICard title="Saldo percentual" value={contractStatus?.remainingPercent == null ? '—' : `${contractStatus.remainingPercent.toLocaleString('pt-BR')}%`} icon={BarChart3} iconColor="text-emerald-500" />
-            </div>
+            {contractUsage ? <ContractUsagePanel usage={contractUsage} /> : null}
 
             <div className="grid gap-5 lg:grid-cols-3">
             <SGFCard variant="bordered" className="lg:col-span-2" padding="lg">
@@ -647,6 +643,13 @@ export default function WorkshopPortal() {
         staleTime: 30_000,
     });
     const contractStatus = contractQuery.data;
+    const contractUsageQuery = useQuery({
+        queryKey: ['partner-contract-usage', 'oficina'],
+        queryFn: procurementApi.getPartnerContractUsage,
+        enabled: Boolean(context),
+        staleTime: 30_000,
+    });
+    const contractUsage = contractUsageQuery.data;
 
     const navItems: PartnerNavItem[] = [
         { label: 'Dashboard', path: '/oficina', icon: LayoutDashboard, end: true },
@@ -699,7 +702,7 @@ export default function WorkshopPortal() {
                         retry={() => void contextQuery.refetch()}
                     />
                 ) : activeTab === 'dashboard' ? (
-                    <WorkshopDashboard status={contractStatus} />
+                    <WorkshopDashboard usage={contractUsage} />
                 ) : activeTab === 'orders' ? (
                     <OrdersView
                         context={context}
@@ -711,7 +714,7 @@ export default function WorkshopPortal() {
                 ) : activeTab === 'closing' ? (
                     <WorkshopClosing />
                 ) : (
-                    <DetailsView context={context} contractStatus={contractStatus} />
+                    <DetailsView context={context} contractUsage={contractUsage} />
                 )}
             </div>
         </PartnerPortalLayout>

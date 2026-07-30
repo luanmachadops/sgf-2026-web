@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -10,7 +11,6 @@ import {
     Plus,
     Receipt,
     Calendar,
-    ArrowSync,
     Loader2,
     FileText,
     Download,
@@ -25,6 +25,8 @@ import { useAppSettings } from '@/hooks/useSettings';
 import { SGFBadge, SGFButton, SGFCard, SGFKPICard, SGFTable, SGFToolbar, type SGFTableColumn } from '@/components/sgf';
 import { StationFormModal } from '@/components/stations/StationFormModal';
 import { PartnerAccessCard } from '@/components/partners/PartnerAccessCard';
+import { ContractUsagePanel } from '@/components/procurement/ContractUsageGauge';
+import { procurementApi } from '@/lib/procurement-api';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
 import type { Tables } from '@/types/database.types';
@@ -57,6 +59,19 @@ function StationsListPage() {
     const [formOpen, setFormOpen] = useState(false);
 
     const { data: stations = [], isLoading } = useStations({ search: search || undefined });
+    const { data: contractUsage = [] } = useQuery({
+        queryKey: ['procurement-contract-usage'],
+        queryFn: procurementApi.getContractUsage,
+        staleTime: 30_000,
+    });
+    const usageByStation = useMemo(
+        () => new Map(
+            contractUsage
+                .filter((item) => item.partnerKind === 'posto')
+                .map((item) => [item.partnerId, item]),
+        ),
+        [contractUsage],
+    );
     const { data: appSettings } = useAppSettings();
     const contractDays = appSettings?.contractAlertDays ?? 30;
 
@@ -146,6 +161,21 @@ function StationsListPage() {
             },
         },
         {
+            header: '% consumido',
+            className: 'text-right',
+            headerClassName: 'text-right',
+            accessor: (s) => {
+                const usage = usageByStation.get(s.id);
+                if (usage?.consumedPercent == null) return <span className="text-xs text-slate-400">Sem teto</span>;
+                const tone = usage.consumedPercent >= 95
+                    ? 'text-red-600'
+                    : usage.consumedPercent >= 80
+                        ? 'text-amber-600'
+                        : 'text-emerald-700';
+                return <span className={`text-sm font-black tabular-nums ${tone}`}>{usage.consumedPercent.toLocaleString('pt-BR')}%</span>;
+            },
+        },
+        {
             header: 'Status',
             accessor: (s) => s.is_active
                 ? <SGFBadge variant="success">Ativo</SGFBadge>
@@ -187,6 +217,11 @@ function StationDetailPage({ stationId }: { stationId: string }) {
     const [editOpen, setEditOpen] = useState(false);
 
     const { data: detail, isLoading } = useStationDetail(stationId);
+    const { data: contractUsage = [] } = useQuery({
+        queryKey: ['procurement-contract-usage'],
+        queryFn: procurementApi.getContractUsage,
+        staleTime: 30_000,
+    });
     const { data: appSettings } = useAppSettings();
     const priceMode = appSettings?.fuelPriceMode ?? 'free';
 
@@ -234,6 +269,10 @@ function StationDetailPage({ stationId }: { stationId: string }) {
         () => detail?.byFuelType.map((f) => ({ ...f, color: FUEL_COLORS[f.fuelType] ?? FUEL_COLORS.Outros })) ?? [],
         [detail],
     );
+    const selectedContractUsage = useMemo(
+        () => contractUsage.find((item) => item.partnerKind === 'posto' && item.partnerId === stationId),
+        [contractUsage, stationId],
+    );
 
     if (isLoading) {
         return (
@@ -257,6 +296,7 @@ function StationDetailPage({ stationId }: { stationId: string }) {
 
     return (
         <div className="space-y-6">
+            {selectedContractUsage ? <ContractUsagePanel usage={selectedContractUsage} /> : null}
             {/* Resumo + Contrato */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <SGFCard className="lg:col-span-2">
