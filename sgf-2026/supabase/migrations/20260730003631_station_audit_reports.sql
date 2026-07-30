@@ -20,8 +20,8 @@ language plpgsql stable security definer set search_path = public, pg_temp
 as $$
 declare uid uuid:=auth.uid();role_name text;tenant uuid;partner uuid;super boolean:=false;
 begin
-  select role,tenant_id,station_id,(role='superadmin') into role_name,tenant,partner,super
-  from public.profiles where id=uid and not coalesce(access_blocked,false);
+  select p.role,p.tenant_id,p.station_id,(p.role='superadmin') into role_name,tenant,partner,super
+  from public.profiles p where p.id=uid and not coalesce(p.access_blocked,false);
   if role_name not in ('posto','admin','gestor','secretario','superadmin') then
     raise exception 'Acesso não autorizado'; end if;
   return query
@@ -62,8 +62,8 @@ language plpgsql stable security definer set search_path = public, pg_temp
 as $$
 declare uid uuid:=auth.uid();role_name text;tenant uuid;partner uuid;super boolean:=false;
 begin
-  select role,tenant_id,station_id,(role='superadmin') into role_name,tenant,partner,super
-  from public.profiles where id=uid and not coalesce(access_blocked,false);
+  select p.role,p.tenant_id,p.station_id,(p.role='superadmin') into role_name,tenant,partner,super
+  from public.profiles p where p.id=uid and not coalesce(p.access_blocked,false);
   if role_name not in ('posto','admin','gestor','secretario','superadmin') then
     raise exception 'Acesso não autorizado'; end if;
   return query
@@ -90,8 +90,8 @@ language plpgsql stable security definer set search_path = public, pg_temp
 as $$
 declare uid uuid:=auth.uid();role_name text;tenant uuid;partner uuid;super boolean:=false;
 begin
-  select role,tenant_id,station_id,(role='superadmin') into role_name,tenant,partner,super
-  from public.profiles where id=uid and not coalesce(access_blocked,false);
+  select p.role,p.tenant_id,p.station_id,(p.role='superadmin') into role_name,tenant,partner,super
+  from public.profiles p where p.id=uid and not coalesce(p.access_blocked,false);
   if role_name not in ('posto','admin','gestor','secretario','superadmin') then
     raise exception 'Acesso não autorizado'; end if;
   return query select e.id,e.from_status,e.to_status,p.full_name,e.actor_role,e.note,e.created_at
@@ -117,8 +117,8 @@ language plpgsql stable security definer set search_path = public, pg_temp
 as $$
 declare uid uuid:=auth.uid();role_name text;tenant uuid;partner uuid;super boolean:=false;
 begin
-  select role,tenant_id,station_id,(role='superadmin') into role_name,tenant,partner,super
-  from public.profiles where id=uid and not coalesce(access_blocked,false);
+  select p.role,p.tenant_id,p.station_id,(p.role='superadmin') into role_name,tenant,partner,super
+  from public.profiles p where p.id=uid and not coalesce(p.access_blocked,false);
   if role_name not in ('posto','admin','gestor','secretario','superadmin') then
     raise exception 'Acesso não autorizado'; end if;
   return query
