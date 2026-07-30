@@ -6,7 +6,10 @@ import path from 'path';
 export default defineConfig({
   // Admin servido no domínio dedicado superadmin.exattusrotta.com.br.
   plugins: [react(), tailwindcss()],
-  resolve: { alias: { '@': path.resolve(__dirname, './src') } },
+  resolve: {
+    alias: { '@': path.resolve(__dirname, './src') },
+    dedupe: ['react', 'react-dom'],
+  },
   server: {
     port: 5174,
     proxy: { '/api': { target: 'http://localhost:3000', changeOrigin: true } },
