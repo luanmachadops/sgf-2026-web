@@ -8,6 +8,9 @@ await build({
   format: 'esm',
   target: 'node20',
   external: ['express'],
+  loader: {
+    '.html': 'text',
+  },
   sourcemap: false,
   minify: false,
 });

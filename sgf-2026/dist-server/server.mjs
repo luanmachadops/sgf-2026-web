@@ -21222,6 +21222,12 @@ import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// admin/dist/index.html
+var dist_default = '<!doctype html>\n<html lang="pt-BR">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n    <link rel="preconnect" href="https://fonts.googleapis.com" />\n    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />\n    <meta name="description" content="Painel superadministrativo da Exattus Rotta." />\n    <title>Exattus Rotta \u2014 Superadmin</title>\n    <script type="module" crossorigin src="/assets/index-DBWckIbB.js"></script>\n    <link rel="stylesheet" crossorigin href="/assets/index-BL150KDn.css">\n  </head>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>\n';
+
+// web/dist/index.html
+var dist_default2 = '<!doctype html>\n<html lang="pt-BR">\n\n<head>\n  <meta charset="UTF-8" />\n  <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n  <link rel="manifest" href="/manifest.webmanifest" />\n  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <meta name="description" content="Exattus Rotta \u2014 gest\xE3o inteligente de frotas p\xFAblicas." />\n  <meta name="theme-color" content="#0F2B2F" />\n  <meta name="mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />\n  <meta name="apple-mobile-web-app-title" content="Exattus Rotta" />\n  <title>Exattus Rotta \u2014 Gest\xE3o de Frotas</title>\n\n  <!-- Google Fonts - Inter -->\n  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\n\n  <!-- Leaflet CSS -->\n  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"\n    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />\n  <script type="module" crossorigin src="/assets/index-B1ouYqLQ.js"></script>\n  <link rel="stylesheet" crossorigin href="/assets/index-47962Aq-.css">\n</head>\n\n<body>\n  <div id="root"></div>\n</body>\n\n</html>\n';
+
 // web/api/_lib/driver-access.ts
 import { randomBytes } from "node:crypto";
 
@@ -26444,7 +26450,11 @@ var MODULES = /* @__PURE__ */ new Set([
 ]);
 var ROLES = /* @__PURE__ */ new Set(["admin", "gestor", "secretario", "motorista"]);
 function bodyOf(req) {
-  return typeof req.body === "string" ? JSON.parse(req.body) : req.body ?? {};
+  if (typeof req.body === "string") {
+    const parsed = JSON.parse(req.body);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  }
+  return req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
 }
 function fail(message, status) {
   throw Object.assign(new Error(message), { status });
@@ -26458,15 +26468,21 @@ function cleanModules(value) {
 async function manager(req) {
   const caller = await getCaller(req);
   if (!caller) fail("N\xE3o autenticado", 401);
-  if (!["admin", "gestor"].includes(caller.role)) {
-    fail("Apenas administradores e gestores podem gerenciar acessos.", 403);
+  if (!["admin", "gestor", "superadmin"].includes(caller.role)) {
+    fail("Apenas administradores, gestores e superadministradores podem gerenciar acessos.", 403);
   }
-  if (!caller.tenantId) fail("Usu\xE1rio sem prefeitura vinculada.", 403);
+  if (caller.role !== "superadmin" && !caller.tenantId) {
+    fail("Usu\xE1rio sem prefeitura vinculada.", 403);
+  }
   return caller;
 }
-async function targetInTenant(id, tenantId) {
-  const { data } = await getSupabaseAdmin().from("profiles").select("id, role, tenant_id").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
-  if (!data) fail("Acesso n\xE3o encontrado nesta prefeitura.", 404);
+async function targetInScope(id, caller) {
+  let query = getSupabaseAdmin().from("profiles").select("id, role, tenant_id").eq("id", id);
+  if (caller.role !== "superadmin") {
+    query = query.eq("tenant_id", caller.tenantId);
+  }
+  const { data } = await query.maybeSingle();
+  if (!data) fail("Acesso n\xE3o encontrado no seu escopo.", 404);
   return data;
 }
 async function handler6(req, res) {
@@ -26474,7 +26490,11 @@ async function handler6(req, res) {
     const caller = await manager(req);
     const admin = getSupabaseAdmin();
     if (req.method === "GET") {
-      const { data, error } = await admin.from("profiles").select("id, full_name, email, cpf, role, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name)").eq("tenant_id", caller.tenantId).in("role", [...ROLES]).order("full_name");
+      let query = admin.from("profiles").select("id, full_name, email, cpf, role, tenant_id, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name), tenants(id, name)").in("role", [...ROLES]).order("full_name");
+      if (caller.role !== "superadmin") {
+        query = query.eq("tenant_id", caller.tenantId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return res.status(200).json(data ?? []);
     }
@@ -26482,8 +26502,16 @@ async function handler6(req, res) {
     if (req.method === "POST") {
       const role = String(body.role ?? "").toLowerCase();
       if (!ROLES.has(role)) fail("Cargo inv\xE1lido.", 400);
-      if (role === "admin" && caller.role !== "admin") {
+      if (role === "admin" && !["admin", "superadmin"].includes(caller.role)) {
         fail("Somente um administrador pode criar outro administrador.", 403);
+      }
+      const targetTenantId = caller.role === "superadmin" ? String(body.tenantId ?? "") : caller.tenantId;
+      if (!targetTenantId) fail("Selecione a prefeitura do novo acesso.", 400);
+      const { data: tenant } = await admin.from("tenants").select("id").eq("id", targetTenantId).maybeSingle();
+      if (!tenant) fail("Prefeitura n\xE3o encontrada.", 404);
+      if (body.departmentId) {
+        const { data: department } = await admin.from("departments").select("id").eq("id", String(body.departmentId)).eq("tenant_id", targetTenantId).maybeSingle();
+        if (!department) fail("A secretaria n\xE3o pertence \xE0 prefeitura selecionada.", 400);
       }
       const allowedModules = role === "motorista" ? [] : cleanModules(body.allowedModules);
       let created;
@@ -26493,7 +26521,7 @@ async function handler6(req, res) {
           name: String(body.name ?? ""),
           registrationNumber: String(body.registrationNumber ?? ""),
           departmentId: body.departmentId || void 0,
-          tenantId: caller.tenantId,
+          tenantId: targetTenantId,
           actorId: caller.id
         });
       } else {
@@ -26503,11 +26531,11 @@ async function handler6(req, res) {
           password: String(body.password ?? ""),
           departmentId: body.departmentId || void 0,
           role,
-          tenantId: caller.tenantId,
+          tenantId: targetTenantId,
           actorId: caller.id
         });
       }
-      const { data: profile, error } = await admin.from("profiles").update({ allowed_modules: allowedModules, updated_by: caller.id }).eq("id", created.id).select("id, full_name, email, cpf, role, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name)").single();
+      const { data: profile, error } = await admin.from("profiles").update({ allowed_modules: allowedModules, updated_by: caller.id }).eq("id", created.id).select("id, full_name, email, cpf, role, tenant_id, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name), tenants(id, name)").single();
       if (error) {
         await admin.auth.admin.deleteUser(created.id);
         throw error;
@@ -26519,7 +26547,7 @@ async function handler6(req, res) {
     }
     const id = String(body.id ?? "");
     if (!id) fail("Informe o acesso.", 400);
-    const target = await targetInTenant(id, caller.tenantId);
+    const target = await targetInScope(id, caller);
     if (target.id === caller.id && (req.method === "DELETE" || body.accessBlocked === true)) {
       fail("Voc\xEA n\xE3o pode excluir ou desativar o pr\xF3prio acesso.", 400);
     }
@@ -26537,7 +26565,7 @@ async function handler6(req, res) {
       if (body.allowedModules !== void 0 && target.role !== "motorista") {
         update.allowed_modules = cleanModules(body.allowedModules);
       }
-      const { data, error } = await admin.from("profiles").update(update).eq("id", id).select("id, full_name, email, cpf, role, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name)").single();
+      const { data, error } = await admin.from("profiles").update(update).eq("id", id).select("id, full_name, email, cpf, role, tenant_id, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name), tenants(id, name)").single();
       if (error) throw error;
       return res.status(200).json(data);
     }
@@ -26549,7 +26577,7 @@ async function handler6(req, res) {
     res.setHeader("Allow", "GET, POST, PATCH, DELETE");
     return res.status(405).json({ message: "M\xE9todo n\xE3o permitido." });
   } catch (error) {
-    const status = error?.status ?? 400;
+    const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 400;
     return res.status(status).json({
       message: error instanceof Error ? error.message : "N\xE3o foi poss\xEDvel gerenciar o acesso."
     });
@@ -36249,11 +36277,8 @@ app.get("/{*path}", (req, res, next) => {
     res.status(404).json({ message: "Endpoint n\xE3o encontrado." });
     return;
   }
-  const dist = isSuperadminRequest(req) ? adminDist : webDist;
   res.setHeader("Cache-Control", "no-cache");
-  res.sendFile(path.join(dist, "index.html"), (error) => {
-    if (error) next(error);
-  });
+  res.type("html").send(isSuperadminRequest(req) ? dist_default : dist_default2);
 });
 app.use((error, _req, res, _next) => {
   console.error("[Exattus Rotta]", error);

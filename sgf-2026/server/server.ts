@@ -2,6 +2,8 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import adminIndexHtml from '../admin/dist/index.html';
+import webIndexHtml from '../web/dist/index.html';
 import webDrivers from '../web/api/drivers/index.js';
 import webDriversPreRegister from '../web/api/drivers/pre-register.js';
 import webDriverProvisionAccess from '../web/api/drivers/[id]/provision-access.js';
@@ -151,11 +153,8 @@ app.get('/{*path}', (req, res, next) => {
     return;
   }
 
-  const dist = isSuperadminRequest(req) ? adminDist : webDist;
   res.setHeader('Cache-Control', 'no-cache');
-  res.sendFile(path.join(dist, 'index.html'), (error) => {
-    if (error) next(error);
-  });
+  res.type('html').send(isSuperadminRequest(req) ? adminIndexHtml : webIndexHtml);
 });
 
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
