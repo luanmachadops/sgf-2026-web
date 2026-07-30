@@ -6,12 +6,10 @@ import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
-import { SGFTextarea } from '@/components/sgf/SGFTextarea';
 import {
     Building2,
     Calendar,
     Car,
-    DollarSign,
     Edit,
     FileText,
     Gauge,
@@ -24,7 +22,7 @@ import { maintenancesApi } from '@/lib/supabase-api';
 import { useAuthorizeMaintenance, useCancelMaintenance } from '@/hooks/useMaintenances';
 import { useRepairShops } from '@/hooks/useRepairShops';
 import { ServiceOrderFiscalPanel } from './ServiceOrderFiscalPanel';
-import { formatCurrency, formatDate, getPriorityStyles } from '@/lib/utils';
+import { formatDate, getPriorityStyles } from '@/lib/utils';
 import type { Tables } from '@/types/database.types';
 import type { FinStatus, OpStatus } from '@/lib/supabase-api';
 
@@ -393,6 +391,8 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                             operationalStatus={op}
                             financialStatus={fin}
                             commitmentNumber={m.commitment_number}
+                            commitmentDocumentPath={m.commitment_document_path}
+                            tenantId={m.tenant_id}
                         />
                     )}
 

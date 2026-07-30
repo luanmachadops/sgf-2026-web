@@ -2130,6 +2130,7 @@ export type Database = {
           category: string
           checklist_id: string | null
           commitment_number: string | null
+          commitment_document_path: string | null
           completed_at: string | null
           cost: number | null
           created_at: string
@@ -2160,6 +2161,7 @@ export type Database = {
           category: string
           checklist_id?: string | null
           commitment_number?: string | null
+          commitment_document_path?: string | null
           completed_at?: string | null
           cost?: number | null
           created_at?: string
@@ -2190,6 +2192,7 @@ export type Database = {
           category?: string
           checklist_id?: string | null
           commitment_number?: string | null
+          commitment_document_path?: string | null
           completed_at?: string | null
           cost?: number | null
           created_at?: string
@@ -3381,7 +3384,8 @@ export type Database = {
       manager_register_service_order_commitment: {
         Args: {
           p_commitment_number: string
-          p_nad_number?: string
+          p_document_path: string
+          p_nad_number: string
           p_order_id: string
         }
         Returns: undefined

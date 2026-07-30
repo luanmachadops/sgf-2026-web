@@ -37,3 +37,21 @@ export async function resolveDocUrl(pathOrUrl: string | null | undefined, expire
   if (error) throw error;
   return data?.signedUrl ?? null;
 }
+
+/** Abre um documento privado em nova aba sem perder o gesto do clique. */
+export async function openPrivateDocument(pathOrUrl: string): Promise<void> {
+  const popup = window.open('about:blank', '_blank');
+  if (popup) popup.opener = null;
+  try {
+    const url = await resolveDocUrl(pathOrUrl);
+    if (!url) throw new Error('Documento não encontrado.');
+    if (popup) {
+      popup.location.href = url;
+    } else {
+      window.location.assign(url);
+    }
+  } catch (error) {
+    popup?.close();
+    throw error;
+  }
+}

@@ -6,6 +6,7 @@ import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { Check, DollarSign, FileText, Loader2, X } from '@/components/sgf/icons';
 import { serviceOrderFiscalApi, type FinStatus, type OpStatus } from '@/lib/supabase-api';
+import { openPrivateDocument } from '@/lib/docStorage';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { maintenanceOperationalLabel } from '@/lib/maintenance-status';
 
@@ -14,6 +15,8 @@ interface Props {
     operationalStatus: OpStatus | null;
     financialStatus: FinStatus | null;
     commitmentNumber: string | null;
+    commitmentDocumentPath: string | null;
+    tenantId: string;
 }
 
 /**
@@ -51,7 +54,14 @@ const FIN_LABEL: Record<string, string> = {
     invoiced: 'Faturado', attested: 'Atestado', paid: 'Pago',
 };
 
-export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialStatus, commitmentNumber }: Props) {
+export function ServiceOrderFiscalPanel({
+    orderId,
+    operationalStatus,
+    financialStatus,
+    commitmentNumber,
+    commitmentDocumentPath,
+    tenantId,
+}: Props) {
     const qc = useQueryClient();
     const op = (operationalStatus ?? 'pending') as OpStatus;
     const fin = (financialStatus ?? 'not_started') as FinStatus;
@@ -59,6 +69,7 @@ export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialS
     const [quoteReviewNote, setQuoteReviewNote] = useState('');
     const [commitment, setCommitment] = useState(commitmentNumber ?? '');
     const [nad, setNad] = useState('');
+    const [commitmentFile, setCommitmentFile] = useState<File | null>(null);
     const [payAmount, setPayAmount] = useState('');
     const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
     const [payNote, setPayNote] = useState('');
@@ -98,6 +109,8 @@ export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialS
         mutationFn: () => serviceOrderFiscalApi.registerCommitment(orderId, {
             commitmentNumber: commitment,
             nadNumber: nad || null,
+            document: commitmentFile!,
+            tenantId,
         }),
     });
     const mutDelivery = useMutation({
@@ -131,6 +144,13 @@ export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialS
     const naoAtestadas = (data?.invoices ?? []).filter((i) => !i.attested_at);
     const saldoPagar = Math.max(0, totalNf - totalPago);
     const podePagar = fin === 'attested' && naoAtestadas.length === 0 && saldoPagar > 0;
+    const openDocument = async (path: string) => {
+        try {
+            await openPrivateDocument(path);
+        } catch (error) {
+            toast.error((error as Error).message || 'Não foi possível abrir o documento.');
+        }
+    };
 
     if (isLoading) {
         return <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>;
@@ -249,7 +269,26 @@ export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialS
                             <SGFInput label="Nº do empenho" value={commitment} onChange={(e) => setCommitment(e.target.value)} fullWidth />
                             <SGFInput label="Nº da NAD (opcional)" value={nad} onChange={(e) => setNad(e.target.value)} fullWidth />
                         </div>
-                        <SGFButton className="mt-3" size="sm" disabled={busy || !commitment.trim()}
+                        <label className={`mt-3 flex cursor-pointer items-center gap-3 rounded-2xl border-2 border-dashed p-4 transition ${
+                            commitmentFile
+                                ? 'border-emerald-300 bg-emerald-50'
+                                : 'border-slate-200 hover:border-blue-300 hover:bg-blue-50/50'
+                        }`}>
+                            <FileText className={`h-6 w-6 ${commitmentFile ? 'text-emerald-600' : 'text-blue-600'}`} />
+                            <span className="min-w-0">
+                                <span className="block truncate text-sm font-semibold text-slate-700">
+                                    {commitmentFile?.name || 'Anexar PDF ou imagem do empenho/NAD'}
+                                </span>
+                                <span className="text-xs text-slate-500">Documento privado vinculado à ordem de serviço</span>
+                            </span>
+                            <input
+                                type="file"
+                                accept="application/pdf,image/*"
+                                className="sr-only"
+                                onChange={(event) => setCommitmentFile(event.target.files?.[0] ?? null)}
+                            />
+                        </label>
+                        <SGFButton className="mt-3" size="sm" disabled={busy || !commitment.trim() || !commitmentFile}
                             onClick={run(() => mutCommit.mutateAsync(), 'Empenho registrado. A oficina já pode executar.')}>
                             Registrar empenho
                         </SGFButton>
@@ -280,6 +319,35 @@ export function ServiceOrderFiscalPanel({ orderId, operationalStatus, financialS
                                 </SGFButton>
                             </div>
                         ))}
+                    </div>
+                )}
+
+                {(commitmentDocumentPath || (data?.invoices ?? []).some((invoice) => invoice.file_path)) && (
+                    <div className="rounded-2xl border border-slate-200 p-4">
+                        <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Documentos fiscais</p>
+                        <div className="flex flex-wrap gap-2">
+                            {commitmentDocumentPath && (
+                                <SGFButton
+                                    size="sm"
+                                    variant="secondary"
+                                    icon={FileText}
+                                    onClick={() => void openDocument(commitmentDocumentPath)}
+                                >
+                                    Abrir empenho/NAD
+                                </SGFButton>
+                            )}
+                            {(data?.invoices ?? []).filter((invoice) => invoice.file_path).map((invoice) => (
+                                <SGFButton
+                                    key={invoice.id}
+                                    size="sm"
+                                    variant="secondary"
+                                    icon={FileText}
+                                    onClick={() => void openDocument(invoice.file_path!)}
+                                >
+                                    Abrir NF {invoice.invoice_number}
+                                </SGFButton>
+                            ))}
+                        </div>
                     </div>
                 )}
 

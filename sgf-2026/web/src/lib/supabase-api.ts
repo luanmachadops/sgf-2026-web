@@ -7,7 +7,8 @@
 import { supabase } from './supabase';
 import { withFotoUrls } from './fotoStorage';
 import { uploadBranding } from './brandingStorage';
-import { optimizeImage, IMAGE_PRESETS } from './imageUtils';
+import { optimizeImage, IMAGE_PRESETS, uploadFileId } from './imageUtils';
+import { uploadPrivateDoc } from './docStorage';
 import { normalizeSearchIdentifier } from './utils';
 import type { Enums, Tables, TablesInsert, TablesUpdate } from '@/types/database.types';
 import type { VehicleStatus, DriverStatus, TripStatus, MaintenanceStatus } from '@/types';
@@ -2657,13 +2658,26 @@ export const serviceOrderFiscalApi = withFotoUrls({
     },
 
     /** Registra o empenho/NAD e libera a oficina para executar. */
-    registerCommitment: async (orderId: string, input: { commitmentNumber: string; nadNumber?: string | null }): Promise<void> => {
-        const { error } = await supabase.rpc('manager_register_service_order_commitment', {
-            p_order_id: orderId,
-            p_commitment_number: input.commitmentNumber.trim(),
-            p_nad_number: input.nadNumber?.trim() || undefined,
-        });
-        if (error) handleError(error);
+    registerCommitment: async (orderId: string, input: {
+        commitmentNumber: string;
+        nadNumber?: string | null;
+        document: File;
+        tenantId: string;
+    }): Promise<void> => {
+        const key = `${orderId}/commitments/empenho-${uploadFileId()}`;
+        const path = await uploadPrivateDoc(input.document, 'service_orders', input.tenantId, key);
+        try {
+            const { error } = await supabase.rpc('manager_register_service_order_commitment', {
+                p_order_id: orderId,
+                p_commitment_number: input.commitmentNumber.trim(),
+                p_nad_number: input.nadNumber?.trim() || '',
+                p_document_path: path,
+            });
+            if (error) handleError(error);
+        } catch (error) {
+            await supabase.storage.from('documentos').remove([path]);
+            throw error;
+        }
     },
 
     confirmShopDelivery: async (orderId: string): Promise<void> => {

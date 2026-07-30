@@ -26,6 +26,7 @@ import { FinishServiceModal } from './FinishServiceModal';
 import { InvoiceModal } from './InvoiceModal';
 import { QuoteModal } from './QuoteModal';
 import { WorkshopModalShell } from './WorkshopModalShell';
+import { openPrivateDocument } from '@/lib/docStorage';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
@@ -275,6 +276,21 @@ export function OrderDetailsModal({
                                                 <SGFBadge className="mt-3" variant={invoice.attestedAt ? 'success' : 'warning'}>
                                                     {invoice.attestedAt ? 'Atestada' : 'Aguardando ateste'}
                                                 </SGFBadge>
+                                                {invoice.filePath && (
+                                                    <SGFButton
+                                                        className="mt-3"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        icon={FileText}
+                                                        onClick={() => {
+                                                            void openPrivateDocument(invoice.filePath!).catch((error) => {
+                                                                toast.error(error instanceof Error ? error.message : 'Não foi possível abrir a nota fiscal.');
+                                                            });
+                                                        }}
+                                                    >
+                                                        Abrir documento
+                                                    </SGFButton>
+                                                )}
                                             </article>
                                         ))}
                                     </div>
