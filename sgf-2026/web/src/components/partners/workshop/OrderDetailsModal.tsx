@@ -9,6 +9,7 @@ import {
     Clock,
     FileText,
     Play,
+    Printer,
     Receipt,
     RefreshCw,
 } from '@/components/sgf/icons';
@@ -27,6 +28,7 @@ import { InvoiceModal } from './InvoiceModal';
 import { QuoteModal } from './QuoteModal';
 import { WorkshopModalShell } from './WorkshopModalShell';
 import { openPrivateDocument } from '@/lib/docStorage';
+import { DossierPrintViewerModal } from '@/components/maintenances/DossierPrintViewerModal';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
@@ -73,6 +75,7 @@ export function OrderDetailsModal({
 }: OrderDetailsModalProps) {
     const queryClient = useQueryClient();
     const [actionModal, setActionModal] = useState<ActionModal>(null);
+    const [showDossier, setShowDossier] = useState(false);
 
     const detailsQuery = useQuery({
         queryKey: ['workshop-order-details', order.orderId],
@@ -148,26 +151,26 @@ export function OrderDetailsModal({
             >
                 <div className="space-y-6">
                     <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="rounded-2xl bg-slate-50 p-4">
-                            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Situação da OS</p>
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Situação da OS</p>
                             <SGFBadge className="mt-2" size="lg" dot variant={operationalVariant(order.operationalStatus)}>
                                 {OPERATIONAL_LABELS[order.operationalStatus]}
                             </SGFBadge>
                         </div>
-                        <div className="rounded-2xl bg-slate-50 p-4">
-                            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Financeiro</p>
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Financeiro</p>
                             <SGFBadge className="mt-2" size="lg" dot variant={financialVariant(order.financialStatus)}>
                                 {FINANCIAL_LABELS[order.financialStatus]}
                             </SGFBadge>
                         </div>
-                        <div className="rounded-2xl bg-slate-50 p-4">
-                            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Hodômetro</p>
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
+                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Hodômetro</p>
                             <p className="mt-2 font-bold text-slate-900">
                                 {order.odometer == null ? 'Não informado' : `${order.odometer.toLocaleString('pt-BR')} km`}
                             </p>
                         </div>
-                        <div className="rounded-2xl bg-blue-50 p-4">
-                            <p className="text-[11px] font-bold uppercase tracking-wide text-blue-600">Próxima etapa</p>
+                        <div className="rounded-2xl border border-blue-200 bg-white p-4 shadow-xs">
+                            <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Próxima etapa</p>
                             <p className="mt-2 font-bold text-blue-950">
                                 {nextAction(order.operationalStatus, order.financialStatus)}
                             </p>
@@ -177,11 +180,11 @@ export function OrderDetailsModal({
                     <section>
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{order.category}</p>
                         <h3 className="mt-1 text-base font-bold text-slate-900">Serviço solicitado</h3>
-                        <p className="mt-2 whitespace-pre-wrap rounded-2xl border border-slate-100 p-4 text-sm leading-6 text-slate-600">
+                        <p className="mt-2 whitespace-pre-wrap rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-700">
                             {order.description}
                         </p>
                         {order.commitmentNumber && (
-                            <p className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800">
+                            <p className="mt-3 rounded-2xl border border-emerald-200 bg-white p-4 text-sm text-emerald-800">
                                 <strong>Empenho:</strong> {order.commitmentNumber}
                             </p>
                         )}
@@ -210,13 +213,13 @@ export function OrderDetailsModal({
                                     <h3 className="font-bold text-slate-900">Orçamentos</h3>
                                 </div>
                                 {details.quotes.length === 0 ? (
-                                    <p className="mt-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                                    <p className="mt-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
                                         Nenhum orçamento enviado.
                                     </p>
                                 ) : (
                                     <div className="mt-3 space-y-3">
                                         {details.quotes.map((quote) => (
-                                            <article key={quote.id} className="rounded-2xl border border-slate-200 p-4">
+                                            <article key={quote.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                                     <div>
                                                         <p className="font-bold text-slate-900">Versão {quote.version}</p>
@@ -261,13 +264,13 @@ export function OrderDetailsModal({
                                     <h3 className="font-bold text-slate-900">Notas fiscais</h3>
                                 </div>
                                 {details.invoices.length === 0 ? (
-                                    <p className="mt-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
+                                    <p className="mt-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
                                         Nenhuma nota fiscal enviada.
                                     </p>
                                 ) : (
                                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                                         {details.invoices.map((invoice) => (
-                                            <article key={invoice.id} className="rounded-2xl border border-slate-200 p-4">
+                                            <article key={invoice.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                                                 <p className="text-xs font-bold uppercase tracking-wide text-slate-400">NF {invoice.invoiceNumber}</p>
                                                 <p className="mt-1 text-xl font-black text-slate-900">{currency.format(invoice.amount)}</p>
                                                 <p className="mt-1 text-xs text-slate-500">
@@ -337,10 +340,38 @@ export function OrderDetailsModal({
                                     </ol>
                                 )}
                             </section>
+
+                            {/* Bloco Dossiê de Prestação de Contas / Processo PDF */}
+                            <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700">
+                                        <Printer className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <p className="text-base font-bold text-slate-950">Dossiê e prestação de contas</p>
+                                        <p className="mt-1 text-sm leading-5 text-slate-500">
+                                            Imprimir ou baixar relatório único contendo capa da O.S., orçamentos, empenhos, NFs e fotos.
+                                        </p>
+                                    </div>
+                                </div>
+                                <SGFButton
+                                    variant="primary"
+                                    icon={Printer}
+                                    onClick={() => setShowDossier(true)}
+                                    className="shrink-0 font-semibold"
+                                >
+                                    Imprimir Dossiê OS
+                                </SGFButton>
+                            </section>
                         </>
                     )}
                 </div>
             </WorkshopModalShell>
+
+            <DossierPrintViewerModal
+                orderId={showDossier ? order.orderId : null}
+                onClose={() => setShowDossier(false)}
+            />
 
             {actionModal === 'quote' && (
                 <QuoteModal

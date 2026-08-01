@@ -101,7 +101,7 @@ export function QuoteModal({ order, onClose, onSuccess }: QuoteModalProps) {
             <div className="space-y-4">
                 {error && <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
                 {items.map((item, index) => (
-                    <div key={item.key} className="rounded-2xl border border-slate-200 p-4">
+                    <div key={item.key} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                         <div className="mb-3 flex items-center justify-between">
                             <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Item {index + 1}</p>
                             {items.length > 1 && (
@@ -138,12 +138,12 @@ export function QuoteModal({ order, onClose, onSuccess }: QuoteModalProps) {
                     Adicionar item
                 </SGFButton>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                     <SGFInput label="Válido até *" type="date" required min={new Date().toISOString().slice(0, 10)}
                         value={validUntil} onChange={(event) => setValidUntil(event.target.value)} fullWidth />
-                    <div className="rounded-2xl bg-blue-50 p-4">
-                        <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Total calculado</p>
-                        <p className="mt-1 text-2xl font-black text-blue-950">
+                    <div className="flex min-h-12 items-center justify-between gap-4 rounded-2xl border border-blue-200 bg-white px-4 py-3 sm:min-w-64">
+                        <p className="text-sm font-bold text-slate-700">Valor total</p>
+                        <p className="text-xl font-black text-blue-950">
                             {total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </p>
                     </div>

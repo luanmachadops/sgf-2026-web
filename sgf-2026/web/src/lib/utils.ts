@@ -59,6 +59,35 @@ export function formatDistanceToNow(date: Date | string): string {
 }
 
 /**
+ * Máscara de CPF em conformidade com a LGPD (ex: 123.***.***-45)
+ */
+export function maskCpfLGPD(cpf: string | null | undefined): string {
+    if (!cpf) return '—';
+    const digits = cpf.replace(/\D/g, '');
+    if (digits.length === 11) {
+        return `${digits.slice(0, 3)}.***.***-${digits.slice(9, 11)}`;
+    }
+    if (cpf.length > 5) {
+        return `${cpf.slice(0, 3)}***${cpf.slice(-2)}`;
+    }
+    return '***.***.***-**';
+}
+
+/**
+ * Formata o código do perfil/cargo para um rótulo legível
+ */
+export function formatRoleLabel(role: string | null | undefined): string {
+    if (!role) return 'Usuário';
+    const r = role.toLowerCase();
+    if (r === 'admin' || r === 'administrador') return 'Administrador';
+    if (r === 'manager' || r === 'gestor') return 'Gestor de Frota';
+    if (r === 'driver' || r === 'motorista') return 'Motorista';
+    if (r === 'shop' || r === 'oficina') return 'Oficina Credenciada';
+    if (r === 'fiscal' || r === 'contabilidade') return 'Fiscal / Contabilidade';
+    return role.toUpperCase();
+}
+
+/**
  * Format CPF — tolerante a null/undefined (motoristas podem não ter CPF cadastrado ainda).
  */
 export function formatCPF(cpf: string | null | undefined): string {

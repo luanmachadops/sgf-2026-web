@@ -2743,11 +2743,19 @@ export const serviceOrderFiscalApi = withFotoUrls({
     events: async (orderId: string) => {
         const { data, error } = await supabase
             .from('service_order_events')
-            .select('*, profiles(full_name)')
+            .select('*, profiles:profiles!service_order_events_actor_id_fkey(full_name, cpf, role, department, departments(name))')
             .eq('service_order_id', orderId)
             .order('created_at', { ascending: false });
         if (error) handleError(error);
-        return (data ?? []) as (Tables<'service_order_events'> & { profiles?: { full_name: string } | null })[];
+        return (data ?? []) as (Tables<'service_order_events'> & {
+            profiles?: {
+                full_name: string;
+                cpf?: string | null;
+                role?: string | null;
+                department?: string | null;
+                departments?: { name: string } | null;
+            } | null;
+        })[];
     },
 });
 

@@ -13,6 +13,7 @@ import {
     Edit,
     FileText,
     Gauge,
+    Printer,
     ShieldCheck,
     User,
     Wrench,
@@ -22,6 +23,7 @@ import { maintenancesApi } from '@/lib/supabase-api';
 import { useAuthorizeMaintenance, useCancelMaintenance } from '@/hooks/useMaintenances';
 import { useRepairShops } from '@/hooks/useRepairShops';
 import { ServiceOrderFiscalPanel } from './ServiceOrderFiscalPanel';
+import { DossierPrintViewerModal } from './DossierPrintViewerModal';
 import { formatDate, getPriorityStyles } from '@/lib/utils';
 import type { Tables } from '@/types/database.types';
 import type { FinStatus, OpStatus } from '@/lib/supabase-api';
@@ -85,6 +87,7 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
     const [managerNote, setManagerNote] = useState('');
     const [cancelReason, setCancelReason] = useState('');
     const [showCancelInput, setShowCancelInput] = useState(false);
+    const [showDossier, setShowDossier] = useState(false);
     const authorize = useAuthorizeMaintenance();
     const cancel = useCancelMaintenance();
     const { data: repairShops = [], isLoading: shopsLoading } = useRepairShops({ activeOnly: true });
@@ -402,8 +405,36 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                             <p className="text-sm text-red-900">{m.admin_note}</p>
                         </div>
                     )}
+
+                    {/* Bloco Dossiê de Prestação de Contas / Processo PDF */}
+                    <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-white text-emerald-700">
+                                <Printer className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <p className="text-base font-bold text-slate-950">Dossiê e prestação de contas</p>
+                                <p className="mt-1 text-sm leading-5 text-slate-500">
+                                    Gerar relatório consolidado com capa oficial, orçamentos, empenhos, NFs e fotos em 1 único PDF.
+                                </p>
+                            </div>
+                        </div>
+                        <SGFButton
+                            variant="primary"
+                            icon={Printer}
+                            onClick={() => setShowDossier(true)}
+                            className="shrink-0 font-semibold"
+                        >
+                            Imprimir Dossiê OS
+                        </SGFButton>
+                    </div>
                 </div>
             )}
+
+            <DossierPrintViewerModal
+                orderId={showDossier && m ? m.id : null}
+                onClose={() => setShowDossier(false)}
+            />
         </Modal>
     );
 }
