@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Modal } from '@/components/ui/Modal';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
@@ -24,6 +23,7 @@ import { useAuthorizeMaintenance, useCancelMaintenance } from '@/hooks/useMainte
 import { useRepairShops } from '@/hooks/useRepairShops';
 import { ServiceOrderFiscalPanel } from './ServiceOrderFiscalPanel';
 import { DossierPrintViewerModal } from './DossierPrintViewerModal';
+import { WorkshopModalShell } from '@/components/partners/workshop/WorkshopModalShell';
 import { formatDate, getPriorityStyles } from '@/lib/utils';
 import type { Tables } from '@/types/database.types';
 import type { FinStatus, OpStatus } from '@/lib/supabase-api';
@@ -143,17 +143,21 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
         }
     };
 
-    const hasFooter = canCancel || op === 'pending';
+    if (!maintenanceId) return null;
 
     return (
-        <Modal
-            isOpen={Boolean(maintenanceId)}
+        <WorkshopModalShell
             onClose={onClose}
-            title="Fluxo da ordem de serviço"
-            size="xl"
+            eyebrow="Ordem de serviço"
+            title={m?.vehicles
+                ? `${m.vehicles.plate} · ${m.vehicles.brand ?? ''} ${m.vehicles.model ?? ''}`.trim()
+                : 'Carregando ordem de serviço…'}
+            subtitle={m ? `Aberta em ${formatDate(m.created_at, 'dd/MM/yyyy, HH:mm')}` : undefined}
+            busy={busy}
+            maxWidthClass="sm:max-w-4xl"
+            zIndexClass="z-50"
             footer={
-                hasFooter ? (
-                    showCancelInput ? (
+                showCancelInput ? (
                         <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:items-center">
                             <div className="flex-1">
                                 <SGFInput
@@ -188,8 +192,13 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                             </div>
                         </div>
                     ) : (
-                        <div className="flex w-full items-center justify-between">
-                            <div>
+                        <div className="flex w-full flex-wrap items-center justify-end gap-2">
+                                <SGFButton variant="ghost" onClick={onClose}>Fechar</SGFButton>
+                                {onEdit && m && op === 'pending' && (
+                                    <SGFButton size="sm" variant="outline" icon={Edit} onClick={() => onEdit(m)}>
+                                        Editar solicitação
+                                    </SGFButton>
+                                )}
                                 {canCancel && (
                                     <SGFButton
                                         size="sm"
@@ -202,8 +211,6 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                                         Cancelar OS
                                     </SGFButton>
                                 )}
-                            </div>
-                            <div>
                                 {op === 'pending' && (
                                     <SGFButton
                                         size="sm"
@@ -214,10 +221,8 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                                         Autorizar e encaminhar
                                     </SGFButton>
                                 )}
-                            </div>
                         </div>
                     )
-                ) : undefined
             }
         >
             {isLoading || !m ? (
@@ -244,11 +249,6 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                             <SGFBadge variant={fin === 'paid' ? 'success' : fin === 'not_started' ? 'default' : 'warning'}>
                                 {FIN_LABEL[fin]}
                             </SGFBadge>
-                            {onEdit && op === 'pending' && (
-                                <SGFButton size="sm" variant="outline" icon={Edit} onClick={() => onEdit(m)}>
-                                    Editar solicitação
-                                </SGFButton>
-                            )}
                         </div>
                     </div>
 
@@ -435,7 +435,7 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                 orderId={showDossier && m ? m.id : null}
                 onClose={() => setShowDossier(false)}
             />
-        </Modal>
+        </WorkshopModalShell>
     );
 }
 

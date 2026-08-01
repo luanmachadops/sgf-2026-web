@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
-import { Check, DollarSign, FileText, Loader2, X } from '@/components/sgf/icons';
+import { Check, Clock, DollarSign, FileText, Loader2, X } from '@/components/sgf/icons';
 import { serviceOrderFiscalApi, type FinStatus, type OpStatus } from '@/lib/supabase-api';
 import { openPrivateDocument } from '@/lib/docStorage';
 import { formatCurrency, formatDate, formatRoleLabel, maskCpfLGPD } from '@/lib/utils';
@@ -18,36 +18,6 @@ interface Props {
     commitmentDocumentPath: string | null;
     tenantId: string;
 }
-
-/**
- * As 12 etapas do fluxo de manutenção como o município executa (do relato de
- * avaria ao pagamento), projetadas a partir dos DOIS eixos.
- *
- * A etapa não é uma coluna: é derivada. Foi por isso que operacional e
- * financeiro ficaram separados — o veículo é liberado quando volta da oficina
- * (`received`), não quando a contabilidade paga, que pode ser semanas depois.
- */
-const OP_ORDER: OpStatus[] = [
-    'pending', 'authorized', 'at_shop', 'awaiting_quote_approval', 'in_progress', 'ready', 'received',
-];
-const FIN_ORDER: FinStatus[] = [
-    'not_started', 'awaiting_commitment', 'committed', 'invoiced', 'attested', 'paid',
-];
-
-const ETAPAS: { n: number; label: string; quem: string; done: (op: OpStatus, fin: FinStatus) => boolean }[] = [
-    { n: 1,  label: 'Avaria identificada e solicitação aberta', quem: 'Motorista', done: () => true },
-    { n: 2,  label: 'Gestor autoriza e vincula a oficina', quem: 'Gestor',        done: (op) => OP_ORDER.indexOf(op) >= 1 },
-    { n: 3,  label: 'Veículo entregue na oficina',         quem: 'Motorista',     done: (op) => OP_ORDER.indexOf(op) >= 2 },
-    { n: 4,  label: 'Oficina envia o orçamento',           quem: 'Oficina',       done: (op) => OP_ORDER.indexOf(op) >= 3 },
-    { n: 5,  label: 'Gestor aprova e pede reserva',        quem: 'Gestor',        done: (_, fin) => FIN_ORDER.indexOf(fin) >= 1 },
-    { n: 6,  label: 'Contabilidade emite NAD/empenho',     quem: 'Contabilidade', done: (_, fin) => FIN_ORDER.indexOf(fin) >= 2 },
-    { n: 7,  label: 'Empenho libera a execução',           quem: 'Sistema',       done: (op) => OP_ORDER.indexOf(op) >= 4 },
-    { n: 8,  label: 'Oficina executa o serviço',           quem: 'Oficina',       done: (op) => OP_ORDER.indexOf(op) >= 5 },
-    { n: 9,  label: 'Conferência e retirada do veículo',   quem: 'Gestor',        done: (op) => OP_ORDER.indexOf(op) >= 6 },
-    { n: 10, label: 'Oficina emite a nota fiscal',         quem: 'Oficina',       done: (_, fin) => FIN_ORDER.indexOf(fin) >= 3 },
-    { n: 11, label: 'Gestor atesta (liquidação)',          quem: 'Gestor',        done: (_, fin) => FIN_ORDER.indexOf(fin) >= 4 },
-    { n: 12, label: 'Pagamento e arquivamento',            quem: 'Contabilidade', done: (_, fin) => FIN_ORDER.indexOf(fin) >= 5 },
-];
 
 const FIN_LABEL: Record<string, string> = {
     not_started: 'Não iniciado', awaiting_commitment: 'Aguardando empenho', committed: 'Empenhado',
@@ -168,27 +138,6 @@ export function ServiceOrderFiscalPanel({
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Situação do processo</p>
                     <p className="mt-1.5 text-base font-bold leading-snug text-slate-900">{FIN_LABEL[fin] ?? fin}</p>
                 </div>
-            </div>
-
-            {/* Linha do tempo das 12 etapas */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                <p className="mb-4 text-sm font-bold text-slate-900">Andamento do processo</p>
-                <ol className="space-y-3">
-                    {ETAPAS.map((e) => {
-                        const done = e.done(op, fin);
-                        return (
-                            <li key={e.n} className="flex items-center gap-3">
-                                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                                    done ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'
-                                }`}>
-                                    {done ? <Check className="h-3.5 w-3.5" /> : e.n}
-                                </span>
-                                <span className={`flex-1 text-sm leading-5 ${done ? 'font-medium text-slate-800' : 'text-slate-500'}`}>{e.label}</span>
-                                <span className="text-xs font-semibold text-slate-500">{e.quem}</span>
-                            </li>
-                        );
-                    })}
-                </ol>
             </div>
 
             {/* Ações do gestor, só a pertinente à etapa atual */}
@@ -427,49 +376,46 @@ export function ServiceOrderFiscalPanel({
                 )}
             </div>
 
-            {/* Trilha de auditoria */}
+            {/* Linha do tempo — mesma apresentação usada pela oficina */}
             {(data?.events ?? []).length > 0 && (
-                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                    <div className="mb-4">
-                        <h3 className="text-base font-bold text-slate-900">Trilha do processo</h3>
-                        <p className="mt-1 text-sm text-slate-500">Auditoria LGPD com identificação, papel e horário de cada ação.</p>
+                <section>
+                    <div className="mb-4 flex items-center gap-2">
+                        <Clock className="h-5 w-5 text-blue-700" />
+                        <div>
+                            <h3 className="text-base font-bold text-slate-900">Linha do tempo</h3>
+                            <p className="text-sm text-slate-500">Trilha do processo (Auditoria LGPD)</p>
+                        </div>
                     </div>
-                    <ul className="space-y-3">
-                        {(data?.events ?? []).map((ev) => {
+                    <ol>
+                        {(data?.events ?? []).map((ev, index) => {
                             const name = ev.profiles?.full_name ?? 'Sistema / Automático';
                             const role = formatRoleLabel(ev.profiles?.role || ev.actor_role);
                             const cpfMasked = maskCpfLGPD(ev.profiles?.cpf);
                             const dept = ev.profiles?.departments?.name || ev.profiles?.department;
 
                             return (
-                                <li key={ev.id} className="flex gap-3 rounded-xl border border-slate-200 bg-white p-4">
-                                    <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500 ring-4 ring-emerald-100" />
+                                <li key={ev.id} className="relative flex gap-4 pb-6 last:pb-0">
+                                    {index < (data?.events ?? []).length - 1 && (
+                                        <span className="absolute left-[5px] top-3 h-full w-px bg-slate-200" />
+                                    )}
+                                    <span className="relative mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-blue-500 ring-4 ring-blue-100" />
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-semibold leading-5 text-slate-900">{ev.note || `${ev.from_state ?? '—'} → ${ev.to_state ?? '—'}`}</p>
-                                        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-slate-600">
-                                            <span className="font-bold text-slate-700">{name}</span>
-                                            <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-bold text-slate-600">
-                                                {role}
-                                            </span>
+                                        <p className="text-sm font-bold leading-5 text-slate-800">{ev.note || `${ev.from_state ?? '—'} → ${ev.to_state ?? '—'}`}</p>
+                                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                                            {formatDate(ev.created_at, 'dd/MM/yyyy, HH:mm')} · {role.toLocaleLowerCase('pt-BR')}
+                                        </p>
+                                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                                            <span>{name}</span>
                                             {cpfMasked !== '—' && (
-                                                <span className="font-mono text-xs text-slate-500">
-                                                    CPF: {cpfMasked}
-                                                </span>
+                                                <span className="font-mono">CPF: {cpfMasked}</span>
                                             )}
-                                            {dept && (
-                                                <span className="text-slate-500">
-                                                    · {dept}
-                                                </span>
-                                            )}
-                                            <span className="text-slate-400">
-                                                · {formatDate(ev.created_at, 'dd/MM/yyyy HH:mm')}
-                                            </span>
+                                            {dept && <span>· {dept}</span>}
                                         </div>
                                     </div>
                                 </li>
                             );
                         })}
-                    </ul>
+                    </ol>
                 </section>
             )}
 
