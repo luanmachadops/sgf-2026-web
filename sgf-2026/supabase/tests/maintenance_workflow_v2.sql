@@ -280,11 +280,20 @@ begin
     true
   );
   perform public.repair_shop_start_service(order_a);
+  insert into storage.objects (bucket_id, name, owner_id)
+  values (
+    'fotos',
+    format(
+      'tenant/%s/repair_shops/%s/service_orders/%s/completion/final.webp',
+      tenant_a, shop_a, order_a
+    ),
+    workshop_a::text
+  );
   perform public.repair_shop_finish_service_v2(
     order_a,
     'Pastilhas substituídas, fluido verificado e frenagem testada',
     array[format(
-      'https://example.supabase.co/storage/v1/object/public/fotos/tenant/%s/repair_shops/%s/service_orders/%s/final.webp',
+      'tenant/%s/repair_shops/%s/service_orders/%s/completion/final.webp',
       tenant_a, shop_a, order_a
     )]
   );

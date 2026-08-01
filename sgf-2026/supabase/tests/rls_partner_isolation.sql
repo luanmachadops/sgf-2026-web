@@ -301,11 +301,20 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', u_oficina_a1, 'role','authenticated')::text, true);
   begin
     perform public.repair_shop_start_service(so_a1);
+    insert into storage.objects (bucket_id, name, owner_id)
+    values (
+      'fotos',
+      format(
+        'tenant/%s/repair_shops/%s/service_orders/%s/completion/final.webp',
+        t_a, of_a1, so_a1
+      ),
+      u_oficina_a1::text
+    );
     perform public.repair_shop_finish_service_v2(
       so_a1,
       'Pastilhas substituídas e sistema revisado',
       array[format(
-        'https://example.supabase.co/storage/v1/object/public/fotos/tenant/%s/repair_shops/%s/service_orders/%s/final.webp',
+        'tenant/%s/repair_shops/%s/service_orders/%s/completion/final.webp',
         t_a, of_a1, so_a1
       )]
     );
