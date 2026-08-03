@@ -256,7 +256,6 @@ function OrdersView({
     const ordersQuery = useQuery({
         queryKey: ['workshop-orders', context.repairShopId],
         queryFn: workshopPortalApi.getOrders,
-        refetchInterval: 30_000,
     });
 
     const groups = useMemo(() => {
@@ -285,7 +284,9 @@ function OrdersView({
     const requestedOrder = requestedOrderId
         ? orders.find((order) => order.orderId === requestedOrderId) ?? null
         : null;
-    const activeSelectedOrder = selectedOrder ?? requestedOrder;
+    const activeSelectedOrder = selectedOrder
+        ? orders.find((order) => order.orderId === selectedOrder.orderId) ?? selectedOrder
+        : requestedOrder;
 
     return (
         <>
@@ -688,7 +689,7 @@ export default function WorkshopPortal() {
             headerMeta={activeTab === 'orders' ? (
                 <div className="flex items-center gap-2 text-xs text-slate-400">
                     <RefreshCw className="h-3.5 w-3.5" />
-                    Atualização automática a cada 30 s
+                    Atualização em tempo real
                 </div>
             ) : undefined}
         >

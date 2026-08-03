@@ -33,16 +33,13 @@ function usageTone(value: number | null): string {
 
 export function ContractUsageGauge({
     value,
-    label = 'consumido',
     className = '',
 }: {
     value: number | null;
-    label?: string;
     className?: string;
 }) {
     const bounded = Math.min(Math.max(value ?? 0, 0), 100);
     const needle = point(180 + bounded * 1.8, 60);
-    const tone = usageTone(value);
     const accessibleValue = value == null ? 'teto não configurado' : `${percent.format(value)}% consumido`;
 
     return (
@@ -68,14 +65,6 @@ export function ContractUsageGauge({
                 <circle cx="100" cy="100" r="8" fill="#0F2B2F" />
                 <circle cx="100" cy="100" r="3" fill="#FFFFFF" />
             </svg>
-            <div className="absolute inset-x-0 bottom-0 text-center">
-                <p className="text-2xl font-black tabular-nums" style={{ color: tone }}>
-                    {value == null ? '—' : `${percent.format(value)}%`}
-                </p>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
-                    {value == null ? 'sem teto cadastrado' : label}
-                </p>
-            </div>
         </div>
     );
 }
@@ -109,14 +98,25 @@ export function ContractUsagePanel({ usage }: { usage: ProcurementContractUsage 
     return (
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="grid lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.8fr)]">
-                <div className="flex flex-col justify-center bg-slate-50 px-6 py-7">
+                <div className="flex flex-col bg-slate-50 px-6 py-7">
                     <div>
                         <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--sgf-primary)]">
                             Licitação {usage.contractNumber || 'sem número'}
                         </p>
                         <h2 className="mt-1 text-lg font-black text-[var(--sgf-dark)]">Consumo do valor contratado</h2>
                     </div>
-                    <ContractUsageGauge value={usage.consumedPercent} />
+                    <div className="mt-6 text-center">
+                        <p
+                            className="text-4xl font-black tabular-nums"
+                            style={{ color: usageTone(usage.consumedPercent) }}
+                        >
+                            {usage.consumedPercent == null ? '—' : `${percent.format(usage.consumedPercent)}%`}
+                        </p>
+                        <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                            Valor contratado: {usage.contractValue == null ? 'não informado' : currency.format(usage.contractValue)}
+                        </p>
+                    </div>
+                    <ContractUsageGauge value={usage.consumedPercent} className="mt-3" />
                     <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
                         <span>0%</span>
                         <span>atenção em 80%</span>

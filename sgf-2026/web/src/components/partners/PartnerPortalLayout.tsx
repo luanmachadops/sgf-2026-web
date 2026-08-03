@@ -20,6 +20,7 @@ import {
     type IconType,
 } from '@/components/sgf/icons';
 import { cn } from '@/lib/utils';
+import { usePartnerRealtimeSync } from '@/hooks/usePartnerRealtimeSync';
 
 export interface PartnerNavItem {
     label: string;
@@ -147,6 +148,8 @@ export function PartnerPortalLayout({
     const { branding } = useBranding();
     const [mobileOpen, setMobileOpen] = useState(false);
     const fallbackPath = portal === 'posto' ? '/posto' : '/oficina';
+
+    usePartnerRealtimeSync(fallbackPath, user?.id);
 
     return (
         <div className="flex h-[100dvh] overflow-hidden bg-[#0F2B2F]">

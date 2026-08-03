@@ -19,13 +19,16 @@ export function StationSupplementalOperations({ tenantId, stationId }: { tenantI
     const query = useQuery({
         queryKey: ['station-operations-pending'],
         queryFn: stationOperationsApi.getPending,
-        refetchInterval: 30_000,
     });
+
+    const activeSelected = selected
+        ? query.data?.find((item) => item.operationId === selected.operationId) ?? null
+        : null;
     const complete = useMutation({
         mutationFn: async () => {
-            if (!selected || !evidence) throw new Error('Preencha os dados e anexe a evidência.');
+            if (!activeSelected || !evidence) throw new Error('Preencha os dados e anexe a evidência.');
             return stationOperationsApi.complete({
-                operation: selected,
+                operation: activeSelected,
                 quantity: Number(quantity),
                 odometer: Number(odometer),
                 receiptNumber: receipt.trim(),
@@ -51,7 +54,7 @@ export function StationSupplementalOperations({ tenantId, stationId }: { tenantI
         setQuantity(String(row.authorizedQuantity));
     };
     const canSubmit = Boolean(
-        selected && Number(quantity) > 0 && Number(quantity) <= selected.authorizedQuantity
+        activeSelected && Number(quantity) > 0 && Number(quantity) <= activeSelected.authorizedQuantity
         && Number(odometer) > 0 && receipt.trim() && evidence,
     );
 
@@ -93,10 +96,10 @@ export function StationSupplementalOperations({ tenantId, stationId }: { tenantI
                 </div>
             </SGFCard>
             <Modal
-                isOpen={Boolean(selected)}
+                isOpen={Boolean(activeSelected)}
                 onClose={() => setSelected(null)}
-                title={selected ? `Registrar ${selected.itemName}` : 'Registrar operação'}
-                description={selected?.protocol}
+                title={activeSelected ? `Registrar ${activeSelected.itemName}` : 'Registrar operação'}
+                description={activeSelected?.protocol}
                 size="lg"
                 footer={<ModalFooter>
                     <SGFButton variant="ghost" onClick={() => setSelected(null)}>Cancelar</SGFButton>
@@ -105,14 +108,14 @@ export function StationSupplementalOperations({ tenantId, stationId }: { tenantI
                     </SGFButton>
                 </ModalFooter>}
             >
-                {selected ? (
+                {activeSelected ? (
                     <div className="space-y-4">
                         <div className="flex items-center justify-between rounded-2xl bg-emerald-50 p-4">
-                            <div><p className="text-xs font-bold uppercase text-emerald-700">Preço contratual</p><strong>{money.format(selected.unitPrice)}/{selected.unit}</strong></div>
-                            <SGFBadge variant="info">Até {selected.authorizedQuantity} {selected.unit}</SGFBadge>
+                            <div><p className="text-xs font-bold uppercase text-emerald-700">Preço contratual</p><strong>{money.format(activeSelected.unitPrice)}/{activeSelected.unit}</strong></div>
+                            <SGFBadge variant="info">Até {activeSelected.authorizedQuantity} {activeSelected.unit}</SGFBadge>
                         </div>
                         <div className="grid gap-4 sm:grid-cols-2">
-                            <SGFInput label={`Quantidade (${selected.unit})`} type="number" min="0.001" max={selected.authorizedQuantity} step="0.001"
+                            <SGFInput label={`Quantidade (${activeSelected.unit})`} type="number" min="0.001" max={activeSelected.authorizedQuantity} step="0.001"
                                 value={quantity} onChange={(event) => setQuantity(event.target.value)} fullWidth />
                             <SGFInput label="Hodômetro (km)" type="number" min="1" step="1"
                                 value={odometer} onChange={(event) => setOdometer(event.target.value)} fullWidth />
@@ -124,7 +127,7 @@ export function StationSupplementalOperations({ tenantId, stationId }: { tenantI
                             <input className="sr-only" type="file" accept="image/*" capture="environment" onChange={(event) => setEvidence(event.target.files?.[0] ?? null)} />
                         </label>
                         <div className="rounded-2xl bg-slate-50 p-4 text-sm">
-                            Total calculado: <strong>{money.format(Number(quantity || 0) * selected.unitPrice)}</strong>
+                            Total calculado: <strong>{money.format(Number(quantity || 0) * activeSelected.unitPrice)}</strong>
                         </div>
                     </div>
                 ) : null}

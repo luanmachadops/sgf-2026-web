@@ -200,7 +200,9 @@ export default function Refuelings() {
             )
         ) ?? null;
     }, [paramId, paramSearch, refuelings]);
-    const selectedRefueling = manualSelectedRefueling ?? requestedRefueling;
+    const selectedRefueling = manualSelectedRefueling
+        ? refuelings.find((item) => item.id === manualSelectedRefueling.id) ?? manualSelectedRefueling
+        : requestedRefueling;
 
     const totalLiters = filteredRefuelings.reduce((sum, row) => sum + row.liters, 0);
     const totalCost = filteredRefuelings.reduce((sum, row) => sum + row.cost, 0);

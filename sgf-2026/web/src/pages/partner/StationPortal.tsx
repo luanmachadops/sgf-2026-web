@@ -493,14 +493,14 @@ function PendingAuthorizations({
     const query = useQuery({
         queryKey: ['station-pending'],
         queryFn: stationPortalApi.getPending,
-        refetchInterval: 30_000,
-        staleTime: 10_000,
     });
 
     const requestedAuthorization = requestedFuelingId
         ? query.data?.find((item) => item.fuelingId === requestedFuelingId) ?? null
         : null;
-    const activeSelected = selected ?? requestedAuthorization;
+    const activeSelected = selected
+        ? query.data?.find((item) => item.fuelingId === selected.fuelingId) ?? null
+        : requestedAuthorization;
 
     const closeSelected = () => {
         setSelected(null);
@@ -678,7 +678,9 @@ function StationHistory({
             ?? items.find((item) => item.fuelingId === requestedFuelingId)
             ?? null
         : null;
-    const activeSelected = selected ?? requestedItem;
+    const activeSelected = selected
+        ? items.find((item) => item.fuelingId === selected.fuelingId) ?? selected
+        : requestedItem;
 
     const closeSelected = () => {
         setSelected(null);
@@ -1170,7 +1172,7 @@ export default function StationPortal() {
             headerMeta={activeTab === 'pending' ? (
                 <div className="flex items-center gap-2 text-xs text-slate-400">
                     <RefreshCw className="h-3.5 w-3.5" />
-                    Atualização automática a cada 30 s
+                    Atualização em tempo real
                 </div>
             ) : undefined}
         >

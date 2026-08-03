@@ -40,7 +40,6 @@ export function PartnerNotificationBell({ userId, fallbackPath, variant = 'dark'
             ]);
             return { items, unread };
         },
-        refetchInterval: 30_000,
     });
 
     useEffect(() => {

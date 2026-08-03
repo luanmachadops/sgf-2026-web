@@ -126,9 +126,10 @@ export function groupNotificationsByDate(notifications: NotificationRecord[]): N
 export function showClickableNotification(
     n: NotificationRecord,
     navigate: (route: string) => void,
-    onMarkRead?: (id: string) => void
+    onMarkRead?: (id: string) => void,
+    resolveRoute: (notification: NotificationRecord) => string = resolveNotificationRoute,
 ) {
-    const route = resolveNotificationRoute(n);
+    const route = resolveRoute(n);
 
     const handleNavigate = () => {
         if (n.id && onMarkRead) {
@@ -189,4 +190,3 @@ export function showClickableNotification(
         );
     }, { duration: 8000 });
 }
-
