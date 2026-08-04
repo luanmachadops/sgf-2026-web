@@ -91,10 +91,11 @@ type RefuelingRow = {
 
 export default function Refuelings() {
     const [searchParams, setSearchParams] = useSearchParams();
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') ?? '');
     const [workflowTab, setWorkflowTab] = useState<WorkflowTab>('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [showAuthorizeModal, setShowAuthorizeModal] = useState(false);
+    const [commitmentStationId, setCommitmentStationId] = useState<string | null>(null);
     const [manualSelectedRefueling, setSelectedRefueling] = useState<RefuelingRow | null>(null);
     const [reviewReason, setReviewReason] = useState('');
     const [photoViewer, setPhotoViewer] = useState<{ images: string[]; index: number } | null>(null);
@@ -106,12 +107,6 @@ export default function Refuelings() {
 
     const paramId = searchParams.get('id') || searchParams.get('refuelingId');
     const paramSearch = searchParams.get('search');
-
-    useEffect(() => {
-        if (paramSearch) {
-            setSearchTerm(paramSearch);
-        }
-    }, [paramSearch]);
 
     useEffect(() => {
         setTitle('Abastecimentos');
@@ -400,7 +395,10 @@ export default function Refuelings() {
             </div>
 
             <StationOperationsPanel />
-            <StationClosingsPanel />
+            <StationClosingsPanel
+                openCommitmentForStationId={commitmentStationId}
+                onCommitmentHandled={() => setCommitmentStationId(null)}
+            />
 
             <Modal
                 isOpen={!!selectedRefueling}
@@ -686,12 +684,20 @@ export default function Refuelings() {
                 <NewRefuelingForm
                     onSuccess={() => setShowAddModal(false)}
                     onCancel={() => setShowAddModal(false)}
+                    onOpenCommitment={(stationId) => {
+                        setShowAddModal(false);
+                        setCommitmentStationId(stationId);
+                    }}
                 />
             </Modal>
 
             <AuthorizeFuelingModal
                 isOpen={showAuthorizeModal}
                 onClose={() => setShowAuthorizeModal(false)}
+                onOpenCommitment={(stationId) => {
+                    setShowAuthorizeModal(false);
+                    setCommitmentStationId(stationId);
+                }}
             />
         </div>
     );

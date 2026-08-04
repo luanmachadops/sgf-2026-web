@@ -21,6 +21,14 @@ export interface StationFiscalDashboard {
 const fail = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
 
 export const stationClosingApi = {
+    getCommitmentBalance: async (stationId: string, on: string): Promise<number> => {
+        const { data, error } = await supabase.rpc('manager_get_station_commitment_balance', {
+            p_station_id: stationId,
+            p_on: on,
+        });
+        fail(error);
+        return Number(data ?? 0);
+    },
     list: async (): Promise<StationClosing[]> => {
         const { data, error } = await supabase.rpc('get_station_closing_register', {});
         fail(error);

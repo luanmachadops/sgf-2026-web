@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { SGFBadge, SGFButton, SGFCard, SGFInput, SGFSelect } from '@/components/sgf';
@@ -8,7 +8,15 @@ import { stationClosingApi, type StationClosing } from '@/lib/station-closing-ap
 import { stationsApi } from '@/lib/supabase-api';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
-export function StationClosingsPanel() {
+interface StationClosingsPanelProps {
+    openCommitmentForStationId?: string | null;
+    onCommitmentHandled?: () => void;
+}
+
+export function StationClosingsPanel({
+    openCommitmentForStationId,
+    onCommitmentHandled,
+}: StationClosingsPanelProps = {}) {
     const client = useQueryClient();
     const [selected, setSelected] = useState<StationClosing | null>(null);
     const [note, setNote] = useState('');
@@ -28,6 +36,19 @@ export function StationClosingsPanel() {
         queryFn: () => stationClosingApi.listCommitments(selected?.stationId ?? ''),
         enabled: Boolean(selected?.stationId),
     });
+    useEffect(() => {
+        if (!openCommitmentForStationId) return;
+        const frame = window.requestAnimationFrame(() => {
+            setCommitmentForm((form) => ({ ...form, stationId: openCommitmentForStationId }));
+            setCommitmentOpen(true);
+            onCommitmentHandled?.();
+            document.getElementById('station-fiscal-panel')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+            });
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, [onCommitmentHandled, openCommitmentForStationId]);
     const refresh = () => {
         void client.invalidateQueries({ queryKey: ['station-closing-register'] });
         void client.invalidateQueries({ queryKey: ['station-fiscal-dashboard'] });
@@ -59,6 +80,8 @@ export function StationClosingsPanel() {
             toast.success('Empenho prévio cadastrado.');
             setCommitmentOpen(false);
             void client.invalidateQueries({ queryKey: ['station-commitments'] });
+            void client.invalidateQueries({ queryKey: ['station-commitment-balance'] });
+            void client.invalidateQueries({ queryKey: ['procurement'] });
         },
         onError: (error) => toast.error((error as Error).message),
     });
@@ -70,7 +93,7 @@ export function StationClosingsPanel() {
     }), { review: 0, fiscal: 0, payment: 0, open: 0 });
     return (
         <>
-            <SGFCard padding="none" className="overflow-hidden">
+            <SGFCard id="station-fiscal-panel" padding="none" className="overflow-hidden scroll-mt-24">
                 <div className="border-b border-slate-100 px-5 py-4">
                     <div className="float-right"><SGFButton size="sm" onClick={() => setCommitmentOpen(true)}>Cadastrar empenho/NAD</SGFButton></div>
                     <h2 className="font-bold text-slate-900">Fechamentos fiscais dos postos</h2>

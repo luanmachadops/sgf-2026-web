@@ -3291,6 +3291,10 @@ export type Database = {
         }
         Returns: string
       }
+      manager_get_station_commitment_balance: {
+        Args: { p_station_id: string; p_on?: string }
+        Returns: number
+      }
       manager_delete_vehicle: {
         Args: {
           p_plate_confirmation: string

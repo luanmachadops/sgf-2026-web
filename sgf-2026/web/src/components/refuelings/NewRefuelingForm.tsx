@@ -15,6 +15,7 @@ import { useDrivers } from '@/hooks/useDrivers';
 import { getStationUnavailableReason } from '@/lib/stationStatus';
 import { formatDriverLabel, parseWholeKilometers } from '@/lib/utils';
 import { procurementApi } from '@/lib/procurement-api';
+import { stationClosingApi } from '@/lib/station-closing-api';
 
 // Slot de foto: faz upload ao selecionar e devolve a URL pública.
 function PhotoUpload({ label, hint, url, onChange }: { label: string; hint: string; url: string; onChange: (u: string) => void }) {
@@ -66,6 +67,7 @@ function PhotoUpload({ label, hint, url, onChange }: { label: string; hint: stri
 interface NewRefuelingFormProps {
     onSuccess: () => void;
     onCancel: () => void;
+    onOpenCommitment?: (stationId: string) => void;
 }
 
 const FUEL_OPTIONS = [
@@ -75,7 +77,7 @@ const FUEL_OPTIONS = [
     { value: 'GNV', label: 'GNV' },
 ];
 
-export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps) {
+export function NewRefuelingForm({ onSuccess, onCancel, onOpenCommitment }: NewRefuelingFormProps) {
     const queryClient = useQueryClient();
     const { user } = useAuth();
     const { data: settings } = useAppSettings();
@@ -145,6 +147,21 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
         const amount = Number(liters) * Number(pricePerLiter);
         return Number.isFinite(amount) && amount > 0 ? amount.toFixed(2) : '';
     }, [liters, pricePerLiter]);
+
+    const commitmentBalance = useQuery({
+        queryKey: ['station-commitment-balance', stationId, date],
+        queryFn: () => stationClosingApi.getCommitmentBalance(stationId, date),
+        enabled: Boolean(stationId && date),
+        staleTime: 15_000,
+    });
+    const requiredCommitment = Number(totalValue || 0);
+    const availableCommitment = Number(commitmentBalance.data ?? 0);
+    const commitmentInsufficient = Boolean(
+        stationId
+        && commitmentBalance.isSuccess
+        && requiredCommitment > 0
+        && availableCommitment < requiredCommitment,
+    );
 
     // Combustível segue o veículo: específico → trava; flex → só Gasolina/Etanol.
     const FUEL_BY_VEHICLE: Record<string, string> = {
@@ -247,6 +264,13 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
         if (!user?.tenantId) return setError('Sessão expirada. Faça login novamente.');
         if (!liters || Number(liters) <= 0) return setError('Informe a quantidade de litros.');
         if (!pricePerLiter || Number(pricePerLiter) <= 0) return setError('Informe o preço por litro.');
+        if (commitmentInsufficient) {
+            return setError(
+                `Saldo de empenho insuficiente em ${new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR')}: `
+                + `disponível ${availableCommitment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}, `
+                + `necessário ${requiredCommitment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`,
+            );
+        }
         if (parsedOdometer === null || !Number.isSafeInteger(parsedOdometer) || parsedOdometer < 0) {
             return setError('Informe o hodômetro em quilômetros inteiros. Ex.: 45230 ou 45.230.');
         }
@@ -398,6 +422,37 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
                     />
                 </div>
 
+                {stationId && (
+                    <div className={`md:col-span-2 rounded-2xl border px-4 py-3 text-sm ${
+                        commitmentInsufficient
+                            ? 'border-rose-200 bg-rose-50 text-rose-700'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    }`}>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <p className="font-bold">
+                                    {commitmentBalance.isLoading
+                                        ? 'Consultando saldo do empenho...'
+                                        : `Saldo de empenho em ${new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR')}: ${availableCommitment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
+                                </p>
+                                <p className="mt-1 text-xs opacity-80">
+                                    O valor contratado da licitação e o saldo do empenho são controles diferentes. O fornecimento exige empenho prévio vigente.
+                                </p>
+                            </div>
+                            {onOpenCommitment && (
+                                <SGFButton
+                                    type="button"
+                                    size="sm"
+                                    variant={commitmentInsufficient ? 'danger' : 'secondary'}
+                                    onClick={() => onOpenCommitment(stationId)}
+                                >
+                                    Cadastrar empenho/NAD
+                                </SGFButton>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 <label className="md:col-span-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
                     <input
                         type="checkbox"
@@ -441,7 +496,7 @@ export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps)
                 <SGFButton type="button" variant="ghost" onClick={onCancel} disabled={isSaving}>
                     Cancelar
                 </SGFButton>
-                <SGFButton type="submit" icon={isSaving ? Loader2 : Save} disabled={isSaving}>
+                <SGFButton type="submit" icon={isSaving ? Loader2 : Save} disabled={isSaving || commitmentInsufficient}>
                     {isSaving ? 'Registrando...' : 'Registrar lançamento direto'}
                 </SGFButton>
             </div>

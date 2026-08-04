@@ -115,9 +115,33 @@ export function usePartnerRealtimeSync(
                 );
             },
         );
-        channel.subscribe();
+        let fallbackTimer: ReturnType<typeof setInterval> | null = null;
+        const stopFallback = () => {
+            if (!fallbackTimer) return;
+            clearInterval(fallbackTimer);
+            fallbackTimer = null;
+        };
+        const startFallback = () => {
+            if (fallbackTimer) return;
+            fallbackTimer = setInterval(
+                () => invalidatePartnerQueries(queryClient, portal),
+                10_000,
+            );
+        };
+
+        channel.subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                stopFallback();
+                invalidatePartnerQueries(queryClient, portal);
+                return;
+            }
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                startFallback();
+            }
+        });
 
         return () => {
+            stopFallback();
             void supabase.removeChannel(channel);
         };
     }, [navigate, portal, queryClient, userId]);

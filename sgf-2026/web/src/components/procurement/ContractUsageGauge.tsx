@@ -97,33 +97,45 @@ export function ContractUsagePanel({ usage }: { usage: ProcurementContractUsage 
 
     return (
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="grid lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.8fr)]">
-                <div className="flex flex-col bg-slate-50 px-6 py-7">
+            <div className="grid lg:grid-cols-[minmax(300px,0.85fr)_minmax(0,1.8fr)]">
+                {/* Card do Medidor de Consumo */}
+                <div className="flex flex-col items-center justify-between bg-slate-50 px-6 py-7 text-center border-b lg:border-b-0 lg:border-r border-slate-200">
+                    {/* 1. TOPO DO CARD: Títulos */}
                     <div>
                         <p className="text-xs font-bold uppercase tracking-[0.14em] text-[var(--sgf-primary)]">
                             Licitação {usage.contractNumber || 'sem número'}
                         </p>
-                        <h2 className="mt-1 text-lg font-black text-[var(--sgf-dark)]">Consumo do valor contratado</h2>
+                        <h2 className="mt-1 text-xl font-black tracking-tight text-[var(--sgf-dark)]">
+                            Consumo do valor contratado
+                        </h2>
                     </div>
-                    <div className="mt-6 text-center">
+
+                    {/* 2. MEIO: Porcentagem destacada */}
+                    <div className="my-5 flex flex-col items-center">
                         <p
-                            className="text-4xl font-black tabular-nums"
+                            className="text-5xl font-black tabular-nums tracking-tight leading-none"
                             style={{ color: usageTone(usage.consumedPercent) }}
                         >
                             {usage.consumedPercent == null ? '—' : `${percent.format(usage.consumedPercent)}%`}
                         </p>
-                        <p className="mt-1 text-[11px] font-semibold text-slate-500">
-                            Valor contratado: {usage.contractValue == null ? 'não informado' : currency.format(usage.contractValue)}
+                        {/* 3. EMBAIXO DA PORCENTAGEM: Valor contratado em letras pequenas */}
+                        <p className="mt-2 text-xs font-semibold text-slate-500">
+                            Valor contratado: <span className="font-bold text-slate-700">{usage.contractValue == null ? 'não informado' : currency.format(usage.contractValue)}</span>
                         </p>
                     </div>
-                    <ContractUsageGauge value={usage.consumedPercent} className="mt-3" />
-                    <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                        <span>0%</span>
-                        <span>atenção em 80%</span>
-                        <span>100%</span>
+
+                    {/* 4. GRÁFICO DO PONTEIRO: Sem nenhum texto sobre o ponteiro */}
+                    <div className="w-full max-w-[320px]">
+                        <ContractUsageGauge value={usage.consumedPercent} className="mt-1" />
+                        <div className="mt-2 flex items-center justify-between text-xs font-medium text-slate-400">
+                            <span>0%</span>
+                            <span className="text-slate-500 font-semibold">atenção em 80%</span>
+                            <span>100%</span>
+                        </div>
                     </div>
                 </div>
 
+                {/* Métricas ao lado (Lado direito) */}
                 <div className="p-5 sm:p-6">
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                         <Metric

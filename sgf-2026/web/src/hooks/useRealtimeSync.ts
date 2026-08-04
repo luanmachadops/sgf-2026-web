@@ -31,6 +31,8 @@ const TABLE_TO_KEYS: Record<string, string[][]> = {
     fuel_stations: [['stations'], ['procurement'], ['station-operations']],
     repair_shops: [['repair-shops'], ['maintenances'], ['procurement']],
     station_monthly_closings: [['station-closing-register'], ['station-fiscal-dashboard'], ['procurement']],
+    station_commitments: [['station-commitments'], ['procurement'], ['refuelings']],
+    station_closing_commitments: [['station-commitments'], ['station-closing-register'], ['station-fiscal-dashboard']],
     station_closing_invoices: [['station-closing-register'], ['station-fiscal-dashboard'], ['procurement']],
     station_closing_payments: [['station-closing-register'], ['station-fiscal-dashboard'], ['procurement']],
     station_monthly_closing_events: [['station-closing-register'], ['station-fiscal-dashboard']],
@@ -67,12 +69,39 @@ export function useRealtimeSync() {
             .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
                 const keys = TABLE_TO_KEYS[(payload as { table: string }).table];
                 if (keys) schedule(keys);
-            })
-            .subscribe();
+            });
+
+        let fallbackTimer: ReturnType<typeof setInterval> | null = null;
+        const stopFallback = () => {
+            if (!fallbackTimer) return;
+            clearInterval(fallbackTimer);
+            fallbackTimer = null;
+        };
+        const startFallback = () => {
+            if (fallbackTimer) return;
+            // O WebSocket continua sendo a fonte principal. Este refetch só
+            // opera durante CHANNEL_ERROR/TIMED_OUT/CLOSED e é desligado no
+            // primeiro SUBSCRIBED, evitando telas/modais congelados.
+            fallbackTimer = setInterval(() => {
+                void queryClient.refetchQueries({ type: 'active' });
+            }, 10_000);
+        };
+
+        channel.subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                stopFallback();
+                void queryClient.refetchQueries({ type: 'active' });
+                return;
+            }
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                startFallback();
+            }
+        });
 
         return () => {
             if (timer) clearTimeout(timer);
-            supabase.removeChannel(channel);
+            stopFallback();
+            void supabase.removeChannel(channel);
         };
     }, [queryClient]);
 }
