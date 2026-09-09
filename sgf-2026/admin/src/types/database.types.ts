@@ -1631,6 +1631,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+            check_current_access: { Args: Record<string, never>; Returns: undefined };
       get_tenant_branding: {
         Args: { p_slug: string }
         Returns: {

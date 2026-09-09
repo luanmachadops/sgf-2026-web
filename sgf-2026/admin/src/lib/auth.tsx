@@ -36,6 +36,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!userId) return;
+    let disposed = false;
+    const check = async () => {
+      const { error } = await supabase.rpc('check_current_access');
+      if (!disposed && error?.code === '42501') {
+        setUserId(null); setEmail(null); setIsSuperadmin(false);
+        await supabase.auth.signOut({ scope: 'local' });
+        window.location.replace(`${import.meta.env.BASE_URL}login`);
+      }
+    };
+    void check();
+    const timer = window.setInterval(() => void check(), 30_000);
+    const focus = () => void check();
+    window.addEventListener('focus', focus);
+    return () => { disposed = true; window.clearInterval(timer); window.removeEventListener('focus', focus); };
+  }, [userId]);
+
+  useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!active) return;

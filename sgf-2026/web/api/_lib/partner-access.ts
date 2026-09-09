@@ -65,6 +65,9 @@ export function assertCanManagePartners(caller: Caller | null): asserts caller i
 /** Carrega o parceiro e recusa se for de outra prefeitura. */
 async function loadPartnerScoped(caller: Caller, partnerType: PartnerType, partnerId: string) {
     assertPartnerType(partnerType);
+    if (!caller.allowedModules.includes(partnerType === 'posto' ? 'stations' : 'repair_shops')) {
+        throw Object.assign(new Error('Módulo do parceiro não autorizado.'), { status: 403 });
+    }
     const admin = getSupabaseAdmin();
     const { data, error } = await admin
         .from(TABLE[partnerType])

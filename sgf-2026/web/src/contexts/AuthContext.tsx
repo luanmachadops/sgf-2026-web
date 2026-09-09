@@ -364,6 +364,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         const handleInvalidAuth = () => {
+            queryClient.clear();
             setUser(null);
             setToken(null);
             persistAuthState(null, null);
@@ -375,7 +376,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
         window.addEventListener('sgf:auth-invalid', handleInvalidAuth);
         return () => window.removeEventListener('sgf:auth-invalid', handleInvalidAuth);
-    }, []);
+    }, [queryClient]);
+
+    // Realtime may itself stop delivering after RLS revokes access. Polling
+    // closes the visible session; database checks already deny each request.
+    useEffect(() => {
+        if (!user?.id) return;
+        let disposed = false;
+        const check = async () => {
+            const { error } = await supabase.rpc('check_current_access');
+            if (!disposed && error?.code === '42501') {
+                window.dispatchEvent(new Event('sgf:auth-invalid'));
+            }
+        };
+        void check();
+        const timer = window.setInterval(() => void check(), 30_000);
+        const focus = () => void check();
+        window.addEventListener('focus', focus);
+        return () => { disposed = true; window.clearInterval(timer); window.removeEventListener('focus', focus); };
+    }, [user?.id]);
 
     // Se o superadmin suspender a prefeitura enquanto o painel estiver aberto,
     // bloqueia a sessão imediatamente. O carregamento inicial acima continua

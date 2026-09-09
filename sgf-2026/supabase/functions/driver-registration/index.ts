@@ -1,3 +1,4 @@
+import { sessionAllowed } from '../_shared/session-access.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -98,7 +99,7 @@ async function managerContext(req: Request) {
   if (!token) return null;
   const sb = admin();
   const { data: authData } = await sb.auth.getUser(token);
-  if (!authData.user) return null;
+  if (!authData.user || !await sessionAllowed(sb, authData.user.id, token, 'drivers')) return null;
   const { data } = await sb
     .from("profiles")
     .select("id, tenant_id, department_id, role")

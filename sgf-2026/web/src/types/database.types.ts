@@ -2832,6 +2832,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+            check_current_access: { Args: Record<string, never>; Returns: undefined };
       get_department_budgets: { Args: { p_year: number }; Returns: Json }
       save_department_budget: { Args: { p_payload: Json }; Returns: string }
       get_department_budget_events: { Args: { p_contract_id: string; p_offset?: number }; Returns: Json }

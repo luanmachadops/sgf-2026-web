@@ -1,3 +1,4 @@
+import { sessionAllowed } from '../_shared/session-access.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -23,6 +24,7 @@ async function resolveTenant(req: Request): Promise<{ tenantId: string | null; b
     const sb = admin();
     const { data: u } = await sb.auth.getUser(token);
     if (!u?.user) return { tenantId: null, blocked: false };
+    if (!await sessionAllowed(sb, u.user.id, token, 'drivers', true)) return { tenantId: null, blocked: false };
     const { data: profile } = await sb.from('profiles').select('tenant_id').eq('id', u.user.id).maybeSingle();
     const tenantId = (profile as { tenant_id?: string } | null)?.tenant_id ?? null;
     if (!tenantId) return { tenantId: null, blocked: false };
@@ -84,6 +86,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const { tenantId, blocked } = await resolveTenant(req);
+    if (!tenantId) return new Response(JSON.stringify({ error: 'Sessão inválida ou acesso bloqueado.' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
     if (blocked) {
       return new Response(JSON.stringify({ error: 'Limite mensal de uso de IA atingido para esta prefeitura. Contate o administrador da plataforma.' }), { status: 402, headers: { ...CORS, 'Content-Type': 'application/json' } });
     }

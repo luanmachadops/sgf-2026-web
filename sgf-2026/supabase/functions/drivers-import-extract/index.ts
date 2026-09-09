@@ -1,3 +1,4 @@
+import { sessionAllowed } from '../_shared/session-access.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -20,6 +21,7 @@ async function tenantContext(req: Request) {
   const sb = admin();
   const { data } = await sb.auth.getUser(token);
   if (!data.user) return { tenantId: null, blocked: false };
+    if (!await sessionAllowed(sb, data.user.id, token, 'drivers')) return { tenantId: null, blocked: false };
   const { data: profile } = await sb.from('profiles').select('tenant_id').eq('id', data.user.id).maybeSingle();
   const tenantId = profile?.tenant_id ?? null;
   if (!tenantId) return { tenantId: null, blocked: false };
@@ -43,6 +45,7 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get('OPENROUTER_API_KEY');
     if (!apiKey) throw new Error('OPENROUTER_API_KEY não configurada.');
     const { tenantId, blocked } = await tenantContext(req);
+    if (!tenantId) return new Response(JSON.stringify({ error: 'Sessão inválida ou acesso bloqueado.' }), { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } });
     if (blocked) return new Response(JSON.stringify({ error: 'Limite mensal de IA atingido.' }), { status: 402, headers: { ...CORS, 'Content-Type': 'application/json' } });
     const body = await req.json().catch(() => ({}));
     const text = typeof body.text === 'string' ? body.text.slice(0, 60000) : '';

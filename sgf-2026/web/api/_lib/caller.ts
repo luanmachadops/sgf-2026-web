@@ -1,3 +1,4 @@
+import { assertServerSession } from './session-access.js';
 import { getSupabaseAdmin } from './supabase-admin.js';
 
 export interface Caller {
@@ -76,6 +77,7 @@ export async function getCaller(req: any): Promise<Caller | null> {
     const admin = getSupabaseAdmin();
     const { data, error } = await admin.auth.getUser(token);
     if (error || !data.user) return null;
+    await assertServerSession(admin, data.user.id, token);
 
     const { data: profile } = await admin
         .from('profiles')
@@ -121,6 +123,9 @@ export function assertCanManageDrivers(caller: Caller | null): asserts caller is
         const e: any = new Error('Sem permissão para gerenciar motoristas'); e.status = 403; throw e;
     }
     assertScopedToTenant(caller);
+    if (!caller.allowedModules.includes('drivers')) {
+        throw Object.assign(new Error('Módulo de motoristas não autorizado.'), { status: 403 });
+    }
 }
 
 /**
@@ -148,6 +153,7 @@ export function resolveScopedDepartment(caller: Caller, requested?: string | nul
  * - secretário: apenas motoristas da sua secretaria (dentro do seu tenant).
  */
 export async function assertCanActOnDriver(caller: Caller, driverId: string): Promise<void> {
+    assertCanManageDrivers(caller);
     if (!['admin', 'gestor', 'secretario'].includes(caller.role)) {
         const e: any = new Error('Sem permissão'); e.status = 403; throw e;
     }

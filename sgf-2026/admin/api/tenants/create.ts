@@ -1,3 +1,4 @@
+import { assertServerSession } from '../../../web/api/_lib/session-access.js';
 import { createClient } from '@supabase/supabase-js';
 import { assertStrongPassword } from '../_lib/password-policy.js';
 import { checkRateLimit, getClientIp, logRateLimitBlocked, sendRateLimited } from '../_lib/rate-limit.js';
@@ -21,6 +22,7 @@ async function assertSuperadmin(req: any, admin: ReturnType<typeof getAdmin>): P
   if (!token) throw Object.assign(new Error('Não autenticado'), { status: 401 });
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user) throw Object.assign(new Error('Sessão inválida'), { status: 401 });
+  await assertServerSession(admin, data.user.id, token);
   const { data: profile } = await admin.from('profiles').select('role').eq('id', data.user.id).single();
   if (profile?.role !== 'superadmin') throw Object.assign(new Error('Apenas superusuário'), { status: 403 });
   return data.user.id;

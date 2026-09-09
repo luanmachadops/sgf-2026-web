@@ -1,3 +1,4 @@
+import { assertServerSession } from '../../web/api/_lib/session-access.js';
 import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'node:crypto';
 
@@ -19,8 +20,12 @@ async function assertRole(req: any, admin: ReturnType<typeof getAdmin>, roles: s
   if (!token) throw Object.assign(new Error('Não autenticado'), { status: 401 });
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user) throw Object.assign(new Error('Sessão inválida'), { status: 401 });
-  const { data: profile } = await admin.from('profiles').select('role, tenant_id').eq('id', data.user.id).single();
+  await assertServerSession(admin, data.user.id, token);
+  const { data: profile } = await admin.from('profiles').select('role, tenant_id, allowed_modules').eq('id', data.user.id).single();
   if (!profile || !roles.includes(profile.role)) throw Object.assign(new Error('Sem permissão'), { status: 403 });
+  if (profile.role !== 'superadmin' && !profile.allowed_modules?.some((module: string) => ['fleet','map'].includes(module))) {
+    throw Object.assign(new Error('Módulo de frota/rastreamento não autorizado'), { status: 403 });
+  }
   return { userId: data.user.id, role: profile.role as string, tenantId: (profile.tenant_id as string | null) ?? null };
 }
 
