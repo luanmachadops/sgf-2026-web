@@ -21223,13 +21223,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // admin/dist/index.html
-var dist_default = '<!doctype html>\n<html lang="pt-BR">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n    <link rel="preconnect" href="https://fonts.googleapis.com" />\n    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />\n    <meta name="description" content="Painel superadministrativo da Exattus Rotta." />\n    <title>Exattus Rotta \u2014 Superadmin</title>\n    <script type="module" crossorigin src="/assets/index-DBWckIbB.js"></script>\n    <link rel="stylesheet" crossorigin href="/assets/index-BL150KDn.css">\n  </head>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>\n';
+var dist_default = '<!doctype html>\n<html lang="pt-BR">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n    <link rel="preconnect" href="https://fonts.googleapis.com" />\n    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />\n    <meta name="description" content="Painel superadministrativo da Exattus Rotta." />\n    <title>Exattus Rotta \u2014 Superadmin</title>\n    <script type="module" crossorigin src="/assets/index-BNGh2Jsl.js"></script>\n    <link rel="stylesheet" crossorigin href="/assets/index-BL150KDn.css">\n  </head>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>\n';
 
 // web/dist/index.html
-var dist_default2 = '<!doctype html>\n<html lang="pt-BR">\n\n<head>\n  <meta charset="UTF-8" />\n  <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n  <link rel="manifest" href="/manifest.webmanifest" />\n  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <meta name="description" content="Exattus Rotta \u2014 gest\xE3o inteligente de frotas p\xFAblicas." />\n  <meta name="theme-color" content="#0F2B2F" />\n  <meta name="mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />\n  <meta name="apple-mobile-web-app-title" content="Exattus Rotta" />\n  <title>Exattus Rotta \u2014 Gest\xE3o de Frotas</title>\n\n  <!-- Google Fonts - Inter -->\n  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\n\n  <!-- Leaflet CSS -->\n  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"\n    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />\n  <script type="module" crossorigin src="/assets/index-BhbMmF0V.js"></script>\n  <link rel="stylesheet" crossorigin href="/assets/index--eVPZJ5d.css">\n</head>\n\n<body>\n  <div id="root"></div>\n</body>\n\n</html>\n';
-
-// web/api/_lib/driver-access.ts
-import { randomBytes } from "node:crypto";
+var dist_default2 = '<!doctype html>\n<html lang="pt-BR">\n\n<head>\n  <meta charset="UTF-8" />\n  <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n  <link rel="manifest" href="/manifest.webmanifest" />\n  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <meta name="description" content="Exattus Rotta \u2014 gest\xE3o inteligente de frotas p\xFAblicas." />\n  <meta name="theme-color" content="#0F2B2F" />\n  <meta name="mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />\n  <meta name="apple-mobile-web-app-title" content="Exattus Rotta" />\n  <title>Exattus Rotta \u2014 Gest\xE3o de Frotas</title>\n\n  <!-- Google Fonts - Inter -->\n  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\n\n  <!-- Leaflet CSS -->\n  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"\n    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />\n  <script type="module" crossorigin src="/assets/index-BlbKofsz.js"></script>\n  <link rel="stylesheet" crossorigin href="/assets/index-CeKk2m2f.css">\n</head>\n\n<body>\n  <div id="root"></div>\n</body>\n\n</html>\n';
 
 // web/node_modules/@supabase/supabase-js/dist/index.mjs
 var dist_exports = {};
@@ -25773,6 +25770,35 @@ function getSupabaseAdmin() {
   });
 }
 
+// web/api/_lib/session-access.ts
+async function assertServerSession(admin, userId, verifiedToken) {
+  let sessionId;
+  try {
+    const claims = JSON.parse(
+      Buffer.from(verifiedToken.split(".")[1], "base64url").toString("utf8")
+    );
+    if (claims && typeof claims === "object" && "session_id" in claims)
+      sessionId = claims.session_id;
+  } catch {
+  }
+  if (typeof sessionId !== "string" || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(sessionId)) {
+    throw Object.assign(new Error("Sess\xE3o inv\xE1lida. Entre novamente."), {
+      status: 401
+    });
+  }
+  const { error } = await admin.rpc("assert_server_session", {
+    p_user_id: userId,
+    p_session_id: sessionId
+  });
+  if (error)
+    throw Object.assign(
+      new Error(
+        error.code === "42501" ? "Sess\xE3o revogada ou acesso bloqueado. Entre novamente." : "N\xE3o foi poss\xEDvel verificar a sess\xE3o. Tente novamente."
+      ),
+      { status: error.code === "42501" ? 401 : 503 }
+    );
+}
+
 // web/api/_lib/caller.ts
 function assertScopedToTenant(caller) {
   if (!caller.tenantId) {
@@ -25805,8 +25831,16 @@ async function getCaller(req) {
   const admin = getSupabaseAdmin();
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user) return null;
-  const { data: profile } = await admin.from("profiles").select("role, department_id, tenant_id, access_blocked, driver_status").eq("id", data.user.id).single();
+  await assertServerSession(admin, data.user.id, token);
+  const { data: profile } = await admin.from("profiles").select("role, department_id, tenant_id, access_blocked, driver_status, allowed_modules").eq("id", data.user.id).single();
   if (!profile) return null;
+  if (profile.role !== "superadmin") {
+    const { data: tenant, error: tenantError } = await admin.from("tenants").select("status").eq("id", profile.tenant_id).maybeSingle();
+    if (tenantError) throw Object.assign(new Error("N\xE3o foi poss\xEDvel verificar a prefeitura."), { status: 503 });
+    if (!tenant || tenant.status === "suspended") {
+      throw Object.assign(new Error("Acesso da prefeitura indispon\xEDvel."), { status: 403 });
+    }
+  }
   const accessBlocked = profile.access_blocked === true;
   const driverStatus = profile.driver_status ?? null;
   if (accessBlocked || driverStatus === "inativo" || driverStatus === "suspenso") {
@@ -25820,7 +25854,8 @@ async function getCaller(req) {
     departmentId: profile.department_id,
     tenantId: profile.tenant_id ?? null,
     accessBlocked,
-    driverStatus
+    driverStatus,
+    allowedModules: profile.allowed_modules ?? []
   };
 }
 function assertCanManageDrivers(caller) {
@@ -25835,6 +25870,9 @@ function assertCanManageDrivers(caller) {
     throw e;
   }
   assertScopedToTenant(caller);
+  if (!caller.allowedModules.includes("drivers")) {
+    throw Object.assign(new Error("M\xF3dulo de motoristas n\xE3o autorizado."), { status: 403 });
+  }
 }
 function resolveScopedDepartment(caller, requested) {
   if (caller.role === "secretario") {
@@ -25853,6 +25891,7 @@ function resolveScopedDepartment(caller, requested) {
   return requested ?? void 0;
 }
 async function assertCanActOnDriver(caller, driverId) {
+  assertCanManageDrivers(caller);
   if (!["admin", "gestor", "secretario"].includes(caller.role)) {
     const e = new Error("Sem permiss\xE3o");
     e.status = 403;
@@ -25880,8 +25919,13 @@ async function assertCanActOnDriver(caller, driverId) {
 }
 
 // web/api/_lib/password-policy.ts
+import { randomInt } from "node:crypto";
 var PASSWORD_MIN_LENGTH = 12;
 var PASSWORD_MAX_LENGTH = 72;
+function generateTempPassword() {
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  return Array.from({ length: 16 }, () => alphabet[randomInt(alphabet.length)]).join("");
+}
 function passwordPolicyMessage(label = "Senha") {
   return `${label} deve ter entre ${PASSWORD_MIN_LENGTH} e ${PASSWORD_MAX_LENGTH} caracteres`;
 }
@@ -25956,6 +26000,7 @@ async function createDriver(payload) {
   }
   const authEmail = buildDriverAuthEmail(normalizedCpf);
   const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    app_metadata: { tenant_id: payload.tenantId },
     email: authEmail,
     password: payload.password,
     email_confirm: true,
@@ -25996,12 +26041,6 @@ async function createDriver(payload) {
   }
   return driver;
 }
-function generateTempPassword() {
-  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  const bytes = randomBytes(8);
-  const chars = Array.from(bytes, (b) => alphabet[b % alphabet.length]);
-  return `${chars.slice(0, 4).join("")}-${chars.slice(4).join("")}`;
-}
 async function preRegisterDriver(payload) {
   const supabaseAdmin = getSupabaseAdmin();
   const normalizedCpf = normalizeCpf(payload.cpf || "");
@@ -26017,7 +26056,9 @@ async function preRegisterDriver(payload) {
   }
   const authEmail = buildDriverAuthEmail(normalizedCpf);
   const tempPassword = generateTempPassword();
+  assertStrongPassword(tempPassword);
   const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    app_metadata: { tenant_id: payload.tenantId },
     email: authEmail,
     password: tempPassword,
     email_confirm: true,
@@ -26368,6 +26409,7 @@ async function createManager(payload) {
     throw Object.assign(new Error("Prefeitura (tenant) n\xE3o identificada"), { status: 400 });
   }
   const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    app_metadata: { tenant_id: payload.tenantId },
     email,
     password: payload.password,
     email_confirm: true,
@@ -26430,6 +26472,17 @@ async function handler5(req, res) {
   }
 }
 
+// web/api/_lib/access-policy.ts
+function assertManagedTarget(actor, target) {
+  const allowed = actor.role === "superadmin" ? ["admin", "gestor", "secretario", "motorista"] : actor.role === "admin" ? ["admin", "gestor", "secretario", "motorista"] : actor.role === "gestor" ? ["secretario", "motorista"] : [];
+  if (!allowed.includes(target.role)) {
+    throw Object.assign(
+      new Error("Este perfil n\xE3o pode ser alterado por voc\xEA nesta \xE1rea."),
+      { status: 403 }
+    );
+  }
+}
+
 // web/api/access/index.ts
 var MODULES = /* @__PURE__ */ new Set([
   "dashboard",
@@ -26446,7 +26499,8 @@ var MODULES = /* @__PURE__ */ new Set([
   "infractions",
   "departments",
   "reports",
-  "settings"
+  "settings",
+  "budgets"
 ]);
 var ROLES = /* @__PURE__ */ new Set(["admin", "gestor", "secretario", "motorista"]);
 function bodyOf(req) {
@@ -26487,6 +26541,11 @@ async function targetInScope(id, caller) {
 }
 async function handler6(req, res) {
   try {
+    res.setHeader("Cache-Control", "no-store");
+    if (!["GET", "POST", "PATCH", "DELETE"].includes(req.method ?? "")) {
+      res.setHeader("Allow", "GET, POST, PATCH, DELETE");
+      return res.status(405).json({ message: "M\xE9todo n\xE3o permitido." });
+    }
     const caller = await manager(req);
     const admin = getSupabaseAdmin();
     if (req.method === "GET") {
@@ -26499,11 +26558,13 @@ async function handler6(req, res) {
       return res.status(200).json(data ?? []);
     }
     const body = bodyOf(req);
+    const limit = await checkRateLimitByKey(`access-management:${caller.id}`, 60, 20);
+    if (!limit.allowed) return sendRateLimited(res, limit, "Muitas altera\xE7\xF5es de acesso. Aguarde e tente novamente.");
     if (req.method === "POST") {
       const role = String(body.role ?? "").toLowerCase();
       if (!ROLES.has(role)) fail("Cargo inv\xE1lido.", 400);
-      if (role === "admin" && !["admin", "superadmin"].includes(caller.role)) {
-        fail("Somente um administrador pode criar outro administrador.", 403);
+      if (["admin", "gestor"].includes(role) && !["admin", "superadmin"].includes(caller.role)) {
+        fail("Somente um administrador pode criar administradores ou gestores.", 403);
       }
       const targetTenantId = caller.role === "superadmin" ? String(body.tenantId ?? "") : caller.tenantId;
       if (!targetTenantId) fail("Selecione a prefeitura do novo acesso.", 400);
@@ -26514,13 +26575,16 @@ async function handler6(req, res) {
         if (!department) fail("A secretaria n\xE3o pertence \xE0 prefeitura selecionada.", 400);
       }
       const allowedModules = role === "motorista" ? [] : cleanModules(body.allowedModules);
+      if (caller.role === "gestor" && allowedModules.some((module) => !caller.allowedModules.includes(module))) {
+        fail("Voc\xEA n\xE3o pode conceder m\xF3dulos aos quais n\xE3o possui acesso.", 403);
+      }
       let created;
       if (role === "motorista") {
         created = await preRegisterDriver({
           cpf: String(body.cpf ?? ""),
           name: String(body.name ?? ""),
           registrationNumber: String(body.registrationNumber ?? ""),
-          departmentId: body.departmentId || void 0,
+          departmentId: typeof body.departmentId === "string" ? body.departmentId : void 0,
           tenantId: targetTenantId,
           actorId: caller.id
         });
@@ -26529,7 +26593,7 @@ async function handler6(req, res) {
           name: String(body.name ?? ""),
           email: String(body.email ?? ""),
           password: String(body.password ?? ""),
-          departmentId: body.departmentId || void 0,
+          departmentId: typeof body.departmentId === "string" ? body.departmentId : void 0,
           role,
           tenantId: targetTenantId,
           actorId: caller.id
@@ -26548,6 +26612,10 @@ async function handler6(req, res) {
     const id = String(body.id ?? "");
     if (!id) fail("Informe o acesso.", 400);
     const target = await targetInScope(id, caller);
+    assertManagedTarget(caller, target);
+    if (target.id === caller.id && body.allowedModules !== void 0) {
+      fail("Outro administrador deve alterar suas permiss\xF5es.", 403);
+    }
     if (target.id === caller.id && (req.method === "DELETE" || body.accessBlocked === true)) {
       fail("Voc\xEA n\xE3o pode excluir ou desativar o pr\xF3prio acesso.", 400);
     }
@@ -26563,10 +26631,20 @@ async function handler6(req, res) {
         }
       }
       if (body.allowedModules !== void 0 && target.role !== "motorista") {
-        update.allowed_modules = cleanModules(body.allowedModules);
+        const modules = cleanModules(body.allowedModules);
+        if (caller.role === "gestor" && modules.some((module) => !caller.allowedModules.includes(module))) {
+          fail("Voc\xEA n\xE3o pode conceder m\xF3dulos aos quais n\xE3o possui acesso.", 403);
+        }
+        update.allowed_modules = modules;
       }
       const { data, error } = await admin.from("profiles").update(update).eq("id", id).select("id, full_name, email, cpf, role, tenant_id, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name), tenants(id, name)").single();
       if (error) throw error;
+      if (typeof body.accessBlocked === "boolean") {
+        const { error: authError } = await admin.auth.admin.updateUserById(id, {
+          ban_duration: body.accessBlocked ? "876000h" : "none"
+        });
+        if (authError) fail("O perfil foi atualizado, mas n\xE3o foi poss\xEDvel sincronizar o bloqueio de login. Repita a opera\xE7\xE3o.", 503);
+      }
       return res.status(200).json(data);
     }
     if (req.method === "DELETE") {
@@ -26585,7 +26663,6 @@ async function handler6(req, res) {
 }
 
 // web/api/_lib/partner-access.ts
-import { randomBytes as randomBytes2 } from "crypto";
 var TABLE = {
   posto: "fuel_stations",
   oficina: "repair_shops"
@@ -26603,12 +26680,6 @@ function assertPartnerType(value) {
     throw Object.assign(new Error("Tipo de parceiro inv\xE1lido"), { status: 400 });
   }
 }
-function generateTempPassword2() {
-  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  const bytes = randomBytes2(14);
-  const chars = Array.from(bytes, (b) => alphabet[b % alphabet.length]);
-  return `${chars.slice(0, 5).join("")}-${chars.slice(5, 10).join("")}-${chars.slice(10).join("")}`;
-}
 function assertCanManagePartners(caller) {
   if (!caller) throw Object.assign(new Error("N\xE3o autenticado"), { status: 401 });
   if (caller.role !== "admin") {
@@ -26620,6 +26691,9 @@ function assertCanManagePartners(caller) {
 }
 async function loadPartnerScoped(caller, partnerType, partnerId) {
   assertPartnerType(partnerType);
+  if (!caller.allowedModules.includes(partnerType === "posto" ? "stations" : "repair_shops")) {
+    throw Object.assign(new Error("M\xF3dulo do parceiro n\xE3o autorizado."), { status: 403 });
+  }
   const admin = getSupabaseAdmin();
   const { data, error } = await admin.from(TABLE[partnerType]).select("id, name, tenant_id, is_active").eq("id", partnerId).maybeSingle();
   if (error || !data) {
@@ -26633,7 +26707,8 @@ async function loadPartnerScoped(caller, partnerType, partnerId) {
 async function getPartnerAccess(caller, partnerType, partnerId) {
   await loadPartnerScoped(caller, partnerType, partnerId);
   const admin = getSupabaseAdmin();
-  const { data } = await admin.from("profiles").select("id, full_name, email, access_blocked, must_change_password, created_at").eq(LINK_COLUMN[partnerType], partnerId).eq("role", partnerType).maybeSingle();
+  const { data, error } = await admin.from("profiles").select("id, full_name, email, access_blocked, must_change_password, created_at").eq(LINK_COLUMN[partnerType], partnerId).eq("role", partnerType).maybeSingle();
+  if (error) throw Object.assign(new Error("N\xE3o foi poss\xEDvel consultar o acesso do parceiro."), { status: 503 });
   if (!data) return { access: null };
   const { data: authUser } = await admin.auth.admin.getUserById(data.id);
   return {
@@ -26657,9 +26732,10 @@ async function createPartnerAccess(caller, payload) {
       { status: 409 }
     );
   }
-  const password = payload.password?.trim() || generateTempPassword2();
+  const password = payload.password?.trim() || generateTempPassword();
   assertStrongPassword(password);
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
+    app_metadata: { tenant_id: partner.tenant_id },
     email,
     password,
     email_confirm: true,
@@ -26693,10 +26769,11 @@ async function resetPartnerPassword(caller, partnerType, partnerId) {
   const existing = await getPartnerAccess(caller, partnerType, partnerId);
   if (!existing.access) throw Object.assign(new Error("Este parceiro ainda n\xE3o tem acesso"), { status: 404 });
   const admin = getSupabaseAdmin();
-  const password = generateTempPassword2();
+  const password = generateTempPassword();
   const { error } = await admin.auth.admin.updateUserById(existing.access.id, { password });
   if (error) throw Object.assign(new Error(error.message), { status: 400 });
-  await admin.from("profiles").update({ must_change_password: true, updated_by: caller.id }).eq("id", existing.access.id);
+  const { error: profileError } = await admin.from("profiles").update({ must_change_password: true, updated_by: caller.id }).eq("id", existing.access.id);
+  if (profileError) throw Object.assign(new Error("A senha foi redefinida, mas a troca obrigat\xF3ria n\xE3o foi registrada. Tente redefinir novamente."), { status: 503 });
   return { success: true, tempPassword: password };
 }
 async function setPartnerBlocked(caller, partnerType, partnerId, blocked) {
@@ -26705,10 +26782,10 @@ async function setPartnerBlocked(caller, partnerType, partnerId, blocked) {
   const admin = getSupabaseAdmin();
   const { error } = await admin.from("profiles").update({ access_blocked: blocked, updated_by: caller.id }).eq("id", existing.access.id);
   if (error) throw Object.assign(new Error(error.message), { status: 400 });
-  if (blocked) {
-    await admin.auth.admin.signOut(existing.access.id, "global").catch(() => {
-    });
-  }
+  const { error: authError } = await admin.auth.admin.updateUserById(existing.access.id, {
+    ban_duration: blocked ? "876000h" : "none"
+  });
+  if (authError) throw Object.assign(new Error("O perfil foi atualizado, mas o bloqueio no login n\xE3o foi sincronizado. Repita a a\xE7\xE3o."), { status: 503 });
   return { success: true, blocked };
 }
 
@@ -26730,6 +26807,7 @@ var MAX_HITS_BY_ACTION = {
 var DEFAULT_MAX_HITS = 10;
 async function handler7(req, res) {
   try {
+    res.setHeader("Cache-Control", "no-store");
     const caller = await getCaller(req);
     assertCanManagePartners(caller);
     if (req.method === "GET") {
@@ -35774,8 +35852,12 @@ async function assertRole(req, admin, roles) {
   if (!token) throw Object.assign(new Error("N\xE3o autenticado"), { status: 401 });
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user) throw Object.assign(new Error("Sess\xE3o inv\xE1lida"), { status: 401 });
-  const { data: profile } = await admin.from("profiles").select("role, tenant_id").eq("id", data.user.id).single();
+  await assertServerSession(admin, data.user.id, token);
+  const { data: profile } = await admin.from("profiles").select("role, tenant_id, allowed_modules").eq("id", data.user.id).single();
   if (!profile || !roles.includes(profile.role)) throw Object.assign(new Error("Sem permiss\xE3o"), { status: 403 });
+  if (profile.role !== "superadmin" && !profile.allowed_modules?.some((module) => ["fleet", "map"].includes(module))) {
+    throw Object.assign(new Error("M\xF3dulo de frota/rastreamento n\xE3o autorizado"), { status: 403 });
+  }
   return { userId: data.user.id, role: profile.role, tenantId: profile.tenant_id ?? null };
 }
 var md5 = (s) => createHash("md5").update(s).digest("hex");
@@ -35857,6 +35939,7 @@ async function assertSuperadmin(req, admin) {
   if (!token) throw Object.assign(new Error("N\xE3o autenticado"), { status: 401 });
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user) throw Object.assign(new Error("Sess\xE3o inv\xE1lida"), { status: 401 });
+  await assertServerSession(admin, data.user.id, token);
   const { data: profile } = await admin.from("profiles").select("role").eq("id", data.user.id).single();
   if (profile?.role !== "superadmin") throw Object.assign(new Error("Apenas superusu\xE1rio"), { status: 403 });
 }
@@ -35981,6 +36064,7 @@ async function assertSuperadmin2(req, admin) {
   if (!token) throw Object.assign(new Error("N\xE3o autenticado"), { status: 401 });
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user) throw Object.assign(new Error("Sess\xE3o inv\xE1lida"), { status: 401 });
+  await assertServerSession(admin, data.user.id, token);
   const { data: profile } = await admin.from("profiles").select("role").eq("id", data.user.id).single();
   if (profile?.role !== "superadmin") throw Object.assign(new Error("Apenas superusu\xE1rio"), { status: 403 });
   return data.user.id;
@@ -36020,6 +36104,7 @@ async function handler10(req, res) {
       if (!email.includes("@")) throw Object.assign(new Error("E-mail inv\xE1lido"), { status: 400 });
       assertStrongPassword2(b.password);
       const { data: authData, error: aErr } = await admin.auth.admin.createUser({
+        app_metadata: { tenant_id: b.tenantId },
         email,
         password: b.password,
         email_confirm: true,
@@ -36104,6 +36189,7 @@ async function assertSuperadmin3(req, admin) {
   if (!token) throw Object.assign(new Error("N\xE3o autenticado"), { status: 401 });
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user) throw Object.assign(new Error("Sess\xE3o inv\xE1lida"), { status: 401 });
+  await assertServerSession(admin, data.user.id, token);
   const { data: profile } = await admin.from("profiles").select("role").eq("id", data.user.id).single();
   if (profile?.role !== "superadmin") throw Object.assign(new Error("Apenas superusu\xE1rio"), { status: 403 });
   return data.user.id;
@@ -36141,6 +36227,7 @@ async function handler11(req, res) {
     }).select("id").single();
     if (tErr) throw Object.assign(new Error(tErr.message), { status: 400 });
     const { data: authData, error: aErr } = await admin.auth.admin.createUser({
+      app_metadata: { tenant_id: tenant.id },
       email: b.adminEmail.trim().toLowerCase(),
       password: b.adminPassword,
       email_confirm: true,

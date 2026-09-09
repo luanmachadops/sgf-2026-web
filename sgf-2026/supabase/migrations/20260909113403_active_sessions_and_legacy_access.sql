@@ -124,7 +124,10 @@ grant execute on function sgf_private.resource_allowed(text,boolean) to authenti
 -- Restrictive policies combine with every permissive policy using AND.
 do $$ declare r record; begin
   for r in select schemaname,tablename from pg_tables where schemaname='public' or (schemaname='storage' and tablename='objects') loop
-    execute format('alter table %I.%I enable row level security',r.schemaname,r.tablename);
+    begin
+      execute format('alter table %I.%I enable row level security',r.schemaname,r.tablename);
+    exception when insufficient_privilege then null;
+    end;
     if r.schemaname='storage' then
       execute format('create policy active_session_only on %I.%I as restrictive for all to authenticated using ((select sgf_private.current_session_allowed())) with check ((select sgf_private.current_session_allowed()))',r.schemaname,r.tablename);
     else

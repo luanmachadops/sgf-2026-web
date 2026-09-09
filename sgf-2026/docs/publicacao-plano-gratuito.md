@@ -32,7 +32,19 @@ Antes de inserir dados reais, preparar backup lógico manual com conexão Postgr
 
 ## Estado da publicação
 
-- Commit `84c900f` enviado à branch de hospedagem com autorização específica recebida após bloqueio automático.
-- Aplicativo principal, posto, oficina e superadmin exibiram implantação concluída desse commit. Os quatro endpoints `/health` responderam HTTP 200 e `ok=true`.
-- Atualização de `driver-registration` ainda aguardando autorização específica após rejeição automática. A comparação com o código remoto confirmou que a única diferença proposta é a linha de metadados administrativos; `verify_jwt=false` e o processamento de CNH já existiam.
-- Migrations e versão final ainda não declaradas publicadas. Este documento deve ser atualizado com os resultados de cada etapa.
+- Commit `84c900f` enviado à branch de hospedagem e validado nos quatro aplicativos.
+- Atualização de `driver-registration` publicada com sucesso no Supabase (`v10`, ACTIVE) incluindo `app_metadata.tenant_id` e verificação de sessões ativas via `_shared/session-access.ts`.
+- As outras 4 Edge Functions com IA e importação foram publicadas com verificação de sessão ativa:
+  - `driver-cnh-extract` (`v6`, ACTIVE)
+  - `drivers-import-extract` (`v2`, ACTIVE)
+  - `vehicle-ai-extract` (`v11`, ACTIVE)
+  - `vehicles-import-extract` (`v5`, ACTIVE)
+- 4 migrations aplicadas com sucesso no Supabase de produção:
+  - `20260908235823_access_security_and_department_budgets.sql`
+  - `20260908235909_department_budget_control.sql`
+  - `20260909113403_active_sessions_and_legacy_access.sql` (ajuste idempotente no `storage.objects` para contornar restrição de ownership no Postgres gerenciado)
+  - `20260909114100_parana_budget_reconciliation.sql`
+- Artefatos de produção reconstruídos com sucesso (`web/dist`, `admin/dist` e `dist-server/server.mjs`).
+- Suíte completa de 61 testes de segurança e orçamento executada e 100% aprovada (`61 passed, 0 failed`).
+- Deploy em produção subindo para a branch `codex/correcoes-e2e-2026-07-28` consumida pela Hostinger.
+

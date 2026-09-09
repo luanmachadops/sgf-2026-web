@@ -4,9 +4,7 @@ import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
-import { SGFTextarea } from '@/components/sgf/SGFTextarea';
 import { Modal } from '@/components/ui/Modal';
-import { PhotoViewer } from '@/components/ui/PhotoViewer';
 import {
     Fuel,
     Eye,
@@ -15,17 +13,16 @@ import {
     Car,
     Receipt,
     Plus,
-    User,
-    MapPin,
 } from '@/components/sgf/icons';
-import { formatDate, formatCurrency, cn, formatPlate, matchesSearch } from '@/lib/utils';
+import { formatDate, formatCurrency, formatPlate, matchesSearch } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { NewRefuelingForm } from '@/components/refuelings/NewRefuelingForm';
 import { AuthorizeFuelingModal } from '@/components/refuelings/AuthorizeFuelingModal';
 import { StationOperationsPanel } from '@/components/refuelings/StationOperationsPanel';
 import { StationClosingsPanel } from '@/components/refuelings/StationClosingsPanel';
-import { useRefuelings, useValidateRefueling, useCancelFuelAuthorization } from '@/hooks/useRefuelings';
+import { RefuelingDetailsModal } from '@/components/refuelings/RefuelingDetailsModal';
+import { useRefuelings } from '@/hooks/useRefuelings';
 import type { Tables } from '@/types/database.types';
 
 type WorkflowStatus = 'autorizado' | 'concluido' | 'rejeitado_motorista' | 'validado' | 'rejeitado_admin' | 'lancado_direto';
@@ -97,11 +94,7 @@ export default function Refuelings() {
     const [showAuthorizeModal, setShowAuthorizeModal] = useState(false);
     const [commitmentStationId, setCommitmentStationId] = useState<string | null>(null);
     const [manualSelectedRefueling, setSelectedRefueling] = useState<RefuelingRow | null>(null);
-    const [reviewReason, setReviewReason] = useState('');
-    const [photoViewer, setPhotoViewer] = useState<{ images: string[]; index: number } | null>(null);
     const { setTitle, setDescription, setHeaderAction } = useHeader();
-    const validateMutation = useValidateRefueling();
-    const cancelAuth = useCancelFuelAuthorization();
 
     const { data: rawRefuelings = [], isLoading } = useRefuelings();
 
@@ -267,7 +260,6 @@ export default function Refuelings() {
                     onClick={(event) => {
                         event.stopPropagation();
                         setSelectedRefueling(row);
-                        setReviewReason('');
                     }}
                 />
             )
@@ -276,29 +268,11 @@ export default function Refuelings() {
 
     const closeSelectedRefueling = () => {
         setSelectedRefueling(null);
-        setReviewReason('');
         if (!paramId) return;
         const next = new URLSearchParams(searchParams);
         next.delete('id');
         next.delete('refuelingId');
         setSearchParams(next, { replace: true });
-    };
-
-    const handleValidate = (approved: boolean) => {
-        if (!selectedRefueling) return;
-        if (!approved && !reviewReason.trim()) return;
-        if (approved && (!selectedRefueling.photoPump || !selectedRefueling.receiptNumber?.trim())) return;
-
-        validateMutation.mutate(
-            {
-                id: selectedRefueling.id,
-                approved,
-                notes: reviewReason.trim() || undefined,
-            },
-            {
-                onSuccess: closeSelectedRefueling,
-            }
-        );
     };
 
     const tabCounts = useMemo(() => ({
@@ -387,7 +361,6 @@ export default function Refuelings() {
                     keyExtractor={(row) => row.id}
                     onRowClick={(row) => {
                         setSelectedRefueling(row);
-                        setReviewReason('');
                     }}
                     loading={isLoading}
                     emptyMessage="Nenhum abastecimento encontrado."
@@ -400,279 +373,11 @@ export default function Refuelings() {
                 onCommitmentHandled={() => setCommitmentStationId(null)}
             />
 
-            <Modal
+            <RefuelingDetailsModal
+                refueling={selectedRefueling}
                 isOpen={!!selectedRefueling}
                 onClose={closeSelectedRefueling}
-                title="Detalhes do Abastecimento"
-                size="lg"
-                footer={
-                    <div className="flex w-full justify-between items-center">
-                        <div className="flex gap-2">
-                            {/* Quando ainda é autorização pendente (motorista não preencheu): só cancelar */}
-                            {selectedRefueling?.workflowStatus === 'autorizado' && (
-                                <SGFButton
-                                    variant="ghost"
-                                    className="text-rose-600 hover:bg-rose-50"
-                                    onClick={() => {
-                                        if (!selectedRefueling) return;
-                                        cancelAuth.mutate({ id: selectedRefueling.id, reason: reviewReason }, {
-                                            onSuccess: closeSelectedRefueling,
-                                        });
-                                    }}
-                                    disabled={cancelAuth.isPending || !reviewReason.trim()}
-                                >
-                                    Cancelar autorização
-                                </SGFButton>
-                            )}
-                            {/* Só a execução concluída pelo posto entra na conferência. */}
-                            {selectedRefueling?.workflowStatus === 'concluido' && (
-                                <>
-                                    <SGFButton
-                                        variant="ghost"
-                                        className="text-rose-600 hover:bg-rose-50"
-                                        onClick={() => handleValidate(false)}
-                                        disabled={validateMutation.isPending || !reviewReason.trim()}
-                                    >
-                                        Rejeitar
-                                    </SGFButton>
-                                    <SGFButton
-                                        variant="primary"
-                                        onClick={() => handleValidate(true)}
-                                        disabled={validateMutation.isPending
-                                            || !selectedRefueling.photoPump
-                                            || !selectedRefueling.receiptNumber?.trim()}
-                                    >
-                                        Validar Abastecimento
-                                    </SGFButton>
-                                </>
-                            )}
-                        </div>
-                        <SGFButton variant="ghost" onClick={closeSelectedRefueling}>
-                            Fechar
-                        </SGFButton>
-                    </div>
-                }
-            >
-                {selectedRefueling && (() => {
-                    const badge = workflowBadge(selectedRefueling.workflowStatus);
-                    const proofs = [
-                        { url: selectedRefueling.photoPump, label: 'Bico da bomba' },
-                        { url: selectedRefueling.photoRequisition, label: 'Requisição' },
-                        { url: selectedRefueling.photoDashboard, label: 'Painel / Hodômetro' },
-                        { url: selectedRefueling.photoReceipt, label: 'Cupom fiscal' },
-                    ].filter((p): p is { url: string; label: string } => !!p.url);
-                    return (
-                    <div className="space-y-6">
-                        {/* Faixa de status */}
-                        <div className="flex items-center justify-between gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                            <div className="flex items-center gap-3 min-w-0">
-                                <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-100">
-                                    <Fuel className="h-5 w-5 text-emerald-500" />
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Status do abastecimento</p>
-                                    <p className="font-bold text-slate-800 truncate">
-                                        {selectedRefueling.date ? formatDate(selectedRefueling.date) : '—'}
-                                        {selectedRefueling.station ? ` · ${selectedRefueling.station}` : ''}
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                                {selectedRefueling.hasAnomaly && <SGFBadge variant="warning">Anomalia</SGFBadge>}
-                                <SGFBadge variant={badge.variant}>{badge.label}</SGFBadge>
-                            </div>
-                        </div>
-
-                        <div className="grid gap-6 md:grid-cols-2">
-                            {/* Identificação */}
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-3">
-                                    {selectedRefueling.vehiclePhoto ? (
-                                        <img
-                                            src={selectedRefueling.vehiclePhoto}
-                                            alt={selectedRefueling.vehicleModel}
-                                            className="h-12 w-16 shrink-0 rounded-xl object-cover ring-1 ring-slate-200"
-                                        />
-                                    ) : (
-                                        <div className="flex h-12 w-16 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                                            <Car width={22} height={22} />
-                                        </div>
-                                    )}
-                                    <div className="min-w-0">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Veículo</p>
-                                        <div className="flex items-center gap-2">
-                                            <p className="font-bold text-slate-800 truncate">{selectedRefueling.vehicleModel}</p>
-                                            <span className="font-mono font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs whitespace-nowrap">
-                                                {formatPlate(selectedRefueling.vehicle)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                    {selectedRefueling.driverPhoto ? (
-                                        <img
-                                            src={selectedRefueling.driverPhoto}
-                                            alt={selectedRefueling.driver}
-                                            className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
-                                        />
-                                    ) : (
-                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-                                            <User width={20} height={20} />
-                                        </div>
-                                    )}
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Motorista</p>
-                                        <p className="font-bold text-slate-800">{selectedRefueling.driver}</p>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
-                                        <MapPin width={20} height={20} />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Odômetro</p>
-                                        <p className="font-bold text-slate-800">{selectedRefueling.odometer.toLocaleString('pt-BR')} km</p>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
-                                        <Fuel width={20} height={20} />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Abastecimento</p>
-                                        <p className="font-bold text-slate-800">
-                                            {selectedRefueling.fullTank === true ? 'Tanque completo' : selectedRefueling.fullTank === false ? 'Parcial' : 'Não informado'}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Resumo financeiro */}
-                            <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resumo Financeiro</p>
-                                    <div className="px-2 py-0.5 bg-white rounded-lg border border-slate-200 text-[10px] font-bold text-slate-500">
-                                        {selectedRefueling.fuelType || '—'}
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-slate-500">Quantidade</span>
-                                        <span className="font-bold text-slate-800">
-                                            {selectedRefueling.liters.toFixed(1)} L
-                                            {selectedRefueling.maxLiters ? <span className="font-medium text-slate-400"> / até {Number(selectedRefueling.maxLiters).toFixed(1)} L</span> : null}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-slate-500">Preço p/ Litro</span>
-                                        <span className="font-bold text-slate-800">{formatCurrency(selectedRefueling.pricePerLiter)}</span>
-                                    </div>
-                                    <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
-                                        <span className="text-slate-500 font-bold">Valor Total</span>
-                                        <span className="font-black text-emerald-600 text-xl">{formatCurrency(selectedRefueling.cost)}</span>
-                                    </div>
-                                </div>
-
-                                <div className="pt-4 mt-2 border-t border-slate-200">
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Eficiência</p>
-                                        <span className={cn(
-                                            "font-black text-lg",
-                                            (selectedRefueling.consumption || 0) > 8 ? "text-emerald-600" : "text-amber-600"
-                                        )}>
-                                            {selectedRefueling.consumption ? `${selectedRefueling.consumption.toFixed(1)} km/L` : '—'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {(selectedRefueling.workflowStatus === 'autorizado'
-                            || selectedRefueling.workflowStatus === 'concluido') && (
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                <SGFTextarea
-                                    label={selectedRefueling.workflowStatus === 'autorizado'
-                                        ? 'Motivo do cancelamento'
-                                        : 'Parecer da gestão'}
-                                    value={reviewReason}
-                                    onChange={(event) => setReviewReason(event.target.value)}
-                                    placeholder={selectedRefueling.workflowStatus === 'concluido'
-                                        ? 'Opcional ao validar; obrigatório ao rejeitar'
-                                        : 'Obrigatório para cancelar a autorização'}
-                                    rows={2}
-                                    fullWidth
-                                />
-                            </div>
-                        )}
-
-                        {/* Comprovantes enviados pelo posto ou anexados na contingência. */}
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Comprovantes da execução</p>
-                                {proofs.length > 0 && (
-                                    <p className="text-[11px] font-semibold text-slate-400">{proofs.length} foto{proofs.length > 1 ? 's' : ''} · clique para ampliar</p>
-                                )}
-                            </div>
-                            {proofs.length === 0 ? (
-                                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
-                                    <p className="text-sm font-medium text-slate-400">Nenhuma evidência fotográfica anexada.</p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                                    {proofs.map((p, i) => (
-                                        <button
-                                            key={p.label}
-                                            type="button"
-                                            onClick={() => setPhotoViewer({ images: proofs.map((x) => x.url), index: i })}
-                                            className="group relative aspect-video overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                                        >
-                                            <img src={p.url} alt={p.label} className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105" />
-                                            <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-black/0 px-2.5 pb-1.5 pt-5 text-left text-[11px] font-semibold text-white">
-                                                {p.label}
-                                            </span>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                            <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
-                                <span className="text-slate-500">Número do cupom</span>
-                                <span className={cn(
-                                    'font-bold',
-                                    selectedRefueling.receiptNumber ? 'text-slate-800' : 'text-rose-600',
-                                )}>
-                                    {selectedRefueling.receiptNumber || 'Não informado'}
-                                </span>
-                            </div>
-                        </div>
-
-                        {selectedRefueling.workflowStatus === 'concluido'
-                            && (!selectedRefueling.photoPump || !selectedRefueling.receiptNumber?.trim()) && (
-                            <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-                                <p className="text-sm font-medium text-amber-900">
-                                    A aprovação está bloqueada porque falta a foto do bico ou o número do cupom.
-                                    Rejeite o lançamento com a justificativa para o posto corrigir o processo.
-                                </p>
-                            </div>
-                        )}
-
-                        {selectedRefueling.hasAnomaly && (
-                            <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
-                                <AlertTriangle className="h-5 w-5 text-amber-500" />
-                                <p className="text-sm text-amber-800 font-medium">
-                                    <span className="font-black">Anomalia detectada:</span> Registro marcado fora do padrão esperado.
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                    );
-                })()}
-            </Modal>
-            <PhotoViewer images={photoViewer?.images} startIndex={photoViewer?.index ?? 0} onClose={() => setPhotoViewer(null)} />
+            />
 
             <Modal
                 isOpen={showAddModal}
