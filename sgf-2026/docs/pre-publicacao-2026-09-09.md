@@ -27,3 +27,13 @@ Publicação autorizada pelo usuário, condicionada à homologação. Ainda não
 Homologação deve comprovar cadastro compatível, acesso por papel/tenant/módulo, recusa de sessão antiga bloqueada, reativação com novo login, upload/leitura de arquivos, abastecimento, manutenção, cancelamento, recebimento e limites em duas conexões. Confirmar recuperação e monitoramento imediato dos quatro aplicativos. Implantar na ordem dos relatórios anteriores. Só cadastrar limites reais depois da conferência administrativa e contábil.
 
 A autorização para publicar já foi recebida. Os impedimentos acima são condições técnicas/dados ausentes, não uma solicitação de nova autorização geral de deploy.
+
+## Nova tentativa de publicação
+
+- Acesso ao painel Supabase resolvido: sessão autenticada confirmada. O bloqueio OAuth anterior não permanece como impedimento.
+- Backup manual Hostinger concluído: painel exibe 09/09/2026 às 14h19. Não cobre o PostgreSQL externo.
+- Painel Supabase confirma que o plano Free não inclui backups do projeto. Não foi localizado backup restaurável do banco.
+- Branch de homologação bloqueada por plano: exige Pro (a partir de US$ 25/mês), mais US$ 0,01344/h de compute da branch, impostos/uso adicionais possíveis. Organização tem dois projetos e nenhum método de pagamento; não foi iniciado upgrade.
+- CLI: comandos de dump disponíveis, mas não se obteve conexão autenticada para backup manual. A configuração local vinculada identifica o projeto, sem credencial de banco disponibilizada nesta etapa. Não foi redefinida senha.
+- Alternativa ao upgrade: disponibilizar conexão PostgreSQL autorizada por configuração segura para backup manual e preparar homologação local com a estrutura restaurada. Essa alternativa ainda não foi executada.
+- Migrations e aplicativos permanecem sem publicação, pois recuperação e homologação integrada ainda não foram comprovadas. A autorização de deploy continua válida; não há autorização para contratar assinatura.
