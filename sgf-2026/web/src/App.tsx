@@ -34,6 +34,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AppLaunchSplash } from '@/components/pwa/AppLaunchSplash';
 import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt';
 import { canAccessModule, type AccessModule } from '@/lib/accessModules';
+import DepartmentBudgets from '@/pages/DepartmentBudgets';
 import AccessManagement from '@/pages/AccessManagement';
 import TermsAndPrivacy from '@/pages/TermsAndPrivacy';
 
@@ -121,6 +122,7 @@ function App() {
                 <Route path="/oficinas" element={<ModuleRoute module="repair_shops"><GlobalManagementRoute><RepairShops /></GlobalManagementRoute></ModuleRoute>} />
                 <Route path="/oficinas/:id" element={<ModuleRoute module="repair_shops"><GlobalManagementRoute><RepairShops /></GlobalManagementRoute></ModuleRoute>} />
                 <Route path="/configuracoes" element={<ModuleRoute module="settings"><GlobalManagementRoute><Configuracoes /></GlobalManagementRoute></ModuleRoute>} />
+                <Route path="/configuracoes/limites" element={<ModuleRoute module="budgets"><DepartmentBudgets /></ModuleRoute>} />
                 <Route path="/acessos" element={<AccessManagersRoute><AccessManagement /></AccessManagersRoute>} />
                 <Route path="/perfil" element={<Perfil />} />
                 <Route path="/notificacoes" element={<ModuleRoute module="notifications"><Notificacoes /></ModuleRoute>} />

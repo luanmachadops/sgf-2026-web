@@ -11,6 +11,7 @@ export const ACCESS_MODULES = [
     { id: 'repair_shops', label: 'Oficinas' },
     { id: 'checklists', label: 'Checklists' },
     { id: 'infractions', label: 'Infrações' },
+    { id: 'budgets', label: 'Limites por secretaria' },
     { id: 'departments', label: 'Secretarias' },
     { id: 'reports', label: 'Relatórios e auditoria' },
     { id: 'settings', label: 'Configurações' },

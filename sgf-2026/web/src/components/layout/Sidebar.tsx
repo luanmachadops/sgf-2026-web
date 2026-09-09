@@ -67,6 +67,7 @@ const menuSections: MenuSection[] = [
             { icon: Clipboard, label: 'Checklists', path: '/checklists', module: 'checklists' },
             { icon: Receipt, label: 'Infrações', path: '/infracoes', module: 'infractions' },
             { icon: Building2, label: 'Secretarias', path: '/secretarias', module: 'departments' },
+            { icon: Receipt, label: 'Limites por secretaria', path: '/configuracoes/limites', module: 'budgets' },
             { icon: FileText, label: 'Relatórios & Auditoria', path: '/relatorios', module: 'reports' },
         ]
     },

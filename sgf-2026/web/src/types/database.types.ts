@@ -2832,6 +2832,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_department_budgets: { Args: { p_year: number }; Returns: Json }
+      save_department_budget: { Args: { p_payload: Json }; Returns: string }
+      get_department_budget_events: { Args: { p_contract_id: string; p_offset?: number }; Returns: Json }
       activity_log_ignored_cols: { Args: never; Returns: string[] }
       activity_log_purge: { Args: never; Returns: undefined }
       activity_log_retention_warn: { Args: never; Returns: undefined }
