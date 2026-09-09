@@ -37,6 +37,7 @@ export async function createManager(payload: CreateManagerPayload) {
     }
 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        app_metadata: { tenant_id: payload.tenantId },
         email,
         password: payload.password,
         email_confirm: true,

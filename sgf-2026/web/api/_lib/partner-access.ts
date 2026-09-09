@@ -1,7 +1,7 @@
-import { randomBytes } from 'crypto';
 import { getSupabaseAdmin } from './supabase-admin.js';
 import type { Caller } from './caller.js';
-import { assertStrongPassword } from './password-policy.js';
+import { assertStrongPassword, generateTempPassword } from './password-policy.js';
+export { generateTempPassword } from './password-policy.js';
 
 /**
  * Acesso de PARCEIRO (posto de combustível ou oficina mecânica).
@@ -47,19 +47,6 @@ function assertPartnerType(value: unknown): asserts value is PartnerType {
     }
 }
 
-/**
- * Senha provisória legível: sem caracteres ambíguos, trocada no 1º acesso.
- * 14 caracteres úteis (fora os separadores) — acima do mínimo de
- * `PASSWORD_MIN_LENGTH`, para não gerar uma senha que a própria política do
- * sistema rejeitaria.
- */
-export function generateTempPassword(): string {
-    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-    const bytes = randomBytes(14);
-    const chars = Array.from(bytes, (b) => alphabet[b % alphabet.length]);
-    return `${chars.slice(0, 5).join('')}-${chars.slice(5, 10).join('')}-${chars.slice(10).join('')}`;
-}
-
 /** Garante que só o admin mexe em acesso de parceiro. */
 export function assertCanManagePartners(caller: Caller | null): asserts caller is Caller {
     if (!caller) throw Object.assign(new Error('Não autenticado'), { status: 401 });
@@ -99,12 +86,14 @@ export async function getPartnerAccess(caller: Caller, partnerType: PartnerType,
     await loadPartnerScoped(caller, partnerType, partnerId);
     const admin = getSupabaseAdmin();
 
-    const { data } = await admin
+    const { data, error } = await admin
         .from('profiles')
         .select('id, full_name, email, access_blocked, must_change_password, created_at')
         .eq(LINK_COLUMN[partnerType], partnerId)
         .eq('role', partnerType)
         .maybeSingle();
+
+    if (error) throw Object.assign(new Error('Não foi possível consultar o acesso do parceiro.'), { status: 503 });
 
     if (!data) return { access: null };
 
@@ -140,6 +129,7 @@ export async function createPartnerAccess(caller: Caller, payload: PartnerAccess
     assertStrongPassword(password);
 
     const { data: authData, error: authError } = await admin.auth.admin.createUser({
+        app_metadata: { tenant_id: partner.tenant_id },
         email,
         password,
         email_confirm: true,
@@ -191,9 +181,10 @@ export async function resetPartnerPassword(caller: Caller, partnerType: PartnerT
     const { error } = await admin.auth.admin.updateUserById(existing.access.id, { password });
     if (error) throw Object.assign(new Error(error.message), { status: 400 });
 
-    await admin.from('profiles')
+    const { error: profileError } = await admin.from('profiles')
         .update({ must_change_password: true, updated_by: caller.id })
         .eq('id', existing.access.id);
+    if (profileError) throw Object.assign(new Error('A senha foi redefinida, mas a troca obrigatória não foi registrada. Tente redefinir novamente.'), { status: 503 });
 
     return { success: true, tempPassword: password };
 }
@@ -209,11 +200,12 @@ export async function setPartnerBlocked(caller: Caller, partnerType: PartnerType
         .eq('id', existing.access.id);
     if (error) throw Object.assign(new Error(error.message), { status: 400 });
 
-    // Bloquear não basta no banco: um token já emitido continua válido até
-    // expirar. Encerrar as sessões corta o acesso imediatamente.
-    if (blocked) {
-        await admin.auth.admin.signOut(existing.access.id, 'global').catch(() => { /* best-effort */ });
-    }
+    // signOut exige um JWT, não o UUID do perfil. O bloqueio no Auth impede
+    // novos logins; tokens já emitidos continuam sujeitos às regras do banco.
+    const { error: authError } = await admin.auth.admin.updateUserById(existing.access.id, {
+        ban_duration: blocked ? '876000h' : 'none',
+    });
+    if (authError) throw Object.assign(new Error('O perfil foi atualizado, mas o bloqueio no login não foi sincronizado. Repita a ação.'), { status: 503 });
 
     return { success: true, blocked };
 }

@@ -63,6 +63,7 @@ export default async function handler(req: any, res: any) {
       assertStrongPassword(b.password);
 
       const { data: authData, error: aErr } = await admin.auth.admin.createUser({
+        app_metadata: { tenant_id: b.tenantId },
         email, password: b.password, email_confirm: true,
         user_metadata: { full_name: b.name || 'Gestor', role, tenant_id: b.tenantId },
       });

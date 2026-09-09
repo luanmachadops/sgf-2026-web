@@ -35,6 +35,7 @@ const DEFAULT_MAX_HITS = 10;
  */
 export default async function handler(req: any, res: any) {
     try {
+        res.setHeader('Cache-Control', 'no-store');
         const caller = await getCaller(req);
         assertCanManagePartners(caller);
 

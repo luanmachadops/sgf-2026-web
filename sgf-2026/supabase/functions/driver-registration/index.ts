@@ -327,6 +327,7 @@ async function submitRegistration(body: Json) {
 
   const authEmail = `driver-${cpf}@internal.sgf2026.local`;
   const { data: created, error: createError } = await sb.auth.admin.createUser({
+    app_metadata: { tenant_id: invite.tenant_id },
     email: authEmail,
     password,
     email_confirm: true,

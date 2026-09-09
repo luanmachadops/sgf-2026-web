@@ -60,6 +60,7 @@ export default async function handler(req: any, res: any) {
 
     // 2) cria o primeiro admin do tenant
     const { data: authData, error: aErr } = await admin.auth.admin.createUser({
+      app_metadata: { tenant_id: tenant.id },
       email: (b.adminEmail as string).trim().toLowerCase(),
       password: b.adminPassword,
       email_confirm: true,

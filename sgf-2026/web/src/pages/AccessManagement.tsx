@@ -130,9 +130,9 @@ export default function AccessManagement() {
         const roles: Array<{ value: string; label: string }> = [
             { value: 'secretario', label: 'Secretário' },
             { value: 'motorista', label: 'Motorista' },
-            { value: 'gestor', label: 'Gestor' },
         ];
         if (user?.accountRole === 'admin' || user?.accountRole === 'superadmin') {
+            roles.push({ value: 'gestor', label: 'Gestor' });
             roles.push({ value: 'admin', label: 'Administrador' });
         }
         return roles;
@@ -288,7 +288,7 @@ export default function AccessManagement() {
                                     {access.access_blocked ? 'Desativado' : 'Ativo'}
                                 </span>
                                 <div className="flex flex-wrap gap-2">
-                                    {access.role !== 'motorista' && (
+                                    {access.role !== 'motorista' && access.id !== user?.id && (user?.accountRole !== 'gestor' || access.role === 'secretario') && (
                                         <SGFButton variant="ghost" size="sm" onClick={() => openEdit(access)}>
                                             Permissões
                                         </SGFButton>
@@ -296,7 +296,7 @@ export default function AccessManagement() {
                                     <SGFButton
                                         variant="ghost"
                                         size="sm"
-                                        disabled={access.id === user?.id || updateAccess.isPending}
+                                        disabled={access.id === user?.id || updateAccess.isPending || (user?.accountRole === 'gestor' && ['admin', 'gestor'].includes(access.role))}
                                         onClick={() => updateAccess.mutate({
                                             id: access.id,
                                             update: { accessBlocked: !access.access_blocked },
@@ -307,7 +307,7 @@ export default function AccessManagement() {
                                     <button
                                         type="button"
                                         title="Excluir acesso"
-                                        disabled={access.id === user?.id || removeAccess.isPending}
+                                        disabled={access.id === user?.id || removeAccess.isPending || (user?.accountRole === 'gestor' && ['admin', 'gestor'].includes(access.role))}
                                         onClick={() => {
                                             if (window.confirm(`Excluir definitivamente o acesso de ${access.full_name}?`)) {
                                                 removeAccess.mutate(access.id);

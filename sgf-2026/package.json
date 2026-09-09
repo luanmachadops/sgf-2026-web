@@ -14,13 +14,15 @@
     "build:server": "node scripts/build-server.mjs",
     "build": "npm run install:apps && npm run build:web && npm run build:admin && npm run build:server",
     "start": "node dist-server/server.mjs",
-    "dev:server": "tsx server/server.ts"
+    "dev:server": "tsx server/server.ts",
+    "test:security-budget": "node --import tsx --test tests/*.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.94.0",
     "express": "^5.1.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
     "@types/express": "^5.0.3",
     "esbuild": "^0.25.11",
     "tsx": "^4.20.6",

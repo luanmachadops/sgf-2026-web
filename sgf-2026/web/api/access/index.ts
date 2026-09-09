@@ -2,6 +2,8 @@ import { getCaller } from '../_lib/caller.js';
 import { createManager } from '../_lib/manager-access.js';
 import { preRegisterDriver } from '../_lib/driver-access.js';
 import { getSupabaseAdmin } from '../_lib/supabase-admin.js';
+import { assertManagedTarget } from '../_lib/access-policy.js';
+import { checkRateLimitByKey, sendRateLimited } from '../_lib/rate-limit.js';
 
 const MODULES = new Set([
     'dashboard', 'map', 'notifications', 'fleet', 'drivers', 'trips',
@@ -74,6 +76,11 @@ async function targetInScope(id: string, caller: Awaited<ReturnType<typeof manag
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
     try {
+        res.setHeader('Cache-Control', 'no-store');
+        if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(req.method ?? '')) {
+            res.setHeader('Allow', 'GET, POST, PATCH, DELETE');
+            return res.status(405).json({ message: 'Método não permitido.' });
+        }
         const caller = await manager(req);
         const admin = getSupabaseAdmin();
 
@@ -92,12 +99,14 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         }
 
         const body = bodyOf(req);
+        const limit = await checkRateLimitByKey(`access-management:${caller.id}`, 60, 20);
+        if (!limit.allowed) return sendRateLimited(res, limit, 'Muitas alterações de acesso. Aguarde e tente novamente.');
 
         if (req.method === 'POST') {
             const role = String(body.role ?? '').toLowerCase();
             if (!ROLES.has(role)) fail('Cargo inválido.', 400);
-            if (role === 'admin' && !['admin', 'superadmin'].includes(caller.role)) {
-                fail('Somente um administrador pode criar outro administrador.', 403);
+            if (['admin', 'gestor'].includes(role) && !['admin', 'superadmin'].includes(caller.role)) {
+                fail('Somente um administrador pode criar administradores ou gestores.', 403);
             }
             const targetTenantId = caller.role === 'superadmin'
                 ? String(body.tenantId ?? '')
@@ -122,13 +131,16 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
             }
 
             const allowedModules = role === 'motorista' ? [] : cleanModules(body.allowedModules);
+            if (caller.role === 'gestor' && allowedModules.some(module => !caller.allowedModules.includes(module))) {
+                fail('Você não pode conceder módulos aos quais não possui acesso.', 403);
+            }
             let created: { id: string; tempPassword?: string | null };
             if (role === 'motorista') {
                 created = await preRegisterDriver({
                     cpf: String(body.cpf ?? ''),
                     name: String(body.name ?? ''),
                     registrationNumber: String(body.registrationNumber ?? ''),
-                    departmentId: body.departmentId || undefined,
+                    departmentId: typeof body.departmentId === 'string' ? body.departmentId : undefined,
                     tenantId: targetTenantId,
                     actorId: caller.id,
                 });
@@ -137,7 +149,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                     name: String(body.name ?? ''),
                     email: String(body.email ?? ''),
                     password: String(body.password ?? ''),
-                    departmentId: body.departmentId || undefined,
+                    departmentId: typeof body.departmentId === 'string' ? body.departmentId : undefined,
                     role: role as 'admin' | 'gestor' | 'secretario',
                     tenantId: targetTenantId,
                     actorId: caller.id,
@@ -163,6 +175,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         const id = String(body.id ?? '');
         if (!id) fail('Informe o acesso.', 400);
         const target = await targetInScope(id, caller);
+        assertManagedTarget(caller, target);
+        if (target.id === caller.id && body.allowedModules !== undefined) {
+            fail('Outro administrador deve alterar suas permissões.', 403);
+        }
         if (target.id === caller.id && (req.method === 'DELETE' || body.accessBlocked === true)) {
             fail('Você não pode excluir ou desativar o próprio acesso.', 400);
         }
@@ -179,7 +195,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                 }
             }
             if (body.allowedModules !== undefined && target.role !== 'motorista') {
-                update.allowed_modules = cleanModules(body.allowedModules);
+                const modules = cleanModules(body.allowedModules);
+                if (caller.role === 'gestor' && modules.some(module => !caller.allowedModules.includes(module))) {
+                    fail('Você não pode conceder módulos aos quais não possui acesso.', 403);
+                }
+                update.allowed_modules = modules;
             }
             const { data, error } = await admin
                 .from('profiles')
@@ -188,6 +208,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                 .select('id, full_name, email, cpf, role, tenant_id, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name), tenants(id, name)')
                 .single();
             if (error) throw error;
+            if (typeof body.accessBlocked === 'boolean') {
+                const { error: authError } = await admin.auth.admin.updateUserById(id, {
+                    ban_duration: body.accessBlocked ? '876000h' : 'none',
+                });
+                if (authError) fail('O perfil foi atualizado, mas não foi possível sincronizar o bloqueio de login. Repita a operação.', 503);
+            }
             return res.status(200).json(data);
         }
 

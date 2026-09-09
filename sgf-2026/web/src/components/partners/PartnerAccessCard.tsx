@@ -26,7 +26,7 @@ interface Props {
 export function PartnerAccessCard({ partnerType, partnerId, partnerName, systemLabel }: Props) {
     const { user } = useAuth();
     const qc = useQueryClient();
-    const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN';
+    const isAdmin = user?.accountRole === 'admin';
 
     const [creating, setCreating] = useState(false);
     const [name, setName] = useState('');
@@ -34,7 +34,7 @@ export function PartnerAccessCard({ partnerType, partnerId, partnerName, systemL
     const [tempPassword, setTempPassword] = useState<string | null>(null);
 
     const queryKey = ['partnerAccess', partnerType, partnerId];
-    const { data, isLoading } = useQuery({
+    const { data, isLoading, error, refetch } = useQuery({
         queryKey,
         queryFn: () => partnersApi.get(partnerType, partnerId),
         enabled: isAdmin && Boolean(partnerId),
@@ -83,7 +83,7 @@ export function PartnerAccessCard({ partnerType, partnerId, partnerName, systemL
                     <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Acesso ao sistema</p>
                     <p className="text-sm text-slate-500">{systemLabel} — login próprio do parceiro.</p>
                 </div>
-                {access
+                {error ? <SGFBadge variant="error">Consulta indisponível</SGFBadge> : access
                     ? (access.access_blocked
                         ? <SGFBadge variant="error">Bloqueado</SGFBadge>
                         : <SGFBadge variant="success">Ativo</SGFBadge>)
@@ -96,6 +96,11 @@ export function PartnerAccessCard({ partnerType, partnerId, partnerName, systemL
                 </p>
             ) : isLoading ? (
                 <div className="mt-6 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>
+            ) : error ? (
+                <div className="mt-4" role="alert">
+                    <p className="text-sm text-red-700">{error.message}</p>
+                    <SGFButton variant="ghost" size="sm" onClick={() => void refetch()}>Tentar novamente</SGFButton>
+                </div>
             ) : access ? (
                 <>
                     <dl className="mt-4 space-y-2 text-sm">

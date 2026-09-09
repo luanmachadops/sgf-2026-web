@@ -10,8 +10,16 @@
  * Regra única: mínimo 12, teto 72 (limite físico do bcrypt — acima disso o
  * hash trunca em silêncio, então não é "mais seguro", é só enganoso aceitar).
  */
+import { randomInt } from 'node:crypto';
+
 export const PASSWORD_MIN_LENGTH = 12;
 export const PASSWORD_MAX_LENGTH = 72;
+
+/** Senha provisória com entropia criptográfica e sem viés de módulo. */
+export function generateTempPassword(): string {
+    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    return Array.from({ length: 16 }, () => alphabet[randomInt(alphabet.length)]).join('');
+}
 
 export function passwordPolicyMessage(label = 'Senha'): string {
     return `${label} deve ter entre ${PASSWORD_MIN_LENGTH} e ${PASSWORD_MAX_LENGTH} caracteres`;

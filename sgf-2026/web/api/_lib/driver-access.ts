@@ -1,7 +1,6 @@
-import { randomBytes } from 'node:crypto';
 import { getSupabaseAdmin } from './supabase-admin.js';
 import { assertTargetIsDriver } from './caller.js';
-import { assertStrongPassword } from './password-policy.js';
+import { assertStrongPassword, generateTempPassword } from './password-policy.js';
 
 // Banco unificado: motorista vive em `public.profiles` com role='motorista'.
 // O `id` do profile = `id` do auth.users (trigger handle_new_user já cria a row).
@@ -122,6 +121,7 @@ export async function createDriver(payload: CreateDriverPayload) {
     const authEmail = buildDriverAuthEmail(normalizedCpf);
 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        app_metadata: { tenant_id: payload.tenantId },
         email: authEmail,
         password: payload.password,
         email_confirm: true,
@@ -185,17 +185,6 @@ export interface PreRegisterDriverPayload {
 }
 
 /**
- * Senha provisória aleatória e legível (sem ambiguidade 0/O, 1/l), ex.: "K7RT-M2XP".
- * Mostrada UMA vez ao gestor, que a entrega ao motorista.
- */
-function generateTempPassword(): string {
-    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-    const bytes = randomBytes(8);
-    const chars = Array.from(bytes, (b) => alphabet[b % alphabet.length]);
-    return `${chars.slice(0, 4).join('')}-${chars.slice(4).join('')}`;
-}
-
-/**
  * Pré-cadastro por CPF: cria o acesso com senha provisória ALEATÓRIA e marca
  * must_change_password. A senha é retornada uma única vez na resposta para o
  * gestor entregar ao motorista, que é obrigado a trocá-la no 1º acesso.
@@ -221,7 +210,9 @@ export async function preRegisterDriver(payload: PreRegisterDriverPayload) {
 
     const authEmail = buildDriverAuthEmail(normalizedCpf);
     const tempPassword = generateTempPassword();
+    assertStrongPassword(tempPassword);
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        app_metadata: { tenant_id: payload.tenantId },
         email: authEmail,
         password: tempPassword,
         email_confirm: true,

@@ -7,6 +7,7 @@ export interface Caller {
     tenantId: string | null;
     accessBlocked: boolean;
     driverStatus: string | null;
+    allowedModules: string[];
 }
 
 /**
@@ -78,10 +79,18 @@ export async function getCaller(req: any): Promise<Caller | null> {
 
     const { data: profile } = await admin
         .from('profiles')
-        .select('role, department_id, tenant_id, access_blocked, driver_status')
+        .select('role, department_id, tenant_id, access_blocked, driver_status, allowed_modules')
         .eq('id', data.user.id)
         .single();
     if (!profile) return null;
+    if (profile.role !== 'superadmin') {
+        const { data: tenant, error: tenantError } = await admin.from('tenants')
+            .select('status').eq('id', profile.tenant_id).maybeSingle();
+        if (tenantError) throw Object.assign(new Error('Não foi possível verificar a prefeitura.'), { status: 503 });
+        if (!tenant || tenant.status === 'suspended') {
+            throw Object.assign(new Error('Acesso da prefeitura indisponível.'), { status: 403 });
+        }
+    }
 
     // Bloqueio é decidido no perfil, não no JWT: o token continua válido até
     // expirar, então sem esta checagem bloquear alguém no painel não impede
@@ -99,6 +108,7 @@ export async function getCaller(req: any): Promise<Caller | null> {
         tenantId: (profile as any).tenant_id ?? null,
         accessBlocked,
         driverStatus,
+        allowedModules: profile.allowed_modules ?? [],
     };
 }
 
