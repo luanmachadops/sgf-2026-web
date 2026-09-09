@@ -2,6 +2,8 @@
 
 Revisão iniciada em 08/09/2026 e concluída em 09/09/2026. Projeto: Exattus Rotta / SGF 2026.
 
+> Atualização de 09/09/2026: as pendências de sessões e a análise específica do Paraná foram tratadas em [Sessões e conferência SIM-AM](parana-sessoes-e-conferencia-simam.md). As observações abaixo registram o estado da primeira etapa.
+
 ## Situação da entrega
 
 Implementação preparada no código e em duas migrations, com testes locais. O banco e o site de produção **não foram alterados** nesta revisão. A inspeção do Supabase de produção foi somente de leitura. O usuário informou que os erros de acesso e do portal das oficinas voltaram a funcionar; não foi identificada evidência suficiente para atribuir uma causa retrospectiva à indisponibilidade.

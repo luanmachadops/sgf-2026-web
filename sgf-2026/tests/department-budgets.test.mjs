@@ -39,7 +39,7 @@ const basePayload = () => ({
   ],
 });
 
-async function setup() {
+async function setup(withSessions = false) {
   const db = new PGlite();
   await db.exec(`
  create role anon; create role authenticated; create role service_role bypassrls;
@@ -68,9 +68,21 @@ async function setup() {
  insert into public.repair_shops values('${workshop}','${tenant}');
  insert into public.vehicles values('${vehicle}','${tenant}','${department}',100),('${id(8)}','${tenant}','${otherDepartment}',100);
  `);
+  if (withSessions) {
+    await db.exec(`create role authenticator; create table auth.sessions(id uuid primary key,user_id uuid,created_at timestamptz,not_after timestamptz);
+      alter table public.profiles add column driver_status text default 'ativo';
+      insert into auth.sessions values('${id(99)}','${admin}',now(),null);`);
+    await db.query("select set_config('request.jwt.claims',$1,false)", [
+      JSON.stringify({ role: "authenticated", sub: admin, session_id: id(99) }),
+    ]);
+  }
   for (const name of [
     "20260908235823_access_security_and_department_budgets.sql",
     "20260908235909_department_budget_control.sql",
+    ...(withSessions
+      ? ["20260909113403_active_sessions_and_legacy_access.sql"]
+      : []),
+    "20260909114100_parana_budget_reconciliation.sql",
   ]) {
     await db.exec(
       await readFile(
@@ -116,6 +128,52 @@ await test("PostgreSQL: cotas e fronteiras de acesso", async (t) => {
       }
     });
   }
+  await scenario("referências TCE-PR são preservadas e auditadas", async () => {
+    const reporting = {
+      idPessoa: "0000123",
+      nrLicitacao: "024",
+      nrAnoLicitacao: String(year),
+      dotacoes: { [department]: "0".repeat(28) },
+    };
+    const cid = await save(db, { ...basePayload(), reporting });
+    const result = await db.query(
+      "select reporting from public.budget_contracts where id=$1",
+      [cid],
+    );
+    assert.deepEqual(result.rows[0].reporting, reporting);
+    assert.equal(
+      (
+        await db.query(
+          "select count(*)::int n from public.budget_events where event_type='reporting_references'",
+        )
+      ).rows[0].n,
+      1,
+    );
+  });
+  await scenario(
+    "dotação SIM-AM incompleta impede cadastro parcial",
+    async () => {
+      await assert.rejects(
+        save(db, {
+          ...basePayload(),
+          reporting: { dotacoes: { [department]: "339030" } },
+        }),
+        /28 dígitos/,
+      );
+    },
+  );
+  await scenario(
+    "cliente não contorna validação SIM-AM pelo núcleo privado",
+    async () => {
+      await db.exec("set local role authenticated");
+      await assert.rejects(
+        db.query("select sgf_private.save_department_budget_core($1)", [
+          basePayload(),
+        ]),
+        /permission denied/,
+      );
+    },
+  );
   await scenario(
     "recusa soma de cotas acima do contrato sem criar configuração parcial",
     async () => {
@@ -445,4 +503,25 @@ await test("PostgreSQL: cotas e fronteiras de acesso", async (t) => {
     },
   );
   await db.close();
+});
+
+await test("integração das quatro migrations: cota, conferência e revogação", async () => {
+  const db = await setup(true);
+  try {
+    await save(db, { ...basePayload(), reporting: { idPessoa: "0000123" } });
+    const result = await db.query("select get_department_budgets($1) data", [
+      year,
+    ]);
+    assert.equal(result.rows[0].data[0].reporting.idPessoa, "0000123");
+    await db.query(
+      "update public.profiles set access_blocked=true where id=$1",
+      [admin],
+    );
+    await assert.rejects(
+      db.query("select get_department_budgets($1)", [year]),
+      /revogada/,
+    );
+  } finally {
+    await db.close();
+  }
 });

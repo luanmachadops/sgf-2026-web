@@ -1,3 +1,4 @@
+import { PARANA_FIELDS, paranaReviewCsv } from "@/lib/parana-budget-report";
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -115,6 +116,7 @@ function BudgetEditor({
     total_limit: contract?.total_limit ?? 0,
     partner_ids: contract?.partner_ids ?? [],
     reason: "",
+    reporting: contract?.reporting ?? {},
     allocations:
       contract?.allocations.map((a) => ({
         department_id: a.department_id,
@@ -316,6 +318,14 @@ function BudgetEditor({
                             allocations: form.allocations.filter(
                               (a) => a.department_id !== d.id,
                             ),
+                            reporting: {
+                              ...form.reporting,
+                              dotacoes: Object.fromEntries(
+                                Object.entries(form.reporting?.dotacoes ?? {}).filter(
+                                  ([departmentId]) => departmentId !== d.id,
+                                ),
+                              ),
+                            },
                           })
                     }
                   />
@@ -381,6 +391,57 @@ function BudgetEditor({
             Próxima
           </SGFButton>
         </div>
+        <details className="rounded-xl border border-slate-200 p-4">
+          <summary className="cursor-pointer font-semibold">
+            Referências para conferência TCE-PR / SIM-AM
+          </summary>
+          <p className="my-3 text-sm text-slate-600">
+            Preencha com a contabilidade. Códigos não informados serão
+            destacados na exportação. Este arquivo auxilia a conferência e não
+            substitui a remessa oficial.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {PARANA_FIELDS.map(([key, label, max]) => (
+              <SGFInput
+                key={key}
+                label={label}
+                maxLength={max}
+                value={form.reporting?.[key] ?? ""}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    reporting: {
+                      ...form.reporting,
+                      [key]: e.target.value.trim(),
+                    },
+                  })
+                }
+              />
+            ))}
+          </div>
+          {form.allocations.map((a) => (
+            <SGFInput
+              key={a.department_id}
+              label={`Dotação SIM-AM · ${departments.data?.find((d) => d.id === a.department_id)?.name ?? a.department_id}`}
+              hint="28 dígitos, incluindo órgão, unidade e classificação completa. Preserve os zeros iniciais."
+              maxLength={28}
+              pattern="[0-9]{28}"
+              value={form.reporting?.dotacoes?.[a.department_id] ?? ""}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  reporting: {
+                    ...form.reporting,
+                    dotacoes: {
+                      ...form.reporting?.dotacoes,
+                      [a.department_id]: e.target.value,
+                    },
+                  },
+                })
+              }
+            />
+          ))}
+        </details>
         <SGFInput
           label="Justificativa e referência do ato autorizativo"
           hint="Informe o motivo e o número do documento que autoriza a distribuição ou o remanejamento."
@@ -428,6 +489,8 @@ function describeSnapshot(value: unknown, contract: DepartmentBudget): string {
   if (!value || typeof value !== "object" || Array.isArray(value))
     return "Sem registro anterior";
   const row = value as Record<string, unknown>;
+  if (!("contract" in row) && !("source_type" in row))
+    return JSON.stringify(row, null, 2);
   const departmentName = (id: unknown) =>
     contract.allocations.find((a) => a.department_id === id)?.department_name ??
     String(id ?? "");
@@ -615,6 +678,24 @@ export default function DepartmentBudgets() {
           onClick={() => exportSummary(contracts)}
         >
           Exportar CSV
+        </SGFButton>
+        <SGFButton
+          variant="outline"
+          disabled={!contracts.length}
+          onClick={() => {
+            const url = URL.createObjectURL(
+              new Blob([paranaReviewCsv(contracts)], {
+                type: "text/csv;charset=utf-8;",
+              }),
+            );
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "conferencia-tce-pr.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+        >
+          Conferência TCE-PR
         </SGFButton>
         {canEdit && (
           <SGFButton onClick={() => setEditor("new")}>

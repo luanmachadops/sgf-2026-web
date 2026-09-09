@@ -1,3 +1,4 @@
+import type { ParanaReporting } from "./parana-budget-report";
 import { z } from "zod";
 import { supabase } from "./supabase";
 import type { Json } from "@/types/database.types";
@@ -14,6 +15,18 @@ const allocationSchema = z.object({
   available: z.number(),
 });
 const contractSchema = z.object({
+  reporting: z
+    .object({
+      idPessoa: z.string().optional(),
+      nrLicitacao: z.string().optional(),
+      nrAnoLicitacao: z.string().optional(),
+      idTipoInstrumentoConvocatorio: z.string().optional(),
+      idModalidadeLicitacao: z.string().optional(),
+      idTipoDocOrigemLicitacao: z.string().optional(),
+      nrDocOrigemLicitacao: z.string().optional(),
+      dotacoes: z.record(z.string(), z.string()).optional(),
+    })
+    .optional(),
   id: z.string(),
   category: z.enum(["fuel", "maintenance"]),
   reference: z.string(),
@@ -37,6 +50,7 @@ const eventSchema = z.object({
 export type DepartmentBudget = z.infer<typeof contractSchema>;
 export type BudgetAllocation = z.infer<typeof allocationSchema>;
 export interface BudgetPayload {
+  reporting?: ParanaReporting;
   id?: string;
   version?: number;
   category: "fuel" | "maintenance";
