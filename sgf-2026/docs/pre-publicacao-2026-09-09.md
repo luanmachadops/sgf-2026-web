@@ -37,3 +37,7 @@ A autorização para publicar já foi recebida. Os impedimentos acima são condi
 - CLI: comandos de dump disponíveis, mas não se obteve conexão autenticada para backup manual. A configuração local vinculada identifica o projeto, sem credencial de banco disponibilizada nesta etapa. Não foi redefinida senha.
 - Alternativa ao upgrade: disponibilizar conexão PostgreSQL autorizada por configuração segura para backup manual e preparar homologação local com a estrutura restaurada. Essa alternativa ainda não foi executada.
 - Migrations e aplicativos permanecem sem publicação, pois recuperação e homologação integrada ainda não foram comprovadas. A autorização de deploy continua válida; não há autorização para contratar assinatura.
+
+## Diretriz final do usuário: dados descartáveis de teste
+
+Usuário decidiu manter Free e confirmou que todos os dados são de teste, autorizando apagar se necessário. A estratégia foi ajustada: concorrência validada em PostgreSQL 17 local e demais validações na base remota de testes, preservando dados quando possível. O primeiro commit foi publicado nos quatro aplicativos; não confundir essa etapa com publicação das migrations e do painel final. Ver [execução no plano gratuito](publicacao-plano-gratuito.md).
