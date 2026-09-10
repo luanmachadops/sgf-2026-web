@@ -1,4 +1,5 @@
 import { PARANA_FIELDS, paranaReviewCsv } from "@/lib/parana-budget-report";
+import { ProcurementNavigation } from "@/components/procurement/ProcurementNavigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -33,7 +34,7 @@ const PAGE_SIZE = 10;
 function exportSummary(contracts: DepartmentBudget[]) {
   const cell = (v: string | number) =>
     `"${String(v)
-      .replace(/^[=+@\-]/, "'$&")
+      .replace(/^[=+@-]/, "'$&")
       .replaceAll('"', '""')}"`;
   const rows: Array<Array<string | number>> = [
     [
@@ -629,6 +630,7 @@ export default function DepartmentBudgets() {
   );
   return (
     <div className="space-y-6">
+      <ProcurementNavigation />
       <SGFCard>
         <p className="text-sm text-slate-600">
           Uma licitação pode atender várias secretarias e fornecedores. Cada

@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
 import { canAccessModule, type AccessModule } from '@/lib/accessModules';
+import { procurementAccess } from '@/lib/procurement-navigation';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -44,6 +45,7 @@ type MenuItem = {
     badge?: string;
     module?: AccessModule;
     accessManagersOnly?: boolean;
+    procurement?: boolean;
 };
 type MenuSection = { title: string; items: MenuItem[] };
 const menuSections: MenuSection[] = [
@@ -67,7 +69,7 @@ const menuSections: MenuSection[] = [
             { icon: Clipboard, label: 'Checklists', path: '/checklists', module: 'checklists' },
             { icon: Receipt, label: 'Infrações', path: '/infracoes', module: 'infractions' },
             { icon: Building2, label: 'Secretarias', path: '/secretarias', module: 'departments' },
-            { icon: Receipt, label: 'Limites por secretaria', path: '/configuracoes/limites', module: 'budgets' },
+            { icon: FileText, label: 'Licitações e Contratos', path: '/licitacoes', procurement: true },
             { icon: FileText, label: 'Relatórios & Auditoria', path: '/relatorios', module: 'reports' },
         ]
     },
@@ -100,6 +102,7 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
     const { user, logout } = useAuth();
     const { branding } = useBranding();
     const departmentScoped = Boolean(user?.departmentScopeId);
+    const procurement = procurementAccess(user);
     const canManageAccess = user?.accountRole === 'admin'
         || user?.accountRole === 'gestor'
         || user?.accountRole === 'superadmin';
@@ -107,6 +110,8 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
         .map((section) => ({
             ...section,
             items: section.items
+                .filter((item) => !item.procurement || Boolean(procurement.entry))
+                .map((item) => item.procurement ? { ...item, path: procurement.entry ?? item.path } : item)
                 .filter((item) => !item.accessManagersOnly || canManageAccess)
                 .filter((item) => !item.module || canAccessModule(user?.allowedModules, item.module))
                 .filter((item) => !departmentScoped || !GLOBAL_ONLY_PATHS.has(item.path)),
