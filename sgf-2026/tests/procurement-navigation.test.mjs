@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { procurementAccess } from '../web/src/lib/procurement-navigation.ts';
+import { procurementAccess, canManageProcurement } from '../web/src/lib/procurement-navigation.ts';
 
 test('central não oferece acesso a visitantes, motoristas ou parceiros', () => {
   for (const user of [null, undefined, {}, ...['posto', 'oficina', 'motorista'].map(accountRole => ({ accountRole }))]) {
@@ -35,4 +35,15 @@ test('administrador com módulos explícitos vazios não recebe acesso implícit
   assert.equal(procurementAccess({ accountRole: 'admin', allowedModules: [] }).entry, null);
   assert.deepEqual(procurementAccess({ accountRole: 'admin' }),
     { overview: true, budgets: true, entry: '/licitacoes' });
+});
+
+
+test('cadastro exige módulo explícito e gestor global', () => {
+  for (const accountRole of ['admin', 'gestor', 'superadmin']) {
+    assert.equal(canManageProcurement({ accountRole }), false);
+    assert.equal(canManageProcurement({ accountRole, allowedModules: ['procurement'] }), true);
+    assert.equal(procurementAccess({ accountRole, allowedModules: ['procurement'] }).entry, '/licitacoes/processos');
+    assert.equal(canManageProcurement({ accountRole, allowedModules: ['procurement'], departmentScopeId: 'saude' }), false);
+  }
+  for (const accountRole of ['secretario', 'oficina', 'posto', 'motorista']) assert.equal(canManageProcurement({ accountRole, allowedModules: ['procurement'] }), false);
 });

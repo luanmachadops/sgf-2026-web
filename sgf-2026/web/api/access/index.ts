@@ -8,7 +8,7 @@ import { checkRateLimitByKey, sendRateLimited } from '../_lib/rate-limit.js';
 const MODULES = new Set([
     'dashboard', 'map', 'notifications', 'fleet', 'drivers', 'trips',
     'refuelings', 'stations', 'maintenances', 'repair_shops', 'checklists',
-    'infractions', 'departments', 'reports', 'settings', 'budgets',
+    'infractions', 'departments', 'reports', 'settings', 'budgets', 'procurement',
 ]);
 const ROLES = new Set(['admin', 'gestor', 'secretario', 'motorista']);
 

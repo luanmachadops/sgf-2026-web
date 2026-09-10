@@ -1,0 +1,58 @@
+// Local-only UI fixture: real page + RPC adapter + in-memory PostgreSQL. No cloud credentials.
+// Run: node tests/procurement-registry-preview.mjs; open http://127.0.0.1:5184
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { setup, id, admin, tenant } from './department-budget-fixture.mjs';
+import { createServer } from '../web/node_modules/vite/dist/node/index.js';
+const web = fileURLToPath(new URL('../web/', import.meta.url));
+const db = await setup(true);
+await db.exec(await readFile(new URL('../supabase/migrations/20260910152227_procurement_registry.sql', import.meta.url), 'utf8'));
+await db.exec(`select set_config('app.uid','',false);
+  alter table public.fuel_stations add column name text default 'Posto municipal teste';
+  alter table public.repair_shops add column name text default 'Oficina mecânica teste';
+  update public.profiles set allowed_modules=array['procurement'] where id='${admin}';
+  update auth.sessions set created_at=clock_timestamp()+interval '1 second' where id='${id(99)}';
+  select set_config('app.uid','${admin}',false); set role authenticated;`);
+const rpc = {
+  get_procurement_registry: p => db.query('select public.get_procurement_registry($1,$2,$3,$4) data', [p.p_kind, p.p_process ?? null, p.p_offset ?? 0, p.p_search ?? '']),
+  save_procurement_registry: p => db.query('select public.save_procurement_registry($1,$2::jsonb) data', [p.p_kind, JSON.stringify(p.p_payload)]),
+  get_procurement_registry_events: p => db.query('select public.get_procurement_registry_events($1,$2) data', [p.p_process, p.p_offset ?? 0]),
+  get_procurement_registry_partners: () => db.query('select public.get_procurement_registry_partners() data'),
+};
+const server = await createServer({
+  root: web, configFile: `${web}vite.config.ts`,
+  optimizeDeps: { entries: ['src/pages/ProcurementRegistry.tsx'] },
+  server: { host: '127.0.0.1', port: 5184, strictPort: true },
+  plugins: [{
+    name: 'local-procurement-fixture', enforce: 'pre',
+    resolveId(source, importer) {
+      if (source.includes('contexts/AuthContext')) return '\0preview-auth';
+      if (source === './supabase' && importer?.endsWith('procurement-registry-api.ts')) return '\0preview-rpc';
+      if (source === '/preview-entry.js') return '\0preview-entry';
+    },
+    load(source) {
+      if (source === '\0preview-auth') return `export const useAuth=()=>({user:{id:'${admin}',tenantId:'${tenant}',accountRole:'admin',allowedModules:['procurement']}});`;
+      if (source === '\0preview-rpc') return `export const supabase={rpc:async(name,args={})=>(await fetch('/fixture-rpc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,args})})).json()};`;
+      if (source === '\0preview-entry') return `import React from 'react'; import {createRoot} from 'react-dom/client'; import {BrowserRouter} from 'react-router-dom'; import {QueryClient,QueryClientProvider} from '@tanstack/react-query'; import {HeaderProvider} from '/src/contexts/HeaderContext.tsx'; import Registry from '/src/pages/ProcurementRegistry.tsx'; import '/src/index.css'; createRoot(document.getElementById('root')).render(React.createElement(QueryClientProvider,{client:new QueryClient({defaultOptions:{queries:{retry:false}}})},React.createElement(BrowserRouter,null,React.createElement(HeaderProvider,null,React.createElement('main',{className:'mx-auto max-w-6xl p-6'},React.createElement(Registry))))));`;
+    },
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        if (req.url === '/fixture-rpc' && req.method === 'POST') {
+          let body = ''; for await (const chunk of req) body += chunk;
+          res.setHeader('Content-Type', 'application/json');
+          try {
+            const { name, args } = JSON.parse(body);
+            if (!Object.hasOwn(rpc, name)) throw new Error('RPC desconhecida');
+            const result = await rpc[name](args);
+            res.end(JSON.stringify({ data: result.rows[0].data, error: null }));
+          } catch (error) { res.end(JSON.stringify({ data: null, error: { message: error.message, code: error.code } })); }
+        } else if (req.url === '/' || req.url?.startsWith('/licitacoes')) {
+          const html = await server.transformIndexHtml('/', '<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Teste local de licitações</title></head><body><div id="root"></div><script type="module" src="/preview-entry.js"></script></body></html>');
+          res.setHeader('Content-Type', 'text/html'); res.end(html);
+        } else next();
+      });
+    },
+  }],
+});
+await server.listen();
+console.info('Fixture local: http://127.0.0.1:5184');

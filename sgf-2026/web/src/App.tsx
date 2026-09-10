@@ -36,6 +36,7 @@ import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt';
 import { canAccessModule, type AccessModule } from '@/lib/accessModules';
 import DepartmentBudgets from '@/pages/DepartmentBudgets';
 import Procurement from '@/pages/Procurement';
+import ProcurementRegistry from '@/pages/ProcurementRegistry';
 import AccessManagement from '@/pages/AccessManagement';
 import TermsAndPrivacy from '@/pages/TermsAndPrivacy';
 
@@ -123,6 +124,7 @@ function App() {
                 <Route path="/oficinas" element={<ModuleRoute module="repair_shops"><GlobalManagementRoute><RepairShops /></GlobalManagementRoute></ModuleRoute>} />
                 <Route path="/oficinas/:id" element={<ModuleRoute module="repair_shops"><GlobalManagementRoute><RepairShops /></GlobalManagementRoute></ModuleRoute>} />
                 <Route path="/configuracoes" element={<ModuleRoute module="settings"><GlobalManagementRoute><Configuracoes /></GlobalManagementRoute></ModuleRoute>} />
+                <Route path="/licitacoes/processos" element={<ProcurementRegistry />} />
                 <Route path="/licitacoes" element={<Procurement />} />
                 <Route path="/licitacoes/limites" element={<ModuleRoute module="budgets"><DepartmentBudgets /></ModuleRoute>} />
                 <Route path="/configuracoes/limites" element={<ModuleRoute module="budgets"><Navigate to="/licitacoes/limites" replace /></ModuleRoute>} />

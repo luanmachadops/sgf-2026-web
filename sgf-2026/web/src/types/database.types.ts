@@ -2832,6 +2832,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_procurement_registry: { Args: { p_kind: string; p_process?: string; p_offset?: number; p_search?: string }; Returns: Json }
+      save_procurement_registry: { Args: { p_kind: string; p_payload: Json }; Returns: string }
+      get_procurement_registry_events: { Args: { p_process: string; p_offset?: number }; Returns: Json }
+      get_procurement_registry_partners: { Args: Record<string, never>; Returns: Json }
             check_current_access: { Args: Record<string, never>; Returns: undefined };
       get_department_budgets: { Args: { p_year: number }; Returns: Json }
       save_department_budget: { Args: { p_payload: Json }; Returns: string }

@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { procurementAccess } from '@/lib/procurement-navigation';
+import { procurementAccess, canManageProcurement } from '@/lib/procurement-navigation';
 
 export function ProcurementNavigation() {
   const { user } = useAuth();
   const access = procurementAccess(user);
   const links = [
+    ...(canManageProcurement(user) ? [{ to: '/licitacoes/processos', label: 'Processos, atas e contratos' }] : []),
     ...(access.overview ? [{ to: '/licitacoes', label: 'Contratos atuais' }] : []),
     ...(access.budgets ? [{ to: '/licitacoes/limites', label: 'Limites por secretaria' }] : []),
   ];

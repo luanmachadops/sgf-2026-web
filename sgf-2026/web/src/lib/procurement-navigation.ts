@@ -6,6 +6,11 @@ interface ProcurementUser {
   allowedModules?: readonly string[];
 }
 
+export function canManageProcurement(user: ProcurementUser | null | undefined): boolean {
+  return Boolean(user && ['admin', 'gestor', 'superadmin'].includes(user.accountRole ?? '')
+    && !user.departmentScopeId && user.allowedModules?.includes('procurement'));
+}
+
 export function procurementAccess(user: ProcurementUser | null | undefined) {
   const manager = ['admin', 'gestor', 'superadmin'].includes(user?.accountRole ?? '');
   // The existing RPC returns both supplier types. Only expose the overview
@@ -18,5 +23,5 @@ export function procurementAccess(user: ProcurementUser | null | undefined) {
   );
   const budgets = Boolean(user) && (manager || user?.accountRole === 'secretario')
     && canAccessModule(user?.allowedModules, 'budgets');
-  return { overview, budgets, entry: overview ? '/licitacoes' : budgets ? '/licitacoes/limites' : null };
+  return { overview, budgets, entry: canManageProcurement(user) ? '/licitacoes/processos' : overview ? '/licitacoes' : budgets ? '/licitacoes/limites' : null };
 }
