@@ -103,6 +103,35 @@ Validação:
 
 Sem push, deploy, alteração remota ou plano pago nesta rodada.
 
+## Rodada 5B1 — controle interno de reservas de combustível (implementado localmente)
+
+A etapa 5B foi dividida em controle contábil e adaptação da emissão/portal. A inspeção identificou três controles que precisam coexistir: cota por secretaria, valor global do posto e cobertura por empenho. **Esta entrega implementa o controle interno e suas transições; não disponibiliza emissão pelo novo modelo na interface.** Não há RPC pública para criar reservas, e todas as funções novas têm execução revogada para clientes. O cadastro de instrumentos continua em rascunho. A função interna aceita rascunhos para os testes; antes da exposição operacional, a etapa 5B2 deverá exigir habilitação explícita e conferida do contrato.
+
+Migration `20260911023848_procurement_fuel_reservations.sql`, criada pela CLI. A tabela `procurement_fuel_reservations` guarda vínculo com abastecimento, item, dotação, condição de preço, veículo e posto, além de quantidade autorizada, preço reservado, quantidade/valor comprometidos, estado e autoria. FK diferida exige que a reserva e o abastecimento sejam gravados na mesma transação. Identificador repetido com os mesmos parâmetros não duplica consumo nem reabre cancelamento; identificador com parâmetros diferentes é recusado. O adaptador futuro deverá reutilizar o identificador em tentativas da mesma solicitação.
+
+A reserva valida sessão, gestão global, módulos de licitações/limites/abastecimentos, prefeitura, secretaria do veículo, fornecedor do item, categoria combustível e unidade litro, exercício, vigência, quantidade, capacidade e validade (máximo sete dias e dentro do contrato/exercício). Nesta entrega somente preço unitário positivo; desconto depende de uma base comprovada, ainda não integrada. A rotina bloqueia a prefeitura e depois o processo durante o cálculo e gravação, verifica quantidade total comprometida do item e dinheiro comprometido da dotação. A transição serializa atualizações pelo bloqueio da prefeitura. Não houve ensaio com duas conexões PostgreSQL concorrentes reais: essa homologação permanece pendente.
+
+Transições ligadas a `fuelings` por trigger:
+
+- Autorizado: quantidade e dinheiro ficam reservados.
+- Concluído: valor e quantidade efetivos substituem a reserva, liberando a diferença. Exige preço reservado, quantidade positiva dentro da autorização e prazo válido.
+- Cancelado/recusado antes da execução: libera quantidade e dinheiro. Não permite reabrir.
+- Validado: mantém o realizado.
+- Rejeitado depois da execução: mantém quantidade e dinheiro como contestados; não libera saldo e exige futura conciliação específica para outra destinação.
+
+Preço, vínculo, autoria e identificação da autorização são preservados. Depois da execução, litros, preço, total e data de execução não podem ser reescritos. Registros vinculados não podem ser excluídos. Dotação com histórico não pode ser apagada ou trocar identificação; teto não pode ficar abaixo do comprometido. Item com histórico preserva vínculo e não admite quantidade menor que a comprometida. Mudanças são auditadas no histórico financeiro da licitação, com antes/depois. Expiração não libera reserva automaticamente: impede conclusão, mantendo saldo comprometido até cancelamento explícito.
+
+O livro antigo de cotas por secretaria ignora abastecimentos com vínculo no novo controle e recusa sua associação por conciliação antiga. Abastecimentos existentes não ganham vínculo silenciosamente. Os controles globais do posto e de empenho **não foram removidos nem adaptados**: a emissão/portal novos continuam privados justamente porque essa compatibilidade precisa ser concluída. A função atual do portal ainda busca preço no posto; na etapa 5B2 deverá utilizar o preço da reserva para os registros vinculados e manter o comportamento antigo para os demais. A nova trigger rejeita conclusão com preço diferente, sem substituí-lo silenciosamente.
+
+Validação:
+
+- **103 testes passaram na suíte completa**, incluindo oito cenários novos. Após o ajuste final de imutabilidade de ID/autoria, os oito testes desta entrega passaram novamente.
+- Testados: reserva/repetição, limite de quantidade e dinheiro, execução parcial, cancelamento, contestação, revisão de preço, entradas inválidas, permissões/sessão, prefeitura/secretaria/fornecedor, FK diferida, preservação de histórico, redução de limites e coexistência dos dois livros com auditoria.
+- Exemplo: reserva de 60 L a R$ 5 compromete R$ 300; conclusão com 40 L mantém R$ 200 e devolve 20 L/R$ 100. Rejeição após execução mantém os R$ 200 contestados.
+- Advisors locais tentados: serviço Supabase/Postgres Docker indisponível em `127.0.0.1:54322`. RLS e privilégios foram conferidos no PostgreSQL em memória. Não houve alteração de frontend, portanto não foi necessário repetir build/teste visual nesta entrega.
+
+Sem push, deploy, alteração remota ou plano pago.
+
 ## Próximo passo
 
-Etapa 5B: implementar a reserva atômica e a emissão/cancelamento de autorização de combustível, incluindo vínculo persistente com contrato, item, condição de preço e dotação. Revalidar saldo em dinheiro e quantidade dentro da mesma transação, com idempotência e preservação histórica. Integrar também a conclusão no posto antes de permitir ativação do novo fluxo de combustível. Definir transição explícita para evitar desconto simultâneo pelo livro antigo e pelo novo. Depois expandir para lançamentos diretos, serviços, complementações, portais e fechamentos. Ativação/publicação depende da integração e da conciliação/homologação da etapa 6.
+Etapa 5B2: conectar a emissão de autorização e o portal ao controle interno. Antes de habilitar: definir classificação explícita do combustível do item (sem inferir por descrição); validar motorista, situação/combustível do veículo, posto e documentos; manter cobertura por empenho; adaptar os limites globais do posto para não bloquear indevidamente nem somar duas vezes o novo contrato. Criar a reserva e a autorização na mesma transação, com identificador idempotente, habilitação explícita e consulta de saldos por permissão. No portal, concluir usando preço reservado e permitir repetição segura. Testar o fluxo completo com Auth/PostgREST e concorrência real antes de ativar. Depois expandir para lançamentos diretos, serviços, complementações e fechamentos, seguido de conciliação/homologação da etapa 6.
