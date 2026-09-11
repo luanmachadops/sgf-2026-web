@@ -17,6 +17,7 @@ export type RegistryPayload = {
 function check(error: { message: string; code?: string } | null) {
   if (!error) return;
   if (error.code === 'PGRST202' || error.code === '42P01') throw new Error('O cadastro de processos aguarda a implantação da estrutura no banco.');
+  if (error.code === '23503') throw new Error('Este vínculo é utilizado por itens ou contratos. Confira os registros relacionados antes de alterar.');
   if (error.code === '23505') throw new Error('Esta referência já existe para o mesmo tipo e ano. Confira o cadastro existente.');
   if (['23514', '23502', '22P02', '22003', '22007', '22008'].includes(error.code ?? '')) throw new Error('Confira os campos obrigatórios, as datas e os valores informados.');
   throw new Error(error.message);

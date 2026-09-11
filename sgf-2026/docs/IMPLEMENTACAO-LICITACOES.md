@@ -41,6 +41,26 @@ Validação em 10/09/2026:
 
 Nenhuma migration foi aplicada ao ambiente hospedado, e não houve push/publicação nesta rodada. Antes de publicar esta etapa, aplicar a migration em ambiente de validação e conferir atribuição do módulo com sessões reais. A estrutura continua no plano gratuito.
 
+## Rodada 3 — itens, lotes e condições de preço (implementado localmente)
+
+Cada ata/contrato tem a ação **Itens e preços**. O item registra referência própria, descrição, categoria, unidade, quantidade e fornecedor adjudicado. A referência de lote é opcional e agrupa os itens dentro do instrumento; a adjudicação permanece no item. Nesta etapa não existe um cadastro separado de lotes nem fluxo de julgamento da licitação. Categorias: combustível, ARLA, lubrificantes, peças, mão de obra, pneus, borracharia e outros. Busca por item/lote/descrição e paginação de 20 registros.
+
+As condições de preço são registros históricos: preço por unidade (até seis casas decimais) ou percentual de desconto com tabela identificada por versão/data-base. Cada condição exige início de efeito dentro da vigência, documento de fundamento e justificativa. A consulta por data seleciona a condição aplicável; não antecipa uma condição futura. Revisões na mesma data são preservadas, prevalecendo a mais recente. Não se calcula um total fictício para descontos cuja base ainda não foi informada. As operações antigas não são reprecificadas.
+
+Contrato derivado exige seleção de item da ata de origem, com mesmo fornecedor, unidade e categoria. A soma das quantidades distribuídas aos contratos não pode superar a quantidade do item da ata. Reduzir a ata abaixo do já distribuído também é recusado. Essa distribuição inclui os contratos em rascunho; é uma alocação contratual, não reserva operacional de abastecimento/serviço. A futura ativação/cancelamento deverá manter coerência desse cálculo. Condições de preço do contrato são conferidas e registradas separadamente; não são copiadas silenciosamente da ata.
+
+Modelo adicional: `procurement_items` e `procurement_item_prices`, migration `20260910211314_procurement_items_prices.sql` criada pela CLI. Reutiliza o módulo `procurement`, os controles de sessão e a auditoria da etapa 2. Tabelas sem acesso direto, com RLS; quatro RPCs públicas invoker com implementação privada validada. Um bloqueio transacional no processo serializa alterações de quantidade e preço. A versão do item também muda ao registrar preço, evitando sobrescrita sobre estado desatualizado. Fornecedor, unidade e categoria com histórico não podem ser trocados; a alteração da vigência não pode excluir datas de condições já registradas. A FK diferida para os fornecedores permite a reposição das mesmas associações pelo editor antigo, mas impede remover um fornecedor usado por itens.
+
+Validação desta rodada:
+
+- **82 testes passaram**, incluindo sete novos cenários de banco: categorias/lotes, precisão, preço por data, desconto, revisões, limite da ata, preservação de vínculos, transação, isolamento, permissões e paginação.
+- TypeScript, lint dos arquivos alterados e build Vite passaram; permanece o aviso conhecido de tamanho dos bundles.
+- Navegador com página/API reais e PGlite local: item Diesel S10, lote Combustíveis, 1.000 L, preço R$ 5,123456; registro posterior de desconto de 12,5% sobre tabela fictícia; consulta anterior mostrou o preço antigo. Contrato derivado recusou 1.001 L e aceitou 600 L. Dados exclusivamente fictícios.
+- Prévia reproduzível: `node tests/procurement-registry-preview.mjs --seed-items`, em `127.0.0.1:5184`, sem credenciais da nuvem. Sem a opção, a prévia começa vazia.
+- Advisors locais tentados: serviço Supabase/Postgres Docker continua ausente em `127.0.0.1:54322`. Testes verificaram RLS, grants e search_path das funções no PGlite. Homologação com Auth/PostgREST e advisors completos permanece necessária antes da publicação.
+
+Nenhum push, deploy ou alteração no banco hospedado nesta rodada. Itens e instrumentos permanecem rascunhos. Cotas financeiras e autorizações continuam usando o modelo anterior até as etapas 4/5.
+
 ## Próximo passo
 
-Implementar a etapa 3: itens, lotes, unidades/quantidades, categorias (incluindo ARLA, pneus e borracharia), adjudicação por fornecedor e condições de preço/tabela/desconto. Usar os IDs dos processos/instrumentos criados na rodada 2. Planejar o vínculo de cotas da etapa 4 sem duplicar os saldos das atas e contratos. Ler este registro para retomar sem repetir a investigação. Não ativar instrumentos antes de concluir a integração operacional e a conciliação previstas nas etapas seguintes.
+Implementar a etapa 4: vincular cotas e orçamento aos instrumentos, com exercício, secretaria, categoria, múltiplas dotações/fontes e remanejamentos documentados. Distinguir valor registrado na ata, valor contratado, teto por secretaria e saldo de empenho. Reutilizar o painel e controles existentes, evitando duplicar saldos entre ata e contratos derivados. Não ativar a nova execução antes da integração operacional e conciliação das etapas 5/6.

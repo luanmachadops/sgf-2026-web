@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useHeader } from '@/contexts/HeaderContext';
 import { SGFButton, SGFCard, SGFInput, SGFBadge } from '@/components/sgf';
 import { Modal } from '@/components/ui/Modal';
+import { ProcurementItems } from '@/components/procurement/ProcurementItems';
 import { ProcurementNavigation } from '@/components/procurement/ProcurementNavigation';
 import { canManageProcurement } from '@/lib/procurement-navigation';
 import { procurementRegistryApi as api, type ProcurementProcess, type ProcurementInstrument, type RegistryPayload } from '@/lib/procurement-registry-api';
@@ -35,6 +36,7 @@ function Registry() {
   const [selected, setSelected] = useState<ProcurementProcess | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [history, setHistory] = useState(false);
+  const [itemsInstrument, setItemsInstrument] = useState<ProcurementInstrument | null>(null);
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
   const [draftSearch, setDraftSearch] = useState('');
@@ -49,7 +51,7 @@ function Registry() {
   const openProcess = (process: ProcurementProcess | null) => { setSelected(process); setPage(0); setSearch(''); setDraftSearch(''); setNotice(''); };
   return <div className="space-y-6">
     <ProcurementNavigation />
-    <SGFCard><h2 className="font-semibold">Cadastro em preparação</h2><p className="mt-2 text-sm text-slate-600">Os processos, atas e contratos são salvos como rascunhos. A definição de itens e limites por secretaria e a ativação para uso nas operações serão disponibilizadas nas próximas etapas.</p></SGFCard>
+    <SGFCard><h2 className="font-semibold">Cadastro em preparação</h2><p className="mt-2 text-sm text-slate-600">Os processos, atas e contratos são salvos como rascunhos. Itens e condições de preço já podem ser preparados. A vinculação dos limites por secretaria e a ativação para uso nas operações serão disponibilizadas nas próximas etapas.</p></SGFCard>
     {notice && <p role="status" className="text-green-700">{notice}</p>}
     {selected && <SGFCard>
       <SGFButton type="button" variant="ghost" size="sm" onClick={() => openProcess(null)}>Voltar aos processos</SGFButton>
@@ -79,7 +81,7 @@ function Registry() {
           <p className="mt-1 text-sm">{instrument.kind === 'ata' ? 'Valor registrado' : 'Valor contratado'}: {instrument.declared_value === null ? 'Não informado' : formatCurrency(instrument.declared_value)}</p>
           {instrument.origin_ata_id && <p className="text-xs text-slate-500">Vinculado a uma ata deste processo</p>}
           <SGFBadge variant="info">Rascunho</SGFBadge></div>
-          <div className="flex flex-wrap items-center gap-2"><SGFButton type="button" size="sm" variant="secondary" onClick={() => setEditor({ kind: 'instrument', process: selected, type: instrument.kind, record: instrument })}>Editar {instrument.kind === 'ata' ? 'ata' : 'contrato'}</SGFButton>
+          <div className="flex flex-wrap items-center gap-2"><SGFButton type="button" size="sm" onClick={() => setItemsInstrument(instrument)}>Itens e preços</SGFButton><SGFButton type="button" size="sm" variant="secondary" onClick={() => setEditor({ kind: 'instrument', process: selected, type: instrument.kind, record: instrument })}>Editar {instrument.kind === 'ata' ? 'ata' : 'contrato'}</SGFButton>
           {instrument.kind === 'ata' && <SGFButton type="button" size="sm" variant="ghost" onClick={() => setEditor({ kind: 'instrument', process: selected, type: 'contract', origin: instrument })}>Criar contrato derivado</SGFButton>}</div>
         </div>
       </div>)}</div>
@@ -90,6 +92,7 @@ function Registry() {
       setEditor(null); setNotice('Rascunho salvo. A alteração foi registrada no histórico.');
       void client.invalidateQueries({ queryKey: ['procurement-registry'] });
     }} />}
+    {itemsInstrument && <ProcurementItems instrument={itemsInstrument} onClose={() => setItemsInstrument(null)} />}
     {history && selected && <History processId={selected.id} onClose={() => setHistory(false)} />}
   </div>;
 }
@@ -165,10 +168,10 @@ function History({ processId, onClose }: { processId: string; onClose: () => voi
   return <Modal isOpen onClose={onClose} title="Histórico do processo" description="Cadastros e alterações de processos, atas e contratos." size="xl">
     {query.isPending ? <p role="status">Carregando histórico…</p> : query.isError ? <Failure error={query.error} retry={() => void query.refetch()} /> : <>
       <ol className="space-y-4">{query.data.items.map((event) => <li key={event.id} className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
-        <p className="font-semibold">{event.before_value ? 'Alteração' : 'Cadastro'} · {event.kind === 'process' ? 'Processo' : event.after_value.kind === 'ata' ? 'Ata' : 'Contrato'} {String(event.after_value.reference)} · Versão {String(event.after_value.version)}</p>
+        <p className="font-semibold">{event.before_value ? 'Alteração' : 'Cadastro'} · {event.kind === 'item' ? 'Item' : event.kind === 'price' ? 'Condição de preço do item' : event.kind === 'process' ? 'Processo' : event.after_value.kind === 'ata' ? 'Ata' : 'Contrato'} {String(event.after_value.reference)} · Versão {String(event.after_value.version)}</p>
         <p className="mt-1 text-xs text-slate-500">{new Date(event.occurred_at).toLocaleString('pt-BR')} · Responsável: {event.actor_name}</p>
         <p className="mt-2 whitespace-pre-wrap">{event.reason}</p>
-        {event.before_value && <p className="mt-2 text-xs text-slate-500">Campos alterados: {Object.keys(event.after_value).filter((key) => !['updated_at', 'version'].includes(key) && JSON.stringify(event.before_value?.[key]) !== JSON.stringify(event.after_value[key])).map((key) => ({ reference: 'referência', year: 'ano', object: 'objeto', modality: 'modalidade', legal_basis: 'fundamento legal', documents: 'documentos', starts_on: 'início da vigência', ends_on: 'fim da vigência', declared_value: 'valor', origin_ata_id: 'ata de origem', partners: 'fornecedores' }[key] ?? key)).join(', ') || 'nenhuma mudança de conteúdo'}</p>}
+        {event.before_value && <p className="mt-2 text-xs text-slate-500">Campos alterados: {Object.keys(event.after_value).filter((key) => !['updated_at', 'version'].includes(key) && JSON.stringify(event.before_value?.[key]) !== JSON.stringify(event.after_value[key])).map((key) => ({ reference: 'referência', year: 'ano', object: 'objeto', modality: 'modalidade', legal_basis: 'fundamento legal', documents: 'documentos', starts_on: 'início da vigência', ends_on: 'fim da vigência', declared_value: 'valor', origin_ata_id: 'ata de origem', partners: 'fornecedores', description: 'descrição', quantity: 'quantidade', unit: 'unidade', category: 'categoria', lot_reference: 'lote', partner_kind: 'tipo de fornecedor', partner_id: 'fornecedor' }[key] ?? key)).join(', ') || 'nenhuma mudança de conteúdo'}</p>}
       </li>)}</ol>
       {!query.data.total && <p>Nenhuma alteração registrada.</p>}
       <Pager page={page} total={query.data.total} onPage={setPage} />

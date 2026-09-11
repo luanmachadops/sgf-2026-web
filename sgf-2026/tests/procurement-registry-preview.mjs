@@ -2,18 +2,29 @@
 // Run: node tests/procurement-registry-preview.mjs; open http://127.0.0.1:5184
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { setup, id, admin, tenant } from './department-budget-fixture.mjs';
+import { setup, id, admin, tenant, station, workshop } from './department-budget-fixture.mjs';
 import { createServer } from '../web/node_modules/vite/dist/node/index.js';
 const web = fileURLToPath(new URL('../web/', import.meta.url));
 const db = await setup(true);
-await db.exec(await readFile(new URL('../supabase/migrations/20260910152227_procurement_registry.sql', import.meta.url), 'utf8'));
+for (const migration of ['20260910152227_procurement_registry.sql', '20260910211314_procurement_items_prices.sql']) await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`, import.meta.url), 'utf8'));
 await db.exec(`select set_config('app.uid','',false);
   alter table public.fuel_stations add column name text default 'Posto municipal teste';
   alter table public.repair_shops add column name text default 'Oficina mecânica teste';
   update public.profiles set allowed_modules=array['procurement'] where id='${admin}';
   update auth.sessions set created_at=clock_timestamp()+interval '1 second' where id='${id(99)}';
   select set_config('app.uid','${admin}',false); set role authenticated;`);
+if (process.argv.includes('--seed-items')) {
+  const save = async (kind, payload) => (await db.query('select public.save_procurement_registry($1,$2::jsonb) id', [kind, JSON.stringify(payload)])).rows[0].id;
+  const processId = await save('process', { reference: 'Pregão de teste 01', year: 2026, object: 'Combustíveis e serviços para frota', modality: 'Pregão eletrônico', legal_basis: 'Lei 14.133/2021', documents: [], reason: 'Fixture local de itens' });
+  const payload = { process_id: processId, reference: '01', year: 2026, kind: 'ata', starts_on: '2026-01-01', ends_on: '2026-12-31', declared_value: 10000, partners: [`posto:${station}`, `oficina:${workshop}`], documents: [], reason: 'Fixture local de itens' };
+  const ataId = await save('instrument', payload);
+  await save('instrument', { ...payload, kind: 'contract', origin_ata_id: ataId });
+}
 const rpc = {
+  get_procurement_items: p => db.query('select public.get_procurement_items($1,$2,$3,$4::date) data', [p.p_instrument, p.p_offset ?? 0, p.p_search ?? '', p.p_date ?? new Date().toISOString().slice(0,10)]),
+  get_procurement_prices: p => db.query('select public.get_procurement_prices($1,$2) data', [p.p_item, p.p_offset ?? 0]),
+  save_procurement_item: p => db.query('select public.save_procurement_item($1::jsonb) data', [JSON.stringify(p.p_payload)]),
+  save_procurement_price: p => db.query('select public.save_procurement_price($1::jsonb) data', [JSON.stringify(p.p_payload)]),
   get_procurement_registry: p => db.query('select public.get_procurement_registry($1,$2,$3,$4) data', [p.p_kind, p.p_process ?? null, p.p_offset ?? 0, p.p_search ?? '']),
   save_procurement_registry: p => db.query('select public.save_procurement_registry($1,$2::jsonb) data', [p.p_kind, JSON.stringify(p.p_payload)]),
   get_procurement_registry_events: p => db.query('select public.get_procurement_registry_events($1,$2) data', [p.p_process, p.p_offset ?? 0]),
@@ -27,7 +38,7 @@ const server = await createServer({
     name: 'local-procurement-fixture', enforce: 'pre',
     resolveId(source, importer) {
       if (source.includes('contexts/AuthContext')) return '\0preview-auth';
-      if (source === './supabase' && importer?.endsWith('procurement-registry-api.ts')) return '\0preview-rpc';
+      if (source === './supabase' && (importer?.endsWith('procurement-registry-api.ts') || importer?.endsWith('procurement-items-api.ts'))) return '\0preview-rpc';
       if (source === '/preview-entry.js') return '\0preview-entry';
     },
     load(source) {
