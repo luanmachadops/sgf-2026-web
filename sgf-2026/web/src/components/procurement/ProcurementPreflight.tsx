@@ -1,3 +1,4 @@
+import { AuthorizeFuelingModal } from '@/components/refuelings/AuthorizeFuelingModal';
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,6 +11,7 @@ const money = (value: number) => value.toLocaleString('pt-BR', {style:'currency'
 
 export function ProcurementPreflight({plan,onClose}:{plan:InstrumentBudget;onClose:()=>void}) {
   const {user}=useAuth();
+  const [issuing,setIssuing]=useState(false);
   const [date,setDate]=useState(`${plan.fiscal_year}-01-01`);
   const [page,setPage]=useState(0);
   const [search,setSearch]=useState('');
@@ -23,6 +25,7 @@ export function ProcurementPreflight({plan,onClose}:{plan:InstrumentBudget;onClo
   const preview=useMutation({mutationFn:()=>instrumentBudgetApi.preview({item_id:itemId,allocation_id:allocationId,operation_date:date,quantity:Number(quantity),...(item?.price?.pricing_mode==='discount' && base!=='' ? {base_price:Number(base),table_reference:item.price.table_reference??''}: {})})});
   const reset=()=>preview.reset();
   const changePage=(next:number)=>{setPage(next);setItemId('');reset();};
+  if(issuing && item?.fuel_code && item.price?.unit_price != null) return <AuthorizeFuelingModal isOpen onClose={()=>setIssuing(false)} procurement={{itemId:item.id,allocationId,stationId:item.partner_id,fuelType:({diesel:'Diesel',gasolina:'Gasolina',etanol:'Etanol'}[item.fuel_code]),unitPrice:item.price.unit_price}}/>;
   return <Modal isOpen onClose={onClose} title={`Simular operação · Contrato ${plan.reference}`} size="xl">
     <p className="mb-4 text-sm text-slate-600">Confira uma operação contra o planejamento em rascunho. A simulação não reserva valores, não emite autorização e não considera gastos ou reservas do sistema atual. A disponibilidade deverá ser revalidada na autorização após a integração.</p>
     <form className="space-y-4" onSubmit={event=>{event.preventDefault();preview.mutate();}}>
@@ -40,7 +43,7 @@ export function ProcurementPreflight({plan,onClose}:{plan:InstrumentBudget;onClo
       </fieldset>
       {preview.isError && <p role="alert" className="text-red-700">{preview.error.message}</p>}
       {preview.data && <div role="status" className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4"><h3 className="font-semibold">{preview.data.planning_compatible?'Compatível com o planejamento':'Revisar antes da operação'}</h3>{preview.data.estimated_total!==null&&<p>Valor estimado: <strong>{money(preview.data.estimated_total)}</strong></p>}<p>Teto cadastrado da dotação: {money(preview.data.allocation_limit)}</p>{preview.data.issues.length>0&&<ul className="list-disc pl-5">{preview.data.issues.map(issue=><li key={issue}>{issue}</li>)}</ul>}<p className="text-xs text-slate-600">Planejamento revisão {preview.data.plan_version} · Item versão {preview.data.item_version} · Preço revisão {preview.data.price_revision??'indisponível'}. Nenhuma reserva realizada.</p></div>}
-      <div className="flex justify-end gap-2"><SGFButton type="button" variant="ghost" onClick={onClose}>Fechar</SGFButton><SGFButton type="submit" disabled={!item||!allocationId||!date} loading={preview.isPending}>Conferir planejamento</SGFButton></div>
+      <div className="flex flex-wrap justify-end gap-2">{preview.data?.planning_compatible && item?.category==='fuel' && item.unit==='L' && item.partner_kind==='posto' && (item.price?.unit_price??0)>0 && item.fuel_code && item.price?.pricing_mode==='unit' && user?.allowedModules?.includes('refuelings') && <SGFButton type="button" variant="secondary" onClick={()=>setIssuing(true)}>Preparar autorização vinculada</SGFButton>}<SGFButton type="button" variant="ghost" onClick={onClose}>Fechar</SGFButton><SGFButton type="submit" disabled={!item||!allocationId||!date} loading={preview.isPending}>Conferir planejamento</SGFButton></div>
     </form>
   </Modal>;
 }

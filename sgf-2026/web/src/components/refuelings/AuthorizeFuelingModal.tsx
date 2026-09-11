@@ -15,6 +15,7 @@ import { procurementApi } from '@/lib/procurement-api';
 import { stationClosingApi } from '@/lib/station-closing-api';
 
 interface Props {
+    procurement?: { itemId:string; allocationId:string; stationId:string; fuelType:string; unitPrice:number };
     isOpen: boolean;
     onClose: () => void;
     onOpenCommitment?: (stationId: string) => void;
@@ -38,7 +39,7 @@ export function AuthorizeFuelingModal(props: Props) {
     return <AuthorizeFuelingModalContent key={props.isOpen ? 'open' : 'closed'} {...props} />;
 }
 
-function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Props) {
+function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment, procurement }: Props) {
     const createAuth = useCreateFuelAuthorization();
     const { data: drivers = [], isLoading: driversLoading } = useDrivers({ status: 'ACTIVE' });
 
@@ -60,9 +61,9 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
     );
 
     const stationOptions = useMemo(
-        () => stations.map((s) => {
+        () => stations.filter(s => !procurement || s.id === procurement.stationId).map((s) => {
                 const budgetAlert = stationBudgetAlerts.get(s.id);
-                const unavailable = getStationUnavailableReason(s)
+                const unavailable = procurement ? (s.is_active ? null : 'Posto inativo') : getStationUnavailableReason(s)
                     ?? (budgetAlert?.code === 'budget_exhausted' ? 'orçamento da licitação 100% comprometido' : null);
                 const warning = budgetAlert?.code === 'budget_low'
                     ? ` — restam ${Number(budgetAlert.remainingPercent ?? 0).toLocaleString('pt-BR')}% (${Number(budgetAlert.remainingValue ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})`
@@ -75,7 +76,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
                     disabledReason: unavailable ?? undefined,
                 };
             }),
-        [stationBudgetAlerts, stations],
+        [stationBudgetAlerts, stations, procurement],
     );
 
     const [vehicleId, setVehicleId] = useState('');
@@ -83,9 +84,10 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
     const [showSuggestions, setShowSuggestions] = useState(false);
     const suggestionsRef = useRef<HTMLDivElement>(null);
 
-    const [stationId, setStationId] = useState('');
+    const [stationId, setStationId] = useState(procurement?.stationId ?? '');
+    const [requestId] = useState(() => crypto.randomUUID());
     const [driverId, setDriverId] = useState('');
-    const [fuelType, setFuelType] = useState('');
+    const [fuelType, setFuelType] = useState(procurement?.fuelType ?? '');
     const [maxLiters, setMaxLiters] = useState('');
     const [expiresAt, setExpiresAt] = useState(defaultExpiry);
     const [notes, setNotes] = useState('');
@@ -108,13 +110,13 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
         const station = stations.find((item) => item.id === stationId);
         const prices = (station?.fuel_prices ?? {}) as Record<string, number>;
         const entry = Object.entries(prices).find(([key]) => key.toLowerCase() === fuelType.toLowerCase());
-        const price = Number(entry?.[1] ?? 0);
+        const price = procurement?.unitPrice ?? Number(entry?.[1] ?? 0);
         const quantity = Number(maxLiters || selectedVehicle.tank_capacity || 0);
         return Number.isFinite(price * quantity) ? price * quantity : 0;
-    }, [fuelType, maxLiters, selectedVehicle, stationId, stations]);
+    }, [fuelType, maxLiters, selectedVehicle, stationId, stations, procurement]);
     const availableCommitment = Number(commitmentBalance.data ?? 0);
     const commitmentInsufficient = Boolean(
-        stationId
+        !procurement && stationId
         && commitmentBalance.isSuccess
         && authorizationReservation > 0
         && availableCommitment < authorizationReservation,
@@ -145,6 +147,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
     const isFlex = vFuel === 'FLEX';
 
     const fuelOptions = useMemo(() => {
+        if (procurement) return [{ value:procurement.fuelType,label:procurement.fuelType }];
         if (lockedFuel) return [{ value: lockedFuel, label: lockedFuel }];
         if (isFlex) return [
             { value: '', label: 'Selecione (Gasolina ou Etanol)' },
@@ -152,7 +155,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
             { value: 'Etanol', label: 'Etanol' },
         ];
         return FUEL_OPTIONS;
-    }, [lockedFuel, isFlex]);
+    }, [lockedFuel, isFlex, procurement]);
 
     // Fecha a lista de sugestões ao clicar fora
     useEffect(() => {
@@ -169,7 +172,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
         const vehicle = vehicles.find((item) => item.id === id);
         const vehicleFuel = String(vehicle?.fuel_type ?? '').toUpperCase();
         setVehicleId(id);
-        setFuelType(FUEL_BY_VEHICLE[vehicleFuel] ?? '');
+        setFuelType(procurement?.fuelType ?? FUEL_BY_VEHICLE[vehicleFuel] ?? '');
         // Capacidade do tanque é um teto de segurança, não uma quantidade
         // autorizada. O gestor só preenche este campo quando quiser impor um
         // limite adicional menor.
@@ -181,7 +184,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
     const clearVehicle = () => {
         setVehicleId('');
         setVehicleSearch('');
-        setFuelType('');
+        setFuelType(procurement?.fuelType ?? '');
         setMaxLiters('');
     };
 
@@ -196,6 +199,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
         if (!expiresAt || new Date(expiresAt).getTime() <= Date.now()) {
             return setError('Informe uma validade futura.');
         }
+        if (procurement && !maxLiters) return setError('Informe a quantidade a reservar no contrato.');
         const parsedMaxLiters = maxLiters ? Number(maxLiters) : null;
         if (parsedMaxLiters != null && (!Number.isFinite(parsedMaxLiters) || parsedMaxLiters <= 0)) {
             return setError('O limite de litros deve ser maior que zero.');
@@ -210,7 +214,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
 
         const chosenStation = stations.find((s) => s.id === stationId);
         const budgetAlert = stationBudgetAlerts.get(stationId);
-        const unavailable = chosenStation
+        const unavailable = procurement ? (chosenStation?.is_active ? null : 'Posto inativo') : chosenStation
             ? getStationUnavailableReason(chosenStation)
                 ?? (budgetAlert?.code === 'budget_exhausted' ? 'orçamento da licitação 100% comprometido' : null)
             : null;
@@ -224,6 +228,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
 
         try {
             await createAuth.mutateAsync({
+                ...(procurement ? { procurement: {requestId,itemId:procurement.itemId,allocationId:procurement.allocationId} } : {}),
                 vehicle_id: vehicleId,
                 driver_id: driverId,
                 station_id: stationId,
@@ -258,6 +263,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
             )}
         >
             <form onSubmit={handleSubmit} className="space-y-4">
+                {procurement && <p className="rounded-xl border p-3 text-sm">Autorização vinculada ao contrato, item e dotação selecionados. A emissão exige contrato habilitado e saldo de empenho. O servidor usará o preço vigente na emissão de hoje; a data da simulação não altera a data da autorização.</p>}
                 {/* Seleção do Veículo com fotos (list box idêntico ao de Infrações) */}
                 {selectedVehicle ? (
                     <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-3.5 animate-in fade-in duration-200">
@@ -372,7 +378,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
                         icon={Fuel}
                     />
                     <SGFSelect
-                        label={lockedFuel ? 'Combustível (do veículo)' : isFlex ? 'Combustível (Flex)' : 'Combustível (opcional)'}
+                        label={procurement ? 'Combustível do item contratado' : lockedFuel ? 'Combustível (do veículo)' : isFlex ? 'Combustível (Flex)' : 'Combustível (opcional)'}
                         options={fuelOptions}
                         value={fuelType}
                         onChange={setFuelType}
@@ -383,17 +389,17 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SGFInput
-                        label="Limite adicional de litros (opcional)"
+                        label={procurement ? "Quantidade a reservar (litros)" : "Limite adicional de litros (opcional)"}
                         type="number"
-                        step="0.01"
-                        min="0.01"
+                        step={procurement ? "0.001" : "0.01"}
+                        min={procurement ? "0.001" : "0.01"}
                         max={selectedVehicle?.tank_capacity ?? undefined}
                         value={maxLiters}
                         onChange={(e) => setMaxLiters(e.target.value)}
-                        placeholder="Deixe vazio para o motorista informar"
+                        placeholder={procurement ? "Informe a quantidade" : "Deixe vazio para o motorista informar"}
                         hint={selectedVehicle?.tank_capacity
                             ? `O aplicativo já impedirá valores acima da capacidade do tanque: ${selectedVehicle.tank_capacity} L.`
-                            : 'Preencha somente se quiser impor um teto menor para esta autorização.'}
+                            : procurement ? 'Informe a quantidade que será reservada no contrato e na dotação.' : 'Preencha somente se quiser impor um teto menor para esta autorização.'}
                         fullWidth
                     />
                     <SGFInput
@@ -436,7 +442,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment }: Pro
                                 </p>
                                 <p className="mt-1 text-xs opacity-80">
                                     Reserva estimada desta autorização: {authorizationReservation.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.
-                                    Sem limite adicional, o sistema reserva a capacidade total do tanque.
+                                    {procurement ? ' O valor será conferido com o preço vigente na emissão.' : ' Sem limite adicional, o sistema reserva a capacidade total do tanque.'}
                                 </p>
                             </div>
                             {onOpenCommitment && (

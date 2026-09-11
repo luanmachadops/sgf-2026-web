@@ -1092,6 +1092,7 @@ export const refuelingsApi = withFotoUrls({
     // O gestor vincula veículo + motorista + posto contratado. O posto apenas
     // completa a autorização no portal e nunca cria abastecimentos avulsos.
     createAuthorization: async (input: {
+        procurement?: {requestId:string;itemId:string;allocationId:string};
         vehicle_id: string;
         driver_id: string;
         station_id: string;
@@ -1100,6 +1101,11 @@ export const refuelingsApi = withFotoUrls({
         expires_at: string;
         notes?: string | null;
     }): Promise<string> => {
+        if (input.procurement) {
+            const {data,error}=await supabase.rpc('issue_procurement_fueling',{p_request:input.procurement.requestId,p_payload:{item_id:input.procurement.itemId,allocation_id:input.procurement.allocationId,vehicle_id:input.vehicle_id,driver_id:input.driver_id,quantity:input.max_liters ?? null,expires_at:input.expires_at,note:input.notes?.trim() || null}});
+            if(error) handleError(error);
+            return data;
+        }
         const { data, error } = await supabase.rpc('manager_create_fueling_authorization', {
             p_vehicle_id: input.vehicle_id,
             p_driver_id: input.driver_id,

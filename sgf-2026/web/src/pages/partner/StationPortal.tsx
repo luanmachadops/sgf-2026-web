@@ -561,7 +561,7 @@ function PendingAuthorizations({
                                 </tr>
                             ) : (
                                 authorizations.map((item) => {
-                                    const operationBlocked = contractStatus && !contractStatus.canExecuteExisting;
+                                    const operationBlocked = contractStatus && (item.contractManaged ? !contractStatus.isActive : !contractStatus.canExecuteExisting);
                                     const disabled = operationBlocked || item.pricePerLiter == null;
                                     return (
                                         <tr key={item.fuelingId} className="hover:bg-slate-50/70">

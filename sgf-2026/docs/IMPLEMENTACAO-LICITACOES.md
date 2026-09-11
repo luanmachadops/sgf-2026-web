@@ -132,6 +132,28 @@ Validação:
 
 Sem push, deploy, alteração remota ou plano pago.
 
+## Rodada 5B2 — emissão e conclusão vinculadas (implementado localmente)
+
+As migrations `20260911105457_procurement_fuel_classification.sql` e `20260911105731_procurement_fuel_workflow.sql` conectam a autorização ao controle da rodada 5B1. Os itens de combustível exigem classificação explícita (diesel, gasolina ou etanol), inclusive nos contratos derivados. Registros antigos não são classificados automaticamente. Classificação com histórico de reserva não pode ser alterada.
+
+A simulação oferece preparação de autorização para item de combustível em litros, preço unitário e permissões correspondentes. A emissão valida motorista, veículo, combustível, posto, vigência, quantidade, dotação e cobertura pelo controle de empenhos existente. Reserva e autorização são gravadas na mesma transação. O preço vigente na emissão fica preservado com seis casas decimais; a data escolhida na simulação não altera essa regra. Identificador repetido com os mesmos dados retorna a autorização existente; parâmetros divergentes são recusados.
+
+O portal conclui a autorização pelo preço reservado e exige comprovante existente no caminho de armazenamento da prefeitura/posto/autorização. Conclusão parcial libera a diferença, conforme o controle anterior. Repetição dos mesmos dados não duplica o lançamento. O endpoint antigo também encaminha registros vinculados à nova validação. Registros sem vínculo mantêm o caminho legado. A habilitação antiga do contrato do posto não bloqueia o contrato central, mas o posto precisa estar ativo.
+
+O cálculo do limite global antigo exclui os abastecimentos vinculados ao novo contrato; a cobertura fiscal por empenho continua incluindo seu consumo. O vínculo contábil individual entre nova dotação e empenho ainda não foi implementado. Relatórios antigos do posto ainda precisam de conciliação e separação por instrumento na etapa 6.
+
+**Habilitação controlada:** `procurement_fuel_rollouts` começa sem contratos habilitados, tem RLS e não oferece escrita por clientes. A interface não permite ativação. Somente o contrato fictício da prévia local foi habilitado. Instrumentos continuam em rascunho; a disponibilização hospedada depende da homologação abaixo.
+
+Validação:
+
+- **111 testes passaram** na suíte completa, incluindo classificação, isolamento, permissões, emissão/conclusão, repetição segura, preço reservado, cancelamento, comprovante e recusa por empenho insuficiente com reversão integral da reserva.
+- TypeScript, lint dos arquivos alterados e build Vite passaram. Build fora de `web/dist`; permanece aviso de tamanho dos bundles.
+- Navegador local: seleção de contrato, item Diesel e dotação de Obras; simulação de 60 L a R$ 5,123456, total R$ 307,41; escolha de veículo e motorista e emissão confirmada. A prévia usa componentes reais e SQL em PGlite, com adaptadores e autenticação fictícios. Não equivale a homologação integrada de Auth/PostgREST/Storage.
+- Os testes de conclusão executam a nova rotina SQL e funções financeiras reais com estrutura local de apoio; o caminho legado de conclusão é simulado na fixture. Não houve teste manual do portal autenticado nem teste com duas conexões PostgreSQL concorrentes reais.
+- Advisors locais tentados: conexão recusada em `127.0.0.1:54322`, sem serviço Supabase/Postgres Docker. Advisors completos, autenticação/armazenamento reais e concorrência permanecem pendentes antes da ativação.
+
+Sem push, deploy, alteração remota ou plano pago nesta rodada.
+
 ## Próximo passo
 
-Etapa 5B2: conectar a emissão de autorização e o portal ao controle interno. Antes de habilitar: definir classificação explícita do combustível do item (sem inferir por descrição); validar motorista, situação/combustível do veículo, posto e documentos; manter cobertura por empenho; adaptar os limites globais do posto para não bloquear indevidamente nem somar duas vezes o novo contrato. Criar a reserva e a autorização na mesma transação, com identificador idempotente, habilitação explícita e consulta de saldos por permissão. No portal, concluir usando preço reservado e permitir repetição segura. Testar o fluxo completo com Auth/PostgREST e concorrência real antes de ativar. Depois expandir para lançamentos diretos, serviços, complementações e fechamentos, seguido de conciliação/homologação da etapa 6.
+Continuar a etapa 5 com serviços, ARLA e demais lançamentos diretos, complementações e fechamentos. Preparar homologação integrada e concorrente da emissão/conclusão de combustível antes de habilitar contratos. A etapa 6 deve conciliar relatórios, atribuição por instrumento e contabilidade, sem presumir que os testes locais certificam conformidade com o TCE-PR.

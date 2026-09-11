@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { uploadFoto, withFotoUrls } from '@/lib/fotoStorage';
 import { optimizeImage, validateUploadFile } from '@/lib/imageUtils';
+import { z } from 'zod';
 import type { Json } from '@/types/database.types';
 
 export interface StationContext {
@@ -11,6 +12,7 @@ export interface StationContext {
 }
 
 export interface StationAuthorization {
+    contractManaged?: boolean;
     fuelingId: string;
     plate: string;
     brand: string;
@@ -97,9 +99,11 @@ export const stationPortalApi = withFotoUrls({
     },
 
     getPending: async (): Promise<StationAuthorization[]> => {
-        const { data, error } = await supabase.rpc('get_station_pending_authorizations');
+        const { data, error } = await supabase.rpc('get_station_authorizations_with_contracts');
         throwIfError(error);
-        return (data ?? []).map((row) => ({
+        const rows=z.array(z.object({fueling_id:z.string(),plate:z.string(),brand:z.string(),model:z.string(),fuel_type:z.string(),max_liters:z.number().nullable(),authorized_at:z.string(),expires_at:z.string().nullable(),note:z.string().nullable(),price_per_liter:z.number().nullable(),contract_managed:z.boolean()})).parse(data);
+        return rows.map((row) => ({
+            contractManaged: row.contract_managed,
             fuelingId: row.fueling_id,
             plate: row.plate,
             brand: row.brand,
@@ -243,17 +247,17 @@ export const stationPortalApi = withFotoUrls({
         );
 
         try {
-            const { data, error } = await supabase.rpc('partner_complete_fueling_v2', {
-                p_fueling_id: input.authorization.fuelingId,
+            const { data, error } = await supabase.rpc('complete_procurement_fueling', {
+                p_fueling: input.authorization.fuelingId,
                 p_liters: input.liters,
                 p_odometer: input.odometer,
-                p_receipt_no: input.receiptNo.trim(),
+                p_receipt: input.receiptNo.trim(),
                 // Grava o PATH, nunca a URL: URL assinada expira, URL pública
                 // morre quando o bucket fechar. A leitura assina na hora.
-                p_photo_url: uploaded.path,
+                p_photo: uploaded.path,
             });
             throwIfError(error);
-            const result = data?.[0];
+            const result = z.object({total_cost:z.number(),price_per_liter:z.number()}).parse(data);
             if (!result) throw new Error('O abastecimento não foi confirmado pelo servidor.');
             return {
                 totalCost: result.total_cost,
