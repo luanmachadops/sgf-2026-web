@@ -154,6 +154,30 @@ Validação:
 
 Sem push, deploy, alteração remota ou plano pago nesta rodada.
 
+## Rodada 5C1 — reservas internas de ARLA e serviços de postos (implementado localmente)
+
+Migration `20260911164848_procurement_station_reservations.sql`, criada pela CLI Supabase. Acrescenta o controle interno `procurement_station_reservations`, sem RPC pública de emissão e sem alterações nas telas. A função de reserva exige gestor global, sessão válida e módulos `procurement`, `budgets` e `stations`, mas não pode ser executada diretamente por clientes. A tabela tem RLS e privilégios diretos revogados.
+
+O controle aceita categorias ARLA, lubrificantes, mão de obra e borracharia **fornecidas por posto**. Confere contrato, vigência, exercício, secretaria do veículo, fornecedor, catálogo ativo, categoria e unidade. O catálogo é selecionado explicitamente; não há associação por semelhança de descrição. A unidade SERV do contrato corresponde a SERVICO no catálogo, sem conversão de quantidades. Peças, pneus, Outros e serviços de oficinas não são aceitos neste adaptador. ARLA e lubrificantes não são tratados como combustível de propulsão nem usam a capacidade do tanque como teto.
+
+Quantidade e valor ficam reservados por item e dotação. A reserva usa o preço unitário positivo vigente do contrato, preservado com seis casas decimais; ignora o preço avulso do catálogo. Desconto com tabela ainda exige futura integração documental. Revisar preços afeta novas reservas, sem reescrever as anteriores. A função bloqueia prefeitura e processo na mesma ordem do controle anterior; reserva e INSERT da operação precisam ocorrer na mesma transação, assegurados por FK diferida. Identificador repetido com os mesmos dados e autor não duplica consumo nem reabre cancelamento.
+
+Transições: conclusão parcial mantém apenas quantidade/valor executados; cancelamento anterior à execução libera o saldo; rejeição depois da execução conserva a despesa como contestada. Expiração impede conclusão, mas não libera saldo automaticamente. Vínculos, unidade, preço, autoria e identificação da autorização são imutáveis. Depois da execução, quantidade, total, responsável, hodômetro e comprovantes não podem ser reescritos. Histórico impede apagar a dotação ou trocar sua identificação; quantidade do item e teto da dotação não podem ficar abaixo do comprometido. Eventos de reserva/transição ficam na auditoria orçamentária do processo.
+
+Operações vinculadas não são cobradas novamente no livro antigo de cotas. Operações existentes não ganham vínculo automaticamente. As categorias dos controles de combustível e destas operações são distintas e não compartilham uma mesma dotação; os guardas anteriores continuam ativos.
+
+**Limite desta entrega:** os controles antigos de valor global do posto e cobertura por empenho continuam sem adaptação para estas operações. A função interna não ativa contrato nem substitui as validações de emissão/portal. A 5C2 deverá conferir habilitação, situação do posto/veículo/motorista, associação operacional do catálogo, cobertura fiscal e existência/autoria do arquivo no Storage, além de encaminhar clientes antigos com segurança. O gatilho desta rodada exige referência de comprovante e autoria preenchidas, mas não certifica a existência do arquivo. Não habilitar operações centrais por chamadas internas manuais no ambiente hospedado.
+
+Validação:
+
+- **120 testes passaram** na suíte completa, incluindo nove cenários novos executados em PGlite com as migrations anteriores, campos de apoio e as restrições de execução/quantidade do esquema de operações.
+- Conferidos: reserva/repetição, consumo parcial, cancelamento, contestação, precisão e revisão de preço, teto/quantidade, FK diferida sem gravação parcial, compatibilidade do catálogo, unidades, ausência de cobrança no livro antigo, isolamento, permissões, sessão, RLS, privilégios e search_path.
+- Exemplo: 60 unidades a R$ 5,123456 reservam R$ 307,41; concluir 40 mantém R$ 204,94. Revisão para R$ 7 afeta somente a nova autorização.
+- Advisors locais tentados: conexão recusada em `127.0.0.1:54322`, sem Supabase/Postgres Docker. Permanecem pendentes os advisors completos e a homologação integrada, incluindo conexões concorrentes independentes. Não há interface nova a testar nesta rodada; build frontend não foi repetido.
+- Changelog e documentação oficial de funções Supabase consultados em 11/09/2026; nenhuma alteração encontrada exigiu mudança no uso de PL/pgSQL, privilégios ou funções privadas desta entrega.
+
+Sem push, deploy, alteração remota, exclusão de dados do usuário ou plano pago.
+
 ## Próximo passo
 
-Continuar a etapa 5 com serviços, ARLA e demais lançamentos diretos, complementações e fechamentos. Preparar homologação integrada e concorrente da emissão/conclusão de combustível antes de habilitar contratos. A etapa 6 deve conciliar relatórios, atribuição por instrumento e contabilidade, sem presumir que os testes locais certificam conformidade com o TCE-PR.
+Etapa 5C2: conectar emissão e conclusão de operações complementares dos postos ao novo controle, adaptando valor global antigo, empenhos, habilitação e portal. Depois integrar oficinas/ordens de serviço, complementações e fechamentos. Antes de ativar, executar homologação integrada e concorrente. A etapa 6 deve conciliar relatórios, atribuição por instrumento e contabilidade, sem presumir que os testes locais certificam conformidade com o TCE-PR.
