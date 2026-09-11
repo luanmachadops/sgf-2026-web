@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ProcurementPreflight } from './ProcurementPreflight';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { SGFButton, SGFInput, SGFSelect, SGFCard } from '@/components/sgf';
@@ -17,6 +18,7 @@ export function InstrumentBudgetPlanning({instrument,onBack}: {instrument?:Procu
   const [page,setPage]=useState(0);
   const [editor,setEditor]=useState<InstrumentBudget|'new'|null>(null);
   const [history,setHistory]=useState<InstrumentBudget|null>(null);
+  const [preview,setPreview]=useState<InstrumentBudget|null>(null);
   const query=useQuery({queryKey:['instrument-budgets',user?.tenantId,user?.id,year,instrument?.id,page],queryFn:()=>api.list(year,instrument?.id,page*10)});
   const canEdit=['admin','superadmin'].includes(user?.accountRole??'') && user?.allowedModules?.includes('procurement') && user?.allowedModules?.includes('budgets');
   const canAudit=user?.accountRole!=='secretario';
@@ -32,14 +34,15 @@ export function InstrumentBudgetPlanning({instrument,onBack}: {instrument?:Procu
     </div>
     {query.isPending ? <p role="status">Carregando planejamento…</p> : query.isError ? <SGFCard><p role="alert" className="text-red-700">{query.error.message}</p><SGFButton type="button" onClick={()=>void query.refetch()}>Tentar novamente</SGFButton></SGFCard> : <>
       {!query.data.total && <SGFCard>Nenhum planejamento neste exercício.</SGFCard>}
-      {query.data.items.map(plan=><PlanCard key={plan.id} plan={plan} canEdit={Boolean(canEdit)} canAudit={canAudit} onEdit={()=>setEditor(plan)} onHistory={()=>setHistory(plan)}/>)}
+      {query.data.items.map(plan=><PlanCard key={plan.id} plan={plan} canEdit={Boolean(canEdit)} canAudit={canAudit} onEdit={()=>setEditor(plan)} onHistory={()=>setHistory(plan)} onPreview={canAudit && user?.allowedModules?.includes('procurement') ? ()=>setPreview(plan) : undefined}/>)}
       <Paging page={page} total={query.data.total} change={setPage}/>
     </>}
     {editor && query.data && <PlanEditor plan={editor==='new'?undefined:editor} instrumentId={editor==='new'?instrument!.id:editor.instrument_id} year={year} departments={query.data.departments} onClose={()=>setEditor(null)}/>}
+    {preview && <ProcurementPreflight plan={preview} onClose={()=>setPreview(null)}/>}
     {history && <PlanHistory plan={history} onClose={()=>setHistory(null)}/>}
   </div>;
 }
-function PlanCard({plan,canEdit,canAudit,onEdit,onHistory}: {plan:InstrumentBudget;canEdit:boolean;canAudit:boolean;onEdit:()=>void;onHistory:()=>void}) {
+function PlanCard({plan,canEdit,canAudit,onEdit,onHistory,onPreview}: {plan:InstrumentBudget;canEdit:boolean;canAudit:boolean;onEdit:()=>void;onHistory:()=>void;onPreview?:()=>void}) {
   const [page,setPage]=useState(0);
   const [departmentPage,setDepartmentPage]=useState(0);
   const departmentTotals = new Map<string, {name:string;total:number}>();
@@ -49,7 +52,7 @@ function PlanCard({plan,canEdit,canAudit,onEdit,onHistory}: {plan:InstrumentBudg
   }
   const departments = [...departmentTotals.entries()];
   const allocated=plan.allocations.reduce((sum,line)=>sum+line.spending_limit,0);
-  return <SGFCard><div className="flex flex-wrap justify-between gap-3"><div><h3 className="text-lg font-semibold">{plan.kind==='ata'?'Ata':'Contrato'} {plan.reference} · {plan.fiscal_year}</h3><p className="text-sm text-slate-500">Rascunho · Revisão {plan.version}{plan.origin_ata_id?' · Parcela da ata de origem':''}</p></div><div className="flex gap-2">{canEdit&&<SGFButton type="button" variant="secondary" onClick={onEdit}>Revisar / remanejar</SGFButton>}{canAudit&&<SGFButton type="button" variant="ghost" onClick={onHistory}>Histórico</SGFButton>}</div></div>
+  return <SGFCard><div className="flex flex-wrap justify-between gap-3"><div><h3 className="text-lg font-semibold">{plan.kind==='ata'?'Ata':'Contrato'} {plan.reference} · {plan.fiscal_year}</h3><p className="text-sm text-slate-500">Rascunho · Revisão {plan.version}{plan.origin_ata_id?' · Parcela da ata de origem':''}</p></div><div className="flex flex-wrap gap-2">{onPreview && plan.kind==='contract' && <SGFButton type="button" variant="secondary" onClick={onPreview}>Simular operação</SGFButton>}{canEdit&&<SGFButton type="button" variant="secondary" onClick={onEdit}>Revisar / remanejar</SGFButton>}{canAudit&&<SGFButton type="button" variant="ghost" onClick={onHistory}>Histórico</SGFButton>}</div></div>
     <div className="my-4 grid gap-3 sm:grid-cols-3">{plan.total_limit!==null&&<div><p className="text-xs text-slate-500">Teto do instrumento neste exercício</p><strong>{money(plan.total_limit)}</strong></div>}<div><p className="text-xs text-slate-500">{plan.total_limit===null?'Cota da sua secretaria':'Distribuído em dotações'}</p><strong>{money(allocated)}</strong></div>{plan.total_limit!==null&&<div><p className="text-xs text-slate-500">Ainda não distribuído</p><strong>{money(plan.total_limit-allocated)}</strong></div>}</div>
     {plan.declared_value!==null&&<p className="mb-3 text-sm">Valor {plan.kind==='ata'?'registrado':'contratado'} total: {money(plan.declared_value)}</p>}
     <p className="mb-3 text-xs text-slate-500">Fundamento da distribuição: {plan.document_reference}</p>

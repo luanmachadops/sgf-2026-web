@@ -2,25 +2,37 @@
 // Run: node tests/procurement-registry-preview.mjs; open http://127.0.0.1:5184
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { setup, id, admin, tenant, station, workshop } from './department-budget-fixture.mjs';
+import { setup, id, admin, tenant, station, workshop, department } from './department-budget-fixture.mjs';
 import { createServer } from '../web/node_modules/vite/dist/node/index.js';
 const web = fileURLToPath(new URL('../web/', import.meta.url));
 const db = await setup(true);
-for (const migration of ['20260910152227_procurement_registry.sql', '20260910211314_procurement_items_prices.sql', '20260911021152_instrument_budget_planning.sql']) await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`, import.meta.url), 'utf8'));
+for (const migration of ['20260910152227_procurement_registry.sql', '20260910211314_procurement_items_prices.sql', '20260911021152_instrument_budget_planning.sql', '20260911022956_procurement_preflight.sql']) await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`, import.meta.url), 'utf8'));
 await db.exec(`select set_config('app.uid','',false);
   alter table public.fuel_stations add column name text default 'Posto municipal teste';
   alter table public.repair_shops add column name text default 'Oficina mecânica teste';
   update public.profiles set allowed_modules=array['procurement','budgets'] where id='${admin}';
   update auth.sessions set created_at=clock_timestamp()+interval '1 second' where id='${id(99)}';
   select set_config('app.uid','${admin}',false); set role authenticated;`);
-if (process.argv.includes('--seed-items')) {
+if (process.argv.includes('--seed-items') || process.argv.includes('--seed-preflight')) {
   const save = async (kind, payload) => (await db.query('select public.save_procurement_registry($1,$2::jsonb) id', [kind, JSON.stringify(payload)])).rows[0].id;
   const processId = await save('process', { reference: 'Pregão de teste 01', year: 2026, object: 'Combustíveis e serviços para frota', modality: 'Pregão eletrônico', legal_basis: 'Lei 14.133/2021', documents: [], reason: 'Fixture local de itens' });
   const payload = { process_id: processId, reference: '01', year: 2026, kind: 'ata', starts_on: '2026-01-01', ends_on: '2026-12-31', declared_value: 10000, partners: [`posto:${station}`, `oficina:${workshop}`], documents: [], reason: 'Fixture local de itens' };
   const ataId = await save('instrument', payload);
-  await save('instrument', { ...payload, kind: 'contract', origin_ata_id: ataId });
+  const contractId = await save('instrument', { ...payload, kind: 'contract', origin_ata_id: ataId });
+  if (process.argv.includes('--seed-preflight')) {
+    for (const instrument of [ataId,contractId]) {
+      await db.query('select public.save_instrument_budget($1::jsonb)',[JSON.stringify({instrument_id:instrument,fiscal_year:2026,total_limit:10000,document_reference:'Ato fictício',reason:'Teste local',allocations:[{department_id:department,category:'fuel',spending_limit:600,appropriation:'03.01.3.3.90.30',funding_source:'001500',simam_code:''}]})]);
+    }
+    let origin=null;
+    for (const instrument of [ataId,contractId]) {
+      const item=(await db.query('select public.save_procurement_item($1::jsonb) id',[JSON.stringify({instrument_id:instrument,reference:'Diesel',description:'Diesel para frota',category:'fuel',unit:'L',quantity:100,partner_kind:'posto',partner_id:station,origin_item_id:origin,reason:'Teste local'})])).rows[0].id;
+      await db.query('select public.save_procurement_price($1::jsonb)',[JSON.stringify({item_id:item,version:1,effective_on:'2026-01-01',pricing_mode:'unit',unit_price:5.123456,discount_percent:null,table_reference:null,document_reference:'Tabela fictícia',reason:'Teste local'})]);
+      origin=item;
+    }
+  }
 }
 const rpc = {
+  preview_procurement_operation: p => db.query('select public.preview_procurement_operation($1::jsonb) data', [JSON.stringify(p.p_payload)]),
   get_instrument_budgets: p => db.query('select public.get_instrument_budgets($1,$2,$3) data', [p.p_year, p.p_instrument ?? null, p.p_offset ?? 0]),
   save_instrument_budget: p => db.query('select public.save_instrument_budget($1::jsonb) data', [JSON.stringify(p.p_payload)]),
   get_instrument_budget_events: p => db.query('select public.get_instrument_budget_events($1,$2) data', [p.p_plan, p.p_offset ?? 0]),

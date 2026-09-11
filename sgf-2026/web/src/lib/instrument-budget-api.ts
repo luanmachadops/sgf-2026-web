@@ -14,6 +14,11 @@ function check(error: { code?: string; message: string } | null) {
   throw new Error(error.message);
 }
 export const instrumentBudgetApi = {
+  async preview(payload: {item_id:string;allocation_id:string;operation_date:string;quantity:number;base_price?:number;table_reference?:string}) {
+    const {data,error}=await supabase.rpc('preview_procurement_operation',{p_payload:payload});
+    check(error);
+    return z.object({planning_compatible:z.boolean(),issues:z.array(z.string()),estimated_total:z.number().nullable(),calculated_unit_price:z.number().nullable(),allocation_limit:z.number(),item_quantity:z.number(),unit:z.string(),price_id:z.string().nullable(),price_revision:z.number().nullable(),item_version:z.number(),plan_version:z.number(),instrument_version:z.number(),operation_date:z.string(),quantity:z.number(),reserved:z.literal(false),operational_balance_checked:z.literal(false)}).parse(data);
+  },
   async list(year: number, instrumentId?: string, offset = 0) {
     const { data, error } = await supabase.rpc('get_instrument_budgets', { p_year: year, ...(instrumentId ? {p_instrument: instrumentId} : {}), p_offset: offset });
     check(error); return z.object({ total: z.number(), items: z.array(planSchema), departments: z.array(z.object({id: z.string(), name: z.string()})) }).parse(data);

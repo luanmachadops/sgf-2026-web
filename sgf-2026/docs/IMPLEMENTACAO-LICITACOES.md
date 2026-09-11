@@ -83,6 +83,26 @@ Validação desta rodada:
 
 Nenhum push, deploy ou alteração no banco hospedado nesta rodada. Sem contratação de plano pago.
 
+## Rodada 5A — pré-validação de operações (implementado localmente)
+
+Primeira entrega da etapa 5, que permanece em andamento. A inspeção de `manager_create_fueling_authorization` e do controle financeiro existente confirmou que a emissão atual ainda usa preços do posto e gatilhos do livro antigo. Antes da mudança de execução, esta rodada acrescenta uma conferência independente do planejamento. Não implementa a reserva atômica nem a emissão da nova autorização.
+
+No planejamento de cada contrato, a ação **Simular operação** permite selecionar item/fornecedor, dotação/fonte, data e quantidade. Itens têm busca e paginação. O servidor confere vínculo entre item e dotação, categoria, exercício, vigência, quantidade cadastrada e teto da dotação. Seleciona a condição de preço pela data e revisão; desconto requer preço-base informado e referência da tabela correspondente. Multiplica com precisão decimal e arredonda o total para centavos, sem arredondar prematuramente o preço unitário com desconto. Valores de tabela informados são exclusivamente de simulação e não constituem comprovação de preço para uma autorização real.
+
+A resposta identifica versões de instrumento, item, planejamento e preço para a conferência. Mostra incompatibilidades e valor estimado. Alterar os campos limpa o resultado anterior. A interface explica que não há reserva, autorização nem consideração dos gastos/reservas atuais: **compatibilidade com planejamento não significa saldo operacional disponível**. Não há avaliação de motorista, veículo, tipo exato de combustível ou capacidade de tanque nesta rodada; essas verificações continuam necessárias na emissão operacional. Cada simulação considera uma única dotação.
+
+Migration `20260911022956_procurement_preflight.sql`, criada pela CLI: somente funções de leitura; nenhuma tabela nova ou mudança dos gatilhos antigos. RPC pública invoker chama implementação privada definer, com search_path vazio, sessão válida, prefeitura e módulos `procurement` e `budgets` obrigatórios. Usa o acesso de gestão global já definido para licitações; secretário não recebe dados de itens globais por essa função. Execução anônima revogada. Função STABLE, sem gravação em tabelas, incluindo auditoria (não existe ação financeira para auditar). A reserva futura deverá revalidar os dados e os saldos em transação, sem confiar neste resultado no cliente.
+
+Validação:
+
+- **95 testes passaram na suíte completa.** Seis novos testes SQL cobrem preço por data/revisão, desconto e base, precisão, limites, vigência, categoria, dados inválidos, vínculos incorretos, isolamento de prefeitura, módulos/sessões e ausência de reservas/abastecimentos gravados. Catálogo confirma privilégios, volatilidade e search_path.
+- TypeScript, lint dos arquivos alterados e build Vite passaram; aviso de bundles grandes permanece.
+- Navegador com página e API reais conectadas ao PGlite: 100 L a R$ 5,123456 geraram estimativa de R$ 512,35 diante de teto de R$ 600; 120 L geraram R$ 614,81 e os impedimentos de quantidade e teto. Alterar a quantidade removeu o resultado anterior.
+- Prévia reproduzível: `node tests/procurement-registry-preview.mjs --seed-preflight`, com contrato, item e dotação fictícios em `127.0.0.1:5184`.
+- Documentação oficial de funções e changelog Supabase conferidos; nenhuma mudança aplicável ao padrão utilizado. Advisors locais continuam dependendo do serviço Supabase/Postgres Docker, indisponível nesta máquina. Homologação com Auth/PostgREST reais permanece pendente.
+
+Sem push, deploy, alteração remota ou plano pago nesta rodada.
+
 ## Próximo passo
 
-Implementar a etapa 5 em entregas menores: começar pelo vínculo e consumo dos novos instrumentos/itens/dotações nas autorizações, com reservas atômicas de dinheiro e quantidade. Depois integrar abastecimentos, serviços, complementações, cancelamentos, portais e fechamentos. Definir transição explícita por instrumento para não consumir simultaneamente o modelo antigo e o novo. Preservar vínculos históricos e impedir remanejamentos abaixo dos valores já comprometidos. Ativação depende dessa integração e da conciliação/homologação da etapa 6.
+Etapa 5B: implementar a reserva atômica e a emissão/cancelamento de autorização de combustível, incluindo vínculo persistente com contrato, item, condição de preço e dotação. Revalidar saldo em dinheiro e quantidade dentro da mesma transação, com idempotência e preservação histórica. Integrar também a conclusão no posto antes de permitir ativação do novo fluxo de combustível. Definir transição explícita para evitar desconto simultâneo pelo livro antigo e pelo novo. Depois expandir para lançamentos diretos, serviços, complementações, portais e fechamentos. Ativação/publicação depende da integração e da conciliação/homologação da etapa 6.
