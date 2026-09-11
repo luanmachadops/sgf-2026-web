@@ -1,3 +1,4 @@
+import { useAuth } from '@/contexts/AuthContext';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -25,6 +26,7 @@ function defaultExpiry(): string {
 
 export function StationOperationsPanel() {
     const client = useQueryClient();
+    const { user } = useAuth();
     const [open, setOpen] = useState(false);
     const [selected, setSelected] = useState<StationOperation | null>(null);
     const [reason, setReason] = useState('');
@@ -97,6 +99,17 @@ export function StationOperationsPanel() {
         onError: (error) => toast.error((error as Error).message),
     });
 
+    const binding = useQuery({
+        queryKey: ['station-operation-binding', user?.tenantId, user?.id, selected?.operationId],
+        queryFn: () => stationOperationsApi.hasContractBinding(selected?.operationId ?? ''),
+        enabled: Boolean(selected && ['procurement', 'budgets', 'stations'].every(module => user?.allowedModules?.includes(module))),
+    });
+    const cancel = useMutation({
+        mutationFn: () => stationOperationsApi.cancelContractOperation(selected?.operationId ?? '', reason.trim()),
+        onSuccess: () => { toast.success('Autorização cancelada e reserva liberada.'); setSelected(null); setReason(''); void client.invalidateQueries({ queryKey: ['station-operations'] }); },
+        onError: (error) => toast.error(error.message),
+    });
+
     const canAuthorize = Boolean(
         stationId && vehicleId && driverId && itemId
         && Number(quantity) > 0 && expiresAt,
@@ -129,7 +142,7 @@ export function StationOperationsPanel() {
                             {(operations.data ?? []).map((row) => {
                                 const status = statusLabels[row.status] ?? { label: row.status, variant: 'default' as const };
                                 return (
-                                    <tr key={row.operationId} className="cursor-pointer hover:bg-slate-50" onClick={() => setSelected(row)}>
+                                    <tr key={row.operationId} className="cursor-pointer hover:bg-slate-50" onClick={() => { setSelected(row); setReason(''); }}>
                                         <td className="px-5 py-4 font-mono text-xs font-bold text-slate-700">{row.protocol}</td>
                                         <td className="px-5 py-4">
                                             <strong className="text-slate-900">{formatPlate(row.plate)}</strong>
@@ -204,6 +217,7 @@ export function StationOperationsPanel() {
                 title={selected?.protocol ?? 'Operação do posto'}
                 size="lg"
                 footer={<ModalFooter>
+                    {selected?.status === 'autorizado' && binding.data && <SGFButton variant="danger" disabled={reason.trim().length < 3 || cancel.isPending} loading={cancel.isPending} onClick={() => cancel.mutate()}>Cancelar autorização e liberar reserva</SGFButton>}
                     {selected?.status === 'concluido' ? (
                         <>
                             <SGFButton variant="danger" disabled={!reason.trim() || review.isPending} onClick={() => review.mutate(false)}>Rejeitar</SGFButton>
@@ -224,6 +238,10 @@ export function StationOperationsPanel() {
                             <p><span className="text-slate-500">Data:</span> <strong>{formatDate(selected.executedAt ?? selected.authorizedAt)}</strong></p>
                         </div>
                         {selected.evidencePath ? <p className="flex items-center gap-2 text-emerald-700"><FileText className="h-4 w-4" /> Evidência digital anexada</p> : null}
+                        {binding.isFetching && <p role="status">Conferindo vínculo contratual…</p>}
+                        {binding.isError && <p role="alert" className="text-red-700">Não foi possível conferir o vínculo contratual: {binding.error.message}</p>}
+                        {selected.status === 'autorizado' && binding.data && <SGFInput label="Motivo do cancelamento" maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} fullWidth />}
+                        {selected.status === 'cancelado' && selected.rejectionReason && <p>Motivo: {selected.rejectionReason}</p>}
                         {selected.status === 'concluido' ? (
                             <SGFInput label="Parecer (obrigatório ao rejeitar)" value={reason} onChange={(event) => setReason(event.target.value)} fullWidth />
                         ) : null}

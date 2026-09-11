@@ -178,6 +178,31 @@ Validação:
 
 Sem push, deploy, alteração remota, exclusão de dados do usuário ou plano pago.
 
+## Rodada 5C2 — emissão e portal de operações complementares (implementado localmente)
+
+Migration `20260911170412_procurement_station_workflow.sql`, criada pela CLI. A simulação do planejamento agora oferece **Preparar autorização complementar** para ARLA, lubrificantes, mão de obra e borracharia fornecidos por posto, nas unidades compatíveis. O formulário recebe o contrato/item/dotação selecionados e solicita correspondência explícita no catálogo, veículo, motorista, quantidade, validade e observação. A conferência da especificação do catálogo permanece responsabilidade do gestor; o banco verifica fornecedor, categoria e unidade, sem inferir equivalência pelo nome. O preço é o vigente no contrato no momento da emissão, independentemente da data/preço da simulação e do preço avulso do catálogo.
+
+A emissão valida sessão, prefeitura e módulos, habilitação específica do contrato, situação do veículo/motorista/posto, categoria, quantidade, dotação e cobertura fiscal pelo controle de empenhos existente. Reserva e operação são gravadas na mesma transação, com identificador reutilizado nas tentativas do formulário. Repetição idêntica retorna o registro existente; parâmetros diferentes são recusados. O controle global antigo do posto exclui as operações vinculadas ao contrato central; o cálculo fiscal por empenho continua incluindo seu consumo. Não há vínculo contábil individual dotação–empenho nesta entrega.
+
+**Habilitação independente:** `procurement_station_rollouts` não habilita nenhum contrato automaticamente, tem RLS e não admite escrita por clientes. Habilitar combustível não habilita operações complementares. Apenas a fixture local habilita o contrato fictício; os instrumentos continuam em rascunho até a implantação controlada.
+
+O endpoint já usado pelo portal encaminha operações vinculadas à validação nova e mantém operações antigas na implementação anterior. Exige sessão e posto corretos/ativos, hodômetro positivo, número do comprovante, caminho do arquivo na prefeitura/posto/operação e objeto existente pertencente ao usuário que conclui. O preço reservado e as transições da 5C1 são preservados. A repetição com os mesmos valores, responsável e caminho do comprovante retorna a conclusão existente; divergências são recusadas. A data vencida do cadastro contratual antigo do posto não impede concluir o novo contrato.
+
+No cliente, o mesmo arquivo é reutilizado durante tentativas na sessão. Falha na resposta da RPC não remove automaticamente o comprovante, pois a transação pode ter sido concluída. A referência temporária não persiste após recarregar a página; consultar novamente as pendências evita executar uma operação já concluída. Arquivos enviados sem conclusão podem permanecer sem referência e exigem futura limpeza conferida; não foram excluídos arquivos remotamente.
+
+O painel de operações permite ao gestor autorizado cancelar uma autorização vinculada ainda não executada, inclusive vencida, com motivo registrado no histórico e liberação do saldo. Repetição não duplica o cancelamento. Despesas executadas não podem ser canceladas por esse caminho e continuam sujeitas à validação/contestação.
+
+Validação:
+
+- **127 testes passaram** na suíte completa, incluindo sete cenários de emissão/conclusão, reversão integral por empenho insuficiente, habilitação separada, permissões, dados inválidos, autoria/caminho do comprovante, repetição, cancelamento auditado e coexistência com o fluxo legado.
+- Testes usam funções SQL de emissão/conclusão/listagem/fiscal do projeto em PGlite. Contextos auxiliares de parceiros/gestores e Storage são fictícios; não equivalem a sessões reais e upload autenticado integrado.
+- TypeScript, lint dos arquivos alterados e build Vite passaram. Build fora de `web/dist`, com o aviso conhecido de tamanho dos bundles.
+- Navegador: contrato e dotação de Obras, simulação de 60 L de ARLA por R$ 307,41, escolha do item correspondente no catálogo, veículo/motorista e emissão confirmada pelo formulário/API reais ligados ao banco local. Prévia reproduzível: `node tests/procurement-registry-preview.mjs --seed-station`. A adaptação local do import da API foi corrigida para encaminhar o catálogo à fixture.
+- Cancelamento e conclusão foram conferidos em SQL, sem teste manual autenticado do portal/armazenamento real nesta rodada. Advisors locais: conexão recusada em `127.0.0.1:54322`. Homologação integrada e concorrência com conexões PostgreSQL independentes continuam pendentes antes da ativação.
+- Documentação oficial de [autoria de objetos no Storage](https://supabase.com/docs/guides/storage/security/ownership) consultada: a conferência prioriza `owner_id`, com compatibilidade de leitura para `owner` legado.
+
+Sem push, deploy, alteração no banco hospedado ou plano pago.
+
 ## Próximo passo
 
-Etapa 5C2: conectar emissão e conclusão de operações complementares dos postos ao novo controle, adaptando valor global antigo, empenhos, habilitação e portal. Depois integrar oficinas/ordens de serviço, complementações e fechamentos. Antes de ativar, executar homologação integrada e concorrente. A etapa 6 deve conciliar relatórios, atribuição por instrumento e contabilidade, sem presumir que os testes locais certificam conformidade com o TCE-PR.
+Etapa 5D: integrar orçamentos e ordens de serviço das oficinas aos contratos, itens e dotações, incluindo peças, mão de obra e borracharia, por entregas menores. Permanecem os lançamentos diretos, complementações e fechamentos. Antes de ativar, executar homologação integrada e concorrente. A etapa 6 deve conciliar relatórios, atribuição por instrumento e contabilidade; os testes locais não certificam conformidade com o TCE-PR.

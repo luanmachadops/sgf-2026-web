@@ -58,7 +58,32 @@ function errorMessage(error: { message: string } | null): void {
     if (error) throw new Error(error.message);
 }
 
+// Keep the same uploaded proof across retries, including uncertain network outcomes.
+// Never delete a proof merely because the RPC response was lost after a successful commit.
+const evidenceUploads = new WeakMap<File, Map<string, string>>();
+
 export const stationOperationsApi = {
+    hasContractBinding: async (operationId: string): Promise<boolean> => {
+        const { data, error } = await supabase.rpc('has_procurement_station_binding', { p_operation: operationId });
+        errorMessage(error); return data;
+    },
+    cancelContractOperation: async (operationId: string, reason: string): Promise<void> => {
+        const { error } = await supabase.rpc('cancel_procurement_station_operation', { p_operation: operationId, p_reason: reason });
+        errorMessage(error);
+    },
+    authorizeContract: async (requestId: string, input: {
+        itemId: string; allocationId: string; vehicleId: string; driverId: string;
+        catalogItemId: string; quantity: number; expiresAt: string; note: string;
+    }): Promise<string> => {
+        const { data, error } = await supabase.rpc('issue_procurement_station_operation', {
+            p_request: requestId, p_payload: {
+                item_id: input.itemId, allocation_id: input.allocationId, vehicle_id: input.vehicleId,
+                driver_id: input.driverId, catalog_item_id: input.catalogItemId,
+                quantity: input.quantity, expires_at: input.expiresAt, note: input.note,
+            },
+        });
+        errorMessage(error); return data;
+    },
     listCatalog: async (stationId?: string, includeInactive = false): Promise<StationCatalogItem[]> => {
         const { data, error } = await supabase.rpc('manager_list_station_catalog', {
             p_station_id: stationId || undefined,
@@ -166,29 +191,30 @@ export const stationOperationsApi = {
         tenantId: string;
         stationId: string;
     }): Promise<{ totalCost: number; protocol: string }> => {
-        validateUploadFile(input.evidence);
-        const optimized = await optimizeImage(input.evidence);
-        const id = typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : String(Date.now());
-        const suffix = `stations/${input.stationId}/operations/${input.operation.operationId}/${id}.${optimized.ext}`;
-        const uploaded = await uploadFoto(suffix, optimized.blob, optimized.contentType, {
-            upsert: false,
-            tenantId: input.tenantId,
-        });
-        try {
-            const { data, error } = await supabase.rpc('partner_complete_station_operation', {
-                p_operation_id: input.operation.operationId,
-                p_quantity: input.quantity,
-                p_odometer: input.odometer,
-                p_receipt_number: input.receiptNumber,
-                p_evidence_path: uploaded.path,
+        const uploadKey = `${input.tenantId}/${input.stationId}/${input.operation.operationId}`;
+        const uploads = evidenceUploads.get(input.evidence) ?? new Map<string, string>();
+        let path = uploads.get(uploadKey);
+        if (!path) {
+            validateUploadFile(input.evidence);
+            const optimized = await optimizeImage(input.evidence);
+            const suffix = `stations/${input.stationId}/operations/${input.operation.operationId}/${crypto.randomUUID()}.${optimized.ext}`;
+            const uploaded = await uploadFoto(suffix, optimized.blob, optimized.contentType, {
+                upsert: false, tenantId: input.tenantId,
             });
-            errorMessage(error);
-            const row = data?.[0];
-            if (!row) throw new Error('A operação não foi confirmada.');
-            return { totalCost: Number(row.total_cost), protocol: row.protocol };
-        } catch (error) {
-            await supabase.storage.from('fotos').remove([uploaded.path]);
-            throw error;
+            path = uploaded.path;
+            uploads.set(uploadKey, path);
+            evidenceUploads.set(input.evidence, uploads);
         }
+        const { data, error } = await supabase.rpc('partner_complete_station_operation', {
+            p_operation_id: input.operation.operationId,
+            p_quantity: input.quantity,
+            p_odometer: input.odometer,
+            p_receipt_number: input.receiptNumber,
+            p_evidence_path: path,
+        });
+        errorMessage(error);
+        const row = data?.[0];
+        if (!row) throw new Error('A operação não foi confirmada.');
+        return { totalCost: Number(row.total_cost), protocol: row.protocol };
     },
 };

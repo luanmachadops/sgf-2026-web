@@ -17,7 +17,7 @@ export function StationSupplementalOperations({ tenantId, stationId }: { tenantI
     const [receipt, setReceipt] = useState('');
     const [evidence, setEvidence] = useState<File | null>(null);
     const query = useQuery({
-        queryKey: ['station-operations-pending'],
+        queryKey: ['station-operations-pending', tenantId, stationId],
         queryFn: stationOperationsApi.getPending,
     });
 
@@ -51,6 +51,7 @@ export function StationSupplementalOperations({ tenantId, stationId }: { tenantI
     });
     const open = (row: PendingStationOperation) => {
         setSelected(row);
+        setOdometer(''); setReceipt(''); setEvidence(null);
         setQuantity(String(row.authorizedQuantity));
     };
     const canSubmit = Boolean(
@@ -65,6 +66,8 @@ export function StationSupplementalOperations({ tenantId, stationId }: { tenantI
                     <h3 className="font-bold text-slate-900">ARLA, lubrificantes e serviços autorizados</h3>
                     <p className="text-sm text-slate-500">Execução por protocolo, sem requisição em papel.</p>
                 </div>
+                {query.isLoading && <p role="status" className="px-5 py-4">Carregando autorizações…</p>}
+                {query.isError && <p role="alert" className="px-5 py-4 text-red-700">Não foi possível carregar as autorizações: {query.error.message}</p>}
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[780px] text-sm">
                         <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
@@ -88,7 +91,7 @@ export function StationSupplementalOperations({ tenantId, stationId }: { tenantI
                                     <td className="px-5 py-4 text-right"><SGFButton size="sm" icon={CheckCircle} onClick={() => open(row)}>Registrar</SGFButton></td>
                                 </tr>
                             ))}
-                            {!query.isLoading && (query.data ?? []).length === 0 ? (
+                            {!query.isLoading && !query.isError && (query.data ?? []).length === 0 ? (
                                 <tr><td colSpan={6} className="px-5 py-10 text-center text-slate-500">Nenhum item complementar aguardando execução.</td></tr>
                             ) : null}
                         </tbody>
