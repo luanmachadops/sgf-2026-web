@@ -1,3 +1,4 @@
+import { InstrumentBudgetPlanning } from "@/components/procurement/InstrumentBudgetPlanning";
 import { PARANA_FIELDS, paranaReviewCsv } from "@/lib/parana-budget-report";
 import { ProcurementNavigation } from "@/components/procurement/ProcurementNavigation";
 import { useEffect, useState, type FormEvent } from "react";
@@ -604,6 +605,7 @@ function BudgetHistory({
 export default function DepartmentBudgets() {
   const { user } = useAuth();
   const { setTitle, setDescription } = useHeader();
+  const [view, setView] = useState<"operational" | "planning">("operational");
   const [year, setYear] = useState(new Date().getFullYear());
   const [category, setCategory] = useState<"fuel" | "maintenance">("fuel");
   const [editor, setEditor] = useState<DepartmentBudget | "new" | null>(null);
@@ -614,6 +616,7 @@ export default function DepartmentBudgets() {
     queryKey: ["department-budgets", user?.tenantId, year],
     queryFn: () => departmentBudgetApi.list(year),
     refetchInterval: 30_000,
+    enabled: view === "operational",
   });
   const canEdit = user?.accountRole === "admin";
   const canAudit = ["admin", "gestor"].includes(user?.accountRole ?? "");
@@ -631,6 +634,12 @@ export default function DepartmentBudgets() {
   return (
     <div className="space-y-6">
       <ProcurementNavigation />
+      <div className="flex flex-wrap gap-2" aria-label="Tipo de controle">
+        <SGFButton variant={view === 'operational' ? 'primary' : 'ghost'} onClick={() => setView('operational')}>Limites em operação</SGFButton>
+        <SGFButton variant={view === 'planning' ? 'primary' : 'ghost'} onClick={() => setView('planning')}>Planejamento por instrumento</SGFButton>
+      </div>
+      {view === 'planning' ? <InstrumentBudgetPlanning /> : <>
+
       <SGFCard>
         <p className="text-sm text-slate-600">
           Uma licitação pode atender várias secretarias e fornecedores. Cada
@@ -767,6 +776,7 @@ export default function DepartmentBudgets() {
       {history && (
         <BudgetHistory contract={history} onClose={() => setHistory(null)} />
       )}
+      </>}
     </div>
   );
 }

@@ -6,11 +6,11 @@ import { setup, id, admin, tenant, station, workshop } from './department-budget
 import { createServer } from '../web/node_modules/vite/dist/node/index.js';
 const web = fileURLToPath(new URL('../web/', import.meta.url));
 const db = await setup(true);
-for (const migration of ['20260910152227_procurement_registry.sql', '20260910211314_procurement_items_prices.sql']) await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`, import.meta.url), 'utf8'));
+for (const migration of ['20260910152227_procurement_registry.sql', '20260910211314_procurement_items_prices.sql', '20260911021152_instrument_budget_planning.sql']) await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`, import.meta.url), 'utf8'));
 await db.exec(`select set_config('app.uid','',false);
   alter table public.fuel_stations add column name text default 'Posto municipal teste';
   alter table public.repair_shops add column name text default 'Oficina mecânica teste';
-  update public.profiles set allowed_modules=array['procurement'] where id='${admin}';
+  update public.profiles set allowed_modules=array['procurement','budgets'] where id='${admin}';
   update auth.sessions set created_at=clock_timestamp()+interval '1 second' where id='${id(99)}';
   select set_config('app.uid','${admin}',false); set role authenticated;`);
 if (process.argv.includes('--seed-items')) {
@@ -21,6 +21,9 @@ if (process.argv.includes('--seed-items')) {
   await save('instrument', { ...payload, kind: 'contract', origin_ata_id: ataId });
 }
 const rpc = {
+  get_instrument_budgets: p => db.query('select public.get_instrument_budgets($1,$2,$3) data', [p.p_year, p.p_instrument ?? null, p.p_offset ?? 0]),
+  save_instrument_budget: p => db.query('select public.save_instrument_budget($1::jsonb) data', [JSON.stringify(p.p_payload)]),
+  get_instrument_budget_events: p => db.query('select public.get_instrument_budget_events($1,$2) data', [p.p_plan, p.p_offset ?? 0]),
   get_procurement_items: p => db.query('select public.get_procurement_items($1,$2,$3,$4::date) data', [p.p_instrument, p.p_offset ?? 0, p.p_search ?? '', p.p_date ?? new Date().toISOString().slice(0,10)]),
   get_procurement_prices: p => db.query('select public.get_procurement_prices($1,$2) data', [p.p_item, p.p_offset ?? 0]),
   save_procurement_item: p => db.query('select public.save_procurement_item($1::jsonb) data', [JSON.stringify(p.p_payload)]),
@@ -38,11 +41,11 @@ const server = await createServer({
     name: 'local-procurement-fixture', enforce: 'pre',
     resolveId(source, importer) {
       if (source.includes('contexts/AuthContext')) return '\0preview-auth';
-      if (source === './supabase' && (importer?.endsWith('procurement-registry-api.ts') || importer?.endsWith('procurement-items-api.ts'))) return '\0preview-rpc';
+      if (source === './supabase' && (importer?.endsWith('procurement-registry-api.ts') || importer?.endsWith('procurement-items-api.ts') || importer?.endsWith('instrument-budget-api.ts'))) return '\0preview-rpc';
       if (source === '/preview-entry.js') return '\0preview-entry';
     },
     load(source) {
-      if (source === '\0preview-auth') return `export const useAuth=()=>({user:{id:'${admin}',tenantId:'${tenant}',accountRole:'admin',allowedModules:['procurement']}});`;
+      if (source === '\0preview-auth') return `export const useAuth=()=>({user:{id:'${admin}',tenantId:'${tenant}',accountRole:'admin',allowedModules:['procurement','budgets']}});`;
       if (source === '\0preview-rpc') return `export const supabase={rpc:async(name,args={})=>(await fetch('/fixture-rpc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,args})})).json()};`;
       if (source === '\0preview-entry') return `import React from 'react'; import {createRoot} from 'react-dom/client'; import {BrowserRouter} from 'react-router-dom'; import {QueryClient,QueryClientProvider} from '@tanstack/react-query'; import {HeaderProvider} from '/src/contexts/HeaderContext.tsx'; import Registry from '/src/pages/ProcurementRegistry.tsx'; import '/src/index.css'; createRoot(document.getElementById('root')).render(React.createElement(QueryClientProvider,{client:new QueryClient({defaultOptions:{queries:{retry:false}}})},React.createElement(BrowserRouter,null,React.createElement(HeaderProvider,null,React.createElement('main',{className:'mx-auto max-w-6xl p-6'},React.createElement(Registry))))));`;
     },

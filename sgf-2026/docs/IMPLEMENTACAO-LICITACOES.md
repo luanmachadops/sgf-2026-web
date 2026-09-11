@@ -61,6 +61,28 @@ Validação desta rodada:
 
 Nenhum push, deploy ou alteração no banco hospedado nesta rodada. Itens e instrumentos permanecem rascunhos. Cotas financeiras e autorizações continuam usando o modelo anterior até as etapas 4/5.
 
+## Rodada 4 — cotas e orçamento por instrumento (implementado localmente)
+
+A ação **Tetos por secretaria** de cada ata/contrato abre o planejamento anual. O painel existente de limites ganhou a opção **Planejamento por instrumento**, mantendo os limites operacionais atuais em sua própria visualização. Cada planejamento informa teto do exercício, documento de distribuição e dotações por secretaria/categoria, com fonte e código SIM-AM opcional. Códigos são texto para preservar zeros iniciais. Uma secretaria pode ter diversas fontes/dotações; seu teto é a soma dessas parcelas, exibida no resumo por secretaria. Listagens e histórico têm paginação.
+
+Regras: a soma dos exercícios não pode exceder o valor registrado/contratado, e o exercício precisa intersectar a vigência. A soma das dotações não pode exceder o teto anual. Contratos derivados exigem planejamento da ata no mesmo exercício: os tetos dos contratos, somados, devem caber no teto da ata, e sua distribuição deve caber na parcela da mesma secretaria/categoria. Fontes e dotações podem diferir entre ata e contrato; o limite compartilhado é verificado por secretaria/categoria. Ata e contratos derivados não são somados como recursos adicionais. Reduzir um limite da ata abaixo dos contratos já distribuídos é recusado. Alterar vigência, valor ou origem não pode invalidar planejamento existente.
+
+Modelo adicional: `instrument_budget_plans` e `instrument_budget_allocations`, migration `20260911021152_instrument_budget_planning.sql` criada pela CLI. Revisões completas mantêm identificadores das dotações existentes, exigem documento/justificativa e registram responsável, antes/depois e versão. Bloqueio transacional no processo serializa a validação da família ata/contratos; versão antiga é recusada. Não houve teste com conexões concorrentes independentes nesta rodada.
+
+Segurança: leitura exige módulo `budgets` e sessão válida. Edição exige administrador/superadmin com `budgets` e `procurement`. Secretário consulta somente parcelas da própria secretaria, sem valor global do instrumento, opções de outras secretarias ou histórico global. O histórico geral de licitações também oculta eventos orçamentários de usuários sem `budgets`. Tabelas com RLS e acesso direto revogado; três RPCs públicas invoker delegam para funções privadas com validações de prefeitura, papel, sessão e entrada. Não há migração automática das permissões existentes.
+
+**Escopo de planejamento:** os novos registros continuam em rascunho. Não criam contratos/lançamentos no livro financeiro antigo e não alteram bloqueios operacionais já existentes. Valor registrado/contratado, teto planejado e saldo de empenho são conceitos separados. Saldo contábil de empenhos não foi integrado. O campo SIM-AM valida somente a forma de 28 dígitos, sem validar existência/classificação contábil nem gerar remessa ao TCE-PR. A conferência com a contabilidade permanece na etapa 6.
+
+Validação desta rodada:
+
+- **89 testes passaram**, incluindo sete novos cenários: múltiplas fontes, remanejamento e histórico, versões, limite entre exercícios, vigência, hierarquia ata/contratos, isolamento por prefeitura/secretaria, módulos/sessão, erros sem gravação parcial, identificadores de dotações, paginação e ausência de lançamentos no modelo antigo.
+- TypeScript, lint dos arquivos alterados e build Vite passaram; permanece o aviso conhecido de tamanho dos bundles. Build gerado fora de `web/dist`.
+- Navegador com página/API reais e PGlite local: teto anual fictício de R$ 10 mil, cota de Obras de R$ 6 mil; revisão dividiu a cota em R$ 4 mil na fonte 001500 e R$ 2 mil na fonte 001501. Resumo manteve R$ 6 mil para Obras e R$ 4 mil ainda não distribuídos. Histórico exibiu responsável, motivo e valores antes/depois.
+- Prévia reproduzível: `node tests/procurement-registry-preview.mjs --seed-items` em `127.0.0.1:5184`; autenticação fictícia isolada, sem credenciais remotas. O fluxo manual cobriu o acesso pelo instrumento; a alternância na página antiga de limites foi verificada por compilação/lint, não por sessão autenticada integrada.
+- Advisors locais tentados novamente: conexão recusada em `127.0.0.1:54322`, sem serviço Supabase/Postgres Docker. Testes locais verificaram RLS, privilégios e search_path. Advisors completos e homologação com Auth/PostgREST reais continuam pendentes antes da publicação.
+
+Nenhum push, deploy ou alteração no banco hospedado nesta rodada. Sem contratação de plano pago.
+
 ## Próximo passo
 
-Implementar a etapa 4: vincular cotas e orçamento aos instrumentos, com exercício, secretaria, categoria, múltiplas dotações/fontes e remanejamentos documentados. Distinguir valor registrado na ata, valor contratado, teto por secretaria e saldo de empenho. Reutilizar o painel e controles existentes, evitando duplicar saldos entre ata e contratos derivados. Não ativar a nova execução antes da integração operacional e conciliação das etapas 5/6.
+Implementar a etapa 5 em entregas menores: começar pelo vínculo e consumo dos novos instrumentos/itens/dotações nas autorizações, com reservas atômicas de dinheiro e quantidade. Depois integrar abastecimentos, serviços, complementações, cancelamentos, portais e fechamentos. Definir transição explícita por instrumento para não consumir simultaneamente o modelo antigo e o novo. Preservar vínculos históricos e impedir remanejamentos abaixo dos valores já comprometidos. Ativação depende dessa integração e da conciliação/homologação da etapa 6.

@@ -2832,6 +2832,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_instrument_budgets: { Args: { p_year: number; p_instrument?: string; p_offset?: number }; Returns: Json }
+      save_instrument_budget: { Args: { p_payload: Json }; Returns: string }
+      get_instrument_budget_events: { Args: { p_plan: string; p_offset?: number }; Returns: Json }
       get_procurement_items: { Args: { p_instrument: string; p_offset?: number; p_search?: string; p_date?: string }; Returns: Json }
       get_procurement_prices: { Args: { p_item: string; p_offset?: number }; Returns: Json }
       save_procurement_item: { Args: { p_payload: Json }; Returns: string }
