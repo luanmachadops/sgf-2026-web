@@ -5,11 +5,13 @@ import { toast } from 'sonner';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
+import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { Check, Clock, DollarSign, FileText, Loader2, X } from '@/components/sgf/icons';
 import { serviceOrderFiscalApi, type FinStatus, type OpStatus } from '@/lib/supabase-api';
 import { openPrivateDocument } from '@/lib/docStorage';
 import { formatCurrency, formatDate, formatRoleLabel, maskCpfLGPD } from '@/lib/utils';
 import { maintenanceOperationalLabel } from '@/lib/maintenance-status';
+import { workshopQuoteProcurementApi } from '@/lib/workshop-quote-procurement-api';
 
 interface Props {
     orderId: string;
@@ -38,6 +40,8 @@ export function ServiceOrderFiscalPanel({
     const fin = (financialStatus ?? 'not_started') as FinStatus;
 
     const [quoteReviewNote, setQuoteReviewNote] = useState('');
+    const [quoteLinkReason, setQuoteLinkReason] = useState('');
+    const [quoteLinkChoices, setQuoteLinkChoices] = useState<Record<string, string>>({});
     const [commitment, setCommitment] = useState(commitmentNumber ?? '');
     const [nad, setNad] = useState('');
     const [commitmentFile, setCommitmentFile] = useState<File | null>(null);
@@ -101,15 +105,49 @@ export function ServiceOrderFiscalPanel({
         }),
     });
 
+    const quoteAberto = data?.quotes.find((q) => q.status === 'enviado');
+    const quoteProcurement = useQuery({
+        queryKey: ['quoteProcurement', quoteAberto?.id],
+        queryFn: () => workshopQuoteProcurementApi.candidates(quoteAberto!.id),
+        enabled: Boolean(quoteAberto?.id),
+    });
+    const mutQuoteLinks = useMutation({
+        mutationFn: async () => {
+            if (!quoteAberto || !quoteProcurement.data) throw new Error('Aguarde os vínculos disponíveis.');
+            const links = quoteProcurement.data.map((line) => {
+                const selected = quoteLinkChoices[line.quote_item_id]
+                    ?? (line.linked ? `${line.linked.procurement_item_id}:${line.linked.allocation_id}` : '');
+                const candidate = line.candidates.find((option) => `${option.item_id}:${option.allocation_id}` === selected);
+                if (!candidate) throw new Error(`Selecione o item licitado e a dotação para “${line.description}”.`);
+                return { quoteItemId: line.quote_item_id, procurementItemId: candidate.item_id, allocationId: candidate.allocation_id };
+            });
+            await workshopQuoteProcurementApi.saveLinks(quoteAberto.id, links, quoteLinkReason);
+        },
+        onSuccess: async () => {
+            setQuoteLinkReason('');
+            await qc.invalidateQueries({ queryKey: ['quoteProcurement', quoteAberto?.id] });
+            toast.success('Vínculos com contrato e dotação registrados.');
+        },
+        onError: (error) => toast.error((error as Error).message || 'Não foi possível registrar os vínculos.'),
+    });
+
     const busy = mutApproveQuote.isPending
         || mutRejectQuote.isPending
         || mutCommit.isPending
         || mutDelivery.isPending
         || mutReceive.isPending
         || mutAttest.isPending
-        || mutPay.isPending;
+        || mutPay.isPending
+        || mutQuoteLinks.isPending;
 
-    const quoteAberto = data?.quotes.find((q) => q.status === 'enviado');
+    const quoteLinksReady = Boolean(quoteProcurement.data?.length)
+        && quoteProcurement.data!.every((line) => {
+            const selected = quoteLinkChoices[line.quote_item_id]
+                ?? (line.linked ? `${line.linked.procurement_item_id}:${line.linked.allocation_id}` : '');
+            return line.candidates.some((option) => `${option.item_id}:${option.allocation_id}` === selected)
+                && Boolean(line.linked)
+                && selected === `${line.linked!.procurement_item_id}:${line.linked!.allocation_id}`;
+        });
     const totalNf = (data?.invoices ?? []).reduce((s, i) => s + Number(i.amount ?? 0), 0);
     const totalPago = (data?.payments ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0);
     const naoAtestadas = (data?.invoices ?? []).filter((i) => !i.attested_at);
@@ -177,6 +215,30 @@ export function ServiceOrderFiscalPanel({
                                 <strong>Observação da oficina:</strong> {quoteAberto.note}
                             </p>
                         )}
+                        <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4">
+                            <p className="font-bold text-slate-900">Vínculo com licitação e dotação</p>
+                            <p className="mt-1 text-xs text-slate-600">Cada linha deve usar item contratado, preço vigente e dotação da secretaria do veículo. Esta etapa confere o vínculo; ainda não reserva saldo.</p>
+                            {quoteProcurement.isLoading && <p className="mt-3 text-sm text-slate-600">Carregando itens compatíveis…</p>}
+                            {quoteProcurement.error && <p role="alert" className="mt-3 text-sm text-red-700">{(quoteProcurement.error as Error).message}</p>}
+                            {quoteProcurement.data?.map((line) => {
+                                const current = quoteLinkChoices[line.quote_item_id]
+                                    ?? (line.linked ? `${line.linked.procurement_item_id}:${line.linked.allocation_id}` : '');
+                                return <div key={line.quote_item_id} className="mt-3 rounded-lg border border-sky-100 bg-white p-3">
+                                    <p className="text-sm font-semibold text-slate-800">{line.description} · {quoteClassificationLabel(line.unit, line.category)} · {formatCurrency(line.unit_price)} por {line.unit ?? 'unidade'}</p>
+                                    {line.category === null || line.unit === null ? <p className="mt-2 text-sm text-red-700">Solicite nova versão: este item não foi classificado pela oficina.</p>
+                                        : line.candidates.length === 0 ? <p className="mt-2 text-sm text-red-700">Não há item contratual e dotação compatíveis com o fornecedor, a secretaria, a categoria, a unidade e o preço deste item.</p>
+                                            : <SGFSelect fullWidth className="mt-3" label={`Contrato e dotação · ${line.description}`} placeholder="Selecione o item e a dotação" value={current}
+                                                options={line.candidates.map((option) => ({ value: `${option.item_id}:${option.allocation_id}`, label: `${option.instrument_reference} · ${option.item_reference} · ${option.department_name} · ${option.appropriation} · ${formatCurrency(option.contract_unit_price)}` }))}
+                                                disabled={busy} onChange={(value) => setQuoteLinkChoices((choices) => ({ ...choices, [line.quote_item_id]: value }))} />}
+                                </div>;
+                            })}
+                            {quoteProcurement.data && <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                                <SGFInput label="Justificativa do vínculo" value={quoteLinkReason} maxLength={1000} placeholder="Ex.: item e dotação conferidos no contrato" fullWidth disabled={busy} onChange={(event) => setQuoteLinkReason(event.target.value)} />
+                                <SGFButton type="button" size="sm" disabled={busy || !quoteLinkReason.trim() || !quoteProcurement.data.every((line) => line.candidates.some((option) => `${option.item_id}:${option.allocation_id}` === (quoteLinkChoices[line.quote_item_id] ?? (line.linked ? `${line.linked.procurement_item_id}:${line.linked.allocation_id}` : ''))))} loading={mutQuoteLinks.isPending} onClick={() => mutQuoteLinks.mutate()}>
+                                    Salvar vínculos
+                                </SGFButton>
+                            </div>}
+                        </div>
                         <div className="mt-3">
                             <SGFInput
                                 label="Parecer do gestor"
@@ -189,7 +251,7 @@ export function ServiceOrderFiscalPanel({
                         <div className="mt-3 flex flex-wrap gap-2">
                             <SGFButton
                                 size="sm"
-                                disabled={busy}
+                                disabled={busy || !quoteLinksReady}
                                 icon={Check}
                                 onClick={run(async () => {
                                     await mutApproveQuote.mutateAsync(quoteAberto.id);

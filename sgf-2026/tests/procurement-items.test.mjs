@@ -75,7 +75,7 @@ test('isolamento de prefeitura, módulo, secretaria, sessão e acesso direto', (
   await login(outsider); assert.equal((await list(ata)).total, 0); await rejected(() => prices(item), /não encontrado/); await rejected(() => saveItem(itemPayload(ata)), /não encontrado/); await rejected(() => savePrice(pricePayload(item)), /não encontrado/);
   await login(secretary); await rejected(() => list(ata), /permissão/); await login();
   for (const table of ['procurement_items', 'procurement_item_prices']) { await rejected(() => db.query(`select * from ${table}`), /permission denied/); await rejected(() => db.query(`delete from ${table}`), /permission denied/); assert.equal((await db.query('select relrowsecurity from pg_class where oid=$1::regclass', [table])).rows[0].relrowsecurity, true); }
-  await db.exec('reset role'); await db.exec(`select set_config('app.uid','',false); update public.profiles set allowed_modules=array['budgets'] where id='${admin}';`); await login(); await rejected(() => list(ata), /permissão/);
+  await db.exec('reset role'); await db.exec(`select set_config('app.uid','',false); update public.profiles set allowed_modules=array['budgets'] where id='${admin}'; update auth.sessions set created_at=clock_timestamp()+interval '1 second' where id='${admin}';`); await login(); await rejected(() => list(ata), /permissão/);
   await db.exec("select set_config('request.jwt.claims','{}',false)"); await rejected(() => list(ata), /revogada/);
 }));
 test('entradas inválidas e referência repetida não geram gravação parcial', () => isolated(async () => {

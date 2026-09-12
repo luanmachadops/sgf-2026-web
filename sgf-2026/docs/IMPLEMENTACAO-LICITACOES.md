@@ -221,6 +221,24 @@ Validação em 12/09/2026:
 
 Sem push, deploy, alteração remota ou plano pago.
 
+## Rodada 5D2 — vínculo do orçamento ao contrato e à dotação (implementado localmente)
+
+Migration `20260912034547_workshop_quote_procurement_links.sql`, criada pela CLI Supabase. O gestor recebe, para cada linha do orçamento, somente os itens de contratos da mesma oficina que tenham categoria, unidade, vigência, preço unitário e dotação compatíveis. A dotação é filtrada pela secretaria do veículo da ordem de serviço e pelo exercício vigente. Não há associação por texto ou por semelhança de descrição.
+
+O vínculo registra item contratual, dotação, condição de preço, valor unitário vigente, autor e horário. Cada alteração exige justificativa e gera evento de auditoria no processo da licitação. Tabelas internas permanecem sem acesso direto de clientes, com RLS e funções públicas invocadoras protegidas por sessão, papel de gestão e módulos de manutenções, licitações e limites.
+
+A aprovação do orçamento passou a exigir que todos os itens estejam classificados e vinculados. Ela repete a validação completa no banco, inclusive o preço vigente, antes de mudar a OS para aguardando empenho. Assim, uma revisão de preço, vigência, item, contrato ou dotação depois da seleção não é aceita silenciosamente. Orçamentos antigos sem categoria/unidade devem receber uma nova versão da oficina para entrar neste fluxo.
+
+Esta etapa ainda não reserva nem consome quantidade ou saldo da dotação. O valor salvo é a evidência da conferência, não um empenho ou autorização de fornecimento. A próxima entrega fará a reserva transacional, suas transições e a conciliação com o recebimento/pagamento da OS.
+
+Validação em 12/09/2026:
+
+- **137 testes passaram** na suíte completa. Os quatro cenários novos cobrem candidatura compatível, auditoria sem reserva, rejeição por preço/unidade/secretaria/vínculo, revalidação na aprovação, sessão, privilégios e RLS.
+- TypeScript, lint dos arquivos alterados e build Vite passaram. O build temporário mantém o aviso conhecido de bundle principal acima de 500 kB.
+- Advisors locais foram tentados, mas o PostgreSQL/Supabase Docker não está disponível em `127.0.0.1:54322`. A homologação integrada de Auth/PostgREST/RLS, concorrência PostgreSQL real e validação manual autenticada permanecem pendentes antes de qualquer ativação.
+
+Sem push, deploy, alteração remota ou plano pago.
+
 ## Próximo passo
 
-Etapa 5D2: correspondência explícita entre linhas do orçamento, itens contratuais e dotações das secretarias, conferindo categoria, unidade e preço antes da aprovação. A reserva transacional e sua liberação/execução devem ser entregues e testadas em seguida. Permanecem lançamentos diretos, complementações e fechamentos. Antes de ativar, executar homologação integrada e concorrente. A etapa 6 deve conciliar relatórios, atribuição por instrumento e contabilidade; testes locais não certificam conformidade com o TCE-PR.
+Etapa 5D3: reservar de modo transacional quantidade e valor por item/dotação quando o orçamento vinculado for aprovado, liberar a reserva em devolução/cancelamento e converter o saldo em realização conforme o recebimento e o ateste. Antes de ativar, executar homologação integrada e concorrente. A etapa 6 deve conciliar relatórios, atribuição por instrumento e contabilidade; testes locais não certificam conformidade com o TCE-PR.
