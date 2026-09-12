@@ -1,6 +1,6 @@
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
-import {setupQuoteProcurement,login,id,admin,outsider,tenant,department,quote,quoteItem,order,procurementItem,allocation,price,otherDepartment,workshop} from './workshop-quote-procurement-fixture.mjs';
+import {setupQuoteProcurement,login,id,admin,outsider,tenant,department,quote,quoteItem,order,procurementItem,allocation,price,otherDepartment,workshop,instrument} from './workshop-quote-procurement-fixture.mjs';
 
 let db;
 before(async()=>{db=await setupQuoteProcurement();await login(db);});
@@ -139,6 +139,31 @@ test('fila de conciliação mantém o ledger legado sem atribuição automática
  assert.ok(row);assert.equal(row.reconciliation_status,'pending');assert.equal(Number(row.consumed_amount),50);assert.equal(row.department_id,department);
 }));
 
+test('conciliação assistida exige vínculo explícito, documento, limite e idempotência auditada',()=>isolated(async()=>{
+ await db.exec('reset role');
+ const contract=id(903),source=id(904);
+ await db.query(`insert into public.budget_contracts(id,tenant_id,category,reference,fiscal_year,starts_on,ends_on,total_limit)
+   values($1,$2,'fuel','Contrato legado 6B',$3,$4,$5,1000)`,[contract,tenant,new Date().getUTCFullYear(),`${new Date().getUTCFullYear()}-01-01`,`${new Date().getUTCFullYear()}-12-31`]);
+ await db.query(`insert into public.budget_allocations(contract_id,department_id,spending_limit,appropriation,funding_source)
+   values($1,$2,1000,'3.3.90.30','1500')`,[contract,department]);
+ await db.query(`insert into public.budget_entries(source_type,source_id,contract_id,department_id,partner_id,reserved,realized,disputed,source_status)
+   values('fuelings',$1,$2,$3,$4,10,35,5,'validado')`,[source,contract,department,id(7)]);
+ await login(db);
+ const documents=JSON.stringify([{label:'Nota de empenho',url:'https://documentos.example.gov.br/nota-6b.pdf'}]);
+ await rejected(()=>db.query('select public.reconcile_procurement_legacy_entry($1,$2,$3,$4,$5,$6::jsonb)', ['fuelings',source,instrument,allocation,'',documents]),/justificativa/);
+ const first=(await db.query('select public.reconcile_procurement_legacy_entry($1,$2,$3,$4,$5,$6::jsonb) id',['fuelings',source,instrument,allocation,'Conferência do empenho e da nota fiscal',documents])).rows[0].id;
+ const second=(await db.query('select public.reconcile_procurement_legacy_entry($1,$2,$3,$4,$5,$6::jsonb) id',['fuelings',source,instrument,allocation,'Conferência do empenho e da nota fiscal',documents])).rows[0].id;
+ assert.equal(first,second);
+ await db.exec('reset role');
+ const mapping=(await db.query('select source_type,amount_at_reconciliation,justification from public.procurement_legacy_reconciliations where id=$1',[first])).rows[0];
+ assert.equal(mapping.source_type,'fuelings');assert.equal(Number(mapping.amount_at_reconciliation),50);assert.match(mapping.justification,/Conferência/);
+ assert.equal((await db.query("select count(*)::int n from public.procurement_registry_events where kind='legacy_reconciliation'")).rows[0].n,1);
+ await login(db);
+ assert.equal((await db.query('select count(*)::int n from public.get_procurement_legacy_reconciliation($1,$2) where source_id=$3',[new Date().getUTCFullYear(),null,source])).rows[0].n,0);
+ const total=(await db.query('select * from public.get_procurement_reconciled_legacy_totals($1,$2,$3)',[new Date().getUTCFullYear(),instrument,null])).rows.find(row=>row.allocation_id===allocation);
+ assert.ok(total);assert.equal(Number(total.legacy_reconciled_amount),50);
+}));
+
 test('sessão, permissões e tabelas internas permanecem restritas',()=>isolated(async()=>{
   await login(db,outsider);await rejected(()=>db.query('select public.get_quote_procurement_candidates($1)',[quote]),/Sessão|permissão|licitações/);
   await db.exec('reset role');const status=(await db.query("select relrowsecurity,has_table_privilege('authenticated','public.service_order_quote_item_procurement_links','select') direct,has_function_privilege('anon','public.set_quote_procurement_links(uuid,jsonb,text)'::regprocedure,'execute') anon from pg_class where oid='public.service_order_quote_item_procurement_links'::regclass")).rows[0];assert.equal(status.relrowsecurity,true);assert.equal(status.direct,false);assert.equal(status.anon,false);
@@ -146,4 +171,5 @@ test('sessão, permissões e tabelas internas permanecem restritas',()=>isolated
   const invoiceItems=(await db.query("select relrowsecurity,has_table_privilege('authenticated','public.service_order_invoice_items','select') direct from pg_class where oid='public.service_order_invoice_items'::regclass")).rows[0];assert.equal(invoiceItems.relrowsecurity,true);assert.equal(invoiceItems.direct,false);
   const functions=(await db.query("select prosecdef,has_function_privilege('anon',oid,'execute') anon from pg_proc where oid in ('public.get_quote_procurement_candidates(uuid)'::regprocedure,'public.set_quote_procurement_links(uuid,jsonb,text)'::regprocedure)")).rows;assert.equal(functions.length,2);for(const fn of functions){assert.equal(fn.prosecdef,false);assert.equal(fn.anon,false);}
   const reports=(await db.query("select has_function_privilege('authenticated','public.get_procurement_fiscal_reconciliation(integer,uuid,uuid)'::regprocedure,'execute') granted,has_function_privilege('anon','public.get_procurement_fiscal_reconciliation(integer,uuid,uuid)'::regprocedure,'execute') anon")).rows[0];assert.equal(reports.granted,true);assert.equal(reports.anon,false);
+  const reconciliation=(await db.query("select relrowsecurity,has_table_privilege('authenticated','public.procurement_legacy_reconciliations','select') direct,has_function_privilege('authenticated','public.reconcile_procurement_legacy_entry(text,uuid,uuid,uuid,text,jsonb)'::regprocedure,'execute') granted,has_function_privilege('anon','public.reconcile_procurement_legacy_entry(text,uuid,uuid,uuid,text,jsonb)'::regprocedure,'execute') anon from pg_class where oid='public.procurement_legacy_reconciliations'::regclass")).rows[0];assert.equal(reconciliation.relrowsecurity,true);assert.equal(reconciliation.direct,false);assert.equal(reconciliation.granted,true);assert.equal(reconciliation.anon,false);
 }));

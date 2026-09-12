@@ -294,6 +294,22 @@ Validação em 12/09/2026:
 
 Sem push, deploy, alteração remota, exclusão de dados ou plano pago.
 
+## Rodada 6B — conciliação assistida do legado (implementado localmente)
+
+Migration `20260912044001_procurement_legacy_reconciliation.sql`, criada pela CLI Supabase. A fila de lançamentos antigos agora pode ser tratada individualmente por um gestor autorizado: ele seleciona o instrumento e a dotação da mesma secretaria e exercício, informa justificativa e referencia ao menos um documento HTTPS. O banco confere prefeitura, exercício, secretaria, existência do lançamento, saldo da dotação e ausência de reserva central anterior.
+
+O vínculo é imutável e idempotente. Ele não altera `budget_entries`, não cria uma nova reserva operacional e não apaga dados; grava um snapshot dos valores legado, o responsável, o horário, os documentos e o evento `legacy_reconciliation` no processo da licitação. A entrada deixa a fila pendente e passa a ser exibida como **legado conciliado** no relatório fiscal, com valor separado antes de compor o consumo e o saldo da dotação.
+
+O painel de relatórios ganhou a ação **Conciliar** na fila do legado. A tela carrega somente planejamentos do exercício e dotações da secretaria do lançamento. Secretários, parceiros, motoristas e usuários sem os módulos explícitos não recebem a ação. O documento é armazenado como referência HTTPS; a existência e o conteúdo do arquivo devem ser conferidos no procedimento documental da prefeitura.
+
+Validação em 12/09/2026:
+
+- **145 testes passaram** na suíte completa. A rodada acrescentou idempotência, documento obrigatório, saldo da dotação, isolamento, saída da fila, evento de auditoria, soma do legado conciliado e privilégios da tabela/RPC.
+- TypeScript, build Vite e lint direto dos arquivos web alterados passaram; o build mantém o aviso conhecido de bundle principal acima de 500 kB. O lint geral continua com falhas preexistentes fora desta etapa.
+- `supabase db advisors --local` continua dependente do PostgreSQL/Supabase Docker em `127.0.0.1:54322`; a migration foi exercitada em PGlite com a cadeia anterior, mas ainda falta a validação integrada de Auth, PostgREST, Storage e concorrência PostgreSQL.
+
+Sem push, deploy, alteração remota, exclusão de dados ou plano pago.
+
 ## Próximo passo
 
-Etapa 6B: criar a conciliação assistida do legado, com seleção explícita do instrumento/dotação, justificativa, documentos de suporte e evento de auditoria. Depois serão feitos os testes integrados de Auth, PostgREST, Storage, RLS, concorrência e recuperação antes da publicação.
+Etapa 6C: validar a cadeia integrada em ambiente de homologação disponível, conferir os documentos e regras TCE-PR/SIM-AM com a contabilidade e executar ensaios de concorrência, recuperação e publicação controlada.

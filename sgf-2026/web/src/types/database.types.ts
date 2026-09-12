@@ -3101,6 +3101,24 @@ export type Database = {
           reconciliation_status: string
         }[]
       }
+      get_procurement_reconciled_legacy_totals: {
+        Args: { p_year?: number | null; p_instrument?: string | null; p_department?: string | null }
+        Returns: {
+          allocation_id: string
+          legacy_reconciled_amount: number
+        }[]
+      }
+      reconcile_procurement_legacy_entry: {
+        Args: {
+          p_source_type: string
+          p_source_id: string
+          p_instrument: string
+          p_allocation: string
+          p_justification: string
+          p_documents: Json
+        }
+        Returns: string
+      }
       get_repair_shop_orders: {
         Args: never
         Returns: {

@@ -1171,32 +1171,49 @@ function fiscalYearFilter(f?: ReportFilterInput): number | null {
 }
 
 async function procurementFiscalReconciliation(f?: ReportFilterInput): Promise<ReportDataset> {
-    const { data, error } = await supabase.rpc('get_procurement_fiscal_reconciliation', {
-        p_year: fiscalYearFilter(f),
-        p_instrument: null,
-        p_department: f?.departmentId ?? null,
+    const year = fiscalYearFilter(f);
+    const [centralResult, legacyResult] = await Promise.all([
+        supabase.rpc('get_procurement_fiscal_reconciliation', {
+            p_year: year,
+            p_instrument: null,
+            p_department: f?.departmentId ?? null,
+        }),
+        supabase.rpc('get_procurement_reconciled_legacy_totals', {
+            p_year: year,
+            p_instrument: null,
+            p_department: f?.departmentId ?? null,
+        }),
+    ]);
+    if (centralResult.error) throw centralResult.error;
+    if (legacyResult.error) throw legacyResult.error;
+    const legacyByAllocation = new Map(
+        (legacyResult.data ?? []).map((row) => [row.allocation_id, Number(row.legacy_reconciled_amount)]),
+    );
+    const sourceRows = centralResult.data ?? [];
+    const rows = sourceRows.map((row) => {
+        const legacyReconciled = legacyByAllocation.get(row.allocation_id) ?? 0;
+        const consumed = Number(row.consumed_amount) + legacyReconciled;
+        return {
+            fiscalYear: row.fiscal_year,
+            process: row.process_reference,
+            instrument: `${row.instrument_reference} (${row.instrument_kind === 'ata' ? 'Ata' : 'Contrato'})`,
+            department: row.department_name,
+            category: row.category,
+            appropriation: row.appropriation,
+            fundingSource: row.funding_source,
+            simam: row.simam_code || '—',
+            planned: Number(row.planned_limit),
+            reserved: Number(row.reserved_amount),
+            realized: Number(row.realized_amount),
+            disputed: Number(row.disputed_amount),
+            legacyReconciled,
+            consumed,
+            remaining: Math.max(Number(row.planned_limit) - consumed, 0),
+            invoiced: row.invoiced_amount == null ? '—' : Number(row.invoiced_amount),
+            attested: row.attested_amount == null ? '—' : Number(row.attested_amount),
+            paid: row.paid_amount == null ? '—' : Number(row.paid_amount),
+        };
     });
-    if (error) throw error;
-    const sourceRows = data ?? [];
-    const rows = sourceRows.map((row) => ({
-        fiscalYear: row.fiscal_year,
-        process: row.process_reference,
-        instrument: `${row.instrument_reference} (${row.instrument_kind === 'ata' ? 'Ata' : 'Contrato'})`,
-        department: row.department_name,
-        category: row.category,
-        appropriation: row.appropriation,
-        fundingSource: row.funding_source,
-        simam: row.simam_code || '—',
-        planned: Number(row.planned_limit),
-        reserved: Number(row.reserved_amount),
-        realized: Number(row.realized_amount),
-        disputed: Number(row.disputed_amount),
-        consumed: Number(row.consumed_amount),
-        remaining: Number(row.remaining_amount),
-        invoiced: row.invoiced_amount == null ? '—' : Number(row.invoiced_amount),
-        attested: row.attested_amount == null ? '—' : Number(row.attested_amount),
-        paid: row.paid_amount == null ? '—' : Number(row.paid_amount),
-    }));
     const sumNumber = (key: 'planned' | 'reserved' | 'realized' | 'disputed' | 'consumed' | 'remaining') =>
         rows.reduce((sum, row) => sum + row[key], 0);
     const byDepartment = new Map<string, number>();
@@ -1221,6 +1238,7 @@ async function procurementFiscalReconciliation(f?: ReportFilterInput): Promise<R
             { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 115 },
             { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 115 },
             { key: 'disputed', label: 'Contestado', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'legacyReconciled', label: 'Legado conciliado', align: 'right', format: 'currency', minWidth: 135 },
             { key: 'consumed', label: 'Consumido', align: 'right', format: 'currency', minWidth: 115 },
             { key: 'remaining', label: 'Saldo', align: 'right', format: 'currency', minWidth: 115 },
             { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 115 },
@@ -1238,6 +1256,7 @@ async function procurementFiscalReconciliation(f?: ReportFilterInput): Promise<R
         notes: [
             'O filtro de período representa o exercício fiscal quando as datas inicial e final pertencem ao mesmo ano; períodos que atravessam anos retornam todos os exercícios.',
             'Teto, reservado, realizado, contestado e saldo pertencem ao controle da dotação. Faturado, atestado e pago são marcos da mesma despesa e não são somados novamente.',
+            'Legado conciliado é exibido separado e só entra no consumo depois de um vínculo explícito, justificado e auditado.',
             'Postos e abastecimentos ainda não possuem NF, ateste e pagamento no livro central; nesses campos aparece “—”, preservando a diferença entre inexistente e zero.',
         ],
     };
@@ -1252,8 +1271,10 @@ async function procurementLegacyReconciliation(f?: ReportFilterInput): Promise<R
     const rows = (data ?? []).map((row) => ({
         sourceType: row.source_type,
         sourceId: row.source_id,
+        contractId: row.contract_id,
         contract: row.contract_reference,
         fiscalYear: row.fiscal_year,
+        departmentId: row.department_id,
         department: row.department_name ?? '—',
         partnerId: row.partner_id,
         vehicleId: row.vehicle_id ?? '—',
@@ -1274,8 +1295,10 @@ async function procurementLegacyReconciliation(f?: ReportFilterInput): Promise<R
         columns: [
             { key: 'sourceType', label: 'Origem', filterable: true, minWidth: 145 },
             { key: 'sourceId', label: 'Registro legado', filterable: true, minWidth: 280 },
+            { key: 'contractId', label: 'ID do contrato legado', defaultVisible: false, minWidth: 280 },
             { key: 'contract', label: 'Contrato legado', filterable: true, minWidth: 170 },
             { key: 'fiscalYear', label: 'Exercício', align: 'right', format: 'integer', minWidth: 85 },
+            { key: 'departmentId', label: 'ID da secretaria', defaultVisible: false, minWidth: 280 },
             { key: 'department', label: 'Secretaria', filterable: true, minWidth: 170 },
             { key: 'partnerId', label: 'Fornecedor', filterable: true, minWidth: 280 },
             { key: 'vehicleId', label: 'Veículo', filterable: true, minWidth: 280 },

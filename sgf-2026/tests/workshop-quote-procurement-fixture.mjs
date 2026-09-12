@@ -92,6 +92,7 @@ export async function setupQuoteProcurement() {
       add column state text not null default 'reserved';
   `);
   await db.exec(await readFile(new URL('../supabase/migrations/20260912042702_procurement_fiscal_reconciliation.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20260912044001_procurement_legacy_reconciliation.sql',import.meta.url),'utf8'));
   return db;
 }
 
