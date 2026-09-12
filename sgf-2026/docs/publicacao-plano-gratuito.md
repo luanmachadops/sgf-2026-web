@@ -48,3 +48,11 @@ Antes de inserir dados reais, preparar backup lógico manual com conexão Postgr
 - Suíte completa de 61 testes de segurança e orçamento executada e 100% aprovada (`61 passed, 0 failed`).
 - Deploy em produção subindo para a branch `codex/correcoes-e2e-2026-07-28` consumida pela Hostinger.
 
+## Atualização da etapa de licitações — 12/09/2026
+
+- As 15 migrations de licitações, combustível, operações de postos, oficinas e conciliação foram aplicadas com sucesso no projeto Supabase `FrotaMunicipal` (`kgxdrgbxpfoebzrphtqg`), após as quatro migrations de segurança/Paraná.
+- As tabelas novas estão com RLS; o acesso direto por clientes está revogado; não há registros centrais nem contratos habilitados (`procurement_fuel_rollouts` e `procurement_station_rollouts` permanecem vazias).
+- Os dados existentes foram preservados: 1 prefeitura, 7 perfis, 106 veículos, 547 abastecimentos e 33 ordens de serviço antes da ativação dos novos fluxos.
+- O gate local `npm run release:preflight` foi executado com 145 testes aprovados e builds web, superadmin e servidor aprovados. A concorrência PostgreSQL independente continua aguardando `SGF_PG_RUNTIME_DIR`.
+- Os advisors remotos permanecem com alertas legados de `pg_net`, funções `SECURITY DEFINER`, proteção de senhas vazadas e políticas permissivas. Eles não foram alterados automaticamente porque envolvem fluxos antigos e configuração do plano.
+- Nenhum valor de teto foi cadastrado e nenhum rollout foi habilitado. A ativação operacional exige primeiro login real de gestor, conferência contábil e validação TCE-PR/SIM-AM.
