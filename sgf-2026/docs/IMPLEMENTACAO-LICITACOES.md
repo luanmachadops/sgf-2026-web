@@ -203,6 +203,24 @@ Validação:
 
 Sem push, deploy, alteração no banco hospedado ou plano pago.
 
+## Rodada 5D1 — classificação dos itens de orçamento (implementado localmente)
+
+Migration `20260911215046_workshop_quote_classification.sql`, criada pela CLI. O orçamento da oficina passa a exigir categoria e unidade explícitas por linha. Peças, pneus, lubrificantes, ARLA, mão de obra e borracharia ficam distinguíveis; unidades disponíveis: UN, H, L, KG, KM e SERV. Oficina e gestor visualizam essa classificação. Preço unitário admite seis casas decimais; quantidade mantém duas; o total é arredondado em centavos depois da soma.
+
+O novo endpoint v3 valida sessão, oficina, prefeitura, situação da OS, validade e conteúdo dos itens. Substituição cria nova versão, preservando a classificação anterior; não se pode alterar unidade/categoria diretamente. Orçamentos antigos permanecem sem classificação e são identificados assim na tela, sem inferências ou preenchimento retroativo. Clientes legados ainda podem enviar itens não classificados pelos endpoints anteriores.
+
+Esta rodada não associa itens a contratos/dotações nem reserva saldo contratual. A futura aprovação vinculada deverá exigir classificação completa e correspondência explícita. A migration precisa preceder a publicação do frontend; nada foi aplicado remotamente.
+
+Validação em 12/09/2026:
+
+- **133 testes passaram**, incluindo seis cenários novos: precisão, compatibilidade, entradas inválidas e reversão, versões, preservação do legado, isolamento, sessão e privilégios.
+- Um teste anterior foi estabilizado simulando nova sessão após a alteração de permissões. A revogação de sessões em produção permanece intacta.
+- TypeScript, lint dos arquivos alterados e build Vite passaram; build em diretório temporário, com aviso conhecido de tamanho dos bundles.
+- Navegador local: classificação Peças/UN, quantidade 2 e preço 25,123456 exibiram total de R$ 50,25. A automação do calendário não manteve a validade no estado do formulário; o envio manual completo não foi confirmado. O envio SQL foi validado pelos testes. Prévia reproduzível: `node tests/workshop-quote-preview.mjs`.
+- Fixture usa PGlite e contextos de autenticação fictícios. Não equivale a homologação de Auth/PostgREST/RLS completos. Advisors locais tentados sem sucesso por ausência do serviço em `127.0.0.1:54322`; permanecem pendentes homologação integrada e concorrência PostgreSQL real.
+
+Sem push, deploy, alteração remota ou plano pago.
+
 ## Próximo passo
 
-Etapa 5D: integrar orçamentos e ordens de serviço das oficinas aos contratos, itens e dotações, incluindo peças, mão de obra e borracharia, por entregas menores. Permanecem os lançamentos diretos, complementações e fechamentos. Antes de ativar, executar homologação integrada e concorrente. A etapa 6 deve conciliar relatórios, atribuição por instrumento e contabilidade; os testes locais não certificam conformidade com o TCE-PR.
+Etapa 5D2: correspondência explícita entre linhas do orçamento, itens contratuais e dotações das secretarias, conferindo categoria, unidade e preço antes da aprovação. A reserva transacional e sua liberação/execução devem ser entregues e testadas em seguida. Permanecem lançamentos diretos, complementações e fechamentos. Antes de ativar, executar homologação integrada e concorrente. A etapa 6 deve conciliar relatórios, atribuição por instrumento e contabilidade; testes locais não certificam conformidade com o TCE-PR.

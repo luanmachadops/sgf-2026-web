@@ -1,3 +1,4 @@
+import { quoteClassificationLabel } from '@/lib/workshop-quote-classification';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -238,7 +239,8 @@ export function OrderDetailsModal({
                                                     {quote.items.map((item) => (
                                                         <li key={item.id ?? `${item.description}-${item.qty}`} className="flex justify-between gap-4 py-2">
                                                             <span className="text-slate-600">
-                                                                {item.qty.toLocaleString('pt-BR')}× {item.description}
+                                                                {item.qty.toLocaleString('pt-BR')} {item.unit ?? ''} × {item.description}
+                                                                <small className="block">{quoteClassificationLabel(item.unit,item.category)}</small>
                                                             </span>
                                                             <strong className="shrink-0 text-slate-800">
                                                                 {currency.format(item.qty * item.unitPrice)}

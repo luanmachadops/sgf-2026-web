@@ -2622,7 +2622,7 @@ export const repairShopsApi = withFotoUrls({
 export type OpStatus = Enums<'service_order_op_status'>;
 export type FinStatus = Enums<'service_order_fin_status'>;
 
-export interface QuoteItem { id: string; kind: 'peca' | 'mao_de_obra'; description: string; qty: number; unit_price: number }
+export interface QuoteItem { unit: string | null; category: string | null; id: string; kind: 'peca' | 'mao_de_obra'; description: string; qty: number; unit_price: number }
 export interface Quote extends Tables<'service_order_quotes'> { items: QuoteItem[] }
 
 export const serviceOrderFiscalApi = withFotoUrls({
@@ -2630,7 +2630,7 @@ export const serviceOrderFiscalApi = withFotoUrls({
     quotes: async (orderId: string): Promise<Quote[]> => {
         const { data, error } = await supabase
             .from('service_order_quotes')
-            .select('*, service_order_quote_items(id, kind, description, qty, unit_price)')
+            .select('*, service_order_quote_items(id, kind, description, qty, unit_price, unit, category)')
             .eq('service_order_id', orderId)
             .order('version', { ascending: false });
         if (error) handleError(error);

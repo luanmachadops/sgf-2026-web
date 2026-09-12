@@ -1,3 +1,4 @@
+import { QUOTE_UNITS, QUOTE_CATEGORIES, quoteCategories, type QuoteUnit, type QuoteCategory } from '@/lib/workshop-quote-classification';
 import { useMemo, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { SGFButton, SGFInput } from '@/components/sgf';
@@ -26,6 +27,7 @@ function emptyItem(kind: WorkshopQuoteItem['kind'] = 'peca'): EditableItem {
         key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         kind,
         description: '',
+        unit: null, category: null,
         qty: 1,
         unitPrice: 0,
         qtyText: '1',
@@ -52,10 +54,12 @@ export function QuoteModal({ order, onClose, onSuccess }: QuoteModalProps) {
         mutationFn: () => {
             const normalized = items.map((item) => ({
                 kind: item.kind,
+                unit: item.unit, category: item.category,
                 description: item.description.trim(),
                 qty: Number(item.qtyText.replace(',', '.')),
                 unitPrice: Number(item.priceText.replace(',', '.')),
             }));
+            if (normalized.some((item) => !item.unit || !item.category)) throw new Error('Informe a unidade e a categoria de todos os itens.');
             if (normalized.some((item) => !item.description)) throw new Error('Descreva todos os itens.');
             if (normalized.some((item) => !Number.isFinite(item.qty) || item.qty <= 0)) throw new Error('Revise as quantidades.');
             if (normalized.some((item) => !Number.isFinite(item.unitPrice) || item.unitPrice < 0)) throw new Error('Revise os preços unitários.');
@@ -114,7 +118,7 @@ export function QuoteModal({ order, onClose, onSuccess }: QuoteModalProps) {
                         <div className="grid gap-3 md:grid-cols-[160px_1fr]">
                             <div>
                                 <label className="mb-2 block text-sm font-semibold text-slate-800">Tipo</label>
-                                <select value={item.kind} onChange={(event) => update(item.key, { kind: event.target.value as WorkshopQuoteItem['kind'] })}
+                                <select value={item.kind} onChange={(event) => update(item.key, { kind: event.target.value as WorkshopQuoteItem['kind'], category: null })}
                                     className="w-full rounded-full border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--sgf-primary)] focus:ring-4 focus:ring-emerald-500/10">
                                     <option value="peca">Peça</option>
                                     <option value="mao_de_obra">Mão de obra</option>
@@ -125,9 +129,23 @@ export function QuoteModal({ order, onClose, onSuccess }: QuoteModalProps) {
                                 placeholder="Serviço ou material" fullWidth />
                         </div>
                         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                            <SGFInput label="Quantidade" type="number" min="0.01" step="0.01" value={item.qtyText}
+                            <label className="text-sm font-semibold text-slate-800">Categoria
+                                <select aria-label={`Categoria do item ${index + 1}`} value={item.category ?? ''} onChange={event => update(item.key, { category: event.target.value as QuoteCategory || null })} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3">
+                                    <option value="">Selecione a categoria</option>
+                                    {quoteCategories(item.kind).map(value => <option key={value} value={value}>{QUOTE_CATEGORIES[value]}</option>)}
+                                </select>
+                            </label>
+                            <label className="text-sm font-semibold text-slate-800">Unidade de medida
+                                <select aria-label={`Unidade do item ${index + 1}`} value={item.unit ?? ''} onChange={event => update(item.key, { unit: event.target.value as QuoteUnit || null })} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3">
+                                    <option value="">Selecione a unidade</option>
+                                    {Object.entries(QUOTE_UNITS).map(([value,label]) => <option key={value} value={value}>{label} ({value})</option>)}
+                                </select>
+                            </label>
+                        </div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                            <SGFInput label={`Quantidade${item.unit ? ` (${item.unit})` : ''}`} type="number" min="0.01" step="0.01" value={item.qtyText}
                                 onChange={(event) => update(item.key, { qtyText: event.target.value })} fullWidth />
-                            <SGFInput label="Valor unitário (R$)" type="number" min="0" step="0.01" value={item.priceText}
+                            <SGFInput label="Valor unitário (R$)" type="number" min="0" step="0.000001" value={item.priceText}
                                 onChange={(event) => update(item.key, { priceText: event.target.value })}
                                 placeholder="0,00" fullWidth />
                         </div>

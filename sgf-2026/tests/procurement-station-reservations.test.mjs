@@ -105,7 +105,10 @@ test('valida entrada, prefeitura, secretaria, módulos e sessão',()=>isolated(a
  await rejected(()=>reserve(s,{...row(s),expires_at:new Date(Date.now()-1000).toISOString()}),/Validade inválida/);await rejected(()=>reserve(s,{...row(s),price:1}),/Campo/);
  await db.exec('reset role');await db.query('update public.vehicles set department_id=$1 where id=$2',[otherDepartment,vehicle]);await rejected(()=>reserve(s),/secretaria/);
  await login(outsider);await rejected(()=>reserve(s),/Item não encontrado/);await login(secretary);await rejected(()=>reserve(s),/permissão|gestão|restrito/i);
- await login();await db.exec("reset role;select set_config('app.uid','',false)");await db.query("update public.profiles set allowed_modules=array['procurement','budgets'] where id=$1",[admin]);await login();await rejected(()=>reserve(s),/postos obrigatório/);
+ await login();await db.exec("reset role;select set_config('app.uid','',false)");await db.query("update public.profiles set allowed_modules=array['procurement','budgets'] where id=$1",[admin]);
+ // Simula novo login após a alteração de permissões revogar a sessão anterior.
+ await db.query("update auth.sessions set created_at=clock_timestamp()+interval '1 second' where id=$1",[admin]);
+ await login();await rejected(()=>reserve(s),/postos obrigatório/);
  await db.exec("reset role;select set_config('app.uid','',false)");await db.query("update public.profiles set allowed_modules=array['procurement','budgets','stations'] where id=$1",[admin]);await db.query('delete from auth.sessions where id=$1',[admin]);await login();await rejected(()=>reserve(s),/sessão|sessao|session/i);
 }));
 test('RLS e privilégios mantêm tabela e funções internas inacessíveis aos clientes',()=>isolated(async()=>{

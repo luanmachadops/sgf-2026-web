@@ -1,3 +1,4 @@
+import type { QuoteUnit, QuoteCategory } from './workshop-quote-classification';
 import { supabase } from '@/lib/supabase';
 import { uploadFoto, withFotoUrls } from '@/lib/fotoStorage';
 import { optimizeImage, validateUploadFile } from '@/lib/imageUtils';
@@ -46,6 +47,8 @@ export interface WorkshopOrder {
 }
 
 export interface WorkshopQuoteItem {
+    unit?: QuoteUnit | null;
+    category?: QuoteCategory | null;
     id?: string;
     kind: 'peca' | 'mao_de_obra';
     description: string;
@@ -176,7 +179,7 @@ export const workshopPortalApi = withFotoUrls({
         const [quotesResult, invoicesResult, eventsResult] = await Promise.all([
             supabase
                 .from('service_order_quotes')
-                .select('*, service_order_quote_items(id, kind, description, qty, unit_price)')
+                .select('*, service_order_quote_items(id, kind, description, qty, unit_price, unit, category)')
                 .eq('service_order_id', orderId)
                 .order('version', { ascending: false }),
             supabase
@@ -210,6 +213,8 @@ export const workshopPortalApi = withFotoUrls({
                     description: item.description,
                     qty: item.qty,
                     unitPrice: item.unit_price,
+                    unit: item.unit as QuoteUnit | null,
+                    category: item.category as QuoteCategory | null,
                 })),
             })),
             invoices: (invoicesResult.data ?? []).map((row) => ({
@@ -299,8 +304,10 @@ export const workshopPortalApi = withFotoUrls({
             description: item.description.trim(),
             qty: item.qty,
             unit_price: item.unitPrice,
+            unit: item.unit,
+            category: item.category,
         }));
-        const { data, error } = await supabase.rpc('repair_shop_submit_quote_v2', {
+        const { data, error } = await supabase.rpc('repair_shop_submit_quote_v3', {
             p_order_id: input.orderId,
             p_items: items,
             p_valid_until: input.validUntil || undefined,

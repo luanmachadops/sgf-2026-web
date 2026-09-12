@@ -2007,6 +2007,8 @@ export type Database = {
       }
       service_order_quote_items: {
         Row: {
+          unit: string | null
+          category: string | null
           created_at: string
           description: string
           id: string
@@ -2016,6 +2018,8 @@ export type Database = {
           unit_price: number
         }
         Insert: {
+          unit?: string | null
+          category?: string | null
           created_at?: string
           description: string
           id?: string
@@ -2025,6 +2029,8 @@ export type Database = {
           unit_price: number
         }
         Update: {
+          unit?: string | null
+          category?: string | null
           created_at?: string
           description?: string
           id?: string
@@ -2836,6 +2842,7 @@ export type Database = {
       issue_procurement_station_operation: { Args: { p_request: string; p_payload: Json }; Returns: string }
       has_procurement_station_binding: { Args: { p_operation: string }; Returns: boolean }
       cancel_procurement_station_operation: { Args: { p_operation: string; p_reason: string }; Returns: undefined }
+      repair_shop_submit_quote_v3: { Args: { p_order_id: string; p_items: Json; p_valid_until?: string; p_note?: string }; Returns: string }
       issue_procurement_fueling: { Args: { p_request: string; p_payload: Json }; Returns: string }
       complete_procurement_fueling: { Args: { p_fueling: string; p_liters: number; p_odometer: number; p_receipt: string; p_photo: string }; Returns: Json }
       preview_procurement_operation: { Args: { p_payload: Json }; Returns: Json }

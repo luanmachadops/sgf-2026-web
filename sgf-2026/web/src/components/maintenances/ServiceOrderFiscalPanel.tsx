@@ -1,3 +1,4 @@
+import { quoteClassificationLabel } from '@/lib/workshop-quote-classification';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -162,7 +163,7 @@ export function ServiceOrderFiscalPanel({
                         <ul className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white px-3">
                             {quoteAberto.items.map((it) => (
                                 <li key={it.id} className="flex items-start justify-between gap-4 py-2.5 text-sm text-slate-700">
-                                    <span className="min-w-0">{it.kind === 'peca' ? 'Peça' : 'Mão de obra'} · {it.description} × {it.qty}</span>
+                                    <span className="min-w-0">{it.kind === 'peca' ? 'Peça' : 'Mão de obra'} · {it.description} × {it.qty} {it.unit ?? ''}<small className="block">{quoteClassificationLabel(it.unit,it.category)}</small></span>
                                     <span className="shrink-0 font-semibold text-slate-900">{formatCurrency(Number(it.unit_price) * Number(it.qty))}</span>
                                 </li>
                             ))}
