@@ -1,5 +1,5 @@
 import {readFile} from 'node:fs/promises';
-import {setup,id,admin,outsider,tenant,department,otherDepartment,workshop,vehicle} from './department-budget-fixture.mjs';
+import {setup,id,admin,outsider,tenant,department,otherDepartment,station,workshop,vehicle} from './department-budget-fixture.mjs';
 
 export const order=id(801), quote=id(802), quoteItem=id(803), process=id(804), instrument=id(805), procurementItem=id(806), allocation=id(807), price=id(808);
 
@@ -11,8 +11,8 @@ async function sourceFunction(file, name) {
   return source.slice(start,end);
 }
 
-export async function setupQuoteProcurement() {
-  const db=await setup(true);
+export async function setupQuoteProcurement(db) {
+  db=await setup(true,db);
   await db.exec(`reset role;select set_config('app.uid','',false);
     alter table public.profiles add column repair_shop_id uuid;
     alter table public.service_orders add column admin_note text;
@@ -93,6 +93,8 @@ export async function setupQuoteProcurement() {
   `);
   await db.exec(await readFile(new URL('../supabase/migrations/20260912042702_procurement_fiscal_reconciliation.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/20260912044001_procurement_legacy_reconciliation.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20260912152713_procurement_legacy_ceiling_integrity.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20260912225722_procurement_fiscal_workshop_usage_fix.sql',import.meta.url),'utf8'));
   return db;
 }
 
@@ -102,4 +104,4 @@ export async function login(db,user=admin){
   await db.exec('set role authenticated');
 }
 
-export {id,admin,outsider,tenant,department,otherDepartment,workshop,vehicle};
+export {id,admin,outsider,tenant,department,otherDepartment,station,workshop,vehicle};

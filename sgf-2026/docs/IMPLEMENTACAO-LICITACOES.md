@@ -312,9 +312,9 @@ Sem push, deploy, alteração remota, exclusão de dados ou plano pago.
 
 ## Rodada 6C — gate de pré-publicação local (implementado localmente)
 
-O script `npm run release:preflight` reúne a verificação que pode ser repetida sem contratar uma branch do Supabase. Ele confere a presença e a ordem das migrations de segurança, cotas, sessões, referências do Paraná, licitações, postos e oficinas; garante que as duas tabelas de habilitação operacional iniciem desativadas; executa os 145 testes da suíte; recompila web, superadmin e servidor; e, quando `SGF_PG_RUNTIME_DIR` está configurado, executa o ensaio de concorrência em duas conexões PostgreSQL embarcadas.
+O script `npm run release:preflight` reúne verificações locais e não é uma declaração de segurança ou publicação do ambiente remoto. Ele confere a presença e a ordem das migrations de segurança, cotas, sessões, referências do Paraná, licitações, postos e oficinas; garante que as duas tabelas de habilitação operacional iniciem desativadas; executa a suíte; recompila web, superadmin e servidor; e, quando `SGF_PG_RUNTIME_DIR` está configurado, executa o ensaio de concorrência em duas conexões PostgreSQL embarcadas. O script não consulta o histórico remoto de migrations, o deploy, sessões reais, Storage, backups ou a contabilidade.
 
-O modo `node scripts/release-preflight.mjs --strict` transforma avisos em bloqueio. Sem o runtime PostgreSQL, o modo normal conclui a parte local e registra que a concorrência real ainda não foi executada. O script não faz `db push`, não publica migrations, não altera dados e não envia credenciais para fora da máquina.
+O modo `node scripts/release-preflight.mjs --strict` transforma avisos em bloqueio e exige que testes e builds sejam executados; portanto `--strict --skip-tests` ou `--strict --skip-build` sempre falha. Sem o runtime PostgreSQL, o modo normal conclui somente a parte local e registra que a concorrência real ainda não foi executada. O script não faz `db push`, não publica migrations, não altera dados e não envia credenciais para fora da máquina.
 
 Validação desta rodada:
 
@@ -323,8 +323,43 @@ Validação desta rodada:
 - Migrations e flags de habilitação: conferidas pelo gate.
 - Advisors e Auth/PostgREST/Storage reais: ainda dependem de ambiente Supabase disponível.
 
-A etapa 6C local está concluída. A liberação estrita de produção continua condicionada à homologação remota, recuperação, concorrência PostgreSQL independente e conferência contábil/TCE-PR/SIM-AM.
+A etapa 6C local está concluída como verificação de fontes, testes e builds. A liberação de produção continua condicionada à homologação remota, recuperação, concorrência PostgreSQL independente e conferência contábil/TCE-PR/SIM-AM.
+
+### Status das etapas e lacunas para publicação
+
+- **Etapas 1–4:** telas, RPCs e migrations foram exercitadas localmente; cadastro, itens, preços e planejamento continuam sem ativação operacional e sem integração do saldo contábil de empenhos.
+- **Etapa 5:** reservas e fluxos de combustível, operações complementares e oficinas existem em escopo controlado, mas a habilitação real, autenticação/Storage integrados e concorrência PostgreSQL ainda não foram homologados. Desconto de combustível ainda depende de base/tabela comprovada e não está integrado à emissão operacional. Postos não têm ciclo central de nota fiscal, ateste e pagamento.
+- **Etapas 6A–6B:** conciliação e fila do legado têm leitura e vínculo assistido local; ainda falta conferir documentos e valores com a contabilidade, TCE-PR e SIM-AM em ambiente real.
+- **Etapa 6C:** o gate local não cobre redeploy, quatro painéis autenticados, recuperação, advisors remotos ou estado efetivo do Supabase/Hostinger.
+- **Etapa 6D:** permanece pendente o redeploy do host principal, testes autenticados nos quatro painéis e a liberação controlada de qualquer rollout.
 
 ## Próxima etapa
 
 Etapa 6D: concluir o redeploy do host principal na Hostinger e executar testes autenticados nos quatro painéis. As migrations já foram aplicadas no Supabase de testes; não repetir `db push` sem reconciliar as versões geradas pelo aplicador remoto. Depois, conferir recuperação, concorrência PostgreSQL independente e a validação contábil/TCE-PR/SIM-AM antes de habilitar qualquer rollout.
+
+
+## Auditoria corretiva de 12/09/2026 — verificação antes da publicação
+
+A auditoria encontrou falhas que impediam declarar todas as etapas concluídas. Foram corrigidas:
+
+- Consumo do legado conciliado agora integra o teto único nas escritas de combustível, posto e oficina e impede reduzir/excluir a dotação abaixo do comprometido. O bloqueio da própria dotação serializa as operações.
+- Conciliação exige fornecedor e categoria comprováveis, recusa reservas antigas abertas e OS com categorias ambíguas. Valores e identidade financeira conciliados ficam preservados; atualizações sem alteração financeira continuam permitidas.
+- Relatório agrega reservas de oficina antes das notas, evitando duplicação com faturamento parcial. Pagamentos vinculados a nota seguem as dotações daquela nota; pagamentos antigos sem nota continuam rateados pela OS.
+- Gate estrito não aceita pular testes/builds e executa os dois ensaios PostgreSQL.
+
+Evidências: 150 testes passaram, builds web/superadmin/servidor passaram e os dois ensaios com conexões independentes em PostgreSQL 17 passaram. Após os ajustes finais de identificação da dotação e apresentação de zero sem NF, os 16 testes afetados passaram novamente. O aviso de bundle grande permanece. Nenhum plano pago foi contratado.
+
+Migrations aplicadas pelo MCP no Supabase usado pelo site (contém dados de teste):
+
+| Arquivo local | Versão remota |
+| --- | --- |
+| `20260912152713_procurement_legacy_ceiling_integrity.sql` | `20260912225914` |
+| `20260912225722_procurement_fiscal_workshop_usage_fix.sql` | `20260912225928` |
+
+As versões diferem porque o aplicador remoto gera timestamps próprios; não reaplicar com db push sem reconciliar histórico. Triggers conferidos ativos e relatório fiscal autenticado carregou após a aplicação. O banco tinha zero dotações, zero reservas centrais e zero conciliações: isso valida o carregamento vazio, não substitui o ciclo operacional integrado com dados preenchidos.
+
+A Hostinger mostrou que o domínio principal usa a branch `codex/correcoes-e2e-2026-07-28`, não `main`. Publicação anterior observada: `18104c08`.
+
+Pendências reais: habilitar o módulo procurement para o administrador com autorização específica (revisão automática bloqueou a alteração de permissão); cadastrar instrumentos/dotações a partir de documentos; completar testes autenticados de escrita, portais e Storage; ensaiar recuperação; conferir classificação e documentos com a contabilidade do Paraná. Desconto com tabela-base e ciclo fiscal central de postos continuam fora do escopo operacional concluído. Não houve concessão de permissão nem ativação automática dos rollouts.
+
+Advisors remotos ainda apontam avisos anteriores sobre pg_net no schema public, funções definer e proteção de senhas vazadas desativada; os 16 avisos informativos de RLS sem policy correspondem às tabelas internas acessadas por RPC com acesso direto revogado. A revisão desta rodada não equivale a certificação de todo o legado nem homologação pelo TCE-PR.

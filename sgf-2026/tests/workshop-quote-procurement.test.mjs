@@ -141,22 +141,25 @@ test('fila de conciliação mantém o ledger legado sem atribuição automática
 
 test('conciliação assistida exige vínculo explícito, documento, limite e idempotência auditada',()=>isolated(async()=>{
  await db.exec('reset role');
- const contract=id(903),source=id(904);
+ const contract=id(903),source=order;
  await db.query(`insert into public.budget_contracts(id,tenant_id,category,reference,fiscal_year,starts_on,ends_on,total_limit)
-   values($1,$2,'fuel','Contrato legado 6B',$3,$4,$5,1000)`,[contract,tenant,new Date().getUTCFullYear(),`${new Date().getUTCFullYear()}-01-01`,`${new Date().getUTCFullYear()}-12-31`]);
+   values($1,$2,'maintenance','Contrato legado 6B',$3,$4,$5,1000)`,[contract,tenant,new Date().getUTCFullYear(),`${new Date().getUTCFullYear()}-01-01`,`${new Date().getUTCFullYear()}-12-31`]);
  await db.query(`insert into public.budget_allocations(contract_id,department_id,spending_limit,appropriation,funding_source)
    values($1,$2,1000,'3.3.90.30','1500')`,[contract,department]);
+ await db.exec('alter table public.service_order_quotes disable trigger workshop_reservation_quote_guard');
+ await db.query(`update public.service_order_quotes set status='aprovado' where id=$1`,[quote]);
+ await db.exec('alter table public.service_order_quotes enable trigger workshop_reservation_quote_guard');
  await db.query(`insert into public.budget_entries(source_type,source_id,contract_id,department_id,partner_id,reserved,realized,disputed,source_status)
-   values('fuelings',$1,$2,$3,$4,10,35,5,'validado')`,[source,contract,department,id(7)]);
+   values('service_orders',$1,$2,$3,$4,0,50,0,'received')`,[source,contract,department,workshop]);
  await login(db);
  const documents=JSON.stringify([{label:'Nota de empenho',url:'https://documentos.example.gov.br/nota-6b.pdf'}]);
- await rejected(()=>db.query('select public.reconcile_procurement_legacy_entry($1,$2,$3,$4,$5,$6::jsonb)', ['fuelings',source,instrument,allocation,'',documents]),/justificativa/);
- const first=(await db.query('select public.reconcile_procurement_legacy_entry($1,$2,$3,$4,$5,$6::jsonb) id',['fuelings',source,instrument,allocation,'Conferência do empenho e da nota fiscal',documents])).rows[0].id;
- const second=(await db.query('select public.reconcile_procurement_legacy_entry($1,$2,$3,$4,$5,$6::jsonb) id',['fuelings',source,instrument,allocation,'Conferência do empenho e da nota fiscal',documents])).rows[0].id;
+ await rejected(()=>db.query('select public.reconcile_procurement_legacy_entry($1,$2,$3,$4,$5,$6::jsonb)', ['service_orders',source,instrument,allocation,'',documents]),/justificativa/);
+ const first=(await db.query('select public.reconcile_procurement_legacy_entry($1,$2,$3,$4,$5,$6::jsonb) id',['service_orders',source,instrument,allocation,'Conferência do empenho e da nota fiscal',documents])).rows[0].id;
+ const second=(await db.query('select public.reconcile_procurement_legacy_entry($1,$2,$3,$4,$5,$6::jsonb) id',['service_orders',source,instrument,allocation,'Conferência do empenho e da nota fiscal',documents])).rows[0].id;
  assert.equal(first,second);
  await db.exec('reset role');
  const mapping=(await db.query('select source_type,amount_at_reconciliation,justification from public.procurement_legacy_reconciliations where id=$1',[first])).rows[0];
- assert.equal(mapping.source_type,'fuelings');assert.equal(Number(mapping.amount_at_reconciliation),50);assert.match(mapping.justification,/Conferência/);
+ assert.equal(mapping.source_type,'service_orders');assert.equal(Number(mapping.amount_at_reconciliation),50);assert.match(mapping.justification,/Conferência/);
  assert.equal((await db.query("select count(*)::int n from public.procurement_registry_events where kind='legacy_reconciliation'")).rows[0].n,1);
  await login(db);
  assert.equal((await db.query('select count(*)::int n from public.get_procurement_legacy_reconciliation($1,$2) where source_id=$3',[new Date().getUTCFullYear(),null,source])).rows[0].n,0);

@@ -11,6 +11,13 @@ const skipBuild = process.argv.includes('--skip-build');
 const warnings = [];
 const errors = [];
 
+if (strict && skipTests) {
+  errors.push('Modo estrito exige a execução da suíte; remova --skip-tests.');
+}
+if (strict && skipBuild) {
+  errors.push('Modo estrito exige os builds web, superadmin e servidor; remova --skip-build.');
+}
+
 const requiredMigrations = [
   '20260908235823_access_security_and_department_budgets.sql',
   '20260908235909_department_budget_control.sql',
@@ -31,6 +38,8 @@ const requiredMigrations = [
   '20260912041412_workshop_invoice_attestation.sql',
   '20260912042702_procurement_fiscal_reconciliation.sql',
   '20260912044001_procurement_legacy_reconciliation.sql',
+  '20260912152713_procurement_legacy_ceiling_integrity.sql',
+  '20260912225722_procurement_fiscal_workshop_usage_fix.sql',
 ];
 
 async function exists(path) {
@@ -85,6 +94,7 @@ if (!skipBuild) {
 
 if (process.env.SGF_PG_RUNTIME_DIR) {
   run('Concorrência PostgreSQL', 'node', ['scripts/test-budget-concurrency.mjs']);
+  run('Concorrência oficinas e teto legado', 'node', ['scripts/test-workshop-legacy-concurrency.mjs']);
 } else {
   warnings.push('Concorrência PostgreSQL real não executada: defina SGF_PG_RUNTIME_DIR para usar o runtime embarcado.');
 }
