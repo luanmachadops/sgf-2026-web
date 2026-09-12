@@ -239,6 +239,24 @@ Validação em 12/09/2026:
 
 Sem push, deploy, alteração remota ou plano pago.
 
+## Rodada 5D3 — reserva e realização do orçamento da oficina (implementado localmente)
+
+Migration `20260912040123_workshop_quote_reservations.sql`, criada pela CLI Supabase. A aprovação de um orçamento já classificado e vinculado passa a criar, na mesma transação, uma reserva por linha: item contratual, dotação, condição de preço, quantidade, valor em centavos, responsável e horário. A soma das linhas reproduz exatamente o total aprovado do orçamento; as frações são distribuídas em centavos sem alterar o preço unitário registrado.
+
+Antes da reserva, o banco repete a conferência de sessão, módulos de manutenções/licitações/limites, prefeitura, secretaria do veículo, oficina contratada, vigência, categoria, unidade, preço unitário vigente, quantidade do item e teto da dotação. O teto considera também reservas vigentes de operações complementares dos postos que compartilhem a mesma dotação. Falha em qualquer linha desfaz integralmente a aprovação e a reserva.
+
+Cancelar a ordem em fase de empenho libera as quantidades e valores comprometidos, preservando o histórico e a auditoria. Receber o veículo após serviço concluído e empenhado converte a reserva em realização, conservando quantidade e valor como evidência do consumo contratual. A ordem não pode ser cancelada ou recebida por atualização direta enquanto a transição correspondente não ocorrer. Linhas do orçamento, vínculos, item e dotação com histórico não podem ser apagados ou ter sua identificação reduzida abaixo do comprometido.
+
+O livro de reservas é interno, com RLS e privilégios diretos revogados. As únicas transições são os fluxos existentes de aprovação, cancelamento e recebimento, agora protegidos pela mesma sessão e pelos três módulos requeridos. Cada criação, liberação ou realização é gravada na auditoria da licitação com antes/depois e justificativa operacional.
+
+Validação em 12/09/2026:
+
+- **140 testes passaram** na suíte completa. Os sete cenários do orçamento/oficina cobrem vínculo, preço, categoria, unidade, secretaria, reserva atômica, concorrência com o saldo de posto, teto e quantidade, liberação no cancelamento, realização no recebimento, imutabilidade, sessão, RLS e privilégios.
+- `supabase db advisors --local` foi executado, mas o Docker/PostgreSQL local não está disponível em `127.0.0.1:54322`. Os controles de RLS, grants e funções foram verificados no PGlite. Changelog e documentação atuais do Supabase foram revisados; não houve mudança aplicável à migration.
+- A fixture de teste representa a integração entre os dois livros de reservas. Ela não substitui homologação com Auth/PostgREST/Storage reais nem ensaio de concorrência em conexões PostgreSQL independentes.
+
+Sem push, deploy, alteração remota, exclusão de dados ou plano pago.
+
 ## Próximo passo
 
-Etapa 5D3: reservar de modo transacional quantidade e valor por item/dotação quando o orçamento vinculado for aprovado, liberar a reserva em devolução/cancelamento e converter o saldo em realização conforme o recebimento e o ateste. Antes de ativar, executar homologação integrada e concorrente. A etapa 6 deve conciliar relatórios, atribuição por instrumento e contabilidade; testes locais não certificam conformidade com o TCE-PR.
+Etapa 5D4: conciliar o recebimento da oficina com nota fiscal, ateste e itens efetivamente entregues, sem reabrir a reserva realizada. Em seguida, a etapa 6 deve migrar o legado, separar os relatórios por instrumento/dotação e conferir a integração contábil e referências do TCE-PR. Antes de ativar qualquer fluxo, executar homologação integrada com sessões reais e teste concorrente em PostgreSQL.

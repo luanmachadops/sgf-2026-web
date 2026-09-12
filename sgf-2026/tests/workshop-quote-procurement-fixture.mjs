@@ -15,6 +15,8 @@ export async function setupQuoteProcurement() {
   const db=await setup(true);
   await db.exec(`reset role;select set_config('app.uid','',false);
     alter table public.profiles add column repair_shop_id uuid;
+    alter table public.service_orders add column admin_note text;
+    alter table public.service_orders add column completed_at timestamptz;
     create function public.get_user_tenant_id() returns uuid language sql stable as $$select tenant_id from public.profiles where id=auth.uid()$$;
     create function public.service_order_manager_context() returns table(profile_id uuid,tenant_id uuid,superadmin boolean)
       language sql security definer as $$select id,tenant_id,false from public.profiles where id=auth.uid() and role='admin'$$;
@@ -29,7 +31,9 @@ export async function setupQuoteProcurement() {
   `);
   const partnerSchema=await readFile(new URL('../supabase/migrations/20260725204942_partner_portals_schema.sql',import.meta.url),'utf8');
   await db.exec(partnerSchema.slice(partnerSchema.indexOf('create table if not exists public.service_order_quotes'),partnerSchema.indexOf('-- ─── 5. Notas')));
-  await db.exec(await sourceFunction('20260726043806_maintenance_workflow_v2.sql','manager_review_service_order_quote'));
+  for (const name of ['manager_review_service_order_quote','manager_cancel_service_order','manager_receive_service_order_vehicle']) {
+    await db.exec(await sourceFunction('20260726043806_maintenance_workflow_v2.sql',name));
+  }
   await db.exec(await readFile(new URL('../supabase/migrations/20260911215046_workshop_quote_classification.sql',import.meta.url),'utf8'));
   await db.exec(`
     insert into public.service_orders(id,tenant_id,repair_shop_id,vehicle_id,operational_status,financial_status)
@@ -53,6 +57,14 @@ export async function setupQuoteProcurement() {
       values('${allocation}','${id(809)}','${department}','parts',600,'3.3.90.30','1500');
   `);
   await db.exec(await readFile(new URL('../supabase/migrations/20260912034547_workshop_quote_procurement_links.sql',import.meta.url),'utf8'));
+  // 5D3 shares a dotação with the existing station reservation ledger. This
+  // focused fixture only needs the columns referenced by the cross-ledger guard.
+  await db.exec(`create table public.procurement_station_reservations(
+    operation_id uuid primary key,
+    allocation_id uuid not null references public.instrument_budget_allocations(id),
+    committed_amount numeric(14,2) not null default 0
+  );`);
+  await db.exec(await readFile(new URL('../supabase/migrations/20260912040123_workshop_quote_reservations.sql',import.meta.url),'utf8'));
   return db;
 }
 
