@@ -15,7 +15,8 @@
     "build": "npm run install:apps && npm run build:web && npm run build:admin && npm run build:server",
     "start": "node dist-server/server.mjs",
     "dev:server": "tsx server/server.ts",
-    "test:security-budget": "node --import tsx --test tests/*.test.mjs"
+    "test:security-budget": "node --import tsx --test tests/*.test.mjs",
+    "release:preflight": "node scripts/release-preflight.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.94.0",

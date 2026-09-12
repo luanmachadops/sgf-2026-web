@@ -310,6 +310,21 @@ Validação em 12/09/2026:
 
 Sem push, deploy, alteração remota, exclusão de dados ou plano pago.
 
-## Próximo passo
+## Rodada 6C — gate de pré-publicação local (implementado localmente)
 
-Etapa 6C: validar a cadeia integrada em ambiente de homologação disponível, conferir os documentos e regras TCE-PR/SIM-AM com a contabilidade e executar ensaios de concorrência, recuperação e publicação controlada.
+O script `npm run release:preflight` reúne a verificação que pode ser repetida sem contratar uma branch do Supabase. Ele confere a presença e a ordem das migrations de segurança, cotas, sessões, referências do Paraná, licitações, postos e oficinas; garante que as duas tabelas de habilitação operacional iniciem desativadas; executa os 145 testes da suíte; recompila web, superadmin e servidor; e, quando `SGF_PG_RUNTIME_DIR` está configurado, executa o ensaio de concorrência em duas conexões PostgreSQL embarcadas.
+
+O modo `node scripts/release-preflight.mjs --strict` transforma avisos em bloqueio. Sem o runtime PostgreSQL, o modo normal conclui a parte local e registra que a concorrência real ainda não foi executada. O script não faz `db push`, não publica migrations, não altera dados e não envia credenciais para fora da máquina.
+
+Validação desta rodada:
+
+- Suíte integrada: **145 testes aprovados**.
+- Build web, superadmin e servidor: aprovados.
+- Migrations e flags de habilitação: conferidas pelo gate.
+- Advisors e Auth/PostgREST/Storage reais: ainda dependem de ambiente Supabase disponível.
+
+A etapa 6C local está concluída. A liberação estrita de produção continua condicionada à homologação remota, recuperação, concorrência PostgreSQL independente e conferência contábil/TCE-PR/SIM-AM.
+
+## Próxima etapa
+
+Executar o gate em um PostgreSQL/Supabase de homologação disponível, aplicar as migrations em ordem, testar os quatro painéis com sessões reais, conferir a recuperação e somente então preparar a publicação controlada.
