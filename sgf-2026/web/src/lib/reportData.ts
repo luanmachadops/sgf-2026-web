@@ -1163,6 +1163,137 @@ async function maintenanceByShop(f?: ReportFilterInput): Promise<ReportDataset> 
     };
 }
 
+function fiscalYearFilter(f?: ReportFilterInput): number | null {
+    const fromYear = f?.dateFrom ? Number(f.dateFrom.slice(0, 4)) : null;
+    const toYear = f?.dateTo ? Number(f.dateTo.slice(0, 4)) : null;
+    if (fromYear && toYear && fromYear === toYear) return fromYear;
+    return null;
+}
+
+async function procurementFiscalReconciliation(f?: ReportFilterInput): Promise<ReportDataset> {
+    const { data, error } = await supabase.rpc('get_procurement_fiscal_reconciliation', {
+        p_year: fiscalYearFilter(f),
+        p_instrument: null,
+        p_department: f?.departmentId ?? null,
+    });
+    if (error) throw error;
+    const sourceRows = data ?? [];
+    const rows = sourceRows.map((row) => ({
+        fiscalYear: row.fiscal_year,
+        process: row.process_reference,
+        instrument: `${row.instrument_reference} (${row.instrument_kind === 'ata' ? 'Ata' : 'Contrato'})`,
+        department: row.department_name,
+        category: row.category,
+        appropriation: row.appropriation,
+        fundingSource: row.funding_source,
+        simam: row.simam_code || '—',
+        planned: Number(row.planned_limit),
+        reserved: Number(row.reserved_amount),
+        realized: Number(row.realized_amount),
+        disputed: Number(row.disputed_amount),
+        consumed: Number(row.consumed_amount),
+        remaining: Number(row.remaining_amount),
+        invoiced: row.invoiced_amount == null ? '—' : Number(row.invoiced_amount),
+        attested: row.attested_amount == null ? '—' : Number(row.attested_amount),
+        paid: row.paid_amount == null ? '—' : Number(row.paid_amount),
+    }));
+    const sumNumber = (key: 'planned' | 'reserved' | 'realized' | 'disputed' | 'consumed' | 'remaining') =>
+        rows.reduce((sum, row) => sum + row[key], 0);
+    const byDepartment = new Map<string, number>();
+    for (const row of rows) byDepartment.set(row.department, (byDepartment.get(row.department) ?? 0) + row.consumed);
+    return {
+        kpis: [
+            { label: 'Dotações', value: NUM(rows.length) },
+            { label: 'Teto planejado', value: BRL(sumNumber('planned')) },
+            { label: 'Consumo do teto', value: BRL(sumNumber('consumed')) },
+            { label: 'Saldo disponível', value: BRL(sumNumber('remaining')) },
+        ],
+        columns: [
+            { key: 'fiscalYear', label: 'Exercício', align: 'right', format: 'integer', minWidth: 85 },
+            { key: 'process', label: 'Processo', filterable: true, minWidth: 140 },
+            { key: 'instrument', label: 'Instrumento', filterable: true, minWidth: 180 },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 170 },
+            { key: 'category', label: 'Categoria', filterable: true, minWidth: 120 },
+            { key: 'appropriation', label: 'Dotação', filterable: true, minWidth: 135 },
+            { key: 'fundingSource', label: 'Fonte', filterable: true, minWidth: 95 },
+            { key: 'simam', label: 'Código SIM-AM', filterable: true, minWidth: 150 },
+            { key: 'planned', label: 'Teto', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'disputed', label: 'Contestado', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'consumed', label: 'Consumido', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'remaining', label: 'Saldo', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'attested', label: 'Atestado', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 105 },
+        ],
+        rows,
+        charts: [{
+            title: 'Consumo por secretaria',
+            description: 'Soma das reservas, realizações e contestações por dotação da secretaria.',
+            type: 'bar',
+            valueFormat: 'currency',
+            data: topChartData([...byDepartment].map(([label, value]) => ({ label, value }))),
+        }],
+        notes: [
+            'O filtro de período representa o exercício fiscal quando as datas inicial e final pertencem ao mesmo ano; períodos que atravessam anos retornam todos os exercícios.',
+            'Teto, reservado, realizado, contestado e saldo pertencem ao controle da dotação. Faturado, atestado e pago são marcos da mesma despesa e não são somados novamente.',
+            'Postos e abastecimentos ainda não possuem NF, ateste e pagamento no livro central; nesses campos aparece “—”, preservando a diferença entre inexistente e zero.',
+        ],
+    };
+}
+
+async function procurementLegacyReconciliation(f?: ReportFilterInput): Promise<ReportDataset> {
+    const { data, error } = await supabase.rpc('get_procurement_legacy_reconciliation', {
+        p_year: fiscalYearFilter(f),
+        p_department: f?.departmentId ?? null,
+    });
+    if (error) throw error;
+    const rows = (data ?? []).map((row) => ({
+        sourceType: row.source_type,
+        sourceId: row.source_id,
+        contract: row.contract_reference,
+        fiscalYear: row.fiscal_year,
+        department: row.department_name ?? '—',
+        partnerId: row.partner_id,
+        vehicleId: row.vehicle_id ?? '—',
+        reserved: Number(row.reserved_amount),
+        realized: Number(row.realized_amount),
+        disputed: Number(row.disputed_amount),
+        consumed: Number(row.consumed_amount),
+        status: row.reconciliation_status,
+    }));
+    const consumed = rows.reduce((sum, row) => sum + row.consumed, 0);
+    return {
+        kpis: [
+            { label: 'Lançamentos pendentes', value: NUM(rows.length) },
+            { label: 'Valor a conciliar', value: BRL(consumed) },
+            { label: 'Exercícios', value: NUM(new Set(rows.map((row) => row.fiscalYear)).size) },
+            { label: 'Situação', value: rows.length > 0 ? 'Aguardando vínculo' : 'Sem pendências' },
+        ],
+        columns: [
+            { key: 'sourceType', label: 'Origem', filterable: true, minWidth: 145 },
+            { key: 'sourceId', label: 'Registro legado', filterable: true, minWidth: 280 },
+            { key: 'contract', label: 'Contrato legado', filterable: true, minWidth: 170 },
+            { key: 'fiscalYear', label: 'Exercício', align: 'right', format: 'integer', minWidth: 85 },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 170 },
+            { key: 'partnerId', label: 'Fornecedor', filterable: true, minWidth: 280 },
+            { key: 'vehicleId', label: 'Veículo', filterable: true, minWidth: 280 },
+            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'disputed', label: 'Contestado', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'consumed', label: 'A conciliar', align: 'right', format: 'currency', minWidth: 125 },
+            { key: 'status', label: 'Situação', filterable: true, minWidth: 145 },
+        ],
+        rows,
+        notes: [
+            'A fila mostra apenas lançamentos antigos sem reserva central comprovada.',
+            'Nenhuma linha é atribuída automaticamente a uma ata, contrato ou dotação nova. A associação futura exigirá seleção explícita, justificativa e documento de suporte.',
+            'O valor não deve ser somado novamente ao relatório central até a conciliação formal.',
+        ],
+    };
+}
+
 const FETCHERS: Record<string, (f?: ReportFilterInput) => Promise<ReportDataset>> = {
     'fleet-summary': fleetSummary,
     'fuel-consumption': fuelConsumption,
@@ -1176,6 +1307,8 @@ const FETCHERS: Record<string, (f?: ReportFilterInput) => Promise<ReportDataset>
     'fuel-by-station': fuelByStation,
     'station-fiscal-closing': stationFiscalClosing,
     'maintenance-by-shop': maintenanceByShop,
+    'procurement-fiscal-reconciliation': procurementFiscalReconciliation,
+    'procurement-legacy-reconciliation': procurementLegacyReconciliation,
 };
 
 /** Busca o dataset real de um relatório, aplicando os filtros selecionados. */

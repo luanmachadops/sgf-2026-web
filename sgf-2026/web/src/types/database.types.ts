@@ -3052,6 +3052,55 @@ export type Database = {
           reserved_value: number
         }[]
       }
+      get_procurement_fiscal_reconciliation: {
+        Args: { p_year?: number | null; p_instrument?: string | null; p_department?: string | null }
+        Returns: {
+          process_id: string
+          process_reference: string
+          instrument_id: string
+          instrument_reference: string
+          instrument_kind: string
+          instrument_status: string
+          allocation_id: string
+          fiscal_year: number
+          department_id: string
+          department_name: string
+          category: string
+          appropriation: string
+          funding_source: string
+          simam_code: string
+          declared_value: number | null
+          planned_limit: number
+          reserved_amount: number
+          realized_amount: number
+          disputed_amount: number
+          consumed_amount: number
+          remaining_amount: number
+          invoiced_amount: number | null
+          attested_amount: number | null
+          paid_amount: number | null
+        }[]
+      }
+      get_procurement_legacy_reconciliation: {
+        Args: { p_year?: number | null; p_department?: string | null }
+        Returns: {
+          source_type: string
+          source_id: string
+          contract_id: string
+          contract_reference: string
+          fiscal_year: number
+          department_id: string
+          department_name: string | null
+          partner_id: string
+          vehicle_id: string | null
+          reserved_amount: number
+          realized_amount: number
+          disputed_amount: number
+          consumed_amount: number
+          source_status: string
+          reconciliation_status: string
+        }[]
+      }
       get_repair_shop_orders: {
         Args: never
         Returns: {

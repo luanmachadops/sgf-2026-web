@@ -37,7 +37,7 @@ export async function setupQuoteProcurement() {
     await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`,import.meta.url),'utf8'));
   }
   await db.exec(`reset role;select set_config('app.uid','',false);
-    update public.profiles set allowed_modules=array['procurement','budgets','maintenances'] where id='${admin}';
+    update public.profiles set allowed_modules=array['procurement','budgets','maintenances','reports'] where id='${admin}';
     update auth.sessions set created_at=clock_timestamp()+interval '1 second' where id='${id(99)}';
   `);
   const partnerSchema=await readFile(new URL('../supabase/migrations/20260725204942_partner_portals_schema.sql',import.meta.url),'utf8');
@@ -80,6 +80,18 @@ export async function setupQuoteProcurement() {
   );`);
   await db.exec(await readFile(new URL('../supabase/migrations/20260912040123_workshop_quote_reservations.sql',import.meta.url),'utf8'));
   await db.exec(await readFile(new URL('../supabase/migrations/20260912041412_workshop_invoice_attestation.sql',import.meta.url),'utf8'));
+  // 6A reads the central fuel/station ledgers. Keep this focused fixture
+  // minimal while preserving the columns needed by the read-only report.
+  await db.exec(`
+    create table public.procurement_fuel_reservations(
+      fueling_id uuid primary key, tenant_id uuid, allocation_id uuid,
+      state text not null default 'reserved', committed_amount numeric(14,2) not null default 0
+    );
+    alter table public.procurement_station_reservations
+      add column tenant_id uuid,
+      add column state text not null default 'reserved';
+  `);
+  await db.exec(await readFile(new URL('../supabase/migrations/20260912042702_procurement_fiscal_reconciliation.sql',import.meta.url),'utf8'));
   return db;
 }
 

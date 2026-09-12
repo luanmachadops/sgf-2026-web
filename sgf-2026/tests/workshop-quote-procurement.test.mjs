@@ -1,6 +1,6 @@
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
-import {setupQuoteProcurement,login,id,admin,outsider,tenant,quote,quoteItem,order,procurementItem,allocation,price,otherDepartment,workshop} from './workshop-quote-procurement-fixture.mjs';
+import {setupQuoteProcurement,login,id,admin,outsider,tenant,department,quote,quoteItem,order,procurementItem,allocation,price,otherDepartment,workshop} from './workshop-quote-procurement-fixture.mjs';
 
 let db;
 before(async()=>{db=await setupQuoteProcurement();await login(db);});
@@ -104,7 +104,39 @@ test('nota itemizada rejeita valor divergente, excesso e arquivo fora da OS sem 
  await rejected(()=>db.query('select public.repair_shop_submit_invoice_v3($1,$2,$3,$4,$5,$6)',[order,'NF-ERR',75,invoicePath,'2026-09-12',JSON.stringify([{quote_item_id:quoteItem,quantity:3}])]),/excede a reserva/);
  await rejected(()=>db.query('select public.repair_shop_submit_invoice_v3($1,$2,$3,$4,$5,$6)',[order,'NF-ERR',50,'repair_shops/outro/service_orders/x/invoices/nf.pdf','2026-09-12',JSON.stringify([{quote_item_id:quoteItem,quantity:2}])]),/não pertence/);
  await db.exec('reset role');
- assert.equal((await db.query('select count(*)::int n from public.service_order_invoices')).rows[0].n,0);
+  assert.equal((await db.query('select count(*)::int n from public.service_order_invoices')).rows[0].n,0);
+}));
+
+test('conciliação fiscal separa teto, execução e marcos da oficina',()=>isolated(async()=>{
+ await prepareReceived();
+ const invoiceId=(await db.query('select public.repair_shop_submit_invoice_v2($1,$2,$3,$4,$5) id',[order,'NF-6A',50,invoicePath,'2026-09-12'])).rows[0].id;
+ await login(db);await db.query('select public.manager_attest_service_order_invoice_v2($1,$2,$3)',[invoiceId,5,'Glosa conferida']);
+ await db.query('select public.manager_register_service_order_payment($1,$2,$3,$4,$5)',[order,45,invoiceId,'2026-09-12','Pagamento']);
+ const row=(await db.query('select * from public.get_procurement_fiscal_reconciliation($1,$2,$3)',[new Date().getUTCFullYear(),null,null])).rows.find(value=>value.allocation_id===allocation);
+ assert.ok(row);
+ assert.equal(Number(row.planned_limit),600);
+ assert.equal(Number(row.reserved_amount),0);
+ assert.equal(Number(row.realized_amount),50);
+ assert.equal(Number(row.consumed_amount),50);
+ assert.equal(Number(row.remaining_amount),550);
+ assert.equal(Number(row.invoiced_amount),50);
+ assert.equal(Number(row.attested_amount),45);
+ assert.equal(Number(row.paid_amount),45);
+}));
+
+test('fila de conciliação mantém o ledger legado sem atribuição automática',()=>isolated(async()=>{
+ await db.exec('reset role');
+ const contract=id(901),source=id(902);
+ await db.query(`insert into public.budget_contracts(id,tenant_id,category,reference,fiscal_year,starts_on,ends_on,total_limit)
+   values($1,$2,'fuel','Contrato legado 6A',$3,$4,$5,1000)`,[contract,tenant,new Date().getUTCFullYear(),`${new Date().getUTCFullYear()}-01-01`,`${new Date().getUTCFullYear()}-12-31`]);
+ await db.query(`insert into public.budget_allocations(contract_id,department_id,spending_limit,appropriation,funding_source)
+   values($1,$2,1000,'3.3.90.30','1500')`,[contract,department]);
+ await db.query(`insert into public.budget_entries(source_type,source_id,contract_id,department_id,partner_id,reserved,realized,disputed,source_status)
+   values('fuelings',$1,$2,$3,$4,20,30,0,'validado')`,[source,contract,department,id(7)]);
+ await login(db);
+ const rows=(await db.query('select * from public.get_procurement_legacy_reconciliation($1,$2)',[new Date().getUTCFullYear(),null])).rows;
+ const row=rows.find(value=>value.source_id===source);
+ assert.ok(row);assert.equal(row.reconciliation_status,'pending');assert.equal(Number(row.consumed_amount),50);assert.equal(row.department_id,department);
 }));
 
 test('sessão, permissões e tabelas internas permanecem restritas',()=>isolated(async()=>{
@@ -113,4 +145,5 @@ test('sessão, permissões e tabelas internas permanecem restritas',()=>isolated
   const ledger=(await db.query("select relrowsecurity,has_table_privilege('authenticated','public.service_order_quote_procurement_reservations','select') direct from pg_class where oid='public.service_order_quote_procurement_reservations'::regclass")).rows[0];assert.equal(ledger.relrowsecurity,true);assert.equal(ledger.direct,false);
   const invoiceItems=(await db.query("select relrowsecurity,has_table_privilege('authenticated','public.service_order_invoice_items','select') direct from pg_class where oid='public.service_order_invoice_items'::regclass")).rows[0];assert.equal(invoiceItems.relrowsecurity,true);assert.equal(invoiceItems.direct,false);
   const functions=(await db.query("select prosecdef,has_function_privilege('anon',oid,'execute') anon from pg_proc where oid in ('public.get_quote_procurement_candidates(uuid)'::regprocedure,'public.set_quote_procurement_links(uuid,jsonb,text)'::regprocedure)")).rows;assert.equal(functions.length,2);for(const fn of functions){assert.equal(fn.prosecdef,false);assert.equal(fn.anon,false);}
+  const reports=(await db.query("select has_function_privilege('authenticated','public.get_procurement_fiscal_reconciliation(integer,uuid,uuid)'::regprocedure,'execute') granted,has_function_privilege('anon','public.get_procurement_fiscal_reconciliation(integer,uuid,uuid)'::regprocedure,'execute') anon")).rows[0];assert.equal(reports.granted,true);assert.equal(reports.anon,false);
 }));

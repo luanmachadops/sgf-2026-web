@@ -73,6 +73,8 @@ const contextKeyByReport: Record<string, string> = {
     'fuel-by-station': 'station',
     'station-fiscal-closing': 'station',
     'maintenance-by-shop': 'shop',
+    'procurement-fiscal-reconciliation': 'department',
+    'procurement-legacy-reconciliation': 'department',
 };
 
 export interface ReportViewerModalProps {

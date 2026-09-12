@@ -273,6 +273,27 @@ Validação em 12/09/2026:
 
 Sem push, deploy, alteração remota, exclusão de dados ou plano pago.
 
+## Rodada 6A — conciliação fiscal por instrumento e fila do legado (implementado localmente)
+
+Migration `20260912042702_procurement_fiscal_reconciliation.sql`, criada pela CLI Supabase. O relatório fiscal agora parte das dotações do planejamento anual e retorna uma linha por instrumento, exercício, secretaria e categoria, com processo, ata/contrato, dotação, apropriação, fonte, código SIM-AM, valor declarado, teto planejado, reserva pendente, realização, contestação e saldo. Para as oficinas, os valores de faturamento, ateste (já líquido de glosa) e pagamento são distribuídos pelas linhas efetivamente ligadas à reserva contratual; o pagamento é rateado pelas linhas da ordem para não duplicar o total quando existem várias dotações.
+
+Postos e abastecimentos ainda não possuem um ciclo de NF/ateste/pagamento no modelo central; por isso o relatório deixa esses marcos como `NULL`, preservando a diferença entre “não modelado” e “zero”. Reserva, realização e contestação são estados mutuamente exclusivos e somente sua soma consome o teto da dotação.
+
+O RPC `get_procurement_legacy_reconciliation` oferece uma fila somente leitura dos lançamentos do livro antigo que ainda não possuem reserva central comprovada. A fila informa origem, contrato legado, secretaria, fornecedor, veículo, valores e situação `pending`, sem migrar, apagar ou atribuir automaticamente a despesa a um instrumento novo. Esse resultado será a base da próxima etapa de conciliação assistida, com justificativa e auditoria por lançamento.
+
+Os dois RPCs exigem sessão vigente, papel de gestão/secretaria, módulo de limites e relatórios, prefeitura correspondente e escopo da secretaria para o papel `secretario`. As tabelas e implementações privadas continuam com RLS e privilégios diretos revogados; `anon` não executa as funções. A etapa é somente leitura e não altera dados operacionais nem habilita contratos.
+
+O catálogo de Relatórios agora expõe **Conciliação Fiscal das Licitações** e **Fila de Conciliação do Legado**. Ambos usam a mesma janela de exportação PDF/Excel dos demais relatórios; o filtro de período é interpretado como exercício quando as datas pertencem ao mesmo ano. A fila aparece separada para impedir que o usuário confunda valor legado ainda não conciliado com consumo do instrumento central.
+
+Validação em 12/09/2026:
+
+- **144 testes passaram** na suíte completa. Foram acrescentados cenários de conciliação oficina (teto, realização, NF, glosa, ateste e pagamento), fila de legado sem atribuição automática e privilégios dos novos RPCs.
+- A fixture confirma que um teto de R$ 600 com R$ 50 realizado, R$ 50 faturado, R$ 45 atestado e R$ 45 pago permanece consumido em R$ 50, com saldo de R$ 550.
+- `supabase db advisors --local` continua sem conexão porque o PostgreSQL/Supabase Docker não está disponível em `127.0.0.1:54322`; a verificação feita em PGlite cobre a migration, RLS, grants, sessão e isolamento, mas não substitui a homologação integrada nem o ensaio de concorrência real.
+- TypeScript, build Vite e lint direto dos arquivos web alterados passaram; o build mantém o aviso conhecido de bundle principal acima de 500 kB. O lint geral do projeto continua com falhas preexistentes em arquivos fora desta etapa.
+
+Sem push, deploy, alteração remota, exclusão de dados ou plano pago.
+
 ## Próximo passo
 
-Etapa 6: inventariar e conciliar o legado, separar relatórios por instrumento, contrato, secretaria e dotação, conferir a integração contábil e referências TCE-PR/SIM-AM e executar homologação integrada com Auth, PostgREST, Storage, RLS, concorrência e recuperação antes da publicação.
+Etapa 6B: criar a conciliação assistida do legado, com seleção explícita do instrumento/dotação, justificativa, documentos de suporte e evento de auditoria. Depois serão feitos os testes integrados de Auth, PostgREST, Storage, RLS, concorrência e recuperação antes da publicação.

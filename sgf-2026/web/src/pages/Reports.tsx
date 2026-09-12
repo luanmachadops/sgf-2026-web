@@ -13,6 +13,7 @@ import {
     BarChart3,
     PieChart,
     Receipt,
+    ShieldCheck,
     Search,
     X,
     Qr,
@@ -117,6 +118,20 @@ const reports: Report[] = [
         title: 'Manutenções por Oficina',
         description: 'Ordens, orçamento aprovado, custo final e processos em aberto por oficina.',
         icon: <Wrench className="h-6 w-6" />,
+        category: 'financial',
+    },
+    {
+        id: 'procurement-fiscal-reconciliation',
+        title: 'Conciliação Fiscal das Licitações',
+        description: 'Teto, reserva, realização, faturamento, ateste e pagamento por secretaria e instrumento.',
+        icon: <Receipt className="h-6 w-6" />,
+        category: 'financial',
+    },
+    {
+        id: 'procurement-legacy-reconciliation',
+        title: 'Fila de Conciliação do Legado',
+        description: 'Lançamentos antigos sem vínculo comprovado com ata, contrato ou dotação central.',
+        icon: <ShieldCheck className="h-6 w-6" />,
         category: 'financial',
     },
 ];
