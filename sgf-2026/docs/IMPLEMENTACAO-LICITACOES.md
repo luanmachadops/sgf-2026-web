@@ -257,6 +257,22 @@ Validação em 12/09/2026:
 
 Sem push, deploy, alteração remota, exclusão de dados ou plano pago.
 
+## Rodada 5D4 — nota fiscal, itens entregues, glosa e ateste (implementado localmente)
+
+Migration `20260912041412_workshop_invoice_attestation.sql`, criada pela CLI Supabase. A nota fiscal da oficina passa a guardar linhas ligadas aos itens do orçamento e às reservas realizadas: quantidade entregue, preço contratual preservado e valor da linha. O endpoint seguro atual (`repair_shop_submit_invoice_v2`) foi mantido e, quando a OS possui reserva contratual, cria automaticamente as linhas restantes; o endpoint v3 aceita o detalhamento explícito para emissões parciais ou múltiplas notas.
+
+O banco recusa valor total divergente da soma das linhas, quantidade acima do saldo realizado, preço diferente da reserva, item de outra OS, arquivo fora do diretório privado da oficina/OS e repetição do número da nota com dados diferentes. Linhas da nota são internas, têm RLS, privilégios diretos revogados e ficam imutáveis depois do envio. O evento fiscal registra o arquivo e a auditoria da licitação registra a nota por processo/contrato.
+
+O ateste continua condicionado ao recebimento do veículo e agora valida a linhagem da nota. O gestor pode informar glosa e justificativa; o sistema grava o valor líquido atestado e preserva o valor bruto da NF. O pagamento foi ajustado para usar o valor líquido atestado, impedindo pagamento acima do saldo depois da glosa. O ateste repetido só é idempotente quando a glosa informada coincide com a já registrada.
+
+Validação em 12/09/2026:
+
+- **142 testes passaram** na suíte completa. A etapa acrescentou cenários de emissão automática itemizada, divergência de total, excesso de quantidade, arquivo fora da OS, glosa auditada, pagamento limitado ao valor líquido, isolamento, RLS e privilégios.
+- TypeScript passou; o build Vite passou. O lint direto dos dois arquivos alterados passou. O comando geral de lint continua apontando problemas preexistentes em outros arquivos do projeto.
+- Advisors locais não puderam conectar ao PostgreSQL/Supabase Docker em `127.0.0.1:54322`; não houve alteração no banco hospedado.
+
+Sem push, deploy, alteração remota, exclusão de dados ou plano pago.
+
 ## Próximo passo
 
-Etapa 5D4: conciliar o recebimento da oficina com nota fiscal, ateste e itens efetivamente entregues, sem reabrir a reserva realizada. Em seguida, a etapa 6 deve migrar o legado, separar os relatórios por instrumento/dotação e conferir a integração contábil e referências do TCE-PR. Antes de ativar qualquer fluxo, executar homologação integrada com sessões reais e teste concorrente em PostgreSQL.
+Etapa 6: inventariar e conciliar o legado, separar relatórios por instrumento, contrato, secretaria e dotação, conferir a integração contábil e referências TCE-PR/SIM-AM e executar homologação integrada com Auth, PostgREST, Storage, RLS, concorrência e recuperação antes da publicação.

@@ -2709,9 +2709,11 @@ export const serviceOrderFiscalApi = withFotoUrls({
     },
 
     /** Ateste (liquidação): o gestor confirma que o serviço da NF foi entregue. */
-    attestInvoice: async (invoiceId: string): Promise<void> => {
-        const { error } = await supabase.rpc('manager_attest_service_order_invoice', {
+    attestInvoice: async (invoiceId: string, input: { glosaAmount?: number; note?: string } = {}): Promise<void> => {
+        const { error } = await supabase.rpc('manager_attest_service_order_invoice_v2', {
             p_invoice_id: invoiceId,
+            p_glosa_amount: input.glosaAmount ?? 0,
+            p_note: input.note?.trim() || null,
         });
         if (error) handleError(error);
     },

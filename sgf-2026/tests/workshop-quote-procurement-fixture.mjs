@@ -17,10 +17,21 @@ export async function setupQuoteProcurement() {
     alter table public.profiles add column repair_shop_id uuid;
     alter table public.service_orders add column admin_note text;
     alter table public.service_orders add column completed_at timestamptz;
+    alter table public.service_orders add column commitment_number text;
+    create type public.service_order_fin_status as enum ('not_started','awaiting_commitment','committed','invoiced','attested','paid');
     create function public.get_user_tenant_id() returns uuid language sql stable as $$select tenant_id from public.profiles where id=auth.uid()$$;
     create function public.service_order_manager_context() returns table(profile_id uuid,tenant_id uuid,superadmin boolean)
       language sql security definer as $$select id,tenant_id,false from public.profiles where id=auth.uid() and role='admin'$$;
+    create function public.partner_context() returns table(profile_id uuid,tenant_id uuid,kind text,partner_id uuid,partner_name text)
+      language sql security definer as $$select p.id,p.tenant_id,'oficina'::text,p.repair_shop_id,null::text from public.profiles p where p.id=auth.uid()$$;
     create table public.service_order_events(id uuid default gen_random_uuid(),tenant_id uuid,service_order_id uuid,axis text,from_state text,to_state text,actor_id uuid,actor_role text,note text);
+    alter table public.service_order_events add column attachment_path text;
+    alter table public.service_order_events add column created_at timestamptz default now();
+    create table public.service_order_invoices(
+      id uuid primary key default gen_random_uuid(),tenant_id uuid not null,service_order_id uuid not null references public.service_orders(id),repair_shop_id uuid not null references public.repair_shops(id),invoice_number text not null,amount numeric(12,2) not null,issued_at date not null default current_date,file_path text,commitment_number text,attested_by uuid,attested_at timestamptz,created_at timestamptz default now(),unique(tenant_id,repair_shop_id,invoice_number)
+    );
+    create table public.service_order_payments(id uuid primary key default gen_random_uuid(),tenant_id uuid,service_order_id uuid,invoice_id uuid,amount numeric(12,2),paid_at date, note text,registered_by uuid);
+    update public.profiles set repair_shop_id='${workshop}' where id='${admin}';
   `);
   for(const migration of ['20260910152227_procurement_registry.sql','20260910211314_procurement_items_prices.sql','20260911021152_instrument_budget_planning.sql']) {
     await db.exec(await readFile(new URL(`../supabase/migrations/${migration}`,import.meta.url),'utf8'));
@@ -34,6 +45,9 @@ export async function setupQuoteProcurement() {
   for (const name of ['manager_review_service_order_quote','manager_cancel_service_order','manager_receive_service_order_vehicle']) {
     await db.exec(await sourceFunction('20260726043806_maintenance_workflow_v2.sql',name));
   }
+  await db.exec(await sourceFunction('20260726031428_workshop_portal_security.sql','repair_shop_submit_invoice_v2'));
+  await db.exec(await sourceFunction('20260726043806_maintenance_workflow_v2.sql','manager_attest_service_order_invoice'));
+  await db.exec(await sourceFunction('20260726043806_maintenance_workflow_v2.sql','manager_register_service_order_payment'));
   await db.exec(await readFile(new URL('../supabase/migrations/20260911215046_workshop_quote_classification.sql',import.meta.url),'utf8'));
   await db.exec(`
     insert into public.service_orders(id,tenant_id,repair_shop_id,vehicle_id,operational_status,financial_status)
@@ -65,6 +79,7 @@ export async function setupQuoteProcurement() {
     committed_amount numeric(14,2) not null default 0
   );`);
   await db.exec(await readFile(new URL('../supabase/migrations/20260912040123_workshop_quote_reservations.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20260912041412_workshop_invoice_attestation.sql',import.meta.url),'utf8'));
   return db;
 }
 

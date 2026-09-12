@@ -1869,11 +1869,14 @@ export type Database = {
       service_order_invoices: {
         Row: {
           amount: number
+          attestation_note: string | null
+          attested_amount: number | null
           attested_at: string | null
           attested_by: string | null
           commitment_number: string | null
           created_at: string
           file_path: string | null
+          glosa_amount: number
           id: string
           invoice_number: string
           issued_at: string
@@ -1883,11 +1886,14 @@ export type Database = {
         }
         Insert: {
           amount: number
+          attestation_note?: string | null
+          attested_amount?: number | null
           attested_at?: string | null
           attested_by?: string | null
           commitment_number?: string | null
           created_at?: string
           file_path?: string | null
+          glosa_amount?: number
           id?: string
           invoice_number: string
           issued_at?: string
@@ -1897,11 +1903,14 @@ export type Database = {
         }
         Update: {
           amount?: number
+          attestation_note?: string | null
+          attested_amount?: number | null
           attested_at?: string | null
           attested_by?: string | null
           commitment_number?: string | null
           created_at?: string
           file_path?: string | null
+          glosa_amount?: number
           id?: string
           invoice_number?: string
           issued_at?: string
@@ -1936,6 +1945,54 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_order_invoice_items: {
+        Row: {
+          created_at: string
+          delivered_quantity: number
+          id: string
+          invoice_id: string
+          line_amount: number
+          quote_item_id: string
+          reservation_quantity: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          delivered_quantity: number
+          id?: string
+          invoice_id: string
+          line_amount: number
+          quote_item_id: string
+          reservation_quantity: number
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          delivered_quantity?: number
+          id?: string
+          invoice_id?: string
+          line_amount?: number
+          quote_item_id?: string
+          reservation_quantity?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_order_invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "service_order_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_order_invoice_items_quote_item_id_fkey"
+            columns: ["quote_item_id"]
+            isOneToOne: false
+            referencedRelation: "service_order_quote_items"
             referencedColumns: ["id"]
           },
         ]
@@ -3277,6 +3334,10 @@ export type Database = {
         Args: { p_invoice_id: string }
         Returns: undefined
       }
+      manager_attest_service_order_invoice_v2: {
+        Args: { p_glosa_amount?: number; p_invoice_id: string; p_note?: string | null }
+        Returns: undefined
+      }
       manager_authorize_service_order: {
         Args: { p_note?: string; p_order_id: string; p_repair_shop_id: string }
         Returns: undefined
@@ -3605,6 +3666,17 @@ export type Database = {
           p_file_path: string
           p_invoice_number: string
           p_issued_at?: string
+          p_order_id: string
+        }
+        Returns: string
+      }
+      repair_shop_submit_invoice_v3: {
+        Args: {
+          p_amount: number
+          p_file_path: string
+          p_invoice_number: string
+          p_issued_at: string
+          p_lines: Json
           p_order_id: string
         }
         Returns: string

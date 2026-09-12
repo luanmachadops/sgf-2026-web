@@ -1,6 +1,6 @@
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
-import {setupQuoteProcurement,login,id,admin,outsider,quote,quoteItem,order,procurementItem,allocation,price,otherDepartment,workshop} from './workshop-quote-procurement-fixture.mjs';
+import {setupQuoteProcurement,login,id,admin,outsider,tenant,quote,quoteItem,order,procurementItem,allocation,price,otherDepartment,workshop} from './workshop-quote-procurement-fixture.mjs';
 
 let db;
 before(async()=>{db=await setupQuoteProcurement();await login(db);});
@@ -9,6 +9,15 @@ async function isolated(fn){await db.exec('begin');try{await fn();}finally{await
 async function rejected(fn,pattern=/.+/){await db.exec('savepoint invalid');await assert.rejects(fn,pattern);await db.exec('rollback to savepoint invalid');}
 const link=(patch={})=>({quote_item_id:quoteItem,procurement_item_id:procurementItem,allocation_id:allocation,...patch});
 async function save(links=[link()],reason='Vínculo conferido com contrato') {return db.query('select public.set_quote_procurement_links($1,$2::jsonb,$3)',[quote,JSON.stringify(links),reason]);}
+async function prepareReceived(){
+ await save();
+ await db.query('select public.manager_review_service_order_quote($1,true,$2)',[quote,'Aprovação']);
+ await db.exec('reset role');
+ await db.query("update public.service_orders set operational_status='ready',financial_status='committed' where id=$1",[order]);
+ await login(db);
+ await db.query('select public.manager_receive_service_order_vehicle($1)',[order]);
+}
+const invoicePath=`repair_shops/${tenant}/${workshop}/service_orders/${order}/invoices/nf-teste.pdf`;
 
 test('lista candidaturas compatíveis e grava vínculo auditável sem reservar saldo',()=>isolated(async()=>{
  const rows=(await db.query('select public.get_quote_procurement_candidates($1) data',[quote])).rows[0].data;
@@ -72,9 +81,36 @@ test('recebimento converte a reserva em realização e preserva a evidência con
  assert.equal((await db.query('select operational_status from public.service_orders where id=$1',[order])).rows[0].operational_status,'received');
 }));
 
+test('nota fiscal atual mapeia os itens realizados e o ateste registra glosa auditável',()=>isolated(async()=>{
+ await prepareReceived();
+ const invoiceId=(await db.query('select public.repair_shop_submit_invoice_v2($1,$2,$3,$4,$5) id',[order,'NF-5D4',50,invoicePath,'2026-09-12'])).rows[0].id;
+ await db.exec('reset role');
+ const line=(await db.query('select quote_item_id,delivered_quantity,unit_price,line_amount from public.service_order_invoice_items where invoice_id=$1',[invoiceId])).rows[0];
+ assert.equal(line.quote_item_id,quoteItem);assert.equal(Number(line.delivered_quantity),2);assert.equal(Number(line.unit_price),25);assert.equal(Number(line.line_amount),50);
+ await login(db);await db.query('select public.manager_attest_service_order_invoice_v2($1,$2,$3)',[invoiceId,5,'Divergência de item conferida']);await db.exec('reset role');
+ const invoice=(await db.query('select attested_at,attested_amount,glosa_amount,attestation_note from public.service_order_invoices where id=$1',[invoiceId])).rows[0];
+ assert.ok(invoice.attested_at);assert.equal(Number(invoice.attested_amount),45);assert.equal(Number(invoice.glosa_amount),5);assert.equal(invoice.attestation_note,'Divergência de item conferida');
+ assert.equal((await db.query("select count(*)::int n from public.procurement_registry_events where kind='workshop_invoice'")).rows[0].n,1);
+ assert.match((await db.query("select note from public.service_order_events where service_order_id=$1 and note like 'NF %glosa%'",[order])).rows[0].note,/glosa/);
+ await login(db);await rejected(()=>db.query('select public.manager_register_service_order_payment($1,$2,$3,$4,$5)',[order,46,invoiceId,'2026-09-12','Pagamento']),/saldo atestado/);
+ assert.equal((await db.query('select public.manager_register_service_order_payment($1,$2,$3,$4,$5)',[order,45,invoiceId,'2026-09-12','Pagamento final'])).rows[0].manager_register_service_order_payment,true);
+ await db.exec('reset role');
+ const paid=(await db.query('select financial_status,cost from public.service_orders where id=$1',[order])).rows[0];assert.equal(paid.financial_status,'paid');assert.equal(Number(paid.cost),45);
+}));
+
+test('nota itemizada rejeita valor divergente, excesso e arquivo fora da OS sem gravação parcial',()=>isolated(async()=>{
+ await prepareReceived();
+ await rejected(()=>db.query('select public.repair_shop_submit_invoice_v3($1,$2,$3,$4,$5,$6)',[order,'NF-ERR',49,invoicePath,'2026-09-12',JSON.stringify([{quote_item_id:quoteItem,quantity:2}])]),/soma dos itens/);
+ await rejected(()=>db.query('select public.repair_shop_submit_invoice_v3($1,$2,$3,$4,$5,$6)',[order,'NF-ERR',75,invoicePath,'2026-09-12',JSON.stringify([{quote_item_id:quoteItem,quantity:3}])]),/excede a reserva/);
+ await rejected(()=>db.query('select public.repair_shop_submit_invoice_v3($1,$2,$3,$4,$5,$6)',[order,'NF-ERR',50,'repair_shops/outro/service_orders/x/invoices/nf.pdf','2026-09-12',JSON.stringify([{quote_item_id:quoteItem,quantity:2}])]),/não pertence/);
+ await db.exec('reset role');
+ assert.equal((await db.query('select count(*)::int n from public.service_order_invoices')).rows[0].n,0);
+}));
+
 test('sessão, permissões e tabelas internas permanecem restritas',()=>isolated(async()=>{
   await login(db,outsider);await rejected(()=>db.query('select public.get_quote_procurement_candidates($1)',[quote]),/Sessão|permissão|licitações/);
   await db.exec('reset role');const status=(await db.query("select relrowsecurity,has_table_privilege('authenticated','public.service_order_quote_item_procurement_links','select') direct,has_function_privilege('anon','public.set_quote_procurement_links(uuid,jsonb,text)'::regprocedure,'execute') anon from pg_class where oid='public.service_order_quote_item_procurement_links'::regclass")).rows[0];assert.equal(status.relrowsecurity,true);assert.equal(status.direct,false);assert.equal(status.anon,false);
   const ledger=(await db.query("select relrowsecurity,has_table_privilege('authenticated','public.service_order_quote_procurement_reservations','select') direct from pg_class where oid='public.service_order_quote_procurement_reservations'::regclass")).rows[0];assert.equal(ledger.relrowsecurity,true);assert.equal(ledger.direct,false);
+  const invoiceItems=(await db.query("select relrowsecurity,has_table_privilege('authenticated','public.service_order_invoice_items','select') direct from pg_class where oid='public.service_order_invoice_items'::regclass")).rows[0];assert.equal(invoiceItems.relrowsecurity,true);assert.equal(invoiceItems.direct,false);
   const functions=(await db.query("select prosecdef,has_function_privilege('anon',oid,'execute') anon from pg_proc where oid in ('public.get_quote_procurement_candidates(uuid)'::regprocedure,'public.set_quote_procurement_links(uuid,jsonb,text)'::regprocedure)")).rows;assert.equal(functions.length,2);for(const fn of functions){assert.equal(fn.prosecdef,false);assert.equal(fn.anon,false);}
 }));

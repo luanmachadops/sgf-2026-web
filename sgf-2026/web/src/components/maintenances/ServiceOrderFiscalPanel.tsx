@@ -48,6 +48,8 @@ export function ServiceOrderFiscalPanel({
     const [payAmount, setPayAmount] = useState('');
     const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
     const [payNote, setPayNote] = useState('');
+    const [attestationGlosa, setAttestationGlosa] = useState<Record<string, string>>({});
+    const [attestationNote, setAttestationNote] = useState<Record<string, string>>({});
 
     const invalidate = () => {
         qc.invalidateQueries({ queryKey: ['maintenance', orderId] });
@@ -95,7 +97,10 @@ export function ServiceOrderFiscalPanel({
         mutationFn: () => serviceOrderFiscalApi.receiveVehicle(orderId),
     });
     const mutAttest = useMutation({
-        mutationFn: (id: string) => serviceOrderFiscalApi.attestInvoice(id),
+        mutationFn: (input: { id: string; glosaAmount: number; note: string }) => serviceOrderFiscalApi.attestInvoice(input.id, {
+            glosaAmount: input.glosaAmount,
+            note: input.note,
+        }),
     });
     const mutPay = useMutation({
         mutationFn: () => serviceOrderFiscalApi.registerPayment(orderId, {
@@ -320,18 +325,33 @@ export function ServiceOrderFiscalPanel({
                     <div className="rounded-2xl border border-blue-200 bg-white p-5 shadow-xs">
                         <p className="mb-3 text-sm font-bold text-slate-900">Notas a atestar</p>
                         {naoAtestadas.map((nf) => (
-                            <div key={nf.id} className="flex items-center justify-between gap-3 py-1.5">
-                                <div className="min-w-0">
+                            <div key={nf.id} className="space-y-3 border-b border-blue-100 py-3 last:border-0">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0">
                                     <p className="truncate text-sm font-semibold text-blue-900">NF {nf.invoice_number}</p>
                                     <p className="text-xs text-blue-700">
                                         {formatCurrency(Number(nf.amount))} · emitida {formatDate(nf.issued_at)}
                                         {nf.commitment_number ? ` · empenho ${nf.commitment_number}` : ''}
                                     </p>
+                                  </div>
+                                  <SGFButton size="sm" variant="secondary" disabled={busy} icon={FileText}
+                                      onClick={run(() => mutAttest.mutateAsync({
+                                          id: nf.id,
+                                          glosaAmount: Number(attestationGlosa[nf.id] || 0),
+                                          note: attestationNote[nf.id] || '',
+                                      }), 'Nota atestada.')}>
+                                      Atestar
+                                  </SGFButton>
                                 </div>
-                                <SGFButton size="sm" variant="secondary" disabled={busy} icon={FileText}
-                                    onClick={run(() => mutAttest.mutateAsync(nf.id), 'Nota atestada.')}>
-                                    Atestar
-                                </SGFButton>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                  <SGFInput label="Glosa (R$), se houver" type="number" min="0" step="0.01"
+                                      value={attestationGlosa[nf.id] ?? ''}
+                                      onChange={(event) => setAttestationGlosa((current) => ({ ...current, [nf.id]: event.target.value }))}
+                                      fullWidth />
+                                  <SGFInput label="Justificativa da conferência" value={attestationNote[nf.id] ?? ''}
+                                      onChange={(event) => setAttestationNote((current) => ({ ...current, [nf.id]: event.target.value }))}
+                                      fullWidth />
+                                </div>
                             </div>
                         ))}
                     </div>
