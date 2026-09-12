@@ -327,4 +327,4 @@ A etapa 6C local está concluída. A liberação estrita de produção continua 
 
 ## Próxima etapa
 
-Executar o gate em um PostgreSQL/Supabase de homologação disponível, aplicar as migrations em ordem, testar os quatro painéis com sessões reais, conferir a recuperação e somente então preparar a publicação controlada.
+Etapa 6D: concluir o redeploy do host principal na Hostinger e executar testes autenticados nos quatro painéis. As migrations já foram aplicadas no Supabase de testes; não repetir `db push` sem reconciliar as versões geradas pelo aplicador remoto. Depois, conferir recuperação, concorrência PostgreSQL independente e a validação contábil/TCE-PR/SIM-AM antes de habilitar qualquer rollout.
