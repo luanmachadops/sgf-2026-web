@@ -363,3 +363,31 @@ A Hostinger mostrou que o domínio principal usa a branch `codex/correcoes-e2e-2
 Pendências reais: habilitar o módulo procurement para o administrador com autorização específica (revisão automática bloqueou a alteração de permissão); cadastrar instrumentos/dotações a partir de documentos; completar testes autenticados de escrita, portais e Storage; ensaiar recuperação; conferir classificação e documentos com a contabilidade do Paraná. Desconto com tabela-base e ciclo fiscal central de postos continuam fora do escopo operacional concluído. Não houve concessão de permissão nem ativação automática dos rollouts.
 
 Advisors remotos ainda apontam avisos anteriores sobre pg_net no schema public, funções definer e proteção de senhas vazadas desativada; os 16 avisos informativos de RLS sem policy correspondem às tabelas internas acessadas por RPC com acesso direto revogado. A revisão desta rodada não equivale a certificação de todo o legado nem homologação pelo TCE-PR.
+
+## Rodada 6D1 — incidente do Supabase e testes autenticados (13/09/2026)
+
+**Incidente:** a partir de ~21h de 12/09 (BRT) o banco de testes passou a responder com timeouts (Auth 504, PostgREST 503) e o login ficou impossível. Evidências: a limpeza do `pg_net` (`DELETE FROM net._http_response ...`) acumulava ~21 h de execução (média 555 ms, pico 27 min); `net._http_response` com 73 MB para poucas centenas de linhas e `cron.job_run_details` com 82 MB/108 mil linhas desde 04/06. A cron `iopgps-sync` disparava a cada minuto. O usuário reiniciou o projeto; em seguida a cron 2 passou para `*/5 * * * *`. Pendente de autorização explícita: expurgar `cron.job_run_details` com mais de 7 dias e executar `VACUUM` em `net._http_response` (a revisão automática bloqueou).
+
+**Permissão:** com aprovação do usuário, o módulo `procurement` foi acrescentado ao administrador de teste (já possuía `budgets`). Nenhum rollout foi habilitado.
+
+**Teste autenticado no domínio principal (Auth/PostgREST reais, dados fictícios `TESTE-E2E-*`):**
+
+- Processo `TESTE-E2E-001`, ata com dois postos (R$ 100 mil) e contrato derivado com um posto (R$ 50 mil). Remover da ata o fornecedor usado pelo contrato foi recusado.
+- Item Diesel S10 1.000 L na ata, preço R$ 5,123456; contrato derivado recusou 1.001 L e aceitou 600 L.
+- Tetos: ata R$ 10 mil (Educação/combustível R$ 6 mil, fonte 001500); contrato R$ 5 mil (Educação R$ 4 mil). Contrato com teto 9 mil e cota 7 mil foi recusado por ultrapassar a distribuição da ata; teto do próprio contrato também recusou.
+- Simulação: 100 L = R$ 512,35; 900 L apontou quantidade e teto. Nenhuma autorização emitida.
+- Histórico com os 9 eventos e responsável; relatório fiscal lista ata e contrato; fila do legado vazia.
+- Consulta de contratos atuais conferida (ex.: R$ 5.000.000,00 − 186.576,60 − 8.418,75 = 4.805.004,65).
+- Todas as páginas do painel carregaram sem banner de erro.
+
+**Correções publicadas na branch `codex/correcoes-e2e-2026-07-28`:**
+
+- `3a803ef` login exibia `{}` em timeout do Auth → mensagem legível (painel, portais e superadmin), 10 testes.
+- `01e9be9` e `03b2783` lint: 176 → 24 erros (restam `react-refresh/only-export-components` e `set-state-in-effect`), sem mudança de comportamento.
+- `a57121e` `profiles.photo_url` guardava URL assinada expirada → 400 em todas as páginas; agora a foto é reassinada e o perfil persiste o path. Só 1 registro (o administrador de teste) tinha esse formato.
+- `bfe41b9` relatório fiscal mostrava categoria `fuel` → rótulos em português.
+- `3efd731` salvamentos de licitações com 401/403 sem corpo exibiam alerta vazio → mensagem de fallback.
+
+Validação local: 160 testes, TypeScript e builds aprovados.
+
+**Pendências:** a Hostinger ainda serve o bundle anterior (`index-i47N6DYX.js`) — disparar o redeploy no hPanel e conferir a mensagem de login e a ausência do 400 da foto. Um 403 por carregamento de página não aparece nos logs do Supabase (provável recurso do host/CDN) e precisa ser verificado no painel da Hostinger. Não houve login nos portais de posto/oficina nem no superadmin (sem credenciais desses perfis); os domínios respondem 200 e as rotas `/api` recusam acesso anônimo. Cabeçalhos HSTS, X-Frame-Options e X-Content-Type-Options ausentes. Recuperação, concorrência PostgreSQL remota e conferência contábil/TCE-PR/SIM-AM seguem pendentes; os registros `TESTE-E2E-*` permanecem como rascunhos.
