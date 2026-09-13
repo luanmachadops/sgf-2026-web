@@ -1,17 +1,32 @@
 import { getCaller } from '../_lib/caller.js';
 import {
     assertCanManagePartners, createPartnerAccess, getPartnerAccess,
-    resetPartnerPassword, setPartnerBlocked, type PartnerType,
+    resetPartnerPassword, setPartnerBlocked, type PartnerType, type PartnerAccessPayload,
 } from '../_lib/partner-access.js';
 import { checkRateLimit, getClientIp, logRateLimitBlocked, sendRateLimited } from '../_lib/rate-limit.js';
 
-function sendJson(res: any, status: number, body: unknown) {
+interface ApiRequest {
+    method?: string;
+    query: Record<string, string | string[] | undefined>;
+    body?: unknown;
+    headers?: Record<string, string | string[] | undefined>;
+    get?: (name: string) => string | string[] | undefined | null;
+    socket?: { remoteAddress?: string | null };
+    connection?: { remoteAddress?: string | null };
+}
+
+interface ApiResponse {
+    setHeader: (name: string, value: string) => void;
+    status: (code: number) => { json: (body: unknown) => unknown };
+}
+
+function sendJson(res: ApiResponse, status: number, body: unknown) {
     res.status(status).json(body);
 }
 
-function parseBody(req: any) {
-    if (typeof req.body === 'string') return JSON.parse(req.body);
-    return req.body ?? {};
+function parseBody(req: ApiRequest): Record<string, unknown> {
+    if (typeof req.body === 'string') return JSON.parse(req.body) as Record<string, unknown>;
+    return (req.body as Record<string, unknown>) ?? {};
 }
 
 // `reset` é o pior caso do achado (laço de resets gera custo de faturamento
@@ -33,7 +48,7 @@ const DEFAULT_MAX_HITS = 10;
  *   GET  ?partnerType=posto&partnerId=…      → consulta o acesso
  *   POST { action: 'create'  | 'reset' | 'block' | 'unblock', … }
  */
-export default async function handler(req: any, res: any) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
     try {
         res.setHeader('Cache-Control', 'no-store');
         const caller = await getCaller(req);
@@ -67,7 +82,7 @@ export default async function handler(req: any, res: any) {
 
         switch (action) {
             case 'create':
-                return sendJson(res, 201, await createPartnerAccess(caller, body));
+                return sendJson(res, 201, await createPartnerAccess(caller, body as unknown as PartnerAccessPayload));
             case 'reset':
                 return sendJson(res, 200, await resetPartnerPassword(caller, partnerType, partnerId));
             case 'block':
@@ -78,7 +93,10 @@ export default async function handler(req: any, res: any) {
                 throw Object.assign(new Error('Ação inválida'), { status: 400 });
         }
     } catch (error) {
-        const status = (error as any)?.status ?? 400;
+        const status = typeof error === 'object' && error !== null && 'status' in error
+            && typeof (error as { status?: unknown }).status === 'number'
+            ? (error as { status: number }).status
+            : 400;
         const message = error instanceof Error ? error.message : 'Erro ao gerenciar acesso do parceiro';
         return sendJson(res, status, { message });
     }

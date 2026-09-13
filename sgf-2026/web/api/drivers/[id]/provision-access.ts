@@ -1,23 +1,38 @@
-import { provisionDriverAccess } from '../../_lib/driver-access.js';
+import { provisionDriverAccess, type DriverAccessPayload } from '../../_lib/driver-access.js';
 import { getCaller, assertCanManageDrivers, assertCanActOnDriver } from '../../_lib/caller.js';
 import { checkRateLimit, getClientIp, logRateLimitBlocked, sendRateLimited } from '../../_lib/rate-limit.js';
 
-function sendJson(res: any, status: number, body: unknown) {
+interface ApiRequest {
+    method?: string;
+    query: Record<string, string | string[] | undefined>;
+    body?: unknown;
+    headers?: Record<string, string | string[] | undefined>;
+    get?: (name: string) => string | string[] | undefined | null;
+    socket?: { remoteAddress?: string | null };
+    connection?: { remoteAddress?: string | null };
+}
+
+interface ApiResponse {
+    setHeader: (name: string, value: string) => void;
+    status: (code: number) => { json: (body: unknown) => unknown };
+}
+
+function sendJson(res: ApiResponse, status: number, body: unknown) {
     res.status(status).json(body);
 }
 
-function parseBody(req: any) {
+function parseBody(req: ApiRequest): Record<string, unknown> {
     if (typeof req.body === 'string') {
-        return JSON.parse(req.body);
+        return JSON.parse(req.body) as Record<string, unknown>;
     }
 
-    return req.body ?? {};
+    return (req.body as Record<string, unknown>) ?? {};
 }
 
 const WINDOW_SECONDS = 60;
 const MAX_HITS = 10;
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (req.method !== 'POST') {
         res.setHeader('Allow', 'POST');
         return sendJson(res, 405, { message: 'Method not allowed' });
@@ -26,7 +41,8 @@ export default async function handler(req: any, res: any) {
     try {
         const caller = await getCaller(req);
         assertCanManageDrivers(caller);
-        await assertCanActOnDriver(caller, req.query.id);
+        const driverId = req.query.id as string;
+        await assertCanActOnDriver(caller, driverId);
 
         const ip = getClientIp(req);
         const check = await checkRateLimit('drivers-provision-access', caller.id, ip, WINDOW_SECONDS, MAX_HITS);
@@ -35,10 +51,13 @@ export default async function handler(req: any, res: any) {
             return sendRateLimited(res, check, 'Muitas operações em pouco tempo. Aguarde e tente novamente.');
         }
 
-        const driver = await provisionDriverAccess(req.query.id, { ...parseBody(req), actorId: caller.id });
+        const driver = await provisionDriverAccess(driverId, { ...parseBody(req), actorId: caller.id } as DriverAccessPayload);
         return sendJson(res, 200, driver);
     } catch (error) {
-        const status = (error as any)?.status ?? 400;
+        const status = typeof error === 'object' && error !== null && 'status' in error
+            && typeof (error as { status?: unknown }).status === 'number'
+            ? (error as { status: number }).status
+            : 400;
         const message = error instanceof Error ? error.message : 'Erro ao provisionar acesso';
         return sendJson(res, status, { message });
     }

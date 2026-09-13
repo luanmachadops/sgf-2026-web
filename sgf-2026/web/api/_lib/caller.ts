@@ -1,6 +1,11 @@
 import { assertServerSession } from './session-access.js';
 import { getSupabaseAdmin } from './supabase-admin.js';
 
+interface ApiRequest {
+    headers?: Record<string, string | string[] | undefined>;
+    get?: (name: string) => string | string[] | undefined | null;
+}
+
 export interface Caller {
     id: string;
     role: string;
@@ -30,7 +35,7 @@ export interface Caller {
  */
 function assertScopedToTenant(caller: Caller): void {
     if (!caller.tenantId) {
-        const e: any = new Error('Usuário sem prefeitura vinculada'); e.status = 403; throw e;
+        throw Object.assign(new Error('Usuário sem prefeitura vinculada'), { status: 403 });
     }
 }
 
@@ -48,12 +53,12 @@ function assertScopedToTenant(caller: Caller): void {
  */
 export function assertTargetIsDriver(role: string | null | undefined): void {
     if (role !== 'motorista') {
-        const e: any = new Error('O perfil informado não é um motorista'); e.status = 403; throw e;
+        throw Object.assign(new Error('O perfil informado não é um motorista'), { status: 403 });
     }
 }
 
 /** Lê e valida o JWT do header Authorization, retornando o perfil do chamador. */
-export async function getCaller(req: any): Promise<Caller | null> {
+export async function getCaller(req: ApiRequest): Promise<Caller | null> {
     const firstHeaderValue = (value: unknown): string | null => {
         if (typeof value === 'string') return value;
         if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
@@ -97,17 +102,17 @@ export async function getCaller(req: any): Promise<Caller | null> {
     // Bloqueio é decidido no perfil, não no JWT: o token continua válido até
     // expirar, então sem esta checagem bloquear alguém no painel não impede
     // que ele siga chamando as rotas /api com o token que já tinha em mãos.
-    const accessBlocked = (profile as any).access_blocked === true;
-    const driverStatus = (profile as any).driver_status ?? null;
+    const accessBlocked = profile.access_blocked === true;
+    const driverStatus = profile.driver_status ?? null;
     if (accessBlocked || driverStatus === 'inativo' || driverStatus === 'suspenso') {
-        const e: any = new Error('Acesso bloqueado. Procure a prefeitura.'); e.status = 403; throw e;
+        throw Object.assign(new Error('Acesso bloqueado. Procure a prefeitura.'), { status: 403 });
     }
 
     return {
         id: data.user.id,
         role: profile.role,
         departmentId: profile.department_id,
-        tenantId: (profile as any).tenant_id ?? null,
+        tenantId: profile.tenant_id ?? null,
         accessBlocked,
         driverStatus,
         allowedModules: profile.allowed_modules ?? [],
@@ -117,10 +122,10 @@ export async function getCaller(req: any): Promise<Caller | null> {
 /** Garante que o chamador pode gerenciar motoristas (admin, gestor ou secretário). */
 export function assertCanManageDrivers(caller: Caller | null): asserts caller is Caller {
     if (!caller) {
-        const e: any = new Error('Não autenticado'); e.status = 401; throw e;
+        throw Object.assign(new Error('Não autenticado'), { status: 401 });
     }
     if (!['admin', 'gestor', 'secretario'].includes(caller.role)) {
-        const e: any = new Error('Sem permissão para gerenciar motoristas'); e.status = 403; throw e;
+        throw Object.assign(new Error('Sem permissão para gerenciar motoristas'), { status: 403 });
     }
     assertScopedToTenant(caller);
     if (!caller.allowedModules.includes('drivers')) {
@@ -136,10 +141,10 @@ export function assertCanManageDrivers(caller: Caller | null): asserts caller is
 export function resolveScopedDepartment(caller: Caller, requested?: string | null): string | undefined {
     if (caller.role === 'secretario') {
         if (!caller.departmentId) {
-            const e: any = new Error('Secretário sem secretaria vinculada'); e.status = 403; throw e;
+            throw Object.assign(new Error('Secretário sem secretaria vinculada'), { status: 403 });
         }
         if (requested && requested !== caller.departmentId) {
-            const e: any = new Error('Você só pode cadastrar na sua própria secretaria'); e.status = 403; throw e;
+            throw Object.assign(new Error('Você só pode cadastrar na sua própria secretaria'), { status: 403 });
         }
         return caller.departmentId;
     }
@@ -155,7 +160,7 @@ export function resolveScopedDepartment(caller: Caller, requested?: string | nul
 export async function assertCanActOnDriver(caller: Caller, driverId: string): Promise<void> {
     assertCanManageDrivers(caller);
     if (!['admin', 'gestor', 'secretario'].includes(caller.role)) {
-        const e: any = new Error('Sem permissão'); e.status = 403; throw e;
+        throw Object.assign(new Error('Sem permissão'), { status: 403 });
     }
     assertScopedToTenant(caller);
 
@@ -166,18 +171,18 @@ export async function assertCanActOnDriver(caller: Caller, driverId: string): Pr
         .eq('id', driverId)
         .single();
     if (!driver) {
-        const e: any = new Error('Motorista não encontrado'); e.status = 404; throw e;
+        throw Object.assign(new Error('Motorista não encontrado'), { status: 404 });
     }
     // O `[id]` da rota é um profile QUALQUER, não necessariamente um motorista.
     // Sem esta checagem, /api/drivers/<id do admin>/reset-password troca a senha
     // do admin da prefeitura — um gestor assumiria a conta dele.
-    assertTargetIsDriver((driver as any).role);
+    assertTargetIsDriver(driver.role);
     // Isolamento por prefeitura (vale para todos os papéis de gestão).
-    if ((driver as any).tenant_id !== caller.tenantId) {
-        const e: any = new Error('Motorista fora da sua prefeitura'); e.status = 403; throw e;
+    if (driver.tenant_id !== caller.tenantId) {
+        throw Object.assign(new Error('Motorista fora da sua prefeitura'), { status: 403 });
     }
     // Secretário: além do tenant, restrito à própria secretaria.
     if (caller.role === 'secretario' && driver.department_id !== caller.departmentId) {
-        const e: any = new Error('Motorista fora da sua secretaria'); e.status = 403; throw e;
+        throw Object.assign(new Error('Motorista fora da sua secretaria'), { status: 403 });
     }
 }

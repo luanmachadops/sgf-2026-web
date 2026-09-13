@@ -1,16 +1,30 @@
-import { preRegisterDriver, preRegisterDriversBulk } from '../_lib/driver-access.js';
+import { preRegisterDriver, preRegisterDriversBulk, type PreRegisterDriverPayload } from '../_lib/driver-access.js';
 import { getCaller, assertCanManageDrivers, resolveScopedDepartment } from '../_lib/caller.js';
 import { checkRateLimit, checkRateLimitByKey, getClientIp, logRateLimitBlocked, sendRateLimited } from '../_lib/rate-limit.js';
 
-function sendJson(res: any, status: number, body: unknown) {
+interface ApiRequest {
+    method?: string;
+    body?: unknown;
+    headers?: Record<string, string | string[] | undefined>;
+    get?: (name: string) => string | string[] | undefined | null;
+    socket?: { remoteAddress?: string | null };
+    connection?: { remoteAddress?: string | null };
+}
+
+interface ApiResponse {
+    setHeader: (name: string, value: string) => void;
+    status: (code: number) => { json: (body: unknown) => unknown };
+}
+
+function sendJson(res: ApiResponse, status: number, body: unknown) {
     res.status(status).json(body);
 }
 
-function parseBody(req: any) {
+function parseBody(req: ApiRequest): Record<string, unknown> {
     if (typeof req.body === 'string') {
-        return JSON.parse(req.body);
+        return JSON.parse(req.body) as Record<string, unknown>;
     }
-    return req.body ?? {};
+    return (req.body as Record<string, unknown>) ?? {};
 }
 
 const MAX_BULK_DRIVERS = 200;
@@ -28,7 +42,7 @@ const CALLER_MAX_HITS = 5;
 const TENANT_DAILY_WINDOW_SECONDS = 24 * 60 * 60;
 const TENANT_DAILY_MAX_PREREGISTERED = 500;
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (req.method !== 'POST') {
         res.setHeader('Allow', 'POST');
         return sendJson(res, 405, { message: 'Method not allowed' });
@@ -67,12 +81,12 @@ export default async function handler(req: any, res: any) {
                 return sendRateLimited(res, tenantCheck, `Teto diário de pré-cadastros desta prefeitura atingido. Tente novamente amanhã ou fale com o suporte.`);
             }
 
-            const rows = body.drivers.map((r: any) => ({
+            const rows = (body.drivers as Record<string, unknown>[]).map((r) => ({
                 ...r,
-                departmentId: resolveScopedDepartment(caller, r?.departmentId),
+                departmentId: resolveScopedDepartment(caller, r?.departmentId as string | null | undefined),
                 tenantId: caller.tenantId,
                 actorId: caller.id,
-            }));
+            })) as PreRegisterDriverPayload[];
             const result = await preRegisterDriversBulk(rows);
             return sendJson(res, 200, result);
         }
@@ -87,14 +101,17 @@ export default async function handler(req: any, res: any) {
             return sendRateLimited(res, tenantCheck, `Teto diário de pré-cadastros desta prefeitura atingido. Tente novamente amanhã ou fale com o suporte.`);
         }
 
-        body.departmentId = resolveScopedDepartment(caller, body.departmentId);
+        body.departmentId = resolveScopedDepartment(caller, body.departmentId as string | null | undefined);
         body.tenantId = caller.tenantId;
         body.actorId = caller.id;
-        const driver = await preRegisterDriver(body);
+        const driver = await preRegisterDriver(body as unknown as PreRegisterDriverPayload);
         return sendJson(res, 201, driver);
     } catch (error) {
         console.error('[API pre-register error]', error);
-        const status = (error as any)?.status ?? 500;
+        const status = typeof error === 'object' && error !== null && 'status' in error
+            && typeof (error as { status?: unknown }).status === 'number'
+            ? (error as { status: number }).status
+            : 500;
         const message = error instanceof Error ? error.message : 'Erro no pré-cadastro';
         return sendJson(res, status, { message, error: message });
     }

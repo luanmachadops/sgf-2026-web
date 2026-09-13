@@ -1,5 +1,16 @@
 import { getSupabaseAdmin } from './supabase-admin.js';
 
+interface ApiRequest {
+    headers?: Record<string, string | string[] | undefined>;
+    socket?: { remoteAddress?: string | null };
+    connection?: { remoteAddress?: string | null };
+}
+
+interface ApiResponse {
+    setHeader: (name: string, value: string) => void;
+    status: (code: number) => { json: (body: unknown) => unknown };
+}
+
 /**
  * Rate limit para rotas de escrita, apoiado em Postgres.
  *
@@ -29,7 +40,7 @@ export interface RateLimitCheck {
 }
 
 /** IP do chamador. A Vercel preenche `x-forwarded-for`; o primeiro valor é o cliente. */
-export function getClientIp(req: any): string {
+export function getClientIp(req: ApiRequest): string {
     const xff = req.headers?.['x-forwarded-for'] ?? req.headers?.['X-Forwarded-For'];
     const first = Array.isArray(xff) ? xff[0] : xff;
     if (typeof first === 'string' && first.length > 0) {
@@ -102,7 +113,7 @@ export async function logRateLimitBlocked(actorId: string | null, note: string):
 }
 
 /** Responde 429 com Retry-After, no formato usado por todas as rotas daqui. */
-export function sendRateLimited(res: any, check: RateLimitCheck, message: string): void {
+export function sendRateLimited(res: ApiResponse, check: RateLimitCheck, message: string): void {
     res.setHeader('Retry-After', String(Math.max(1, check.retryAfterSeconds)));
     res.status(429).json({ message, retryAfterSeconds: check.retryAfterSeconds });
 }

@@ -312,7 +312,7 @@ export async function provisionDriverAccess(driverId: string, payload: DriverAcc
     // Defesa em profundidade: esta função é exportada e mexe em senha via
     // service_role. Se algum dia for chamada sem passar por
     // `assertCanActOnDriver`, o alvo ainda assim não pode ser um admin.
-    assertTargetIsDriver((driver as any).role);
+    assertTargetIsDriver(driver.role);
 
     // O profile.id já é o auth user id no banco unificado: apenas atualizar a senha.
     const { error } = await supabaseAdmin.auth.admin.updateUserById(driver.id, {
@@ -342,7 +342,7 @@ export async function resetDriverPassword(driverId: string, payload: DriverAcces
         throw new Error('Motorista não encontrado');
     }
     // Defesa em profundidade — ver comentário em `provisionDriverAccess`.
-    assertTargetIsDriver((driver as any).role);
+    assertTargetIsDriver(driver.role);
 
     const { error } = await supabaseAdmin.auth.admin.updateUserById(driver.id, {
         password: payload.password,

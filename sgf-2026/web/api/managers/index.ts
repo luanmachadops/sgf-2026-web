@@ -1,22 +1,36 @@
-import { createManager } from '../_lib/manager-access.js';
+import { createManager, type CreateManagerPayload } from '../_lib/manager-access.js';
 import { getCaller } from '../_lib/caller.js';
 import { checkRateLimit, getClientIp, logRateLimitBlocked, sendRateLimited } from '../_lib/rate-limit.js';
 
-function sendJson(res: any, status: number, body: unknown) {
+interface ApiRequest {
+    method?: string;
+    body?: unknown;
+    headers?: Record<string, string | string[] | undefined>;
+    get?: (name: string) => string | string[] | undefined | null;
+    socket?: { remoteAddress?: string | null };
+    connection?: { remoteAddress?: string | null };
+}
+
+interface ApiResponse {
+    setHeader: (name: string, value: string) => void;
+    status: (code: number) => { json: (body: unknown) => unknown };
+}
+
+function sendJson(res: ApiResponse, status: number, body: unknown) {
     res.status(status).json(body);
 }
 
-function parseBody(req: any) {
+function parseBody(req: ApiRequest): Record<string, unknown> {
     if (typeof req.body === 'string') {
-        return JSON.parse(req.body);
+        return JSON.parse(req.body) as Record<string, unknown>;
     }
-    return req.body ?? {};
+    return (req.body as Record<string, unknown>) ?? {};
 }
 
 const WINDOW_SECONDS = 60;
 const MAX_HITS = 10;
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (req.method !== 'POST') {
         res.setHeader('Allow', 'POST');
         return sendJson(res, 405, { message: 'Method not allowed' });
@@ -37,10 +51,13 @@ export default async function handler(req: any, res: any) {
             return sendRateLimited(res, check, 'Muitas requisições em pouco tempo. Aguarde e tente novamente.');
         }
 
-        const manager = await createManager({ ...parseBody(req), tenantId: caller.tenantId, actorId: caller.id });
+        const manager = await createManager({ ...parseBody(req), tenantId: caller.tenantId, actorId: caller.id } as CreateManagerPayload);
         return sendJson(res, 201, manager);
     } catch (error) {
-        const status = (error as any)?.status ?? 400;
+        const status = typeof error === 'object' && error !== null && 'status' in error
+            && typeof (error as { status?: unknown }).status === 'number'
+            ? (error as { status: number }).status
+            : 400;
         const message = error instanceof Error ? error.message : 'Erro ao criar acesso';
         return sendJson(res, status, { message });
     }
