@@ -9,6 +9,7 @@ import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { uploadFoto, resolveFotoUrl } from '@/lib/fotoStorage';
+import { ProfilePhoto } from '@/components/sgf/ProfilePhoto';
 import { resizeAndConvertToWebP, isImageFile, uploadFileId } from '@/lib/imageUtils';
 import { maskPhone } from '@/lib/utils';
 import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
@@ -141,13 +142,16 @@ export default function Perfil() {
             <SGFCard padding="lg" className="border border-slate-200/80 lg:col-span-1">
                 <div className="flex flex-col items-center text-center">
                     <div className="relative">
-                        {photoUrl ? (
-                            <img src={photoUrl} alt={name} className="h-28 w-28 rounded-full object-cover shadow-sm" />
-                        ) : (
-                            <div className="flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-3xl font-bold text-white shadow-sm">
-                                {getInitials(name || user?.name || '')}
-                            </div>
-                        )}
+                        <ProfilePhoto
+                            src={photoUrl}
+                            alt={name}
+                            className="h-28 w-28 rounded-full object-cover shadow-sm"
+                            fallback={(
+                                <div className="flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-3xl font-bold text-white shadow-sm">
+                                    {getInitials(name || user?.name || '')}
+                                </div>
+                            )}
+                        />
                         <button
                             type="button"
                             onClick={() => fileRef.current?.click()}

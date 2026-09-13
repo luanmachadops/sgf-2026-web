@@ -14,6 +14,7 @@ import {
     Person as UserIcon,
 } from '@/components/sgf/icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { ProfilePhoto } from '@/components/sgf/ProfilePhoto';
 
 const roleLabels = {
     ADMIN: 'Administrador',
@@ -70,11 +71,12 @@ export default function UserProfileDropdown() {
 
                 <div className="relative flex items-center gap-4">
                     <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[var(--sgf-primary)] bg-white/10 shadow-md">
-                        {user.photoUrl ? (
-                            <img src={user.photoUrl} alt={user.name} className="h-full w-full object-cover" />
-                        ) : (
-                            <span className="text-lg font-bold tracking-wider text-white">{getInitials(user.name)}</span>
-                        )}
+                        <ProfilePhoto
+                            src={user.photoUrl}
+                            alt={user.name}
+                            className="h-full w-full object-cover"
+                            fallback={<span className="text-lg font-bold tracking-wider text-white">{getInitials(user.name)}</span>}
+                        />
                         <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full bg-[#22C55E] ring-2 ring-[var(--sgf-dark)]" title="Sessão ativa" />
                     </div>
 

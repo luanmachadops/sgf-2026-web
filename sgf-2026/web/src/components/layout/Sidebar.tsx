@@ -22,6 +22,7 @@ import {
 } from '@/components/sgf/icons';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { ProfilePhoto } from '@/components/sgf/ProfilePhoto';
 import { useBranding } from '@/contexts/BrandingContext';
 import { canAccessModule, type AccessModule } from '@/lib/accessModules';
 import { procurementAccess } from '@/lib/procurement-navigation';
@@ -258,10 +259,15 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                 )}>
                     {/* Avatar */}
                     <div className={cn(
-                        "shrink-0 rounded-lg bg-[var(--sgf-primary)] flex items-center justify-center",
+                        "shrink-0 overflow-hidden rounded-lg bg-[var(--sgf-primary)] flex items-center justify-center",
                         isCollapsed ? "h-8 w-8" : "h-8 w-8"
                     )}>
-                        <User className="h-4 w-4 text-white" />
+                        <ProfilePhoto
+                            src={user?.photoUrl}
+                            alt={user?.name ?? ''}
+                            className="h-full w-full object-cover"
+                            fallback={<User className="h-4 w-4 text-white" />}
+                        />
                     </div>
 
                     {/* User info */}
