@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { supabase } from './supabase';
+import { authErrorMessage } from './authErrors';
 
 interface AuthState {
   userId: string | null;
@@ -11,18 +12,6 @@ interface AuthState {
 }
 
 const Ctx = createContext<AuthState | undefined>(undefined);
-
-function authErrorMessage(error: unknown): string {
-  const code = typeof error === 'object' && error && 'code' in error
-    ? String((error as { code?: string }).code ?? '')
-    : '';
-  const message = error instanceof Error ? error.message : '';
-  if (code === 'user_banned' || message.toLowerCase().includes('user is banned')) {
-    return 'Seu acesso está bloqueado. Entre em contato com o suporte para mais informações.';
-  }
-  if (code === 'invalid_credentials' || message === 'Invalid login credentials') return 'E-mail ou senha inválidos.';
-  return message || 'Não foi possível entrar.';
-}
 
 async function loadRole(userId: string): Promise<boolean> {
   const { data } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();

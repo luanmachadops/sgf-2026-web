@@ -1,11 +1,3 @@
-export const SUSPENDED_TENANT_KEY = 'exattus-suspended-tenant';
-
-export interface SuspendedTenantInfo {
-  name: string;
-  supportEmail?: string;
-  supportPhone?: string;
-}
-
 // Serviço de auth (Supabase GoTrue) indisponível: 502/503/504 chegam como
 // AuthRetryableFetchError com a mensagem `JSON.stringify(response)`, que para
 // um Response é literalmente "{}" — sem isso o alerta de login mostra "{}"
@@ -30,9 +22,6 @@ export function authErrorMessage(error: unknown): string {
   if (code === 'invalid_credentials' || message === 'Invalid login credentials') {
     return 'E-mail ou senha incorretos.';
   }
-  if (code === 'email_not_confirmed') {
-    return 'Seu e-mail ainda não foi confirmado.';
-  }
   if (code === 'over_request_rate_limit' || status === 429) {
     return 'Muitas tentativas. Aguarde um pouco e tente novamente.';
   }
@@ -44,22 +33,5 @@ export function authErrorMessage(error: unknown): string {
   if (isRetryable) {
     return UNSTABLE_SERVICE_MESSAGE;
   }
-  return message || 'Não foi possível concluir a operação.';
-}
-
-export function rememberSuspendedTenant(info: SuspendedTenantInfo): void {
-  try {
-    sessionStorage.setItem(SUSPENDED_TENANT_KEY, JSON.stringify(info));
-  } catch {
-    // O navegador pode bloquear storage em modo privado.
-  }
-}
-
-export function readSuspendedTenant(): SuspendedTenantInfo | null {
-  try {
-    const raw = sessionStorage.getItem(SUSPENDED_TENANT_KEY);
-    return raw ? JSON.parse(raw) as SuspendedTenantInfo : null;
-  } catch {
-    return null;
-  }
+  return message || 'Não foi possível entrar.';
 }
