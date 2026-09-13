@@ -62,9 +62,10 @@ export function DriverAccessForm({ driver, mode, onSuccess, onCancel }: DriverAc
             }
 
             onSuccess();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Driver access action failed:', error);
-            toast.error(error?.message || 'Não foi possível concluir a operação.');
+            const message = error instanceof Error ? error.message : 'Não foi possível concluir a operação.';
+            toast.error(message);
         }
     };
 

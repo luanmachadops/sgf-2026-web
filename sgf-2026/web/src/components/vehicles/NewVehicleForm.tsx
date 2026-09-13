@@ -268,9 +268,10 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
 
             toast.success('Veículo cadastrado com sucesso!');
             onSuccess();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error creating vehicle:', error);
-            toast.error(error?.message || 'Erro ao cadastrar veículo.');
+            const message = error instanceof Error ? error.message : 'Erro ao cadastrar veículo.';
+            toast.error(message);
         }
     };
 

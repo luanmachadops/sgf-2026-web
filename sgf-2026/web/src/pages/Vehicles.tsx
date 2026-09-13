@@ -204,7 +204,7 @@ export default function Vehicles() {
         {
             header: 'Status',
             accessor: (row) => (
-                <SGFBadge variant={getStatusColor(row.status) as any}>
+                <SGFBadge variant={getStatusColor(row.status) as 'default' | 'success' | 'warning' | 'error' | 'info'}>
                     {getStatusLabel(row.status)}
                 </SGFBadge>
             ),
@@ -297,7 +297,6 @@ export default function Vehicles() {
                 ) : tableRows.length === 0 ? (
                     <div className="rounded-[18px] bg-white p-10 text-center text-sm text-slate-400 shadow-sm">Nenhum veículo encontrado.</div>
                 ) : tableRows.map((row) => {
-                    const barColor = row.status === 'AVAILABLE' ? '#5BCE72' : row.status === 'MAINTENANCE' ? '#F59E0B' : row.status === 'IN_USE' ? '#3B82F6' : '#9CA3AF';
                     return (
                         <div
                             key={row.id}

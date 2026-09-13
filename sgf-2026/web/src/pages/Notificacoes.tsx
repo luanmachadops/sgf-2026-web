@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { Bell, Search, Check, Loader2, ArrowRight, Filter } from '@/components/sgf/icons';
+import { Bell, Search, Check, Loader2, ArrowRight } from '@/components/sgf/icons';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { notificationsApi, type NotificationRecord } from '@/lib/supabase-api';

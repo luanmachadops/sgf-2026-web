@@ -5,7 +5,6 @@ import ExcelJS from 'exceljs';
 import * as pdfjsLib from 'pdfjs-dist';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { SGFBadge } from '@/components/sgf/SGFBadge';
 import {
     FileSpreadsheet,
     FileText,
@@ -17,7 +16,6 @@ import {
     Loader2,
     RefreshCw,
     Car,
-    Building2,
     Sparkles,
 } from '@/components/sgf/icons';
 import { departmentsApi, vehiclesApi, type VehicleRecord } from '@/lib/supabase-api';
@@ -43,6 +41,9 @@ function fuelTypeToDb(fuel?: string | null): TablesInsert<'vehicles'>['fuel_type
 import { formatPlate } from '@/lib/utils';
 import { extractVehicleRowsFromText, extractVehicleRowsFromImages } from '@/lib/vehicleImportAI';
 import { VEHICLE_TYPES } from '@/lib/vehicleAI';
+
+/** Raw row from CSV/Excel/PDF parsing - unknown structure until analyzed */
+type RawVehicleRow = Record<string, unknown>;
 
 interface ImportVehiclesModalProps {
     isOpen: boolean;
@@ -292,14 +293,15 @@ async function extractTextFromPdf(arrayBuffer: ArrayBuffer): Promise<string> {
             const lines: string[] = [];
             let currentLine = '';
 
-            for (const item of textContent.items as any[]) {
-                if ('str' in item) {
-                    const y = item.transform ? item.transform[5] : null;
+            for (const item of textContent.items as unknown[]) {
+                if (typeof item === 'object' && item !== null && 'str' in item) {
+                    const typedItem = item as { str: string; transform?: number[] };
+                    const y = typedItem.transform ? typedItem.transform[5] : null;
                     if (lastY !== null && y !== null && Math.abs(y - lastY) > 6) {
                         if (currentLine.trim()) lines.push(currentLine.trim());
-                        currentLine = item.str;
+                        currentLine = typedItem.str;
                     } else {
-                        currentLine += (currentLine ? ' ' : '') + item.str;
+                        currentLine += (currentLine ? ' ' : '') + typedItem.str;
                     }
                     if (y !== null) lastY = y;
                 }
@@ -313,9 +315,9 @@ async function extractTextFromPdf(arrayBuffer: ArrayBuffer): Promise<string> {
         console.warn('pdfjs extração com aviso, tentando fallback bruto:', e);
         const textDecoder = new TextDecoder('utf-8');
         const raw = textDecoder.decode(arrayBuffer);
-        const matches = raw.match(/\(([^()]+)\)\s*Tj|\[([^\[\]]+)\]\s*TJ/g) || [];
+        const matches = raw.match(/\(([^()]+)\)\s*Tj|\[([^\]]+)\]\s*TJ/g) || [];
         const extracted = matches
-            .map((m) => m.replace(/[\(\)\[\]]/g, '').replace(/Tj|TJ/g, '').trim())
+            .map((m) => m.replace(/[()[\]]/g, '').replace(/Tj|TJ/g, '').trim())
             .filter(Boolean)
             .join('\n');
         return extracted || raw;
@@ -337,7 +339,8 @@ async function renderPdfPagesToImages(arrayBuffer: ArrayBuffer, maxPages = 12): 
         if (!ctx) continue;
         canvas.width = viewport.width;
         canvas.height = viewport.height;
-        await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pdfjs RenderParameters type mismatch
+        await page.render({ canvasContext: ctx, viewport } as any).promise;
         images.push(canvas.toDataURL('image/jpeg', 0.8));
         canvas.width = 0;
         canvas.height = 0;
@@ -347,9 +350,9 @@ async function renderPdfPagesToImages(arrayBuffer: ArrayBuffer, maxPages = 12): 
 }
 
 /** Transforma texto bruto / PDF em linhas de veículos */
-function parseRawTextToRows(text: string): Record<string, any>[] {
+function parseRawTextToRows(text: string): RawVehicleRow[] {
     const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    const rawRows: Record<string, any>[] = [];
+    const rawRows: RawVehicleRow[] = [];
 
     if (lines.length === 0) return [];
 
@@ -365,7 +368,7 @@ function parseRawTextToRows(text: string): Record<string, any>[] {
         const headers = firstLineCols.map((h) => h.toLowerCase());
         for (let i = 1; i < lines.length; i++) {
             const cols = splitCols(lines[i]);
-            const obj: Record<string, any> = {};
+            const obj: RawVehicleRow = {};
             headers.forEach((h, colIdx) => {
                 obj[h] = cols[colIdx] ?? '';
             });
@@ -375,7 +378,7 @@ function parseRawTextToRows(text: string): Record<string, any>[] {
         lines.forEach((line) => {
             const cols = splitCols(line);
             if (cols.length >= 2) {
-                const obj: Record<string, any> = {};
+                const obj: RawVehicleRow = {};
                 cols.forEach((col, idx) => {
                     obj[`col_${idx}`] = col;
                 });
@@ -551,13 +554,13 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
     };
 
     /** IA Smart Mapper & Validador de Linhas */
-    const processRowsWithAI = (rawRows: Record<string, any>[]): ParsedVehicleRow[] => {
+    const processRowsWithAI = (rawRows: RawVehicleRow[]): ParsedVehicleRow[] => {
         let countAiFixes = 0;
 
         const results = rawRows.map((row, idx) => {
             const issues: string[] = [];
             const aiNotes: string[] = [];
-            let status: 'valid' | 'warning' | 'error' = 'valid';
+            const status: 'valid' | 'warning' | 'error' = 'valid';
             let isAiOrganized = false;
 
             // 1. Mapeamento Inteligente de Colunas por Sinonímia de IA
@@ -575,20 +578,20 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
                 return '';
             };
 
-            let rawPlate = findColumnValue('plate');
+            const rawPlate = findColumnValue('plate');
             let rawBrand = findColumnValue('brand');
             let rawModel = findColumnValue('model');
-            let rawYearStr = findColumnValue('year');
-            let rawVehicleType = findColumnValue('type');
-            let rawColor = findColumnValue('color');
-            let rawFuelStr = findColumnValue('fuel');
-            let rawDept = findColumnValue('department');
-            let rawStatusStr = findColumnValue('status');
-            let rawTankStr = findColumnValue('tank');
-            let rawOdoStr = findColumnValue('odometer');
-            let rawRenavam = findColumnValue('renavam');
-            let rawChassis = findColumnValue('chassis');
-            let rawInsuranceExpiry = findColumnValue('insurance');
+            const rawYearStr = findColumnValue('year');
+            const rawVehicleType = findColumnValue('type');
+            const rawColor = findColumnValue('color');
+            const rawFuelStr = findColumnValue('fuel');
+            const rawDept = findColumnValue('department');
+            const rawStatusStr = findColumnValue('status');
+            const rawTankStr = findColumnValue('tank');
+            const rawOdoStr = findColumnValue('odometer');
+            const rawRenavam = findColumnValue('renavam');
+            const rawChassis = findColumnValue('chassis');
+            const rawInsuranceExpiry = findColumnValue('insurance');
 
             // 2. IA - Separação de Marca e Modelo se combinados (ex.: "Fiat Argo 1.0", "VW/SAVEIRO", "MARCOPOLO/VOLARE")
             const normBrand = (b: string) => {
@@ -650,7 +653,7 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
                 // Limpa duplicações em rawModel (ex.: "VOLARE V8L EO VOLARE V8L EO" → "VOLARE V8L EO")
                 if (rawModel) {
                     if (rawBrand && rawModel.toLowerCase().startsWith(rawBrand.toLowerCase())) {
-                        rawModel = rawModel.slice(rawBrand.length).replace(/^[\/\-\s]+/, '').trim();
+                        rawModel = rawModel.slice(rawBrand.length).replace(/^[-/\s]+/, '').trim();
                     }
 
                     const parts = rawModel.split(/\s+/);
@@ -675,7 +678,7 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
             }
 
             // 3. IA - Normalização e Limpeza de Placa (Mercosul ou Padrão antigo)
-            let cleanPlate = rawPlate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const cleanPlate = rawPlate.toUpperCase().replace(/[^A-Z0-9]/g, '');
             if (useAi && rawPlate && cleanPlate !== rawPlate) {
                 isAiOrganized = true;
                 aiNotes.push(`Placa formatada (${rawPlate} → ${cleanPlate})`);
@@ -780,7 +783,7 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
      * Com IA ligada, usa a edge function (gemini) que separa as colunas corretamente;
      * se a IA falhar ou não retornar nada, cai no parser local por delimitadores.
      */
-    const resolveRowsFromText = async (text: string): Promise<Record<string, any>[]> => {
+    const resolveRowsFromText = async (text: string): Promise<RawVehicleRow[]> => {
         if (useAi) {
             try {
                 const aiRows = await extractVehicleRowsFromText(text);
@@ -801,7 +804,7 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
 
         try {
             const ext = file.name.split('.').pop()?.toLowerCase();
-            let rawRows: Record<string, any>[] = [];
+            let rawRows: RawVehicleRow[] = [];
 
             if (ext === 'pdf' || file.type.includes('pdf')) {
                 const buffer = await file.arrayBuffer();
@@ -849,7 +852,7 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
 
                     sheet.eachRow((row, rowNumber) => {
                         if (rowNumber === 1) return;
-                        const obj: Record<string, any> = {};
+                        const obj: RawVehicleRow = {};
                         row.eachCell((cell, colNumber) => {
                             const headerKey = headers[colNumber];
                             if (headerKey) {
@@ -1042,7 +1045,6 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
     const createCount = useMemo(() => parsedRows.filter((r) => r.status !== 'error' && r.action === 'create').length, [parsedRows]);
     const updateCount = useMemo(() => parsedRows.filter((r) => r.status !== 'error' && r.action === 'update').length, [parsedRows]);
     const errorCount = useMemo(() => parsedRows.filter((r) => r.status === 'error').length, [parsedRows]);
-    const warningCount = useMemo(() => parsedRows.filter((r) => r.status === 'warning').length, [parsedRows]);
 
     const displayedRows = useMemo(() => {
         if (filterMode === 'valid') return parsedRows.filter((r) => r.status !== 'error');

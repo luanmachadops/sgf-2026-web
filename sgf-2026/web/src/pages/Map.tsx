@@ -6,8 +6,8 @@ import L from 'leaflet';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { VehicleMapDetailModal } from '@/components/vehicles/VehicleMapDetailModal';
-import { Car, Navigation, Search, User, Building2, MapPin, Clock, AlertTriangle, Wrench } from '@/components/sgf/icons';
-import { cn, formatDateTime, formatPlate, matchesSearch, normalizeSearchIdentifier } from '@/lib/utils';
+import { Car, Navigation, Search, User, Building2, AlertTriangle, Wrench } from '@/components/sgf/icons';
+import { cn, formatPlate, matchesSearch, normalizeSearchIdentifier } from '@/lib/utils';
 import { storageThumbUrl } from '@/lib/imageUtils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { supabase } from '@/lib/supabase';
@@ -16,7 +16,7 @@ import { SGFSelect } from '@/components/sgf/SGFSelect';
 import 'leaflet/dist/leaflet.css';
 
 // Fix for default marker icons in Leaflet with Vite
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
     iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
     iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
@@ -60,7 +60,7 @@ function createMarkerIcon(status: LiveVehicle['status'], photo?: string | null) 
 }
 
 const DEFAULT_CENTER: [number, number] = [-15.7939, -47.8828];
-const getBadgeVariant = (status: string): any => (status === 'manutencao' ? 'warning' : status);
+const getBadgeVariant = (status: string): 'default' | 'success' | 'warning' | 'error' | 'info' => (status === 'manutencao' ? 'warning' : 'info');
 const STATUS_LABEL: Record<LiveVehicle['status'], string> = {
     moving: 'Em movimento',
     idle: 'Parado',
@@ -68,16 +68,6 @@ const STATUS_LABEL: Record<LiveVehicle['status'], string> = {
     manutencao: 'Em manutenção',
 };
 
-/** "2h 15min" desde o início da viagem. */
-function elapsedSince(iso: string | null): string {
-    if (!iso) return '—';
-    const ms = Date.now() - new Date(iso).getTime();
-    if (Number.isNaN(ms) || ms < 0) return '—';
-    const min = Math.floor(ms / 60000);
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    return h > 0 ? `${h}h ${m}min` : `${m}min`;
-}
 
 // Conteúdo do card (reaproveitado no hover e no modal).
 function VehicleCardBody({ v }: { v: LiveVehicle }) {

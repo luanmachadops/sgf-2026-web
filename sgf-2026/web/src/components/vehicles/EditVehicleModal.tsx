@@ -7,7 +7,6 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { FileText, Plus, X, Download, Loader2, Camera, Sparkles } from '@/components/sgf/icons';
 import { departmentsApi, vehiclesApi, vehicleDocumentsApi } from '@/lib/supabase-api';
-import { supabase } from '@/lib/supabase';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { resizeAndConvertToWebP, isImageFile, uploadFileId } from '@/lib/imageUtils';
 import { uploadPrivateDoc } from '@/lib/docStorage';

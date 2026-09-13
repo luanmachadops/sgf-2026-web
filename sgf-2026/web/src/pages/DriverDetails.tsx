@@ -27,7 +27,7 @@ import { DriverAccessForm } from '@/components/drivers/DriverAccessForm';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
 import { Modal } from '@/components/ui/Modal';
 import type { Tables } from '@/types/database.types';
-import { formatDate, formatDateTime, formatCPF, formatDistance, formatPhone, formatPlate } from '@/lib/utils';
+import { formatDate, formatCPF, formatDistance, formatPhone, formatPlate } from '@/lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
 import { driversApi, tripsApi } from '@/lib/supabase-api';
 

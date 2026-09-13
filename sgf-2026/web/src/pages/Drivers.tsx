@@ -6,7 +6,6 @@ import {
     Edit2,
     Eye,
     KeyRound,
-    Phone,
     ShieldCheck,
     X,
     Users,
@@ -225,7 +224,7 @@ export default function Drivers() {
         {
             header: 'Status',
             accessor: (row) => (
-                <SGFBadge variant={getStatusColor(row.status) as any} size="sm">
+                <SGFBadge variant={getStatusColor(row.status) as 'default' | 'success' | 'warning' | 'error' | 'info'} size="sm">
                     {getStatusLabel(row.status)}
                 </SGFBadge>
             ),
@@ -429,7 +428,6 @@ export default function Drivers() {
                 ) : tableRows.length === 0 ? (
                     <div className="rounded-[18px] bg-white p-10 text-center text-sm text-slate-400 shadow-sm">Nenhum motorista encontrado.</div>
                 ) : tableRows.map((row) => {
-                    const barColor = row.status === 'ACTIVE' ? '#5BCE72' : row.status === 'SUSPENDED' ? '#EF4444' : '#9CA3AF';
                     const cnhStatus = getLicenseStatus(row.cnh_expiry_date, cnhDays);
                     
                     return (

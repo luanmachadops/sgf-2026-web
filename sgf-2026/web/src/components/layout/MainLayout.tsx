@@ -16,7 +16,7 @@ export default function MainLayout() {
 function LayoutWithHeader() {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [variant, setVariant] = useState<'desktop' | 'compact' | 'mobile'>('desktop');
-    const { title, description } = useHeader();
+    useHeader();
 
     // Atualização em tempo real de listas/dashboard/mapa (sem F5).
     useRealtimeSync();

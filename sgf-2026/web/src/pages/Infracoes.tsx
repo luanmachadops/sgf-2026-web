@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
-import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
@@ -30,9 +29,8 @@ import {
 } from '@/components/sgf/icons';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { infractionsApi, driversApi, vehiclesApi, tripsApi, type InfractionCandidate, type VehicleRecord } from '@/lib/supabase-api';
-import { formatCurrency, formatDate, formatPlate, formatDriverLabel, matchesSearch } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { infractionsApi, driversApi, vehiclesApi, tripsApi, type InfractionCandidate, type VehicleRecord, type TripRecord } from '@/lib/supabase-api';
+import { formatCurrency, formatPlate, formatDriverLabel, matchesSearch } from '@/lib/utils';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { prepareUpload, uploadFileId } from '@/lib/imageUtils';
 import type { Tables } from '@/types/database.types';
@@ -284,7 +282,7 @@ function NewInfractionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
     const [showSuggestions, setShowSuggestions] = useState(false);
     const suggestionsRef = useRef<HTMLDivElement>(null);
 
-    const [selectedTrip, setSelectedTrip] = useState<any | null>(null);
+    const [selectedTrip, setSelectedTrip] = useState<TripRecord | null>(null);
     const [tripSearch, setTripSearch] = useState('');
     const [selectedDriverId, setSelectedDriverId] = useState('');
     const [showTripSuggestions, setShowTripSuggestions] = useState(false);
@@ -369,7 +367,7 @@ function NewInfractionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
         try {
             setUploadingFile(true);
             const prepared = await prepareUpload(file, { maxSize: 1400, quality: 0.8 });
-            const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^\w.\-]+/g, '_');
+            const safe = file.name.replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_');
             const fileName = `infractions/${uploadFileId()}-${safe}.${prepared.ext}`;
             const { publicUrl } = await uploadFoto(fileName, prepared.blob, prepared.contentType);
             setAttachmentUrl(publicUrl);
@@ -641,7 +639,7 @@ function NewInfractionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                             <div className={selectedTrip ? "md:col-span-2" : ""}>
                                 <SGFSelect
                                     label="Motorista indicado"
-                                    options={drivers.map((d: any) => ({
+                                    options={drivers.map((d) => ({
                                         value: d.id,
                                         label: formatDriverLabel(d),
                                         photoUrl: d.photo_url,
@@ -777,8 +775,8 @@ function ManageInfractionModal({ infraction, onClose }: { infraction: Infraction
 
     if (!infraction) return null;
     const meta = STATUS_META[infraction.status] ?? STATUS_META.pendente;
-    const driverOptions = drivers.map((d: any) => ({ value: d.id, label: formatDriverLabel(d), photoUrl: d.photo_url }));
-    const selectedDriverObj = drivers.find((d: any) => d.id === driverId);
+    const driverOptions = drivers.map((d) => ({ value: d.id, label: formatDriverLabel(d), photoUrl: d.photo_url }));
+    const selectedDriverObj = drivers.find((d) => d.id === driverId);
 
     const rawData = infraction.raw as { attachment_url?: string; attachment_name?: string } | null;
     const attachmentUrl = rawData?.attachment_url;
@@ -1021,14 +1019,3 @@ function ManageInfractionModal({ infraction, onClose }: { infraction: Infraction
     );
 }
 
-function Info({ icon: Icon, label, value }: { icon: typeof Car; label: string; value: string }) {
-    return (
-        <div className="flex items-start gap-2">
-            <Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-            <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-                <p className="text-sm font-medium text-slate-800 break-words">{value}</p>
-            </div>
-        </div>
-    );
-}

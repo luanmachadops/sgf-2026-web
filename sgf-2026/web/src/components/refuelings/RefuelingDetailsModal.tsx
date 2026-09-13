@@ -13,11 +13,7 @@ import {
     User,
     MapPin,
     AlertTriangle,
-    CheckCircle,
-    XCircle,
-    Receipt,
     Gauge,
-    Clock,
     Building2,
     ShieldCheck,
     AlertCircle,
@@ -29,7 +25,6 @@ import {
 import { refuelingsApi } from '@/lib/supabase-api';
 import { formatCurrency, formatDate, formatPlate, cn } from '@/lib/utils';
 import { useValidateRefueling, useCancelFuelAuthorization } from '@/hooks/useRefuelings';
-import type { Tables } from '@/types/database.types';
 
 export type WorkflowStatus =
     | 'autorizado'
@@ -800,7 +795,7 @@ export function RefuelingDetailsModal({
                             </div>
 
                             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                {galleryItems.map((item, idx) => {
+                                {galleryItems.map((item) => {
                                     const photoIndexInPresent = presentPhotos.findIndex((p) => p.key === item.key);
 
                                     if (item.url) {

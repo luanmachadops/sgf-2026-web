@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
     ArrowLeft,
-    BarChart3,
     Building2,
     Car,
     DollarSign,
@@ -134,13 +133,6 @@ function Metric({
     );
 }
 
-const CHART_PERIOD_OPTIONS = [
-    { value: '1', label: 'Mês atual' },
-    { value: '3', label: 'Últimos 3 meses' },
-    { value: '6', label: 'Últimos 6 meses' },
-    { value: '12', label: 'Últimos 12 meses' },
-];
-
 type ChartTooltipProps = {
     active?: boolean;
     payload?: Array<{ payload: DepartmentOverview }>;
@@ -249,7 +241,6 @@ function DepartmentOverviewPage() {
     const totalVehicles = filtered.reduce((sum, item) => sum + item.vehicleCount, 0);
     const totalDrivers = filtered.reduce((sum, item) => sum + item.driverCount, 0);
     const totalFuelCost = filtered.reduce((sum, item) => sum + item.fuelCost, 0);
-    const totalTripKm = filtered.reduce((sum, item) => sum + item.totalTripKm, 0);
 
     // Dados dos gráficos vêm da query com período aplicado, respeitando a busca.
     const chartFiltered = useMemo(() => {
@@ -906,7 +897,6 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                             </div>
                         ) : (
                             detail.vehicles.map((row) => {
-                                const barColor = row.status === 'AVAILABLE' ? '#5BCE72' : row.status === 'MAINTENANCE' ? '#F59E0B' : row.status === 'IN_USE' ? '#3B82F6' : '#9CA3AF';
                                 return (
                                     <div
                                         key={row.id}
@@ -976,7 +966,6 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                             </div>
                         ) : (
                             detail.drivers.map((row) => {
-                                const barColor = row.status === 'ACTIVE' ? '#5BCE72' : row.status === 'SUSPENDED' ? '#EF4444' : '#9CA3AF';
                                 const cnhStatus = getLicenseStatus(row.cnh_expiry_date);
                                 return (
                                     <div
@@ -1051,7 +1040,6 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                             </div>
                         ) : (
                             detail.recentTrips.map((trip) => {
-                                const barColor = trip.status === 'COMPLETED' ? '#5BCE72' : trip.status === 'IN_PROGRESS' ? '#3B82F6' : '#EF4444';
                                 return (
                                     <div
                                         key={trip.id}
@@ -1120,7 +1108,6 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                             </div>
                         ) : (
                             detail.recentRefuelings.map((item) => {
-                                const barColor = item.has_anomaly ? '#EF4444' : '#5BCE72';
                                 return (
                                     <div
                                         key={item.id}
@@ -1187,7 +1174,6 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                             </div>
                         ) : (
                             detail.recentMaintenances.map((item) => {
-                                const barColor = item.status === 'COMPLETED' ? '#5BCE72' : item.status === 'REJECTED' ? '#EF4444' : '#F59E0B';
                                 return (
                                     <div
                                         key={item.id}
