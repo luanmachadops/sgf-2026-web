@@ -8,7 +8,7 @@ import { Camera, Loader2, ShieldCheck, LockKeyhole } from '@/components/sgf/icon
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { uploadFoto } from '@/lib/fotoStorage';
+import { uploadFoto, resolveFotoUrl } from '@/lib/fotoStorage';
 import { resizeAndConvertToWebP, isImageFile, uploadFileId } from '@/lib/imageUtils';
 import { maskPhone } from '@/lib/utils';
 import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
@@ -30,7 +30,14 @@ export default function Perfil() {
 
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
+    // `photoUrl` é só para exibição (sempre uma URL utilizável, assinada na
+    // hora). `photoValue` é o que vai para `photo_url` no `profiles`: o path
+    // devolvido pelo upload, ou o valor bruto já salvo no banco (para não
+    // reescrever nada quando o usuário só edita nome/telefone). NUNCA persiste
+    // `photoUrl` diretamente — ele pode ser uma URL assinada, que expira, e é
+    // assim que uma foto "morre" sozinha depois de 1h (bucket `fotos` privado).
     const [photoUrl, setPhotoUrl] = useState('');
+    const [photoValue, setPhotoValue] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
     const [saving, setSaving] = useState(false);
 
@@ -61,7 +68,13 @@ export default function Perfil() {
         if (!profile) return;
         setName(profile.full_name ?? '');
         setPhone(maskPhone(profile.phone ?? ''));
-        setPhotoUrl((profile as { photo_url?: string | null }).photo_url ?? '');
+        const rawPhoto = (profile as { photo_url?: string | null }).photo_url ?? null;
+        setPhotoValue(rawPhoto);
+        let cancelled = false;
+        void resolveFotoUrl(rawPhoto).then((resolved) => {
+            if (!cancelled) setPhotoUrl(resolved ?? '');
+        });
+        return () => { cancelled = true; };
     }, [profile]);
 
     const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,8 +84,9 @@ export default function Perfil() {
         try {
             setUploading(true);
             const blob = await resizeAndConvertToWebP(file, 512);
-            const { publicUrl } = await uploadFoto(`drivers/${user.id}-${uploadFileId()}.webp`, blob, 'image/webp');
+            const { path, publicUrl } = await uploadFoto(`drivers/${user.id}-${uploadFileId()}.webp`, blob, 'image/webp');
             setPhotoUrl(publicUrl);
+            setPhotoValue(path);
             toast.success('Foto carregada. Salve para confirmar.');
         } catch (err) {
             toast.error((err as { message?: string })?.message ?? 'Erro ao enviar a foto.');
@@ -89,7 +103,7 @@ export default function Perfil() {
             setSaving(true);
             const { error } = await supabase
                 .from('profiles')
-                .update({ full_name: name.trim(), phone: phone.replace(/\D/g, '') || null, photo_url: photoUrl || null })
+                .update({ full_name: name.trim(), phone: phone.replace(/\D/g, '') || null, photo_url: photoValue || null })
                 .eq('id', user.id);
             if (error) throw error;
             await qc.invalidateQueries({ queryKey: ['profile', 'me', user.id] });

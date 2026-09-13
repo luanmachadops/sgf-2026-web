@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import { useQueryClient } from '@tanstack/react-query';
 import type { User } from '@/types';
 import { supabase, revokeRefreshToken } from '@/lib/supabase';
-import { resetFotoStorageCache } from '@/lib/fotoStorage';
+import { resetFotoStorageCache, resolveFotoUrl } from '@/lib/fotoStorage';
 import { authErrorMessage, rememberSuspendedTenant } from '@/lib/authErrors';
 
 
@@ -200,7 +200,13 @@ async function fetchUserProfile(authUser: { id: string; email?: string; user_met
             allowedModules: (profile as unknown as { allowed_modules?: string[] }).allowed_modules,
             departmentId: profile.department_id || undefined,
             departmentName: dept?.name,
-            photoUrl: profile.photo_url || undefined,
+            // `photo_url` pode ter sido persistida como uma URL assinada antiga
+            // (o valor bruto de uma sessão passada) em vez de um path do bucket
+            // `fotos`, que agora é privado — usá-la direto faz o <img> do
+            // header/perfil bater numa assinatura expirada e tomar 400 a cada
+            // carregamento. `resolveFotoUrl` reconhece path OU URL antiga,
+            // extrai o path e assina de novo.
+            photoUrl: (await resolveFotoUrl(profile.photo_url)) ?? undefined,
             departmentScopeId: profile.role === 'secretario' ? (profile.department_id || undefined) : undefined,
             tenantId: (profile as unknown as { tenant_id?: string }).tenant_id || undefined,
             tenant,
@@ -456,12 +462,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     const updated = {
                         ...current,
                         name: next.full_name || current.name,
-                        photoUrl: next.photo_url ?? current.photoUrl,
                         allowedModules: next.allowed_modules ?? current.allowedModules,
                     };
                     persistAuthState(updated, token);
                     return updated;
                 });
+                // Assinatura é assíncrona — aplicada à parte para não bloquear a
+                // atualização de nome/permissões acima. Mesmo motivo do fetch
+                // inicial: `next.photo_url` pode ser path ou URL antiga.
+                if (next.photo_url !== undefined) {
+                    void resolveFotoUrl(next.photo_url).then((resolved) => {
+                        setUser((current) => {
+                            if (!current) return current;
+                            const updated = { ...current, photoUrl: resolved ?? undefined };
+                            persistAuthState(updated, token);
+                            return updated;
+                        });
+                    });
+                }
             })
             .subscribe();
         return () => {
