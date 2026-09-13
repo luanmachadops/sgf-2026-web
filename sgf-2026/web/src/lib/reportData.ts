@@ -5,6 +5,7 @@
 import type { PostgrestError } from '@supabase/supabase-js';
 import { procurementApi, type ProcurementContractUsage } from './procurement-api';
 import { supabase } from './supabase';
+import { ITEM_CATEGORIES } from './procurement-items-api';
 
 export interface ReportColumn {
     key: string;
@@ -1198,7 +1199,7 @@ async function procurementFiscalReconciliation(f?: ReportFilterInput): Promise<R
             process: row.process_reference,
             instrument: `${row.instrument_reference} (${row.instrument_kind === 'ata' ? 'Ata' : 'Contrato'})`,
             department: row.department_name,
-            category: row.category,
+            category: ITEM_CATEGORIES[row.category as keyof typeof ITEM_CATEGORIES] ?? row.category,
             appropriation: row.appropriation,
             fundingSource: row.funding_source,
             simam: row.simam_code || '—',
