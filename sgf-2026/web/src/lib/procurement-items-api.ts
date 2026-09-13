@@ -15,7 +15,8 @@ function check(error: { code?: string; message: string } | null) {
   if (error.code === 'PGRST202' || error.code === '42P01') throw new Error('O cadastro de itens aguarda implantação da estrutura no banco.');
   if (error.code === '23505') throw new Error('Já existe um item com esta referência no instrumento.');
   if (['23514', '23502', '22P02', '22003', '22007', '22008'].includes(error.code ?? '')) throw new Error('Confira os campos obrigatórios, quantidades, datas e condições de preço.');
-  throw new Error(error.message);
+  // Alguns erros HTTP (ex.: 401/403 sem corpo) chegam com message vazia — nunca falhar em silêncio.
+  throw new Error(error.message?.trim() || 'Não foi possível concluir a operação. Verifique sua sessão e tente novamente.');
 }
 export const procurementItemsApi = {
   async list(instrumentId: string, offset = 0, search = '', date?: string) {

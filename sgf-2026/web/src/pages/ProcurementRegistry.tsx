@@ -159,7 +159,7 @@ function RegistryEditor({ editor, onClose, onSaved }: { editor: Editor; onClose:
         </fieldset>
         <SGFInput label="Justificativa do cadastro ou alteração" required minLength={3} maxLength={1000} value={payload.reason} onChange={(event) => update({ reason: event.target.value })} fullWidth />
       </fieldset>
-      {(validation || save.isError) && <p role="alert" className="text-sm text-red-700">{validation || save.error?.message}</p>}
+      {(validation || save.isError) && <p role="alert" className="text-sm text-red-700">{validation || save.error?.message || 'Não foi possível salvar o rascunho. Verifique sua conexão e tente novamente.'}</p>}
       <div className="flex justify-end gap-2"><SGFButton type="button" variant="ghost" disabled={save.isPending} onClick={onClose}>Cancelar</SGFButton><SGFButton type="submit" loading={save.isPending} disabled={editor.kind === 'instrument' && !partners.isSuccess}>Salvar rascunho</SGFButton></div>
     </form>
   </Modal>;

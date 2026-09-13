@@ -20,7 +20,8 @@ function check(error: { message: string; code?: string } | null) {
   if (error.code === '23503') throw new Error('Este vínculo é utilizado por itens ou contratos. Confira os registros relacionados antes de alterar.');
   if (error.code === '23505') throw new Error('Esta referência já existe para o mesmo tipo e ano. Confira o cadastro existente.');
   if (['23514', '23502', '22P02', '22003', '22007', '22008'].includes(error.code ?? '')) throw new Error('Confira os campos obrigatórios, as datas e os valores informados.');
-  throw new Error(error.message);
+  // Alguns erros HTTP (ex.: 401/403 sem corpo) chegam com message vazia — nunca falhar em silêncio.
+  throw new Error(error.message?.trim() || 'Não foi possível concluir a operação. Verifique sua sessão e tente novamente.');
 }
 const eventsSchema = z.object({ total: z.number(), items: z.array(z.object({
   id: z.number(), record_id: z.string(), kind: z.string(), actor_id: z.string(), actor_name: z.string(), reason: z.string(),

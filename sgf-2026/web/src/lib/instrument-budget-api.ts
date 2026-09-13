@@ -11,7 +11,8 @@ function check(error: { code?: string; message: string } | null) {
   if (error.code === 'PGRST202') throw new Error('O planejamento por instrumento aguarda implantação no banco.');
   if (error.code === '23505') throw new Error('Já existe esse planejamento ou uma dotação repetida para a mesma secretaria, categoria e fonte.');
   if (['23514', '23502', '22P02', '22003'].includes(error.code ?? '')) throw new Error('Confira valores, campos obrigatórios e o código SIM-AM (28 dígitos, quando informado).');
-  throw new Error(error.message);
+  // Alguns erros HTTP (ex.: 401/403 sem corpo) chegam com message vazia — nunca falhar em silêncio.
+  throw new Error(error.message?.trim() || 'Não foi possível concluir a operação. Verifique sua sessão e tente novamente.');
 }
 export const instrumentBudgetApi = {
   async preview(payload: {item_id:string;allocation_id:string;operation_date:string;quantity:number;base_price?:number;table_reference?:string}) {
