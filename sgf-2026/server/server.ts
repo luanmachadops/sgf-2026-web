@@ -34,6 +34,16 @@ app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '2mb' }));
 
+// A CDN da Hostinger só acrescenta `upgrade-insecure-requests`; os demais
+// cabeçalhos de proteção precisam sair da aplicação.
+app.use((_req, res, next) => {
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
 function cleanHostname(req: Request): string {
   return (req.hostname || req.headers.host || '')
     .split(':')[0]

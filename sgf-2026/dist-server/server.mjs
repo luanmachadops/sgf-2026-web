@@ -25802,16 +25802,12 @@ async function assertServerSession(admin, userId, verifiedToken) {
 // web/api/_lib/caller.ts
 function assertScopedToTenant(caller) {
   if (!caller.tenantId) {
-    const e = new Error("Usu\xE1rio sem prefeitura vinculada");
-    e.status = 403;
-    throw e;
+    throw Object.assign(new Error("Usu\xE1rio sem prefeitura vinculada"), { status: 403 });
   }
 }
 function assertTargetIsDriver(role) {
   if (role !== "motorista") {
-    const e = new Error("O perfil informado n\xE3o \xE9 um motorista");
-    e.status = 403;
-    throw e;
+    throw Object.assign(new Error("O perfil informado n\xE3o \xE9 um motorista"), { status: 403 });
   }
 }
 async function getCaller(req) {
@@ -25844,9 +25840,7 @@ async function getCaller(req) {
   const accessBlocked = profile.access_blocked === true;
   const driverStatus = profile.driver_status ?? null;
   if (accessBlocked || driverStatus === "inativo" || driverStatus === "suspenso") {
-    const e = new Error("Acesso bloqueado. Procure a prefeitura.");
-    e.status = 403;
-    throw e;
+    throw Object.assign(new Error("Acesso bloqueado. Procure a prefeitura."), { status: 403 });
   }
   return {
     id: data.user.id,
@@ -25860,14 +25854,10 @@ async function getCaller(req) {
 }
 function assertCanManageDrivers(caller) {
   if (!caller) {
-    const e = new Error("N\xE3o autenticado");
-    e.status = 401;
-    throw e;
+    throw Object.assign(new Error("N\xE3o autenticado"), { status: 401 });
   }
   if (!["admin", "gestor", "secretario"].includes(caller.role)) {
-    const e = new Error("Sem permiss\xE3o para gerenciar motoristas");
-    e.status = 403;
-    throw e;
+    throw Object.assign(new Error("Sem permiss\xE3o para gerenciar motoristas"), { status: 403 });
   }
   assertScopedToTenant(caller);
   if (!caller.allowedModules.includes("drivers")) {
@@ -25877,14 +25867,10 @@ function assertCanManageDrivers(caller) {
 function resolveScopedDepartment(caller, requested) {
   if (caller.role === "secretario") {
     if (!caller.departmentId) {
-      const e = new Error("Secret\xE1rio sem secretaria vinculada");
-      e.status = 403;
-      throw e;
+      throw Object.assign(new Error("Secret\xE1rio sem secretaria vinculada"), { status: 403 });
     }
     if (requested && requested !== caller.departmentId) {
-      const e = new Error("Voc\xEA s\xF3 pode cadastrar na sua pr\xF3pria secretaria");
-      e.status = 403;
-      throw e;
+      throw Object.assign(new Error("Voc\xEA s\xF3 pode cadastrar na sua pr\xF3pria secretaria"), { status: 403 });
     }
     return caller.departmentId;
   }
@@ -25893,28 +25879,20 @@ function resolveScopedDepartment(caller, requested) {
 async function assertCanActOnDriver(caller, driverId) {
   assertCanManageDrivers(caller);
   if (!["admin", "gestor", "secretario"].includes(caller.role)) {
-    const e = new Error("Sem permiss\xE3o");
-    e.status = 403;
-    throw e;
+    throw Object.assign(new Error("Sem permiss\xE3o"), { status: 403 });
   }
   assertScopedToTenant(caller);
   const admin = getSupabaseAdmin();
   const { data: driver } = await admin.from("profiles").select("role, tenant_id, department_id").eq("id", driverId).single();
   if (!driver) {
-    const e = new Error("Motorista n\xE3o encontrado");
-    e.status = 404;
-    throw e;
+    throw Object.assign(new Error("Motorista n\xE3o encontrado"), { status: 404 });
   }
   assertTargetIsDriver(driver.role);
   if (driver.tenant_id !== caller.tenantId) {
-    const e = new Error("Motorista fora da sua prefeitura");
-    e.status = 403;
-    throw e;
+    throw Object.assign(new Error("Motorista fora da sua prefeitura"), { status: 403 });
   }
   if (caller.role === "secretario" && driver.department_id !== caller.departmentId) {
-    const e = new Error("Motorista fora da sua secretaria");
-    e.status = 403;
-    throw e;
+    throw Object.assign(new Error("Motorista fora da sua secretaria"), { status: 403 });
   }
 }
 
@@ -26230,7 +26208,7 @@ async function handler(req, res) {
     const driver = await createDriver(body);
     return sendJson(res, 201, driver);
   } catch (error) {
-    const status = error?.status ?? 400;
+    const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 400;
     const message = error instanceof Error ? error.message : "Erro ao criar motorista";
     return sendJson(res, status, { message });
   }
@@ -26316,7 +26294,7 @@ async function handler2(req, res) {
     return sendJson2(res, 201, driver);
   } catch (error) {
     console.error("[API pre-register error]", error);
-    const status = error?.status ?? 500;
+    const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 500;
     const message = error instanceof Error ? error.message : "Erro no pr\xE9-cadastro";
     return sendJson2(res, status, { message, error: message });
   }
@@ -26342,17 +26320,18 @@ async function handler3(req, res) {
   try {
     const caller = await getCaller(req);
     assertCanManageDrivers(caller);
-    await assertCanActOnDriver(caller, req.query.id);
+    const driverId = req.query.id;
+    await assertCanActOnDriver(caller, driverId);
     const ip = getClientIp(req);
     const check = await checkRateLimit("drivers-provision-access", caller.id, ip, WINDOW_SECONDS2, MAX_HITS2);
     if (!check.allowed) {
       await logRateLimitBlocked(caller.id, `Limite de provisionamento de acesso atingido (${check.currentCount} chamadas/min), IP ${ip}.`);
       return sendRateLimited(res, check, "Muitas opera\xE7\xF5es em pouco tempo. Aguarde e tente novamente.");
     }
-    const driver = await provisionDriverAccess(req.query.id, { ...parseBody3(req), actorId: caller.id });
+    const driver = await provisionDriverAccess(driverId, { ...parseBody3(req), actorId: caller.id });
     return sendJson3(res, 200, driver);
   } catch (error) {
-    const status = error?.status ?? 400;
+    const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 400;
     const message = error instanceof Error ? error.message : "Erro ao provisionar acesso";
     return sendJson3(res, status, { message });
   }
@@ -26378,17 +26357,18 @@ async function handler4(req, res) {
   try {
     const caller = await getCaller(req);
     assertCanManageDrivers(caller);
-    await assertCanActOnDriver(caller, req.query.id);
+    const driverId = req.query.id;
+    await assertCanActOnDriver(caller, driverId);
     const ip = getClientIp(req);
     const check = await checkRateLimit("drivers-reset-password", caller.id, ip, WINDOW_SECONDS3, MAX_HITS3);
     if (!check.allowed) {
       await logRateLimitBlocked(caller.id, `Limite de reset de senha de motorista atingido (${check.currentCount} chamadas/min), IP ${ip}.`);
       return sendRateLimited(res, check, "Muitos resets de senha em pouco tempo. Aguarde e tente novamente.");
     }
-    const result = await resetDriverPassword(req.query.id, { ...parseBody4(req), actorId: caller.id });
+    const result = await resetDriverPassword(driverId, { ...parseBody4(req), actorId: caller.id });
     return sendJson4(res, 200, result);
   } catch (error) {
-    const status = error?.status ?? 400;
+    const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 400;
     const message = error instanceof Error ? error.message : "Erro ao redefinir senha";
     return sendJson4(res, status, { message });
   }
@@ -26466,7 +26446,7 @@ async function handler5(req, res) {
     const manager2 = await createManager({ ...parseBody5(req), tenantId: caller.tenantId, actorId: caller.id });
     return sendJson5(res, 201, manager2);
   } catch (error) {
-    const status = error?.status ?? 400;
+    const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 400;
     const message = error instanceof Error ? error.message : "Erro ao criar acesso";
     return sendJson5(res, status, { message });
   }
@@ -26844,7 +26824,7 @@ async function handler7(req, res) {
         throw Object.assign(new Error("A\xE7\xE3o inv\xE1lida"), { status: 400 });
     }
   } catch (error) {
-    const status = error?.status ?? 400;
+    const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 400;
     const message = error instanceof Error ? error.message : "Erro ao gerenciar acesso do parceiro";
     return sendJson6(res, status, { message });
   }
@@ -36269,6 +36249,13 @@ var OFICINA_HOST = `oficina.${PRODUCT_DOMAIN}`;
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "2mb" }));
+app.use((_req, res, next) => {
+  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
 function cleanHostname(req) {
   return (req.hostname || req.headers.host || "").split(":")[0].trim().toLowerCase();
 }
