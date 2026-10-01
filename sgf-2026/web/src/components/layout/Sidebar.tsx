@@ -145,17 +145,8 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                 )}
 
                 {/* Logo icon — brasão sem fundo/cantos; só o fallback usa o box estilizado */}
-                <div className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center",
-                    branding.sealUrl || branding.logoUrl
-                        ? ""
-                        : "rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-900/30",
-                )}>
-                    {branding.sealUrl || branding.logoUrl ? (
-                        <img src={branding.sealUrl || branding.logoUrl} alt={branding.name} className="h-full w-full object-contain" />
-                    ) : (
-                        <ShieldCheck className="text-white h-5 w-5" />
-                    )}
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                    <img src={branding.sealUrl || branding.logoUrl || '/exattus-rotta.svg'} alt={branding.name} className="h-full w-full object-contain" />
                 </div>
 
                 {/* Brand text */}

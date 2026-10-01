@@ -40,9 +40,7 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
   return (
     <div className="flex h-full w-[260px] flex-col" style={{ backgroundColor: '#0F2B2F' }}>
       <div className="flex h-[72px] shrink-0 items-center gap-3 px-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-900/30">
-          <Building2 className="h-5 w-5 text-white" />
-        </div>
+        <img src="/exattus-rotta.svg" alt="Exattus Rotta" className="h-9 w-9 shrink-0" />
         <div className="flex flex-col leading-none">
           <span className="text-[13px] font-semibold tracking-tight text-white">Exattus Rotta • Superadmin</span>
           <span className="mt-0.5 text-[11px] font-medium tracking-normal text-emerald-400/80">Gestão de Prefeituras</span>

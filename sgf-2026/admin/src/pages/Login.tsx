@@ -40,6 +40,7 @@ export default function Login() {
     <div className="sgf-auth-background grid min-h-screen place-items-center p-6">
       <form onSubmit={mode === 'login' ? submit : sendReset} className="relative z-[1] w-full max-w-sm space-y-5 rounded-3xl bg-white p-8 shadow-2xl">
         <div className="text-center">
+          <img src="/exattus-rotta.svg" alt="" className="mx-auto mb-4 h-16 w-16" />
           <h1 className="text-2xl font-bold text-slate-900">Exattus Rotta • Superadmin</h1>
           <p className="text-sm text-slate-500">
             {mode === 'login' ? 'Painel de gestão de prefeituras' : 'Recuperar acesso'}
