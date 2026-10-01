@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Car, Mail, Lock, AlertCircle } from '@/components/sgf/icons';
+import { Mail, Lock, AlertCircle, Eye, EyeOff, ArrowRight, Loader2 } from '@/components/sgf/icons';
+import { INICIO_LAYERS, INICIO_VIEWBOX } from '@/components/pwa/inicioLogo';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBranding } from '@/contexts/BrandingContext';
-import { SGFButton } from '@/components/sgf/SGFButton';
-import { SGFInput } from '@/components/sgf/SGFInput';
 
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -35,6 +34,7 @@ export default function Login({ portal = 'panel' }: LoginProps) {
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     // Só redireciona com a sessão JÁ verificada. Enquanto `isLoading`, o `user`
     // ainda pode ser a cópia cacheada em localStorage de quem acabou de sair —
@@ -78,105 +78,124 @@ export default function Login({ portal = 'panel' }: LoginProps) {
         }
     };
 
+    const subtitle = portal === 'posto'
+        ? 'Sistema de Abastecimento'
+        : portal === 'oficina'
+            ? 'Sistema de Manutenção'
+            : branding.city && branding.state
+                ? `${branding.city} - ${branding.state}`
+                : null;
+    const tenantLogo = branding.logoUrl || branding.sealUrl;
+
     return (
-        <div className="sgf-auth-background flex min-h-screen p-4 sm:p-6">
-            <div className="relative z-[1] m-auto w-full max-w-md space-y-8 rounded-[2.5rem] bg-white p-8 shadow-2xl sm:p-12">
-                {/* Logo */}
-                <div className="text-center">
-                    <div className={`mx-auto flex h-20 w-20 items-center justify-center ${branding.logoUrl || branding.sealUrl ? '' : 'overflow-hidden rounded-3xl bg-[var(--sgf-primary)] shadow-lg shadow-emerald-500/30'}`}>
-                        {branding.logoUrl || branding.sealUrl ? (
-                            <img src={branding.logoUrl || branding.sealUrl} alt={branding.name} className="h-full w-full object-contain" />
-                        ) : (
-                            <Car className="h-10 w-10 text-white" />
-                        )}
-                    </div>
-                    <h1 className="mt-6 text-3xl font-bold text-gray-900">{branding.name}</h1>
-                    <p className="mt-2 text-sm text-slate-500">
-                        {portal === 'posto'
-                            ? 'Sistema de Abastecimento'
-                            : portal === 'oficina'
-                                ? 'Sistema de Manutenção'
-                                : branding.city && branding.state
-                                    ? `${branding.city} - ${branding.state}`
-                                    : 'Gestão inteligente de frotas'}
-                    </p>
+        <div className="sgf-auth-background flex min-h-screen w-full flex-col items-center">
+            <div className="flex w-full max-w-[412px] flex-1 flex-col items-center px-[37px]">
+                {/* Logo da tela de início (ou o da prefeitura, quando cadastrado) */}
+                <div className="mt-[72px] flex flex-col items-center">
+                    {tenantLogo ? (
+                        <>
+                            <img src={tenantLogo} alt={branding.name} className="h-24 w-24 object-contain" />
+                            <h1 className="mt-4 text-2xl font-bold text-white">{branding.name}</h1>
+                        </>
+                    ) : (
+                        <svg
+                            className="pwa-launch-logo !w-[180px]"
+                            viewBox={`0 0 ${INICIO_VIEWBOX.width} ${INICIO_VIEWBOX.height}`}
+                            role="img"
+                            aria-label="Exattus Rotta — Gestão de frota Municipal"
+                        >
+                            {INICIO_LAYERS.map((layer) => (
+                                <path key={layer.id} className={`pwa-layer-${layer.id}`} d={layer.d} fill={layer.fill} />
+                            ))}
+                        </svg>
+                    )}
+                    {subtitle && <p className="mt-3 text-sm font-medium text-white/70">{subtitle}</p>}
                 </div>
 
-                {/* Form */}
-                <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+                <form onSubmit={handleSubmit} className="mt-[72px] flex w-full flex-col gap-[19px]">
+                    <p className="text-center text-[14px] font-medium text-white">
+                        {view === 'login' ? 'Entre com sua conta' : 'Recuperar senha'}
+                    </p>
+
                     {error && (
-                        <div className="flex items-center gap-2 rounded-2xl bg-red-50 p-4 text-sm text-red-800 animate-in fade-in slide-in-from-top-2">
-                            <AlertCircle className="h-5 w-5 flex-shrink-0" />
-                            <p>{error}</p>
+                        <div className="flex items-center gap-2 rounded-2xl border border-red-400/40 bg-red-500/15 px-3 py-2.5 text-sm text-red-300">
+                            <AlertCircle className="h-4 w-4 shrink-0" />
+                            <span>{error}</span>
                         </div>
                     )}
 
                     {successMessage && (
-                        <div className="flex items-center gap-2 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800 animate-in fade-in slide-in-from-top-2">
-                            <AlertCircle className="h-5 w-5 flex-shrink-0" />
-                            <p>{successMessage}</p>
+                        <div className="flex items-center gap-2 rounded-2xl border border-emerald-400/40 bg-emerald-500/15 px-3 py-2.5 text-sm text-emerald-200">
+                            <AlertCircle className="h-4 w-4 shrink-0" />
+                            <span>{successMessage}</span>
                         </div>
                     )}
 
-                    <div className="space-y-4">
-                        <SGFInput
-                            label={portal === 'panel' ? 'E-mail institucional' : 'E-mail de acesso'}
+                    <label className="auth-field">
+                        <Mail className="h-6 w-6 shrink-0 text-white/90" />
+                        <input
                             type="email"
-                            placeholder={portal === 'panel' ? 'usuario@prefeitura.gov.br' : 'contato@empresa.com.br'}
+                            placeholder={portal === 'panel' ? 'e-mail institucional' : 'e-mail de acesso'}
+                            autoComplete="username"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            icon={Mail}
                             required
-                            inputClassName={`!rounded-full transition-colors duration-200 autofill:!shadow-[inset_0_0_0_1000px_#E3E9E7] ${
-                                email 
-                                    ? '!bg-[#E3E9E7] focus:!bg-[#E3E9E7]' 
-                                    : '!bg-white focus:!bg-white'
-                            }`}
                         />
+                    </label>
 
-                        {view === 'login' && (
-                            <>
-                                <SGFInput
-                                    label="Senha"
-                                    type="password"
-                                    placeholder="Digite sua senha"
+                    {view === 'login' && (
+                        <>
+                            <label className="auth-field">
+                                <Lock className="h-6 w-6 shrink-0 text-white/90" />
+                                <input
+                                    type={showPassword ? 'text' : 'password'}
+                                    placeholder="••••••••"
+                                    autoComplete="current-password"
+                                   
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    icon={Lock}
                                     required
-                                    inputClassName={`!rounded-full transition-colors duration-200 autofill:!shadow-[inset_0_0_0_1000px_#E3E9E7] ${
-                                        password 
-                                            ? '!bg-[#E3E9E7] focus:!bg-[#E3E9E7]' 
-                                            : '!bg-white focus:!bg-white'
-                                    }`}
                                 />
-                                <div className="flex justify-end">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setView('forgot');
-                                            setError('');
-                                            setSuccessMessage('');
-                                        }}
-                                        className="text-sm font-medium text-[var(--sgf-primary)] hover:text-emerald-700 transition-colors"
-                                    >
-                                        Esqueci minha senha
-                                    </button>
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword((v) => !v)}
+                                    className="shrink-0 text-white/70 transition-colors hover:text-white"
+                                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                                >
+                                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setView('forgot');
+                                    setError('');
+                                    setSuccessMessage('');
+                                }}
+                                className="-mt-1 self-end text-[12px] font-bold text-[var(--sgf-primary)] hover:underline"
+                            >
+                                Esqueceu a senha?
+                            </button>
+                        </>
+                    )}
+
+                    <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="flex h-[55px] w-full items-center justify-center gap-[10px] rounded-[27.5px] bg-[var(--sgf-primary)] text-[16px] font-bold text-white transition-opacity active:scale-[.98] disabled:opacity-70"
+                    >
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                                {view === 'login' ? 'Entrando...' : 'Enviando...'}
+                            </>
+                        ) : (
+                            <>
+                                {view === 'login' ? 'Entrar' : 'Enviar link de recuperação'}
+                                <ArrowRight className="h-[18px] w-[18px]" />
                             </>
                         )}
-                    </div>
-
-                    <SGFButton
-                        type="submit"
-                        variant="primary"
-                        size="lg"
-                        loading={isLoading}
-                        fullWidth
-                        className="mt-6 shadow-xl shadow-emerald-500/20 !rounded-full"
-                    >
-                        {view === 'login' ? 'Entrar' : 'Enviar Link de Recuperação'}
-                    </SGFButton>
+                    </button>
 
                     {view === 'forgot' && (
                         <button
@@ -186,18 +205,16 @@ export default function Login({ portal = 'panel' }: LoginProps) {
                                 setError('');
                                 setSuccessMessage('');
                             }}
-                            className="w-full text-center text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors mt-4"
+                            className="text-center text-sm font-semibold text-white/80 hover:text-white"
                         >
-                            Voltar para o Login
+                            Voltar para o login
                         </button>
                     )}
                 </form>
 
-                {/* Footer */}
-                <div className="text-center text-xs text-slate-400">
-                    <p>© 2026 Exattus Rotta — Todos os direitos reservados</p>
-                    <p className="mt-1">Setor de Obras e Garagem</p>
-                </div>
+                <p className="mb-[36px] mt-auto pt-10 text-center text-[11.667px] font-medium text-white/80">
+                    © Exattus Rotta {new Date().getFullYear()}
+                </p>
             </div>
         </div>
     );

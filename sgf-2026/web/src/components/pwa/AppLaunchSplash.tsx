@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { INICIO_LAYERS, INICIO_VIEWBOX } from './inicioLogo';
 
 function isStandaloneMode(): boolean {
     const standaloneNavigator = navigator as Navigator & { standalone?: boolean };
@@ -14,7 +15,7 @@ export function AppLaunchSplash() {
 
     useEffect(() => {
         if (!visible) return;
-        const timeout = window.setTimeout(() => setVisible(false), 1550);
+        const timeout = window.setTimeout(() => setVisible(false), 2200);
         return () => window.clearTimeout(timeout);
     }, [visible]);
 
@@ -22,18 +23,15 @@ export function AppLaunchSplash() {
 
     return (
         <div className="pwa-launch-splash" role="status" aria-label="Abrindo Exattus Rotta">
-            <div className="pwa-launch-glow" />
-            <div className="pwa-launch-content">
-                <div className="pwa-launch-logo-wrap">
-                    <div className="pwa-launch-ring" />
-                    <img src="/exattus-rotta.svg" alt="" className="pwa-launch-logo" />
-                </div>
-                <div className="pwa-launch-copy">
-                    <p className="pwa-launch-title">Exattus Rotta</p>
-                    <p className="pwa-launch-subtitle">Gestão inteligente de frotas</p>
-                </div>
-                <div className="pwa-launch-progress"><span /></div>
-            </div>
+            <svg
+                className="pwa-launch-logo"
+                viewBox={`0 0 ${INICIO_VIEWBOX.width} ${INICIO_VIEWBOX.height}`}
+                aria-hidden="true"
+            >
+                {INICIO_LAYERS.map((layer) => (
+                    <path key={layer.id} className={`pwa-layer-${layer.id}`} d={layer.d} fill={layer.fill} />
+                ))}
+            </svg>
         </div>
     );
 }
