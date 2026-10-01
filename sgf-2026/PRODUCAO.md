@@ -250,6 +250,37 @@ do PRODUCAO.md. Typecheck após cada commit.
 
 ---
 
+## 🟡 T6 — Auditoria 2026-09-28 (app do motorista × regras de licitação)
+
+**Corrigido (código, sem DDL):**
+- App (`appFrota/src/lib/data.ts`, `app/(tabs)/fuel.tsx`): conclusão/rejeição de autorização de
+  abastecimento quebrava no trigger `procurement_fueling_transition` (migration `20260911023848`):
+  o app não enviava `filled_at`, usava o preço da tabela do posto em vez do reservado e reenviava
+  `driver_id`/`fuel_type` (imutáveis). Agora usa `fuelings.price_per_liter` reservado, total com o
+  mesmo arredondamento do Postgres, `filled_at` e só assume autoria de autorização sem dono.
+  Autorizações antigas (sem reserva, `price_per_liter` nulo) mantêm o comportamento anterior.
+- Web `Trips.tsx`: estado de carregamento/erro na tabela.
+
+**Verificado no banco vivo (MCP, 2026-09-28, simulando o JWT do motorista em transação com rollback):**
+- Gate de sessão OK para o único motorista; leituras e escritas do app (checklist, viagem,
+  trip_locations, abastecimento livre, OS, issue, `register_push_token`) passam. Realtime publica
+  as 9 tabelas que o app escuta. Chave `sb_publishable_…` do APK 1.0.1 ativa e do projeto certo.
+- Sem tráfego do app desde 2026-07-30/08-02 (último login/refresh do motorista); nenhuma viagem
+  desde 2026-07-31.
+- **`push_tokens` vazia**: o app não tem `google-services.json` (FCM) — no Android
+  `getExpoPushTokenAsync` falha e nenhum push do gestor chega. Criar projeto Firebase, adicionar
+  `google-services.json` + `android.googleServicesFile` no app.json e subir a credencial FCM V1 no EAS.
+- Segurança: advisors sem crítico (tabelas de licitação com RLS sem policy = negam tudo, acesso só
+  via RPC; 90 funções SECURITY DEFINER executáveis por `authenticated` são os wrappers com
+  checagem interna). `app_config` só tem policies RESTRICTIVE → ninguém lê o segredo do cron.
+  Storage `fotos`/`documentos` com escopo por tenant (RESTRICTIVE). Pendente: leaked password
+  protection (Auth, requer Pro) e `pg_net` no schema public.
+- 82 de 106 veículos sem secretaria (cota departamental não os controla).
+- Decisão de produto: no fluxo de licitação quem conclui é o posto (`complete_procurement_fueling`,
+  role `posto`). O app ainda permite o motorista concluir; se o posto deve ser o único, esconder o
+  botão no app para autorizações com preço reservado.
+- Superadmin: sem tela de plano/limites nem log de auditoria. Web: 24 erros de ESLint (boas práticas).
+
 ## Checklist final de go-live
 
 - [ ] T2, T3, T4 concluídas e testadas manualmente (login gestor, login motorista, viagem completa com checklist, abastecimento com workflow, push recebido)
