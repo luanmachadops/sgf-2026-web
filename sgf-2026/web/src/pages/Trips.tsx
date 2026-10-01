@@ -79,7 +79,7 @@ export default function Trips() {
         }
     }, [paramSearch, paramId]);
 
-    const { data: rawTrips = [] } = useTrips({
+    const { data: rawTrips = [], isLoading, isError } = useTrips({
         status: (statusFilter || undefined) as TripStatus | undefined,
         hasAnomaly: showAnomaliesOnly || undefined,
     });
@@ -273,7 +273,8 @@ export default function Trips() {
                     data={filteredTrips}
                     keyExtractor={(row) => row.id}
                     onRowClick={(row) => setSelectedTripId(row.id)}
-                    emptyMessage="Nenhuma viagem encontrada."
+                    loading={isLoading}
+                    emptyMessage={isError ? 'Não foi possível carregar as viagens. Tente novamente.' : 'Nenhuma viagem encontrada.'}
                 />
             </div>
 
