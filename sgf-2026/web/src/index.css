@@ -82,7 +82,7 @@
   background: transparent;
   color: #fff;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 400;
   outline: none;
 }
 .auth-field input::placeholder { color: rgb(255 255 255 / 0.6); }
