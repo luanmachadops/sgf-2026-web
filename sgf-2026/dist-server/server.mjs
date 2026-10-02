@@ -36334,6 +36334,32 @@ app.use((req, res, next) => {
   }
   next();
 });
+var APPLE_APP_SITE_ASSOCIATION = {
+  webcredentials: { apps: ["WFWAYJG6CG.br.com.sgf.frota"] }
+};
+var ANDROID_ASSET_LINKS = [
+  {
+    relation: ["delegate_permission/common.get_login_creds", "delegate_permission/common.handle_all_urls"],
+    target: {
+      namespace: "android_app",
+      package_name: "br.com.sgf.frota",
+      // Certificado "CN=SGF Frota" que assina o APK de release.
+      sha256_cert_fingerprints: ["E2:EA:A5:A2:C6:2C:D6:A7:BE:D9:D5:E8:EC:87:A5:A5:BA:D7:9F:85:9D:41:57:10:20:E3:90:84:EA:BA:E0:5C"]
+    }
+  },
+  {
+    relation: ["delegate_permission/common.get_login_creds"],
+    target: { namespace: "web", site: "https://exattusrotta.com.br" }
+  }
+];
+app.get("/.well-known/apple-app-site-association", (_req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.type("application/json").send(JSON.stringify(APPLE_APP_SITE_ASSOCIATION));
+});
+app.get("/.well-known/assetlinks.json", (_req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.type("application/json").send(JSON.stringify(ANDROID_ASSET_LINKS));
+});
 var staticOptions = {
   immutable: true,
   maxAge: "1y",
