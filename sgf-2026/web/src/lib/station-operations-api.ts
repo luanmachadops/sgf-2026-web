@@ -72,13 +72,13 @@ export const stationOperationsApi = {
         errorMessage(error);
     },
     authorizeContract: async (requestId: string, input: {
-        itemId: string; allocationId: string; vehicleId: string; driverId: string;
+        itemId: string; allocationId: string; vehicleId: string; driverId?: string | null;
         catalogItemId: string; quantity: number; expiresAt: string; note: string;
     }): Promise<string> => {
         const { data, error } = await supabase.rpc('issue_procurement_station_operation', {
             p_request: requestId, p_payload: {
                 item_id: input.itemId, allocation_id: input.allocationId, vehicle_id: input.vehicleId,
-                driver_id: input.driverId, catalog_item_id: input.catalogItemId,
+                ...(input.driverId ? { driver_id: input.driverId } : {}), catalog_item_id: input.catalogItemId,
                 quantity: input.quantity, expires_at: input.expiresAt, note: input.note,
             },
         });
@@ -105,7 +105,8 @@ export const stationOperationsApi = {
 
     authorize: async (input: {
         vehicleId: string;
-        driverId: string;
+        /** Vazio = qualquer motorista que estiver com o veículo. */
+        driverId?: string | null;
         stationId: string;
         catalogItemId: string;
         quantity: number;
@@ -114,7 +115,7 @@ export const stationOperationsApi = {
     }): Promise<string> => {
         const { data, error } = await supabase.rpc('manager_create_station_operation', {
             p_vehicle_id: input.vehicleId,
-            p_driver_id: input.driverId,
+            p_driver_id: (input.driverId || null) as unknown as string,
             p_station_id: input.stationId,
             p_catalog_item_id: input.catalogItemId,
             p_quantity: input.quantity,

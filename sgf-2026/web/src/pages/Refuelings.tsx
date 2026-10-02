@@ -14,7 +14,7 @@ import {
     Receipt,
     Plus,
 } from '@/components/sgf/icons';
-import { formatDate, formatCurrency, formatPlate, matchesSearch } from '@/lib/utils';
+import { formatDate, formatCurrency, formatPlate, matchesSearch, NO_DRIVER_LABEL } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { NewRefuelingForm } from '@/components/refuelings/NewRefuelingForm';
@@ -136,7 +136,7 @@ export default function Refuelings() {
                 vehicle: row.vehicles?.plate || 'Sem placa',
                 vehicleModel: vehicleModel || 'Sem veículo',
                 vehiclePhoto: row.vehicles?.photo_url ?? null,
-                driver: row.drivers?.name || 'Sem motorista',
+                driver: row.drivers?.name || NO_DRIVER_LABEL,
                 driverPhoto: row.drivers?.photo_url ?? null,
                 liters,
                 cost,
@@ -225,7 +225,7 @@ export default function Refuelings() {
         {
             header: 'Motorista',
             accessor: (row) => (
-                <span className="text-sm text-slate-600 font-medium">{row.driver}</span>
+                <span className={row.driver === NO_DRIVER_LABEL ? 'text-sm italic text-slate-400' : 'text-sm text-slate-600 font-medium'}>{row.driver}</span>
             )
         },
         { header: 'Litros', accessor: (row) => `${row.liters.toFixed(1)} L` },

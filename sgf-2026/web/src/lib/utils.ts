@@ -307,6 +307,11 @@ export function sleep(ms: number): Promise<void> {
  * Formata o rótulo do motorista para listbox/selects com abreviação/resumo da secretaria.
  * Exemplo: "João da Silva (Obras)" ou "Maria Oliveira (Saúde)".
  */
+/** Opção "sem motorista" nos formulários de OS/autorização (valor vazio = null no envio). */
+export const ANY_DRIVER_OPTION_LABEL = 'Qualquer motorista que estiver com o veículo';
+/** Texto exibido quando o registro não tem motorista definido. */
+export const NO_DRIVER_LABEL = 'Sem motorista definido';
+
 export function formatDriverLabel(driver?: { name?: string | null; full_name?: string | null; departments?: { name?: string | null } | null } | null): string {
     if (!driver) return 'Motorista';
     const name = driver.full_name || driver.name || 'Motorista';

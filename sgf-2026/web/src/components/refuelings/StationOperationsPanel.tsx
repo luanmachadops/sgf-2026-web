@@ -9,6 +9,7 @@ import { stationsApi, vehiclesApi } from '@/lib/supabase-api';
 import { useDrivers } from '@/hooks/useDrivers';
 import { stationOperationsApi, type StationOperation } from '@/lib/station-operations-api';
 import { formatCurrency, formatDate, formatPlate } from '@/lib/utils';
+import { ANY_DRIVER_OPTION_LABEL, NO_DRIVER_LABEL } from '@/lib/utils';
 
 const statusLabels: Record<string, { label: string; variant: 'info' | 'warning' | 'success' | 'error' | 'default' }> = {
     autorizado: { label: 'Aguardando posto', variant: 'info' },
@@ -111,7 +112,7 @@ export function StationOperationsPanel() {
     });
 
     const canAuthorize = Boolean(
-        stationId && vehicleId && driverId && itemId
+        stationId && vehicleId && itemId
         && Number(quantity) > 0 && expiresAt,
     );
 
@@ -193,7 +194,7 @@ export function StationOperationsPanel() {
                             value: row.id, label: `${formatPlate(row.plate)} · ${row.brand ?? ''} ${row.model ?? ''}`,
                         }))]} fullWidth />
                     <SGFSelect label="Motorista responsável" value={driverId} onChange={setDriverId}
-                        options={[{ value: '', label: 'Selecione' }, ...drivers.map((row) => ({
+                        options={[{ value: '', label: ANY_DRIVER_OPTION_LABEL }, ...drivers.map((row) => ({
                             value: row.id, label: row.full_name,
                         }))]} fullWidth />
                     <SGFInput label={`Quantidade${chosenItem ? ` (${chosenItem.unit})` : ''}`} type="number" min="0.001" step="0.001"
@@ -232,7 +233,7 @@ export function StationOperationsPanel() {
                         <div className="grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-2">
                             <p><span className="text-slate-500">Item:</span> <strong>{selected.itemName}</strong></p>
                             <p><span className="text-slate-500">Veículo:</span> <strong>{formatPlate(selected.plate)}</strong></p>
-                            <p><span className="text-slate-500">Motorista:</span> <strong>{selected.driverName || '—'}</strong></p>
+                            <p><span className="text-slate-500">Motorista:</span> <strong>{selected.driverName || NO_DRIVER_LABEL}</strong></p>
                             <p><span className="text-slate-500">Secretaria:</span> <strong>{selected.departmentName || '—'}</strong></p>
                             <p><span className="text-slate-500">Autorizado por:</span> <strong>{selected.authorizerName}</strong></p>
                             <p><span className="text-slate-500">Data:</span> <strong>{formatDate(selected.executedAt ?? selected.authorizedAt)}</strong></p>

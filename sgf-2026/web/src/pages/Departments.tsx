@@ -51,6 +51,7 @@ import {
     getStatusLabel,
     formatPlate,
     formatPhone,
+    NO_DRIVER_LABEL,
 } from '@/lib/utils';
 import {
     SGFBadge,
@@ -612,8 +613,9 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
         {
             header: 'Motorista',
             accessor: (row: DepartmentDetail['recentRefuelings'][number]) => {
-                const name = row.drivers?.name || '—';
-                const photo = row.drivers?.photo_url;
+                if (!row.drivers?.name) return <span className="text-sm italic text-slate-400">{NO_DRIVER_LABEL}</span>;
+                const name = row.drivers.name;
+                const photo = row.drivers.photo_url;
                 return (
                     <div className="flex items-center gap-2.5">
                         {photo ? (
@@ -1139,7 +1141,7 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                                                 </div>
                                                 <div className="space-y-0.5 border-l border-slate-200 pl-3 flex flex-col justify-center">
                                                     <p className="truncate text-slate-600 font-medium text-[13px]">
-                                                        {item.drivers?.name || 'Sem motorista'}
+                                                        {item.drivers?.name || NO_DRIVER_LABEL}
                                                     </p>
                                                     <p className="truncate text-xs text-slate-500">
                                                         {item.date ? formatDate(item.date) : 'Sem data'} • {item.liters.toLocaleString('pt-BR')} L

@@ -1094,7 +1094,8 @@ export const refuelingsApi = withFotoUrls({
     createAuthorization: async (input: {
         procurement?: {requestId:string;itemId:string;allocationId:string};
         vehicle_id: string;
-        driver_id: string;
+        /** Opcional: sem motorista, quem estiver com o veículo pode executar. */
+        driver_id?: string | null;
         station_id: string;
         fuel_type: string;
         max_liters?: number | null;
@@ -1102,13 +1103,14 @@ export const refuelingsApi = withFotoUrls({
         notes?: string | null;
     }): Promise<string> => {
         if (input.procurement) {
-            const {data,error}=await supabase.rpc('issue_procurement_fueling',{p_request:input.procurement.requestId,p_payload:{item_id:input.procurement.itemId,allocation_id:input.procurement.allocationId,vehicle_id:input.vehicle_id,driver_id:input.driver_id,quantity:input.max_liters ?? null,expires_at:input.expires_at,note:input.notes?.trim() || null}});
+            const {data,error}=await supabase.rpc('issue_procurement_fueling',{p_request:input.procurement.requestId,p_payload:{item_id:input.procurement.itemId,allocation_id:input.procurement.allocationId,vehicle_id:input.vehicle_id,...(input.driver_id ? {driver_id:input.driver_id} : {}),quantity:input.max_liters ?? null,expires_at:input.expires_at,note:input.notes?.trim() || null}});
             if(error) handleError(error);
             return data;
         }
         const { data, error } = await supabase.rpc('manager_create_fueling_authorization', {
             p_vehicle_id: input.vehicle_id,
-            p_driver_id: input.driver_id,
+            // O banco aceita null (autorização sem motorista); os tipos gerados marcam como string.
+            p_driver_id: (input.driver_id ?? null) as string,
             p_station_id: input.station_id,
             p_fuel_type: input.fuel_type,
             p_max_liters: input.max_liters ?? undefined,
@@ -1183,7 +1185,8 @@ export const refuelingsApi = withFotoUrls({
 // mas o workflow de aprovação (pendente→aprovada→…) vive em service_orders.
 export interface MaintenanceRequestInput {
     vehicleId: string;
-    driverId: string;
+    /** Opcional: sem motorista, quem estiver com o veículo pode executar a OS. */
+    driverId?: string | null;
     category: string;
     priority: 'baixa' | 'media' | 'alta';
     description: string;
@@ -1232,7 +1235,7 @@ export const maintenancesApi = withFotoUrls({
     create: async (input: MaintenanceRequestInput): Promise<string> => {
         const { data, error } = await supabase.rpc('manager_create_service_order', {
             p_vehicle_id: input.vehicleId,
-            p_driver_id: input.driverId,
+            p_driver_id: (input.driverId ?? null) as string,
             p_category: input.category,
             p_priority: input.priority,
             p_description: input.description,
@@ -1247,7 +1250,7 @@ export const maintenancesApi = withFotoUrls({
         const { error } = await supabase.rpc('manager_update_service_order_request', {
             p_order_id: id,
             p_vehicle_id: input.vehicleId,
-            p_driver_id: input.driverId,
+            p_driver_id: (input.driverId ?? null) as string,
             p_category: input.category,
             p_priority: input.priority,
             p_description: input.description,

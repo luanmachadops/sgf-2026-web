@@ -8,6 +8,7 @@ import { useDrivers } from '@/hooks/useDrivers';
 import { vehiclesApi } from '@/lib/supabase-api';
 import { stationOperationsApi } from '@/lib/station-operations-api';
 import type { ProcurementItem } from '@/lib/procurement-items-api';
+import { ANY_DRIVER_OPTION_LABEL } from '@/lib/utils';
 
 const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 function expiry() {
@@ -40,7 +41,7 @@ export function AuthorizeStationContractModal({ item, allocationId, initialQuant
       onClose();
     },
   });
-  const ready = vehicleId && driverId && options.some(row => row.itemId === catalogId) && Number(quantity) > 0 && expiresAt;
+  const ready = vehicleId && options.some(row => row.itemId === catalogId) && Number(quantity) > 0 && expiresAt;
   return <Modal isOpen onClose={() => { if (!authorize.isPending) onClose(); }} title="Autorizar item ou serviço do contrato" size="lg">
     <p className="mb-4 text-sm text-slate-600"><strong>{item.reference} · {item.description}</strong> · {item.partner_name}. A autorização reserva o item e a dotação selecionados. Exige contrato habilitado e saldo de empenho; o servidor confere o preço vigente na emissão de hoje.</p>
     <form className="space-y-4" onSubmit={event => { event.preventDefault(); if (ready) authorize.mutate(); }}>
@@ -51,7 +52,7 @@ export function AuthorizeStationContractModal({ item, allocationId, initialQuant
         <p className="text-xs text-slate-500">Confira se o item do catálogo corresponde à especificação contratada. O preço utilizado será o do contrato.</p>
         {!catalog.isPending && !catalog.isError && options.length === 0 && <p role="alert">Não há item ativo com categoria e unidade compatíveis no catálogo deste posto.</p>}
         <SGFSelect fullWidth label="Veículo" value={vehicleId} onChange={setVehicleId} placeholder="Selecione o veículo" options={(vehicles.data ?? []).map(row => ({ value: row.id, label: `${row.plate} · ${row.brand} ${row.model}` }))}/>
-        <SGFSelect fullWidth label="Motorista responsável" value={driverId} onChange={setDriverId} placeholder="Selecione o motorista" options={(drivers.data ?? []).map(row => ({ value: row.id, label: row.full_name }))}/>
+        <SGFSelect fullWidth label="Motorista responsável" value={driverId} onChange={setDriverId} options={[{ value: '', label: ANY_DRIVER_OPTION_LABEL }, ...(drivers.data ?? []).map(row => ({ value: row.id, label: row.full_name }))]}/>
         <div className="grid gap-4 sm:grid-cols-2">
           <SGFInput fullWidth required type="number" min="0.001" step="0.001" label={`Quantidade (${unit})`} value={quantity} onChange={event => setQuantity(event.target.value)}/>
           <SGFInput fullWidth required type="datetime-local" label="Validade" value={expiresAt} onChange={event => setExpiresAt(event.target.value)}/>

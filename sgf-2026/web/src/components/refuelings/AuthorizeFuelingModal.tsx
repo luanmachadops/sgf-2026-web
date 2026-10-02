@@ -9,7 +9,7 @@ import { Car, Fuel, User } from '@/components/sgf/icons';
 import { stationsApi, vehiclesApi } from '@/lib/supabase-api';
 import { useCreateFuelAuthorization } from '@/hooks/useRefuelings';
 import { useDrivers } from '@/hooks/useDrivers';
-import { formatPlate, formatDriverLabel, matchesSearch } from '@/lib/utils';
+import { formatPlate, formatDriverLabel, matchesSearch, ANY_DRIVER_OPTION_LABEL } from '@/lib/utils';
 import { getStationUnavailableReason } from '@/lib/stationStatus';
 import { procurementApi } from '@/lib/procurement-api';
 import { stationClosingApi } from '@/lib/station-closing-api';
@@ -193,7 +193,6 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment, procu
         setError(null);
 
         if (!vehicleId) return setError('Selecione o veículo.');
-        if (!driverId) return setError('Selecione o motorista responsável.');
         if (!stationId) return setError('Selecione o posto que executará o abastecimento.');
         if (!fuelType) return setError('Selecione o combustível.');
         if (!expiresAt || new Date(expiresAt).getTime() <= Date.now()) {
@@ -230,7 +229,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment, procu
             await createAuth.mutateAsync({
                 ...(procurement ? { procurement: {requestId,itemId:procurement.itemId,allocationId:procurement.allocationId} } : {}),
                 vehicle_id: vehicleId,
-                driver_id: driverId,
+                driver_id: driverId || null,
                 station_id: stationId,
                 fuel_type: fuelType,
                 max_liters: parsedMaxLiters,
@@ -355,15 +354,15 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment, procu
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SGFSelect
-                        label="Motorista responsável"
-                        options={drivers.map((driver) => ({
+                        label="Motorista responsável (opcional)"
+                        options={[{ value: '', label: ANY_DRIVER_OPTION_LABEL }, ...drivers.map((driver) => ({
                             value: driver.id,
                             label: formatDriverLabel(driver),
                             photoUrl: driver.photo_url,
-                        }))}
+                        }))]}
                         value={driverId}
                         onChange={setDriverId}
-                        placeholder={driversLoading ? 'Carregando...' : 'Selecione o motorista'}
+                        placeholder={driversLoading ? 'Carregando...' : ANY_DRIVER_OPTION_LABEL}
                         disabled={driversLoading}
                         fullWidth
                         icon={User}

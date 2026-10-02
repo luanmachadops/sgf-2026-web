@@ -23,7 +23,7 @@ import {
     Sparkles,
 } from '@/components/sgf/icons';
 import { refuelingsApi } from '@/lib/supabase-api';
-import { formatCurrency, formatDate, formatPlate, cn } from '@/lib/utils';
+import { formatCurrency, formatDate, formatPlate, cn, NO_DRIVER_LABEL } from '@/lib/utils';
 import { useValidateRefueling, useCancelFuelAuthorization } from '@/hooks/useRefuelings';
 
 export type WorkflowStatus =
@@ -276,7 +276,8 @@ export function RefuelingDetailsModal({
             activeRefueling.driver ||
             activeRefueling.profiles?.full_name ||
             activeRefueling.drivers?.name ||
-            'Motorista não informado';
+            NO_DRIVER_LABEL;
+        const hasDriver = driverName !== NO_DRIVER_LABEL;
         const driverPhoto = activeRefueling.driverPhoto || driverObj?.photo_url || null;
         const driverCpf = activeRefueling.driverCpf || activeRefueling.profiles?.cpf || null;
 
@@ -318,6 +319,7 @@ export function RefuelingDetailsModal({
             tankCapacity,
             expectedConsumption,
             driverName,
+            hasDriver,
             driverPhoto,
             driverCpf,
             stationName,
@@ -730,13 +732,13 @@ export function RefuelingDetailsModal({
                                         />
                                     ) : (
                                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 font-bold text-sm">
-                                            {details.driverName.charAt(0).toUpperCase()}
+                                            {details.hasDriver ? details.driverName.charAt(0).toUpperCase() : <User className="h-5 w-5 text-slate-400" />}
                                         </div>
                                     )}
                                     <div className="min-w-0">
-                                        <p className="font-bold text-slate-900 truncate text-sm">{details.driverName}</p>
+                                        <p className={details.hasDriver ? 'font-bold text-slate-900 truncate text-sm' : 'truncate text-sm font-medium italic text-slate-400'}>{details.driverName}</p>
                                         <p className="text-xs text-slate-400 font-medium">
-                                            {details.driverCpf ? `CPF: ${details.driverCpf}` : 'Motorista credenciado'}
+                                            {details.driverCpf ? `CPF: ${details.driverCpf}` : details.hasDriver ? 'Motorista credenciado' : 'Quem estiver com o veículo pode executar'}
                                         </p>
                                     </div>
                                 </div>

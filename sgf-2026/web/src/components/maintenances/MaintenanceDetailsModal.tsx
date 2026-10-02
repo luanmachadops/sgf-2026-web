@@ -24,7 +24,7 @@ import { useRepairShops } from '@/hooks/useRepairShops';
 import { ServiceOrderFiscalPanel } from './ServiceOrderFiscalPanel';
 import { DossierPrintViewerModal } from './DossierPrintViewerModal';
 import { WorkshopModalShell } from '@/components/partners/workshop/WorkshopModalShell';
-import { formatDate, getPriorityStyles } from '@/lib/utils';
+import { formatDate, getPriorityStyles, NO_DRIVER_LABEL } from '@/lib/utils';
 import type { Tables } from '@/types/database.types';
 import type { FinStatus, OpStatus } from '@/lib/supabase-api';
 
@@ -337,7 +337,9 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                             </div>
                             <div className="min-w-0">
                                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Motorista</p>
-                                <p className="truncate font-bold text-slate-800">{m.profiles?.full_name ?? '—'}</p>
+                                {m.profiles?.full_name
+                                    ? <p className="truncate font-bold text-slate-800">{m.profiles.full_name}</p>
+                                    : <p className="truncate text-sm font-medium italic text-slate-400">{NO_DRIVER_LABEL}</p>}
                             </div>
                         </div>
 

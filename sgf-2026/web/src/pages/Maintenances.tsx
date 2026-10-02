@@ -26,7 +26,7 @@ import {
 } from '@/components/maintenances/MaintenanceDetailsModal';
 import { useMaintenances } from '@/hooks/useMaintenances';
 import { useHeader } from '@/contexts/HeaderContext';
-import { formatCurrency, formatDate, matchesSearch } from '@/lib/utils';
+import { formatCurrency, formatDate, matchesSearch, NO_DRIVER_LABEL } from '@/lib/utils';
 import type { FinStatus, OpStatus } from '@/lib/supabase-api';
 import { maintenanceManagerNextAction, maintenanceOperationalLabel } from '@/lib/maintenance-status';
 
@@ -40,7 +40,8 @@ interface MaintenanceItem {
     plate: string;
     photoUrl: string | null;
     department: string;
-    driverId: string;
+    driverId: string | null;
+    /** Vazio quando a OS não tem motorista definido. */
     driver: string;
     category: string;
     description: string;
@@ -171,7 +172,7 @@ function mapRow(row: MaintenanceDetailsRow): MaintenanceItem {
         photoUrl: vehicle?.photo_url ?? null,
         department: vehicle?.departments?.name ?? 'Sem secretaria',
         driverId: row.driver_id,
-        driver: row.profiles?.full_name ?? '—',
+        driver: row.profiles?.full_name ?? '',
         category: row.category ?? 'Sem categoria',
         description: row.description || 'Sem descrição',
         priority,
@@ -322,7 +323,7 @@ export default function Maintenances() {
             accessor: (item) => (
                 <div>
                     <p className="text-sm text-slate-700">{ORIGIN_LABEL[item.origin] ?? item.origin}</p>
-                    <p className="text-xs text-slate-400">{item.driver}</p>
+                    <p className={item.driver ? 'text-xs text-slate-400' : 'text-xs italic text-slate-400'}>{item.driver || NO_DRIVER_LABEL}</p>
                 </div>
             ),
         },

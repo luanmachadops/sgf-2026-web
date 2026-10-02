@@ -268,9 +268,9 @@ export async function generateServiceOrderDossier(orderId: string): Promise<Doss
         { label: 'Secretaria / Setor', value: vehicleObj?.departments?.name ?? '—' },
     ]);
 
-    const driverName = driverObj?.full_name ?? '—';
-    const driverRole = formatRoleLabel(driverObj?.role);
-    const driverCpf = maskCpfLGPD(driverObj?.cpf);
+    const driverName = driverObj?.full_name ?? 'Sem motorista definido';
+    const driverRole = driverObj ? formatRoleLabel(driverObj.role) : 'qualquer condutor do veículo';
+    const driverCpf = driverObj ? maskCpfLGPD(driverObj.cpf) : '—';
     const driverDept = driverObj?.departments?.name || driverObj?.department || vehicleObj?.departments?.name || '—';
 
     drawGridRow([

@@ -12,12 +12,12 @@ import { useVehicles } from '@/hooks/useVehicles';
 import { useDrivers } from '@/hooks/useDrivers';
 import { useCreateMaintenance, useUpdateMaintenance } from '@/hooks/useMaintenances';
 import { VehiclePickerField } from '@/components/sgf/VehiclePickerField';
-import { formatDriverLabel } from '@/lib/utils';
+import { formatDriverLabel, ANY_DRIVER_OPTION_LABEL } from '@/lib/utils';
 
 // Schema alinhado aos enums do banco (service_orders)
 const maintenanceSchema = z.object({
     vehicleId: z.string().min(1, 'Veículo é obrigatório'),
-    driverId: z.string().min(1, 'Motorista solicitante é obrigatório'),
+    driverId: z.string().optional(),
     category: z.string().min(1, 'Categoria é obrigatória'),
     categoryOther: z.string().optional(),
     priority: z.enum(['baixa', 'media', 'alta']),
@@ -36,7 +36,7 @@ type MaintenanceFormData = z.output<typeof maintenanceSchema>;
 export interface MaintenanceEditData {
     id: string;
     vehicleId: string;
-    driverId: string;
+    driverId: string | null;
     category: string;
     priority: 'baixa' | 'media' | 'alta';
     description: string;
@@ -91,7 +91,7 @@ export function NewMaintenanceForm({ onSuccess, onCancel, editData }: NewMainten
         defaultValues: editData
               ? {
                   vehicleId: editData.vehicleId,
-                  driverId: editData.driverId,
+                  driverId: editData.driverId ?? '',
                   category: knownCategory ? editData.category : 'Outro',
                   categoryOther: knownCategory ? '' : editData.category,
                   priority: editData.priority,
@@ -113,7 +113,7 @@ export function NewMaintenanceForm({ onSuccess, onCancel, editData }: NewMainten
         const category = data.category === 'Outro' ? (data.categoryOther?.trim() || 'Outro') : data.category;
         const input = {
             vehicleId: data.vehicleId,
-            driverId: data.driverId,
+            driverId: data.driverId || null,
             category,
             priority: data.priority,
             description: data.description.trim(),
@@ -162,16 +162,16 @@ export function NewMaintenanceForm({ onSuccess, onCancel, editData }: NewMainten
                     control={control}
                     render={({ field }) => (
                         <SGFSelect
-                            label="Motorista solicitante"
-                            options={drivers.map((driver) => ({
+                            label="Motorista solicitante (opcional)"
+                            options={[{ value: '', label: ANY_DRIVER_OPTION_LABEL }, ...drivers.map((driver) => ({
                                 value: driver.id,
                                 label: formatDriverLabel(driver),
                                 photoUrl: driver.photo_url,
-                            }))}
+                            }))]}
                             value={field.value}
                             onChange={field.onChange}
                             error={errors.driverId?.message}
-                            placeholder={driversLoading ? 'Carregando...' : 'Selecione o motorista'}
+                            placeholder={driversLoading ? 'Carregando...' : ANY_DRIVER_OPTION_LABEL}
                             disabled={driversLoading}
                             fullWidth
                             icon={User}
