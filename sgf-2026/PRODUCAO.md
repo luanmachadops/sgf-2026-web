@@ -281,6 +281,28 @@ do PRODUCAO.md. Typecheck após cada commit.
   botão no app para autorizações com preço reservado.
 - Superadmin: sem tela de plano/limites nem log de auditoria. Web: 24 erros de ESLint (boas práticas).
 
+## ✅ T7 — Criação de usuários destravada (2026-10-01, migration aplicada em produção)
+
+- Sintoma: "Novo Motorista" no painel dava 400. Nenhum usuário era criado desde 2026-09-08 (último em 2026-07-29).
+- Causa: `handle_new_user` (de `20260908235823`) exigia `app_metadata.tenant_id` no AFTER INSERT, mas o GoTrue
+  (`/auth/v1/admin/users`) insere o usuário antes e grava o `app_metadata` num UPDATE logo depois.
+- Correção: `20261001150000_fix_handle_new_user_app_metadata_order.sql` — o perfil nasce no INSERT se o tenant
+  já vier, ou no UPDATE que grava o `app_metadata` (trigger `on_auth_user_app_metadata_tenant`). Auto-cadastro sem
+  tenant fica sem perfil e sem acesso. Testada com rollback antes de aplicar.
+- Pendente: o painel mostrou o erro como `{}` em vez da mensagem — revisar o tratamento de erro do "Novo Motorista".
+
+## ✅ T8 — Visibilidade do motorista por contexto (2026-10-02, migrations aplicadas em produção)
+
+Regra "veículo em mãos + direcionado a mim":
+- O motorista lê tudo do veículo que está usando (`profiles.current_vehicle_id`): OS (com linha do tempo),
+  abastecimentos, viagens, checklists e ocorrências de qualquer motorista, com o nome de quem fez
+  (`get_current_vehicle_people()`). Rotas GPS de terceiros e outros veículos continuam bloqueados.
+- Lê também o que é direcionado a ele (`driver_id`) em qualquer veículo.
+- OS, autorização de abastecimento (comum e licitação) e ARLA/lubrificante podem ser criadas/editadas SEM
+  motorista; quem estiver com o veículo executa e a OS passa para o nome dele. Avisos vão para quem está com o veículo.
+- Migrations: `20261002120000_driver_vehicle_context_visibility`, `20261002123000_service_order_edit_optional_driver`,
+  `20261002130000_station_operation_optional_driver` (testadas com rollback antes de aplicar).
+
 ## Checklist final de go-live
 
 - [ ] T2, T3, T4 concluídas e testadas manualmente (login gestor, login motorista, viagem completa com checklist, abastecimento com workflow, push recebido)
