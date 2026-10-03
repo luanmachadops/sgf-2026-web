@@ -7,7 +7,7 @@ import { Building2, Loader2, Edit, Save, Eye } from '@/components/sgf/icons';
 import { tenantApi, type TenantData } from '@/lib/supabase-api';
 import { useAuth } from '@/contexts/AuthContext';
 import { applyBrandingColors } from '@/lib/tenantBranding';
-import { maskCNPJ } from '@/lib/utils';
+import { maskCNPJ, maskPhone } from '@/lib/utils';
 import { TenantBrandingPreviewModal } from '@/components/branding/TenantBrandingPreviewModal';
 
 type ImageKind = 'logo' | 'seal' | 'photo';
@@ -160,7 +160,7 @@ export function TenantIdentityCard() {
                 <SGFInput label="UF" value={tenant.state} readOnly={!isEditing} inputClassName={inputClasses} onChange={(e) => set({ state: e.target.value })} placeholder="RS" fullWidth />
                 <SGFInput label="Endereço" value={tenant.address} readOnly={!isEditing} inputClassName={inputClasses} onChange={(e) => set({ address: e.target.value })} fullWidth />
                 <SGFInput label="Texto do topo do login" value={tenant.loginEyebrow} readOnly={!isEditing} inputClassName={inputClasses} onChange={(e) => set({ loginEyebrow: e.target.value })} placeholder="PREFEITURA DE..." fullWidth />
-                <SGFInput label="Telefone de suporte no app" value={tenant.supportPhone} readOnly={!isEditing} inputClassName={inputClasses} onChange={(e) => set({ supportPhone: e.target.value })} placeholder="(00) 0000-0000" fullWidth />
+                <SGFInput label="Telefone de suporte no app" value={maskPhone(tenant.supportPhone ?? '')} readOnly={!isEditing} inputClassName={inputClasses} onChange={(e) => set({ supportPhone: maskPhone(e.target.value) })} placeholder="(00) 0000-0000" fullWidth />
                 <SGFInput label="E-mail de suporte no app" type="email" value={tenant.supportEmail} readOnly={!isEditing} inputClassName={inputClasses} onChange={(e) => set({ supportEmail: e.target.value })} placeholder="frota@prefeitura.gov.br" fullWidth />
             </div>
 
