@@ -41,13 +41,13 @@ export function DatePickerField({ value, onChange, label = 'Selecionar data', cl
                     type="button"
                     aria-label={label}
                     className={cn(
-                        'relative inline-flex w-[120px] items-center gap-2 rounded-full border bg-slate-50 py-1 pl-3 pr-2.5 text-xs font-medium transition-colors',
+                        'relative inline-flex w-[120px] items-center gap-2 rounded-full border bg-[var(--rt-paper)] py-1 pl-3 pr-2.5 text-xs font-medium transition-colors',
                         'hover:border-emerald-500/50 focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10',
-                        value ? 'border-emerald-300 text-slate-700' : 'border-slate-200 text-slate-400',
+                        value ? 'border-emerald-300 text-[var(--rt-ink700)]' : 'border-[var(--rt-hairline)] text-[var(--rt-ink400)]',
                         className
                     )}
                 >
-                    <Calendar className={cn('h-4 w-4 shrink-0', value ? 'text-emerald-600' : 'text-slate-400')} />
+                    <Calendar className={cn('h-4 w-4 shrink-0', value ? 'text-emerald-600' : 'text-[var(--rt-ink400)]')} />
                     <span className="truncate">{display}</span>
                 </button>
             </Popover.Trigger>
@@ -56,7 +56,7 @@ export function DatePickerField({ value, onChange, label = 'Selecionar data', cl
                 <Popover.Content
                     align="end"
                     sideOffset={6}
-                    className="z-[200] rounded-2xl border border-slate-200 bg-white p-3 shadow-xl animate-in fade-in zoom-in-95 duration-150"
+                    className="z-[200] rounded-2xl border border-[var(--rt-hairline)] bg-white p-3 shadow-xl animate-in fade-in zoom-in-95 duration-150"
                 >
                     <DayPicker
                         mode="single"
@@ -71,18 +71,18 @@ export function DatePickerField({ value, onChange, label = 'Selecionar data', cl
                             setOpen(false);
                         }}
                         style={RDP_THEME}
-                        className="sgf-rdp text-slate-700 [&_.rdp-day_button:hover]:bg-emerald-50 [&_.rdp-chevron]:fill-emerald-600"
+                        className="sgf-rdp text-[var(--rt-ink700)] [&_.rdp-day_button:hover]:bg-[var(--rt-brand-50)] [&_.rdp-chevron]:fill-emerald-600"
                         classNames={{
-                            month_caption: 'flex items-center justify-center gap-2 px-1 pb-2 text-sm font-semibold text-slate-800',
+                            month_caption: 'flex items-center justify-center gap-2 px-1 pb-2 text-sm font-semibold text-[var(--rt-ink900)]',
                             caption_label: 'hidden',
                             dropdowns: 'flex items-center gap-2',
                             dropdown_root: 'relative inline-flex items-center',
                             dropdown:
-                                'cursor-pointer appearance-none rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-sm font-semibold text-slate-700 hover:border-emerald-500/50 focus:border-emerald-500 focus:outline-none',
-                            weekday: 'text-[11px] font-semibold uppercase tracking-wide text-slate-400',
+                                'cursor-pointer appearance-none rounded-full border border-[var(--rt-hairline)] bg-[var(--rt-paper)] px-2.5 py-1 text-sm font-semibold text-[var(--rt-ink700)] hover:border-emerald-500/50 focus:border-emerald-500 focus:outline-none',
+                            weekday: 'text-[11px] font-semibold uppercase tracking-wide text-[var(--rt-ink400)]',
                             day_button: 'rounded-full text-sm font-medium transition-colors',
                             today: 'font-bold text-emerald-600',
-                            outside: 'text-slate-300',
+                            outside: 'text-[var(--rt-ink400)]',
                             disabled: 'text-slate-200',
                         }}
                     />

@@ -3,9 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { tenantsApi, type Tenant } from '@/lib/api';
-import { Card, Button, Input, Badge } from '@/lib/ui';
+import { Button, Input, Badge } from '@/lib/ui';
 import { SGFCard, SGFSelect } from '@/components/sgf';
-import { ArrowLeft, Building2, Receipt, User, Map, ShieldCheck } from '@/components/sgf/icons';
+import { ArrowLeft, Building2, Car, User, Map, ShieldCheck } from '@/components/sgf/icons';
 import { ManagersPanel } from '@/components/ManagersPanel';
 import { TenantBrandingPreviewModal } from '@/components/branding/TenantBrandingPreviewModal';
 import { Eye } from '@/components/sgf/icons';
@@ -24,7 +24,7 @@ export default function TenantDetail() {
   const [showPreview, setShowPreview] = useState(false);
   useEffect(() => { if (data) setT(data); }, [data]);
 
-  if (isLoading || !t) return <p className="text-slate-400">Carregando…</p>;
+  if (isLoading || !t) return <div className="h-72 animate-pulse rounded-[var(--rt-radius-card)] bg-white" />;
   const set = (p: Partial<Tenant>) => setT((cur) => (cur ? { ...cur, ...p } : cur));
 
   const save = async () => {
@@ -59,118 +59,149 @@ export default function TenantDetail() {
   };
 
   const STATS = [
-    { icon: Receipt, color: 'text-blue-600', bg: 'bg-blue-50', value: stats?.vehicles ?? '—', label: 'Veículos' },
-    { icon: User, color: 'text-violet-600', bg: 'bg-violet-50', value: stats?.drivers ?? '—', label: 'Motoristas' },
-    { icon: Map, color: 'text-emerald-600', bg: 'bg-emerald-50', value: stats?.trackers ?? '—', label: 'Rastreadores' },
-    { icon: ShieldCheck, color: 'text-amber-600', bg: 'bg-amber-50', value: stats?.managers ?? '—', label: 'Gestores' },
+    { icon: Car, value: stats?.vehicles, label: 'Veículos' },
+    { icon: User, value: stats?.drivers, label: 'Motoristas' },
+    { icon: Map, value: stats?.trackers, label: 'Rastreadores' },
+    { icon: ShieldCheck, value: stats?.managers, label: 'Gestores' },
   ];
+  const IMAGES = [
+    { kind: 'photo' as const, key: 'photo_url' as const, label: 'Foto da prefeitura', hint: 'Capa do login e dos cartões', cover: true },
+    { kind: 'seal' as const, key: 'seal_url' as const, label: 'Brasão', hint: 'Relatórios e cabeçalhos', cover: false },
+    { kind: 'logo' as const, key: 'logo_url' as const, label: 'Logo', hint: 'Marca no painel do gestor', cover: false },
+  ];
+  const mark = t.seal_url || t.logo_url;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-4">
-          <Button variant="ghost" onClick={() => navigate('/prefeituras')}><ArrowLeft className="h-4 w-4" /> Voltar</Button>
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center">
-              {t.photo_url || t.seal_url || t.logo_url
-                ? <img src={(t.photo_url || t.seal_url || t.logo_url)!} alt={t.name} className="h-full w-full object-contain" />
-                : <div className="flex h-full w-full items-center justify-center rounded-xl bg-[var(--sgf-dark)]"><Building2 className="h-6 w-6 text-white" /></div>}
-            </div>
-            <div className="min-w-0">
-              <h1 className="flex items-center gap-2 truncate text-2xl font-bold text-slate-900">
-                {t.name} <Badge status={t.status} />
-              </h1>
-              <p className="truncate text-sm text-slate-500">{[t.city ? `${t.city}${t.state ? '/' + t.state : ''}` : '', t.slug].filter(Boolean).join('  •  ')}</p>
+      {/* Destaque da prefeitura */}
+      <section className="rt-rise relative overflow-hidden rounded-[var(--rt-radius-card)] bg-[var(--rt-ink900)] text-white">
+        {t.photo_url && <img src={t.photo_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />}
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--rt-ink900)] via-[var(--rt-ink900)]/85 to-[var(--rt-ink900)]/40" aria-hidden />
+        <div className="relative p-6 sm:p-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button onClick={() => navigate('/prefeituras')} className="inline-flex h-10 items-center gap-2 rounded-full bg-white/10 pl-3 pr-4 text-sm font-semibold transition hover:bg-white/15">
+              <ArrowLeft className="h-4 w-4" /> Prefeituras
+            </button>
+            <div className="flex items-center gap-2">
+              <SGFSelect value={t.status} onChange={(status) => set({ status })}
+                options={[{ value: 'active', label: 'Ativa' }, { value: 'trial', label: 'Trial / Demo' }, { value: 'suspended', label: 'Suspensa' }]}
+                className="w-40" triggerClassName="!h-10 !bg-white/10 !text-white hover:!bg-white/15" />
+              <Button onClick={save} disabled={saving}>{saving ? 'Salvando…' : 'Salvar alterações'}</Button>
             </div>
           </div>
-        </div>
-        <div className="flex shrink-0 items-center justify-end gap-2">
-          <SGFSelect value={t.status} onChange={(status) => set({ status })}
-            options={[{ value: 'active', label: 'Ativa' }, { value: 'trial', label: 'Trial / Demo' }, { value: 'suspended', label: 'Suspensa' }]}
-            className="w-44" />
-          <Button onClick={save} disabled={saving}>{saving ? 'Salvando…' : 'Salvar'}</Button>
-        </div>
-      </div>
 
-      {/* Quick stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        {STATS.map((s) => {
-          const Icon = s.icon;
-          return (
-            <SGFCard key={s.label} padding="sm">
-              <div className="flex items-center gap-3">
-                <div className={`rounded-xl p-2.5 ${s.bg}`}><Icon className={`h-5 w-5 ${s.color}`} /></div>
-                <div className="min-w-0">
-                  <p className="truncate text-xl font-bold text-slate-900">{s.value}</p>
-                  <p className="truncate text-sm text-slate-500">{s.label}</p>
+          <div className="mt-8 flex items-center gap-4">
+            <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white ring-4 ring-white/10">
+              {mark ? <img src={mark} alt="" className="h-full w-full object-contain p-1.5" /> : <Building2 className="h-7 w-7 text-[var(--rt-ink900)]" />}
+            </span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="truncate text-2xl font-bold tracking-[-0.01em] sm:text-[28px]">{t.name}</h1>
+                <Badge status={t.status} />
+              </div>
+              <p className="mt-1 truncate text-sm text-white/60">{[t.city ? `${t.city}${t.state ? '/' + t.state : ''}` : '', t.slug].filter(Boolean).join(' · ')}</p>
+            </div>
+          </div>
+
+          <div className="mt-8 grid grid-cols-2 gap-4 border-t border-white/10 pt-6 sm:grid-cols-4">
+            {STATS.map((st) => (
+              <div key={st.label} className="flex items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/10"><st.icon width={20} height={20} /></span>
+                <div>
+                  <p className="rt-num text-2xl font-light leading-none">{st.value ?? '—'}</p>
+                  <p className="mt-1 text-xs text-white/55">{st.label}</p>
                 </div>
               </div>
-            </SGFCard>
-          );
-        })}
-      </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-      {/* Tabs */}
-      <div className="mx-auto grid w-full grid-cols-2 gap-1 rounded-xl bg-slate-100/70 p-1 sm:w-[320px]">
-        {([['identidade', 'Identidade'], ['acessos', 'Acessos']] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`rounded-lg py-2 text-sm font-semibold transition-all ${tab === key ? 'bg-[#00A86B] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>
+      {/* Abas em pílula */}
+      <div className="inline-flex rounded-full bg-white p-1 shadow-[var(--rt-shadow-card)]" role="tablist">
+        {([['identidade', 'Identidade'], ['acessos', 'Gestores e acessos']] as const).map(([key, label]) => (
+          <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
+            className={`h-10 rounded-full px-5 text-sm font-semibold transition ${tab === key ? 'bg-[var(--rt-ink900)] text-white' : 'text-[var(--rt-ink500)] hover:text-[var(--rt-ink900)]'}`}>
             {label}
           </button>
         ))}
       </div>
 
       {tab === 'identidade' && (
-        <Card>
-          <h2 className="mb-4 text-lg font-semibold">Dados & White-label</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Input label="Nome" value={t.name} onChange={(e) => set({ name: e.target.value })} />
-            <Input label="Slug" value={t.slug} onChange={(e) => set({ slug: e.target.value })} />
-            <Input label="Nome no app" value={t.app_name ?? ''} onChange={(e) => set({ app_name: e.target.value })} />
-            <Input label="Topo do login" value={t.login_eyebrow ?? ''} onChange={(e) => set({ login_eyebrow: e.target.value })} />
-            <Input label="Cidade" value={t.city ?? ''} onChange={(e) => set({ city: e.target.value })} />
-            <Input label="UF" value={t.state ?? ''} onChange={(e) => set({ state: e.target.value })} />
-            <Input label="CNPJ" value={t.cnpj ?? ''} onChange={(e) => set({ cnpj: e.target.value })} />
-            <Input label="Prefeito(a)" value={t.mayor_name ?? ''} onChange={(e) => set({ mayor_name: e.target.value })} />
-            <Input label="Endereço" value={t.address ?? ''} onChange={(e) => set({ address: e.target.value })} />
-            <Input label="Rodapé dos relatórios" value={t.report_footer ?? ''} onChange={(e) => set({ report_footer: e.target.value })} />
-            <Input label="Logo (URL)" value={t.logo_url ?? ''} onChange={(e) => set({ logo_url: e.target.value })} />
-            <Input label="Brasão (URL)" value={t.seal_url ?? ''} onChange={(e) => set({ seal_url: e.target.value })} />
-            <Input label="Foto (URL)" value={t.photo_url ?? ''} onChange={(e) => set({ photo_url: e.target.value })} />
-          </div>
-          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {([
-              ['logo', 'Enviar logo'],
-              ['seal', 'Enviar brasão'],
-              ['photo', 'Enviar foto da prefeitura'],
-            ] as const).map(([kind, label]) => (
-              <label key={kind} className={`block rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 ${uploading ? 'pointer-events-none opacity-60' : ''}`}>
-                <span className="mb-2 block text-sm font-semibold text-slate-700">{label}</span>
-                <input type="file" accept="image/*" onChange={(e) => void uploadBranding(kind, e.target.files?.[0])} className="block w-full text-xs text-slate-500 file:mr-2 file:rounded-full file:border-0 file:bg-emerald-100 file:px-3 file:py-2 file:font-semibold file:text-emerald-700" />
-              </label>
-            ))}
-          </div>
-          <div className="mt-5 flex flex-wrap items-end justify-between gap-4 border-t border-slate-100 pt-5">
-            <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Cores do painel</p>
-              <div className="flex flex-wrap gap-3">
-            {([['Primária', 'primary_color'], ['Escura', 'dark_color'], ['Destaque', 'accent_color']] as const).map(([lbl, key]) => (
-              <label key={key} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
-                <input aria-label={`Cor ${lbl.toLowerCase()}`} type="color" value={(t[key] as string) || '#000000'} onChange={(e) => set({ [key]: e.target.value } as Partial<Tenant>)} className="h-8 w-10 cursor-pointer rounded-lg border-0 bg-transparent p-0" />
-                <span>
-                  <span className="block text-[10px] uppercase tracking-wide text-slate-400">{lbl}</span>
-                  <span className="font-mono text-xs">{(t[key] as string) || '#000000'}</span>
-                </span>
-              </label>
-            ))}
+        <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+          <div className="space-y-4">
+            <SGFCard padding="lg" title="Dados do município" icon={Building2}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input label="Nome" value={t.name} onChange={(e) => set({ name: e.target.value })} className="sm:col-span-2" />
+                <Input label="Cidade" value={t.city ?? ''} onChange={(e) => set({ city: e.target.value })} />
+                <Input label="UF" value={t.state ?? ''} maxLength={2} onChange={(e) => set({ state: e.target.value.toUpperCase() })} />
+                <Input label="CNPJ" value={t.cnpj ?? ''} onChange={(e) => set({ cnpj: e.target.value })} />
+                <Input label="Prefeito(a)" value={t.mayor_name ?? ''} onChange={(e) => set({ mayor_name: e.target.value })} />
+                <Input label="Endereço" value={t.address ?? ''} onChange={(e) => set({ address: e.target.value })} className="sm:col-span-2" />
               </div>
-            </div>
-            <Button variant="outline" onClick={() => setShowPreview(true)}>
-              <Eye className="h-4 w-4" /> Visualizar painel
-            </Button>
+            </SGFCard>
+
+            <SGFCard padding="lg" title="Aparência no sistema" icon={Eye}>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Input label="Endereço no sistema (slug)" value={t.slug} onChange={(e) => set({ slug: e.target.value })} />
+                <Input label="Nome no app" value={t.app_name ?? ''} onChange={(e) => set({ app_name: e.target.value })} />
+                <Input label="Texto acima do login" value={t.login_eyebrow ?? ''} onChange={(e) => set({ login_eyebrow: e.target.value })} />
+                <Input label="Rodapé dos relatórios" value={t.report_footer ?? ''} onChange={(e) => set({ report_footer: e.target.value })} />
+              </div>
+
+              <p className="mb-3 mt-6 text-[13px] font-medium text-[var(--rt-ink500)]">Cores da prefeitura</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {([['Primária', 'primary_color'], ['Escura', 'dark_color'], ['Destaque', 'accent_color']] as const).map(([lbl, key]) => (
+                  <label key={key} className="flex cursor-pointer items-center gap-3 rounded-2xl bg-[var(--rt-paper)] p-2.5 transition hover:bg-[var(--rt-paper2)]">
+                    <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl shadow-[inset_0_0_0_1px_rgb(0_0_0/0.08)]" style={{ background: (t[key] as string) || '#000000' }}>
+                      <input aria-label={`Cor ${lbl.toLowerCase()}`} type="color" value={(t[key] as string) || '#000000'} onChange={(e) => set({ [key]: e.target.value } as Partial<Tenant>)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-medium text-[var(--rt-ink900)]">{lbl}</span>
+                      <span className="font-mono text-xs uppercase text-[var(--rt-ink500)]">{(t[key] as string) || '#000000'}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div className="mt-5 flex justify-end">
+                <Button variant="outline" onClick={() => setShowPreview(true)}><Eye className="h-4 w-4" /> Pré-visualizar painel</Button>
+              </div>
+            </SGFCard>
           </div>
-        </Card>
+
+          <SGFCard padding="lg" title="Imagens" icon={Map} className="h-fit">
+            <div className="space-y-3">
+              {IMAGES.map((img) => {
+                const url = t[img.key] as string | null;
+                return (
+                  <div key={img.kind} className="flex items-center gap-3 rounded-[22px] bg-[var(--rt-paper)] p-2.5">
+                    <span className={`grid h-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white text-[var(--rt-ink300)] ${img.cover ? 'w-24' : 'w-16'}`}>
+                      {url ? <img src={url} alt="" className={`h-full w-full ${img.cover ? 'object-cover' : 'object-contain p-1.5'}`} /> : <Building2 width={22} height={22} />}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-[var(--rt-ink900)]">{img.label}</p>
+                      <p className="text-xs text-[var(--rt-ink500)]">{img.hint}</p>
+                    </div>
+                    <label className={`inline-flex h-9 cursor-pointer items-center rounded-full bg-white px-4 text-[13px] font-semibold text-[var(--rt-ink900)] shadow-[var(--rt-shadow-card)] transition hover:bg-[var(--rt-paper2)] ${uploading ? 'pointer-events-none opacity-60' : ''}`}>
+                      {url ? 'Trocar' : 'Enviar'}
+                      <input type="file" accept="image/*" className="sr-only" onChange={(e) => void uploadBranding(img.kind, e.target.files?.[0])} />
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+            <details className="group mt-4">
+              <summary className="cursor-pointer list-none rounded-full px-1 text-[13px] font-semibold text-[var(--rt-ink500)] hover:text-[var(--rt-ink900)]">
+                Endereços das imagens (avançado)
+              </summary>
+              <div className="mt-3 space-y-3">
+                <Input label="Logo (URL)" value={t.logo_url ?? ''} onChange={(e) => set({ logo_url: e.target.value })} />
+                <Input label="Brasão (URL)" value={t.seal_url ?? ''} onChange={(e) => set({ seal_url: e.target.value })} />
+                <Input label="Foto (URL)" value={t.photo_url ?? ''} onChange={(e) => set({ photo_url: e.target.value })} />
+              </div>
+            </details>
+          </SGFCard>
+        </div>
       )}
 
       {tab === 'acessos' && <ManagersPanel tenantId={t.id} />}

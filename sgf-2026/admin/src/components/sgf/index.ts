@@ -14,3 +14,5 @@ export { SGFSelect } from './SGFSelect';
 export type { SGFSelectProps, SGFSelectOption } from './SGFSelect';
 export { PeriodSelect, PeriodPresetSelect, PeriodRangeFields, PERIOD_PRESETS, makePeriod, resolvePeriod } from './PeriodSelect';
 export type { PeriodValue, ResolvedPeriod, PeriodSelectProps } from './PeriodSelect';
+export { PageHeader, SectionTitle } from './PageHeader';
+export { Sheet, ImageDrop, FilterChip, SearchField } from './Sheet';

@@ -1,18 +1,18 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { trackersApi, tenantsApi, vehiclesApi, TRACKER_MODELS, type VehicleOption } from '@/lib/api';
+import { trackersApi, tenantsApi, vehiclesApi, TRACKER_MODELS, type VehicleOption, type Tracker } from '@/lib/api';
 import { iopgpsApi } from '@/lib/iopgpsApi';
 import { VehiclePicker } from '@/components/VehiclePicker';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
-import { Camera } from '@/components/sgf/icons';
-import { Card, Button } from '@/lib/ui';
-import { SGFSelect } from '@/components/sgf';
+import { Camera, Plus } from '@/components/sgf/icons';
+import { Button } from '@/lib/ui';
+import { SGFSelect, SGFTable, SGFBadge, SGFButton, Sheet } from '@/components/sgf';
 import { TenantIdentity } from '@/components/TenantIdentity';
 
 // Estilo padrão dos campos (mesma altura/design do SGFInput) reutilizado em toda a página.
-const LABEL_CLS = 'mb-[var(--sgf-space-2)] block text-[var(--sgf-text-sm)] font-semibold text-[var(--sgf-text-primary)]';
-const FIELD_CLS = 'w-full h-11 rounded-[var(--sgf-input-radius)] border border-slate-200 bg-slate-50 px-[var(--sgf-input-padding-x)] text-[var(--sgf-text-sm)] transition-all placeholder:text-slate-400 focus:border-[var(--sgf-primary)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-500/10 disabled:opacity-50';
+const LABEL_CLS = 'mb-2 block text-[13px] font-medium text-[var(--rt-ink500)]';
+const FIELD_CLS = 'w-full h-12 rounded-2xl border border-transparent bg-[var(--rt-paper)] px-4 text-[15px] text-[var(--rt-ink900)] transition placeholder:text-[var(--rt-ink400)] focus:border-[var(--rt-brand)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[var(--rt-brand)]/10 disabled:opacity-50';
 
 /** Máscara de telefone BR: +55 (44) 99999-9999 (aceita fixo 8 dígitos). */
 function maskPhone(value: string): string {
@@ -56,6 +56,7 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
   const formVehicles = formTenant ? (vehiclesByTenant.get(formTenant) ?? []) : [];
   const [detected, setDetected] = useState<{ model: string | null; online: boolean | null } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
 
   // Detecta o modelo do aparelho na IOPGPS pelo IMEI e preenche automaticamente.
   const detect = useMutation({
@@ -101,12 +102,39 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
 
   const canSubmit = (fixed || f.tenant_id) && f.identifier.trim().length > 0;
 
+  const linked = trackers.filter((t) => t.vehicle_id).length;
+  const activeCount = trackers.filter((t) => t.active).length;
+
   return (
-    <div className="space-y-5">
-      <Card>
-        <h2 className="mb-1 text-lg font-semibold text-slate-800">Cadastrar rastreador</h2>
-        <p className="mb-4 text-sm text-slate-500">Informe o IMEI e clique em <span className="font-semibold">Detectar</span> — o modelo é identificado automaticamente na IOPGPS. Depois vincule ao veículo.</p>
-        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2">
+          {[
+            { label: 'Cadastrados', value: trackers.length },
+            { label: 'Ativos', value: activeCount },
+            { label: 'Vinculados a veículo', value: linked },
+          ].map((k) => (
+            <span key={k.label} className="inline-flex h-10 items-center gap-2 rounded-full bg-white pl-4 pr-1.5 text-sm font-medium text-[var(--rt-ink700)] shadow-[var(--rt-shadow-card)]">
+              {k.label}
+              <span className="rt-num grid h-7 min-w-7 place-items-center rounded-full bg-[var(--rt-paper)] px-2 text-[13px] font-semibold text-[var(--rt-ink900)]">{k.value}</span>
+            </span>
+          ))}
+        </div>
+        <Button onClick={() => setFormOpen(true)}><Plus width={18} height={18} /> Cadastrar rastreador</Button>
+      </div>
+
+      <Sheet
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        size="lg"
+        title="Cadastrar rastreador"
+        subtitle="Informe o IMEI e toque em Detectar: o modelo vem da IOPGPS. Depois vincule ao veículo."
+        footer={<>
+          <Button variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
+          <Button disabled={!canSubmit || create.isPending} onClick={() => create.mutate(undefined, { onSuccess: () => setFormOpen(false) })}>{create.isPending ? 'Salvando…' : 'Cadastrar'}</Button>
+        </>}
+      >
+        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
           {!fixed && (
             <SGFSelect label="Prefeitura" fullWidth value={f.tenant_id}
               onChange={(tenant_id) => set({ tenant_id, vehicle_id: '' })}
@@ -125,7 +153,7 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
                 type="button"
                 onClick={() => setScanOpen(true)}
                 title="Ler por câmera (código de barras/QR)"
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--sgf-input-radius)] border border-slate-200 bg-slate-50 text-slate-600 transition hover:border-[var(--sgf-primary)] hover:text-[var(--sgf-primary)]"
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[var(--rt-paper)] text-[var(--rt-ink700)] transition hover:bg-[var(--rt-brand-100)] hover:text-[var(--rt-brand)]"
               >
                 <Camera className="h-5 w-5" />
               </button>
@@ -133,7 +161,7 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
                 type="button"
                 onClick={() => detect.mutate(f.identifier)}
                 disabled={f.identifier.trim().length < 6 || detect.isPending}
-                className="h-11 shrink-0 rounded-[var(--sgf-input-radius)] border border-[var(--sgf-primary)] px-3 text-xs font-semibold text-[var(--sgf-primary)] transition hover:bg-emerald-50 disabled:opacity-40"
+                className="h-12 shrink-0 rounded-full bg-[var(--rt-ink900)] px-4 text-[13px] font-semibold text-white transition hover:bg-[#163b40] disabled:opacity-40"
               >
                 {detect.isPending ? '…' : 'Detectar'}
               </button>
@@ -150,12 +178,12 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
             />
             <datalist id="tracker-models">{TRACKER_MODELS.map((m) => <option key={m} value={m} />)}</datalist>
             {detected && (
-              <span className="mt-1 block text-[11px] font-medium text-emerald-600">
+              <span className="mt-1.5 block text-xs font-medium text-[#0B7A50]">
                 Detectado na IOPGPS{detected.online == null ? '' : detected.online ? ' · online' : ' · offline'}
               </span>
             )}
           </label>
-          <label className="block sm:col-span-2 lg:col-span-1">
+          <label className="block sm:col-span-2">
             <span className={LABEL_CLS}>Veículo</span>
             <VehiclePicker
               vehicles={formVehicles}
@@ -174,60 +202,52 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
             <input value={f.sim_number} onChange={(e) => set({ sim_number: maskPhone(e.target.value) })} placeholder="+55 (44) 99999-9999" inputMode="numeric" className={FIELD_CLS} />
           </label>
         </div>
-        <div className="mt-4 flex justify-end">
-          <Button disabled={!canSubmit || create.isPending} onClick={() => create.mutate()}>{create.isPending ? 'Salvando…' : 'Cadastrar'}</Button>
-        </div>
-      </Card>
+      </Sheet>
 
-      <Card className="p-0">
-        {isLoading ? <p className="p-5 text-slate-400">Carregando…</p> : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-sm">
-              <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-                {!fixed && <th className="px-5 py-3">Prefeitura</th>}
-                <th className="px-5 py-3">Identificador</th><th className="px-5 py-3">Apelido</th><th className="px-5 py-3">Veículo</th><th className="px-5 py-3">Modelo</th><th className="px-5 py-3">Chip</th><th className="px-5 py-3">Status</th><th></th>
-              </tr></thead>
-              <tbody>
-                {trackers.map((t) => {
-                  const opts = vehiclesByTenant.get(t.tenant_id) ?? [];
-                  return (
-                    <tr key={t.id} className="border-b border-slate-100">
-                      {!fixed && <td className="px-5 py-3 text-slate-600"><TenantIdentity tenant={tenantById[t.tenant_id]} /></td>}
-                      <td className="px-5 py-3 font-mono text-slate-800">{t.identifier}</td>
-                      <td className="px-5 py-3">{t.label ?? '—'}</td>
-                      <td className="px-5 py-3">
-                        <VehiclePicker
-                          compact
-                          vehicles={opts}
-                          value={t.vehicle_id ?? null}
-                          onChange={(id) => setVehicle.mutate({ id: t.id, vehicleId: id })}
-                          emptyLabel="Vincular veículo"
-                        />
-                      </td>
-                      <td className="px-5 py-3">{t.model}</td>
-                      <td className="px-5 py-3">{t.sim_number ?? '—'}</td>
-                      <td className="px-5 py-3">
-                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${t.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
-                          {t.active ? 'Ativo' : 'Inativo'}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-right">
-                        <div className="flex justify-end gap-3">
-                          <button onClick={() => toggle.mutate({ id: t.id, active: !t.active })} className="text-xs font-semibold text-[var(--sgf-primary)] hover:underline">
-                            {t.active ? 'Desativar' : 'Ativar'}
-                          </button>
-                          <button onClick={() => { if (confirm('Remover este rastreador?')) remove.mutate(t.id); }} className="text-xs font-semibold text-rose-600 hover:underline">Remover</button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {trackers.length === 0 && <tr><td colSpan={fixed ? 7 : 8} className="px-5 py-8 text-center text-slate-400">Nenhum rastreador cadastrado.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      <SGFTable<Tracker>
+        loading={isLoading}
+        data={trackers}
+        keyExtractor={(t) => t.id}
+        emptyMessage="Nenhum rastreador cadastrado."
+        columns={[
+          ...(!fixed ? [{ header: 'Prefeitura', accessor: (t: Tracker) => <TenantIdentity tenant={tenantById[t.tenant_id]} /> }] : []),
+          {
+            header: 'Rastreador',
+            accessor: (t: Tracker) => (
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-[var(--rt-ink900)]">{t.label || t.model}</p>
+                <p className="rt-num truncate font-mono text-xs text-[var(--rt-ink500)]">{t.identifier}</p>
+              </div>
+            ),
+          },
+          {
+            header: 'Veículo',
+            className: 'min-w-[220px]',
+            accessor: (t: Tracker) => (
+              <VehiclePicker
+                compact
+                vehicles={vehiclesByTenant.get(t.tenant_id) ?? []}
+                value={t.vehicle_id ?? null}
+                onChange={(id) => setVehicle.mutate({ id: t.id, vehicleId: id })}
+                emptyLabel="Vincular veículo"
+              />
+            ),
+          },
+          { header: 'Modelo', accessor: (t: Tracker) => t.model },
+          { header: 'Chip', accessor: (t: Tracker) => <span className="rt-num whitespace-nowrap">{t.sim_number ?? '—'}</span> },
+          { header: 'Situação', accessor: (t: Tracker) => <SGFBadge variant={t.active ? 'success' : 'default'} dot>{t.active ? 'Ativo' : 'Inativo'}</SGFBadge> },
+          {
+            header: '',
+            className: 'text-right',
+            accessor: (t: Tracker) => (
+              <div className="flex justify-end gap-1.5">
+                <SGFButton size="sm" variant="outline" onClick={() => toggle.mutate({ id: t.id, active: !t.active })}>{t.active ? 'Desativar' : 'Ativar'}</SGFButton>
+                <SGFButton size="sm" variant="ghost" className="!text-[var(--rt-red600)]" onClick={() => { if (confirm('Remover este rastreador?')) remove.mutate(t.id); }}>Remover</SGFButton>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       <BarcodeScanner
         open={scanOpen}

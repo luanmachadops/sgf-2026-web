@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { aiApi, tenantsApi } from '@/lib/api';
-import { Card, Button, Input, fmtUsd } from '@/lib/ui';
+import { Input, fmtUsdSmart } from '@/lib/ui';
+import { PageHeader, SGFTable, SGFButton } from '@/components/sgf';
+import { Sparkle } from '@/components/sgf/icons';
 import { TenantIdentity } from '@/components/TenantIdentity';
 
 export default function AiUsage() {
@@ -34,42 +36,69 @@ export default function AiUsage() {
 
   const totalMonth = Object.values(perTenant).reduce((s, a) => s + a.cost, 0);
 
+  const totalCalls = Object.values(perTenant).reduce((n, a) => n + a.calls, 0);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Uso de IA</h1>
-        <p className="text-sm text-slate-500">Custo por prefeitura (mês atual) e tetos de gasto.</p>
-      </div>
+      <PageHeader title="Uso de IA" subtitle="Custo de inteligência artificial por prefeitura no mês atual e os tetos de gasto." />
 
-      <Card><div className="text-2xl font-bold text-[var(--sgf-dark)]">{fmtUsd(totalMonth)}</div><div className="text-xs uppercase text-slate-400">Custo total de IA (mês)</div></Card>
+      <section className="rt-rise relative overflow-hidden rounded-[var(--rt-radius-card)] bg-[var(--rt-ink900)] p-6 text-white sm:p-8">
+        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#F26A1F]/15 blur-3xl" aria-hidden />
+        <div className="relative flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold"><Sparkle width={14} height={14} /> Mês atual</span>
+            <p className="rt-num mt-5 text-[52px] font-light leading-none">{fmtUsdSmart(totalMonth)}</p>
+            <p className="mt-2 text-sm text-white/55">custo total em todas as prefeituras</p>
+          </div>
+          <div>
+            <p className="rt-num text-[28px] font-light leading-none">{totalCalls.toLocaleString('pt-BR')}</p>
+            <p className="mt-1.5 text-xs text-white/55">chamadas no mês</p>
+          </div>
+        </div>
+      </section>
 
-      <Card className="p-0">
-        <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-sm">
-          <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-            <th className="px-5 py-3">Prefeitura</th><th className="px-5 py-3">Chamadas (mês)</th><th className="px-5 py-3">Custo (mês)</th><th className="px-5 py-3">Teto mensal (USD)</th><th></th>
-          </tr></thead>
-          <tbody>
-            {tenants.map((t) => {
-              const p = perTenant[t.id] ?? { cost: 0, calls: 0 };
-              const cap = limitByTenant[t.id]?.monthly_cap_usd ?? 0;
-              const over = cap > 0 && p.cost >= Number(cap);
+      <SGFTable<(typeof tenants)[number]>
+        data={tenants}
+        keyExtractor={(t) => t.id}
+        emptyMessage="Nenhuma prefeitura."
+        columns={[
+          { header: 'Prefeitura', accessor: (t) => <TenantIdentity tenant={t} /> },
+          { header: 'Chamadas', accessor: (t) => <span className="rt-num">{(perTenant[t.id]?.calls ?? 0).toLocaleString('pt-BR')}</span> },
+          {
+            header: 'Gasto do mês × teto',
+            className: 'min-w-[240px]',
+            accessor: (t) => {
+              const cost = perTenant[t.id]?.cost ?? 0;
+              const cap = Number(limitByTenant[t.id]?.monthly_cap_usd ?? 0);
+              const pct = cap > 0 ? Math.min(100, (cost / cap) * 100) : 0;
+              const over = cap > 0 && cost >= cap;
               return (
-                <tr key={t.id} className="border-b border-slate-100">
-                  <td className="px-5 py-3"><TenantIdentity tenant={t} /></td>
-                  <td className="px-5 py-3">{p.calls}</td>
-                  <td className={`px-5 py-3 ${over ? 'font-bold text-red-600' : ''}`}>{fmtUsd(p.cost)}</td>
-                  <td className="px-5 py-3">
-                    <Input type="number" min="0" step="0.000001" value={edit[t.id] ?? String(cap ?? 0)} onChange={(e) => setEdit((s) => ({ ...s, [t.id]: e.target.value }))} className="w-36" />
-                  </td>
-                  <td className="px-5 py-3 text-right">
-                    <Button variant="ghost" onClick={() => save.mutate({ tenantId: t.id, cap: Number(edit[t.id] ?? cap) || 0 })}>Salvar</Button>
-                  </td>
-                </tr>
+                <div>
+                  <div className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className={`rt-num font-semibold ${over ? 'text-[var(--rt-red600)]' : 'text-[var(--rt-ink900)]'}`}>{fmtUsdSmart(cost)}</span>
+                    <span className="text-xs text-[var(--rt-ink500)]">{cap > 0 ? `teto ${fmtUsdSmart(cap)}` : 'sem teto'}</span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--rt-paper2)]" role="meter" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label="Uso do teto">
+                    <div className={`h-full rounded-full ${over ? 'bg-[var(--rt-red600)]' : pct > 80 ? 'bg-[#F59E0B]' : 'bg-[var(--rt-brand)]'}`} style={{ width: `${cap > 0 ? Math.max(pct, cost > 0 ? 3 : 0) : 0}%` }} />
+                  </div>
+                </div>
               );
-            })}
-          </tbody>
-        </table></div>
-      </Card>
+            },
+          },
+          {
+            header: 'Teto mensal (US$)',
+            accessor: (t) => {
+              const cap = limitByTenant[t.id]?.monthly_cap_usd ?? 0;
+              return (
+                <div className="flex items-center gap-2">
+                  <Input type="number" min="0" step="0.01" aria-label="Teto mensal em dólar" value={edit[t.id] ?? String(cap ?? 0)} onChange={(e) => setEdit((s) => ({ ...s, [t.id]: e.target.value }))} className="w-32" />
+                  <SGFButton size="sm" variant="outline" onClick={() => save.mutate({ tenantId: t.id, cap: Number(edit[t.id] ?? cap) || 0 })}>Salvar</SGFButton>
+                </div>
+              );
+            },
+          },
+        ]}
+      />
     </div>
   );
 }

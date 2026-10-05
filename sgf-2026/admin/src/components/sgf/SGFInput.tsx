@@ -32,23 +32,22 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
     const isPassword = type === 'password';
     const [passwordVisible, setPasswordVisible] = React.useState(false);
 
+    // Campo do app: preenchimento papel, sem borda, cantos 16px; foco em verde.
     const baseInputStyles = `
-      w-full
-      px-[var(--sgf-input-padding-x)]
-      py-[var(--sgf-input-padding-y)]
-      bg-slate-50
-      border
-      rounded-[var(--sgf-input-radius)]
-      text-[var(--sgf-text-sm)]
-      transition-all duration-[var(--sgf-transition-base)]
-      focus:outline-none focus:ring-4 focus:bg-white
-      disabled:opacity-50 disabled:cursor-not-allowed
-      placeholder:text-slate-400
+      w-full h-12 px-4
+      bg-[var(--rt-paper)]
+      rounded-2xl border border-transparent
+      text-[15px] text-[var(--rt-ink900)]
+      transition
+      focus:outline-none focus:bg-white focus:ring-4
+      disabled:opacity-60 disabled:cursor-not-allowed
+      read-only:bg-[var(--rt-paper)] read-only:text-[var(--rt-ink700)]
+      placeholder:text-[var(--rt-ink400)]
     `;
 
     const stateStyles = error
-      ? 'border-red-300 focus:border-red-500 focus:ring-red-500/10'
-      : 'border-slate-200 focus:border-[var(--sgf-primary)] focus:ring-emerald-500/10';
+      ? 'border-[var(--rt-red600)]/40 focus:ring-[var(--rt-red600)]/10'
+      : 'focus:border-[var(--rt-brand)] focus:ring-[var(--rt-brand)]/10';
 
     const iconStyles = Icon
       ? iconPosition === 'left'
@@ -62,7 +61,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="block text-[var(--sgf-text-sm)] font-[var(--sgf-font-semibold)] text-[var(--sgf-text-primary)] mb-[var(--sgf-space-2)]"
+            className="mb-2 block text-[13px] font-medium text-[var(--rt-ink500)]"
           >
             {label}
           </label>
@@ -70,7 +69,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
 
         <div className="relative">
           {Icon && iconPosition === 'left' && (
-            <div className="absolute left-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-slate-400">
+            <div className="absolute left-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-[var(--rt-ink400)]">
               <Icon width={18} height={18} />
             </div>
           )}
@@ -84,7 +83,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
           />
 
           {Icon && iconPosition === 'right' && (
-            <div className="absolute right-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-slate-400">
+            <div className="absolute right-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-[var(--rt-ink400)]">
               <Icon width={18} height={18} />
             </div>
           )}
@@ -93,7 +92,7 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
             <button
               type="button"
               onClick={() => setPasswordVisible((visible) => !visible)}
-              className="absolute right-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-700 focus:outline-none"
+              className="absolute right-[var(--sgf-space-4)] top-1/2 -translate-y-1/2 text-[var(--rt-ink400)] transition-colors hover:text-[var(--rt-ink900)] focus:outline-none"
               aria-label={passwordVisible ? 'Ocultar senha' : 'Mostrar senha'}
               title={passwordVisible ? 'Ocultar senha' : 'Mostrar senha'}
             >
@@ -103,11 +102,11 @@ export const SGFInput = React.forwardRef<HTMLInputElement, SGFInputProps>(
         </div>
 
         {error && (
-          <p className="mt-[var(--sgf-space-2)] text-[var(--sgf-text-xs)] font-[var(--sgf-font-medium)] text-red-600">{error}</p>
+          <p className="mt-2 text-xs font-medium text-[var(--rt-red600)]">{error}</p>
         )}
 
         {!error && hint && (
-          <p className="mt-[var(--sgf-space-2)] text-[var(--sgf-text-xs)] text-slate-500">{hint}</p>
+          <p className="mt-2 text-xs text-[var(--rt-ink500)]">{hint}</p>
         )}
       </div>
     );

@@ -24,84 +24,62 @@ export function SGFTable<T>({
   loading = false,
   emptyMessage = 'Nenhum dado disponível',
 }: SGFTableProps<T>) {
+  // Tabela dentro de um card do app: cabeçalho discreto, linhas com divisória fina
+  // e respiro lateral; sem bordas pesadas nem zebra.
+  const shell = 'overflow-hidden rounded-[var(--rt-radius-card)] bg-white shadow-[var(--rt-shadow-card)]';
+
   if (loading) {
     return (
-      <div className="bg-white border border-slate-100 rounded-[var(--sgf-card-radius)] overflow-hidden shadow-sm">
-        <div className="p-6">
-          <div className="h-7 bg-slate-100 rounded-[var(--sgf-radius-md)] animate-pulse mb-3" />
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-12 bg-slate-50 rounded-[var(--sgf-radius-md)] animate-pulse mb-2" />
-          ))}
-        </div>
+      <div className={`${shell} p-6`}>
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="mb-3 h-12 animate-pulse rounded-2xl bg-[var(--rt-paper)] last:mb-0" />
+        ))}
       </div>
     );
   }
 
   if (data.length === 0) {
     return (
-      <div className="bg-white border border-slate-100 rounded-[var(--sgf-card-radius)] overflow-hidden shadow-sm p-12">
-        <div className="text-center">
-          <p className="text-slate-400 text-sm">{emptyMessage}</p>
+      <div className={`${shell} grid place-items-center px-6 py-14`}>
+        <div className="flex flex-col items-center gap-3 text-center">
+          <span className="grid h-12 w-12 place-items-center rounded-full bg-[var(--rt-paper)] text-[var(--rt-ink400)]">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden><path d="M4 7h16M4 12h16M4 17h10" strokeLinecap="round" /></svg>
+          </span>
+          <p className="text-sm text-[var(--rt-ink500)]">{emptyMessage}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white border border-slate-100 rounded-[var(--sgf-card-radius)] overflow-hidden shadow-sm">
-      <div className="overflow-x-auto">
+    <div className={shell}>
+      <div className="rt-scroll overflow-x-auto">
         <table className="w-full text-left">
-          {/* ── Header ─────────────────────────────────── */}
-          <thead className="border-b border-slate-100">
+          <thead>
             <tr>
               {columns.map((column, index) => (
                 <th
                   key={index}
-                  className={`
-                    px-[var(--sgf-table-cell-padding-x)]
-                    py-3
-                    text-[11px]
-                    font-semibold
-                    uppercase
-                    tracking-[0.04em]
-                    text-slate-400
-                    bg-slate-50/80
-                    whitespace-nowrap
-                    ${column.headerClassName || ''}
-                  `}
+                  className={`whitespace-nowrap px-5 pb-3 pt-5 text-xs font-medium text-[var(--rt-ink500)] first:pl-6 last:pr-6 ${column.headerClassName || ''}`}
                 >
                   {column.header}
                 </th>
               ))}
             </tr>
           </thead>
-
-          {/* ── Body ───────────────────────────────────── */}
-          <tbody className="divide-y divide-slate-100/70">
+          <tbody>
             {data.map((row, rowIndex) => (
               <tr
                 key={keyExtractor(row, rowIndex)}
-                className={`
-                  hover:bg-slate-50/70
-                  transition-colors duration-100
-                  ${onRowClick ? 'cursor-pointer' : ''}
-                `}
+                className={`group border-t border-[var(--rt-hairline)] transition-colors hover:bg-[var(--rt-paper)]/70 ${onRowClick ? 'cursor-pointer' : ''}`}
                 onClick={() => onRowClick?.(row)}
               >
                 {columns.map((column, colIndex) => (
                   <td
                     key={colIndex}
-                    className={`
-                      px-[var(--sgf-table-cell-padding-x)]
-                      py-[var(--sgf-table-cell-padding-y)]
-                      text-[var(--sgf-text-base)]
-                      text-slate-700
-                      ${column.className || ''}
-                    `}
+                    className={`px-5 py-4 text-sm text-[var(--rt-ink700)] first:pl-6 last:pr-6 ${column.className || ''}`}
                   >
-                    {typeof column.accessor === 'function'
-                      ? column.accessor(row)
-                      : String(row[column.accessor])}
+                    {typeof column.accessor === 'function' ? column.accessor(row) : String(row[column.accessor])}
                   </td>
                 ))}
               </tr>

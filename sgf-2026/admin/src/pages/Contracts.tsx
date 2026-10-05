@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { contractsApi, tenantsApi, type Contract } from '@/lib/api';
-import { Card, Button, Input, Badge, fmtBrl } from '@/lib/ui';
-import { SGFSelect } from '@/components/sgf';
+import { Button, Input, Badge, fmtBrl } from '@/lib/ui';
+import { SGFSelect, SGFTable, SGFKPICard, PageHeader, Sheet } from '@/components/sgf';
+import { FileText, ShieldCheck, Clock, Receipt, Plus } from '@/components/sgf/icons';
 import { TenantIdentity } from '@/components/TenantIdentity';
 
 export default function Contracts() {
@@ -50,78 +51,105 @@ export default function Contracts() {
   const totalValue = contracts.filter((c) => c.status !== 'canceled').reduce((sum, c) => sum + Number(c.value ?? 0), 0);
   const tenantOptions = tenants.map((tenant) => ({ value: tenant.id, label: tenant.name }));
 
+  const [formOpen, setFormOpen] = useState(false);
+  const br = (d: string | null) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('pt-BR') : '—');
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Licitações & Contratos</h1>
-        <p className="text-sm text-slate-500">Contratos das prefeituras com a plataforma.</p>
+      <PageHeader
+        title="Contratos"
+        subtitle="Licitações e contratos das prefeituras com a plataforma."
+        actions={<Button onClick={() => setFormOpen(true)}><Plus width={18} height={18} /> Novo contrato</Button>}
+      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <SGFKPICard title="Contratos" value={contracts.length} icon={FileText} tone="neutral" loading={isLoading} />
+        <SGFKPICard title="Vigentes" value={active} icon={ShieldCheck} tone="brand" loading={isLoading} />
+        <SGFKPICard title="Vencem em 30 dias" value={expiring} icon={Clock} tone={expiring > 0 ? 'amber' : 'neutral'} loading={isLoading} />
+        <SGFKPICard title="Valor contratado" value={fmtBrl(totalValue)} icon={Receipt} tone="blue" loading={isLoading} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Card><div className="text-2xl font-bold text-slate-900">{contracts.length}</div><div className="text-xs font-semibold uppercase text-slate-400">Contratos</div></Card>
-        <Card><div className="text-2xl font-bold text-emerald-600">{active}</div><div className="text-xs font-semibold uppercase text-slate-400">Ativos</div></Card>
-        <Card><div className="text-2xl font-bold text-amber-600">{expiring}</div><div className="text-xs font-semibold uppercase text-slate-400">Vencem em 30 dias</div></Card>
-        <Card><div className="text-xl font-bold text-[var(--sgf-dark)]">{fmtBrl(totalValue)}</div><div className="text-xs font-semibold uppercase text-slate-400">Valor contratado</div></Card>
-      </div>
+      <SGFTable<Contract>
+        loading={isLoading}
+        data={contracts}
+        keyExtractor={(c) => c.id}
+        emptyMessage="Nenhum contrato cadastrado."
+        columns={[
+          { header: 'Prefeitura', accessor: (c) => <TenantIdentity tenant={tenantById[c.tenant_id]} /> },
+          {
+            header: 'Contrato',
+            accessor: (c) => (
+              <div className="min-w-0 max-w-[260px]">
+                <p className="truncate font-semibold text-[var(--rt-ink900)]">{c.title}</p>
+                {c.object && <p className="truncate text-xs text-[var(--rt-ink500)]">{c.object}</p>}
+              </div>
+            ),
+          },
+          { header: 'Valor', accessor: (c) => <span className="rt-num whitespace-nowrap font-semibold text-[var(--rt-ink900)]">{c.value != null ? fmtBrl(Number(c.value)) : '—'}</span> },
+          {
+            header: 'Vigência',
+            accessor: (c) => (
+              <span className="rt-num whitespace-nowrap">
+                {br(c.start_date)} – <span className={soon(c.end_date) ? 'font-semibold text-[var(--rt-amber600)]' : ''}>{br(c.end_date)}</span>
+              </span>
+            ),
+          },
+          {
+            header: 'Documentos',
+            accessor: (c) => (
+              <div className="flex max-w-[280px] flex-wrap items-center gap-1.5">
+                {contractsApi.documents(c).map((document) => (
+                  <button key={document.path} onClick={() => contractsApi.openDocument(document).catch((e) => toast.error((e as Error).message))}
+                    className="inline-flex h-7 max-w-36 items-center gap-1.5 truncate rounded-full bg-[var(--rt-paper)] px-3 text-xs font-medium text-[var(--rt-ink700)] hover:bg-[var(--rt-brand-100)] hover:text-[#0B7A50]"
+                    title={document.name}>
+                    <FileText width={13} height={13} /> <span className="truncate">{document.name}</span>
+                  </button>
+                ))}
+                <label className="inline-flex h-7 cursor-pointer items-center rounded-full px-2.5 text-xs font-semibold text-[var(--rt-brand)] hover:bg-[var(--rt-brand-50)]">
+                  + Enviar
+                  <input type="file" multiple className="hidden" onChange={(e) => {
+                    const selected = Array.from(e.target.files ?? []);
+                    if (selected.length) upload.mutate({ contract: c, selected });
+                    e.currentTarget.value = '';
+                  }} />
+                </label>
+              </div>
+            ),
+          },
+          { header: 'Situação', accessor: (c) => <Badge status={c.status} /> },
+        ]}
+      />
 
-      <Card>
-        <h2 className="mb-3 text-lg font-semibold">Novo contrato</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <SGFSelect label="Prefeitura" fullWidth value={f.tenant_id} onChange={(tenant_id) => set({ tenant_id })} options={tenantOptions} />
-          <Input label="Título" value={f.title} onChange={(e) => set({ title: e.target.value })} />
-          <Input label="Valor (R$)" type="number" value={f.value} onChange={(e) => set({ value: e.target.value })} />
-          <Input label="Objeto" value={f.object} onChange={(e) => set({ object: e.target.value })} />
+      <Sheet
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        title="Novo contrato"
+        subtitle="Registre o contrato da prefeitura com a plataforma e anexe os documentos."
+        footer={<>
+          <Button variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
+          <Button disabled={!f.tenant_id || !f.title || create.isPending} onClick={() => create.mutate(undefined, { onSuccess: () => setFormOpen(false) })}>
+            {create.isPending ? 'Cadastrando…' : 'Cadastrar contrato'}
+          </Button>
+        </>}
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <SGFSelect label="Prefeitura" fullWidth value={f.tenant_id} onChange={(tenant_id) => set({ tenant_id })} options={tenantOptions} placeholder="Escolha a prefeitura" className="sm:col-span-2" />
+          <Input label="Título" value={f.title} onChange={(e) => set({ title: e.target.value })} className="sm:col-span-2" />
+          <Input label="Objeto" value={f.object} onChange={(e) => set({ object: e.target.value })} className="sm:col-span-2" />
+          <Input label="Valor (R$)" type="number" min="0" step="0.01" value={f.value} onChange={(e) => set({ value: e.target.value })} />
+          <div />
           <Input label="Início" type="date" value={f.start_date} onChange={(e) => set({ start_date: e.target.value })} />
           <Input label="Fim" type="date" value={f.end_date} onChange={(e) => set({ end_date: e.target.value })} />
-          <label className="block sm:col-span-3">
-            <span className="mb-2 block text-sm font-semibold text-slate-700">Documentos</span>
-            <input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
-              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-              className="block w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-sm text-slate-600 file:mr-3 file:rounded-full file:border-0 file:bg-emerald-100 file:px-4 file:py-2 file:font-semibold file:text-emerald-700" />
-            {files.length > 0 && <span className="mt-1 block text-xs text-slate-500">{files.length} arquivo(s) selecionado(s)</span>}
+          <label className="block cursor-pointer sm:col-span-2">
+            <span className="mb-2 block text-[13px] font-medium text-[var(--rt-ink500)]">Documentos</span>
+            <span className="flex items-center gap-3 rounded-2xl bg-[var(--rt-paper)] p-3 transition hover:bg-[var(--rt-paper2)]">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-white text-[var(--rt-ink500)]"><FileText width={20} height={20} /></span>
+              <span className="text-sm text-[var(--rt-ink700)]">{files.length ? `${files.length} arquivo(s) selecionado(s)` : 'Escolher arquivos (PDF, Word, Excel ou imagem)'}</span>
+            </span>
+            <input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" className="sr-only" onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
           </label>
         </div>
-        <div className="mt-3 flex justify-end"><Button disabled={!f.tenant_id || !f.title || create.isPending} onClick={() => create.mutate()}>{create.isPending ? 'Cadastrando…' : 'Cadastrar'}</Button></div>
-      </Card>
-
-      <Card className="p-0">
-        {isLoading ? <p className="p-5 text-slate-400">Carregando…</p> : (
-          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm">
-            <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-              <th className="px-5 py-3">Prefeitura</th><th className="px-5 py-3">Título</th><th className="px-5 py-3">Valor</th><th className="px-5 py-3">Vigência</th><th className="px-5 py-3">Documentos</th><th className="px-5 py-3">Status</th>
-            </tr></thead>
-            <tbody>
-              {contracts.map((c) => (
-                <tr key={c.id} className="border-b border-slate-100">
-                  <td className="px-5 py-3"><TenantIdentity tenant={tenantById[c.tenant_id]} /></td>
-                  <td className="px-5 py-3 font-medium">{c.title}</td>
-                  <td className="px-5 py-3">{c.value != null ? fmtBrl(Number(c.value)) : '—'}</td>
-                  <td className="px-5 py-3">{c.start_date ?? '—'} → <span className={soon(c.end_date) ? 'font-semibold text-amber-600' : ''}>{c.end_date ?? '—'}</span></td>
-                  <td className="px-5 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {contractsApi.documents(c).map((document) => (
-                        <button key={document.path} onClick={() => contractsApi.openDocument(document).catch((e) => toast.error((e as Error).message))}
-                          className="max-w-32 truncate rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-emerald-50 hover:text-emerald-700"
-                          title={document.name}>{document.name}</button>
-                      ))}
-                      <label className="cursor-pointer text-xs font-semibold text-[var(--sgf-primary)] hover:underline">
-                        + Enviar
-                        <input type="file" multiple className="hidden" onChange={(e) => {
-                          const selected = Array.from(e.target.files ?? []);
-                          if (selected.length) upload.mutate({ contract: c, selected });
-                          e.currentTarget.value = '';
-                        }} />
-                      </label>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3"><Badge status={c.status} /></td>
-                </tr>
-              ))}
-              {contracts.length === 0 && <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">Sem contratos.</td></tr>}
-            </tbody>
-          </table></div>
-        )}
-      </Card>
+      </Sheet>
     </div>
   );
 }

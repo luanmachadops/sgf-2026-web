@@ -65,12 +65,12 @@ export function BarcodeScanner({ open, onClose, onDetect }: {
   return (
     <div className="fixed inset-0 z-[5000] grid place-items-center bg-black/70 p-4" onClick={onClose}>
       <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+        <div className="flex items-center justify-between border-b border-[var(--rt-hairline)] px-5 py-3">
           <div>
-            <h3 className="text-base font-semibold text-slate-800">Ler IMEI</h3>
-            <p className="text-xs text-slate-500">Aponte a câmera para o código de barras ou QR do rastreador.</p>
+            <h3 className="text-base font-semibold text-[var(--rt-ink900)]">Ler IMEI</h3>
+            <p className="text-xs text-[var(--rt-ink500)]">Aponte a câmera para o código de barras ou QR do rastreador.</p>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-[var(--rt-ink400)] hover:bg-[var(--rt-paper2)] hover:text-[var(--rt-ink700)]">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -83,7 +83,7 @@ export function BarcodeScanner({ open, onClose, onDetect }: {
         </div>
         {error && <p className="px-5 py-3 text-sm text-amber-700">{error}</p>}
         <div className="flex justify-end gap-2 px-5 py-3">
-          <button onClick={onClose} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Fechar</button>
+          <button onClick={onClose} className="rounded-full border border-[var(--rt-hairline)] px-4 py-2 text-sm font-semibold text-[var(--rt-ink700)] hover:bg-[var(--rt-paper)]">Fechar</button>
         </div>
       </div>
     </div>

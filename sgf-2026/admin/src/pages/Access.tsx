@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { tenantsApi } from '@/lib/api';
-import { Card, Badge } from '@/lib/ui';
+import { tenantsApi, type Tenant } from '@/lib/api';
+import { Badge } from '@/lib/ui';
+import { PageHeader, SectionTitle, SGFTable, SGFButton } from '@/components/sgf';
 import { ManagersPanel } from '@/components/ManagersPanel';
 import { TenantIdentity } from '@/components/TenantIdentity';
 
@@ -13,61 +14,57 @@ function daysSince(iso: string | null): number {
 
 export default function Access() {
   const qc = useQueryClient();
-  const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: tenantsApi.list });
+  const navigate = useNavigate();
+  const { data: tenants = [], isLoading } = useQuery({ queryKey: ['tenants'], queryFn: tenantsApi.list });
   const trials = tenants.filter((t) => t.status === 'trial');
 
   const setStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => tenantsApi.update(id, { status }),
-    onSuccess: () => { toast.success('Status atualizado.'); qc.invalidateQueries({ queryKey: ['tenants'] }); },
+    onSuccess: () => { toast.success('Situação atualizada.'); qc.invalidateQueries({ queryKey: ['tenants'] }); },
     onError: (e) => toast.error((e as Error).message),
   });
 
   return (
     <div className="space-y-8">
+      <PageHeader title="Acessos" subtitle="Gestores das prefeituras e acompanhamento das avaliações (trial)." />
+
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Gestão de Acessos</h1>
-        <p className="text-sm text-slate-500">Gestores das prefeituras e acompanhamento de trials/demos.</p>
+        <SectionTitle>Em avaliação</SectionTitle>
+        <p className="-mt-1 mb-3 px-1 text-sm text-[var(--rt-ink500)]">{trials.length} {trials.length === 1 ? 'prefeitura' : 'prefeituras'} em período de teste. Acima de 30 dias fica em destaque.</p>
+        <SGFTable<Tenant>
+          loading={isLoading}
+          data={trials}
+          keyExtractor={(t) => t.id}
+          onRowClick={(t) => navigate(`/prefeituras/${t.id}`)}
+          emptyMessage="Nenhuma prefeitura em avaliação."
+          columns={[
+            { header: 'Prefeitura', accessor: (t) => <TenantIdentity tenant={t} /> },
+            { header: 'Criada em', accessor: (t) => (t.created_at ? new Date(t.created_at).toLocaleDateString('pt-BR') : '—') },
+            {
+              header: 'Tempo em teste',
+              accessor: (t) => {
+                const d = daysSince(t.created_at);
+                return <span className={`rt-num font-semibold ${d > 30 ? 'text-[var(--rt-red600)]' : 'text-[var(--rt-ink900)]'}`}>{d} {d === 1 ? 'dia' : 'dias'}</span>;
+              },
+            },
+            { header: 'Situação', accessor: (t) => <Badge status={t.status} /> },
+            {
+              header: '',
+              headerClassName: 'text-right',
+              className: 'text-right',
+              accessor: (t) => (
+                <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                  <SGFButton size="sm" onClick={() => setStatus.mutate({ id: t.id, status: 'active' })}>Ativar</SGFButton>
+                  <SGFButton size="sm" variant="ghost" className="!text-[var(--rt-red600)]" onClick={() => setStatus.mutate({ id: t.id, status: 'suspended' })}>Suspender</SGFButton>
+                </div>
+              ),
+            },
+          ]}
+        />
       </div>
 
-      {/* Trials / Demos */}
       <div>
-        <h2 className="mb-1 text-lg font-semibold text-slate-800">Trials & Demos</h2>
-        <p className="mb-3 text-sm text-slate-500">{trials.length} prefeitura(s) em período de avaliação.</p>
-        <Card className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-                <th className="px-5 py-3">Prefeitura</th><th className="px-5 py-3">Criada em</th><th className="px-5 py-3">Dias em trial</th><th className="px-5 py-3">Status</th><th></th>
-              </tr></thead>
-              <tbody>
-                {trials.map((t) => (
-                  <tr key={t.id} className="border-b border-slate-100">
-                    <td className="px-5 py-3 font-medium text-slate-800">
-                      <Link to={`/prefeituras/${t.id}`} className="block hover:text-[var(--sgf-primary)] hover:underline"><TenantIdentity tenant={t} /></Link>
-                    </td>
-                    <td className="px-5 py-3 text-slate-600">{t.created_at ? new Date(t.created_at).toLocaleDateString('pt-BR') : '—'}</td>
-                    <td className="px-5 py-3">
-                      <span className={`font-semibold ${daysSince(t.created_at) > 30 ? 'text-rose-600' : 'text-slate-700'}`}>{daysSince(t.created_at)} dias</span>
-                    </td>
-                    <td className="px-5 py-3"><Badge status={t.status} /></td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex justify-end gap-3">
-                        <button onClick={() => setStatus.mutate({ id: t.id, status: 'active' })} className="text-xs font-semibold text-[var(--sgf-primary)] hover:underline">Ativar</button>
-                        <button onClick={() => setStatus.mutate({ id: t.id, status: 'suspended' })} className="text-xs font-semibold text-rose-600 hover:underline">Suspender</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {trials.length === 0 && <tr><td colSpan={5} className="px-5 py-8 text-center text-slate-400">Nenhuma prefeitura em trial.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
-
-      {/* Gestores */}
-      <div>
-        <h2 className="mb-3 text-lg font-semibold text-slate-800">Gestores das prefeituras</h2>
+        <SectionTitle>Gestores das prefeituras</SectionTitle>
         <ManagersPanel />
       </div>
     </div>

@@ -86,7 +86,7 @@ export function PeriodRangeFields({
     return (
         <div className={['flex items-center justify-end gap-2', className].filter(Boolean).join(' ')}>
             <DatePickerField label="Data inicial" value={value.from} onChange={(from) => onChange({ ...value, from })} />
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">até</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--rt-ink400)]">até</span>
             <DatePickerField label="Data final" value={value.to} onChange={(to) => onChange({ ...value, to })} />
         </div>
     );

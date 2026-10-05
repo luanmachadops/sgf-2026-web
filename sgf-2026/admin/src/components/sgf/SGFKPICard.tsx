@@ -1,15 +1,13 @@
 import React from 'react';
-import type { IconType } from './icons';
+import { Area, AreaChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { SGFCard } from './SGFCard';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell
-} from 'recharts';
+import type { IconType } from './icons';
 
+/**
+ * Indicador no padrão do app: ícone em círculo, rótulo inteiro (sem cortar),
+ * número grande e, quando há tendência real, uma minilinha da série com o valor
+ * do mês ao passar o mouse. Sem série (ou tudo zero) não desenha gráfico vazio.
+ */
 export interface SGFKPIChartData {
   month: string;
   value: number;
@@ -19,6 +17,7 @@ export interface SGFKPICardProps {
   title: string;
   value: string | number;
   icon: IconType;
+  /** Mantido por compatibilidade; o tom vem de `tone`. */
   iconColor?: string;
   chartData?: SGFKPIChartData[];
   chartColor?: string;
@@ -26,89 +25,73 @@ export interface SGFKPICardProps {
   trend?: 'up' | 'down' | string;
   loading?: boolean;
   onClick?: () => void;
+  /** Linha de apoio abaixo do número (ex.: "de 3 cadastradas"). */
+  hint?: string;
+  tone?: 'brand' | 'blue' | 'amber' | 'red' | 'neutral';
+  format?: (n: number) => string;
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-[#0F2B2F]/50 border border-white/10 p-[var(--sgf-space-2)] rounded-[var(--sgf-radius-base)] shadow-[var(--sgf-shadow-xl)] backdrop-blur-md text-center">
-        <p className="text-[var(--sgf-text-2xs)] text-white/40 font-[var(--sgf-font-bold)] uppercase tracking-wider mb-[var(--sgf-space-1)]">{label}</p>
-        <p className="text-[var(--sgf-text-sm)] font-[var(--sgf-font-black)] text-white">{payload[0].value.toLocaleString('pt-BR')}</p>
-      </div>
-    );
-  }
-  return null;
+const TONES = {
+  brand: { bg: 'bg-[var(--rt-brand-100)]', fg: 'text-[var(--rt-brand)]', stroke: '#00A86B' },
+  blue: { bg: 'bg-[var(--rt-blue100)]', fg: 'text-[var(--rt-blue600)]', stroke: '#2A78D6' },
+  amber: { bg: 'bg-[var(--rt-amber100)]', fg: 'text-[var(--rt-amber600)]', stroke: '#EDA100' },
+  red: { bg: 'bg-[var(--rt-red100)]', fg: 'text-[var(--rt-red600)]', stroke: '#E34948' },
+  neutral: { bg: 'bg-[var(--rt-paper2)]', fg: 'text-[var(--rt-ink500)]', stroke: '#5E7376' },
 };
 
-export const SGFKPICard: React.FC<SGFKPICardProps> = ({
-  title,
-  value,
-  icon: Icon,
-  iconColor = 'text-emerald-500',
-  chartData = [],
-  chartColor = '#10b981', // emerald-500
-  percentage,
-  trend,
-  loading = false,
-  onClick,
-}) => {
+function SparkTip({ active, payload, format }: { active?: boolean; payload?: { payload: SGFKPIChartData }[]; format?: (n: number) => string }) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
   return (
-    <SGFCard
-      hover={!!onClick}
-      onClick={onClick}
-      className={`group h-full ${onClick ? 'cursor-pointer' : ''}`}
-    >
-      <div className="flex items-center justify-between h-full gap-[var(--sgf-space-4)]">
-        {/* Left Side: Info */}
-        <div className="flex flex-col gap-[var(--sgf-space-2)] flex-1 min-w-0">
-          <div className={`p-2 w-fit rounded-[var(--sgf-radius-base)] bg-slate-50 group-hover:scale-110 transition-transform duration-500 ${iconColor}`}>
-            <Icon width={18} height={18} />
-          </div>
-          <div>
-            <p className="text-slate-400 text-[11px] font-semibold tracking-[0.03em] mb-0.5 truncate">{title}</p>
-            {loading ? (
-              <div className="h-9 bg-slate-100 rounded-[var(--sgf-radius-md)] animate-pulse w-24" />
-            ) : (
-              <>
-                <h3 className="text-[var(--sgf-text-2xl)] font-bold text-slate-800 tracking-tight leading-tight">{value}</h3>
-                {percentage !== undefined && trend && (
-                  <p className={`mt-1 text-[var(--sgf-text-xs)] font-[var(--sgf-font-bold)] ${trend === 'up' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {trend === 'up' ? '+' : '-'}{percentage}% vs. periodo anterior
-                  </p>
-                )}
-              </>
-            )}
-          </div>
+    <div className="rounded-xl bg-[var(--rt-ink900)] px-2.5 py-1.5 text-[11px] text-white shadow-lg">
+      <span className="text-white/60">{p.month}</span>{' '}
+      <span className="rt-num font-semibold">{format ? format(p.value) : p.value.toLocaleString('pt-BR')}</span>
+    </div>
+  );
+}
+
+export const SGFKPICard: React.FC<SGFKPICardProps> = ({
+  title, value, icon: Icon, chartData = [], chartColor, loading = false, onClick, hint, tone = 'brand', format,
+}) => {
+  const t = TONES[tone];
+  const hasTrend = chartData.length > 1 && chartData.some((d) => d.value !== 0);
+  const gid = React.useId().replace(/:/g, '');
+
+  return (
+    <SGFCard hover={!!onClick} onClick={onClick} padding="lg" className="flex h-full flex-col">
+      <div className="flex items-center gap-3">
+        <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${t.bg} ${t.fg}`}>
+          <Icon width={20} height={20} />
+        </span>
+        <p className="text-sm font-medium leading-snug text-[var(--rt-ink500)]">{title}</p>
+      </div>
+
+      <div className="mt-5 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          {loading ? (
+            <div className="h-9 w-24 animate-pulse rounded-xl bg-[var(--rt-paper)]" />
+          ) : (
+            <p className="rt-num truncate text-[32px] font-light leading-none text-[var(--rt-ink900)]">{value}</p>
+          )}
+          {hint && !loading && <p className="mt-2 text-xs text-[var(--rt-ink400)]">{hint}</p>}
         </div>
 
-        {/* Right Side: Chart */}
-        <div className="h-[80px] w-[80px] min-h-0 min-w-0 shrink-0 opacity-60 transition-opacity duration-500 group-hover:opacity-100">
-          {chartData.length > 0 && (
+        {hasTrend && !loading && (
+          <div className="h-12 w-28 shrink-0" aria-label={`${title}: ${chartData.map((d) => `${d.month} ${d.value}`).join(', ')}`}>
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <BarChart data={chartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
-                <XAxis dataKey="month" hide />
-                <Tooltip
-                  cursor={{ fill: 'transparent' }}
-                  content={<CustomTooltip />}
-                />
-                <Bar
-                  dataKey="value"
-                  radius={[4, 4, 0, 0]}
-                  fill={chartColor}
-                  barSize={6}
-                >
-                  {chartData.map((_entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={chartColor}
-                      fillOpacity={0.4 + (index / Math.max(chartData.length - 1, 1)) * 0.6}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
+              <AreaChart data={chartData} margin={{ top: 4, right: 2, bottom: 2, left: 2 }}>
+                <defs>
+                  <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={chartColor ?? t.stroke} stopOpacity={0.22} />
+                    <stop offset="100%" stopColor={chartColor ?? t.stroke} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Tooltip content={<SparkTip format={format} />} cursor={false} wrapperStyle={{ outline: 'none' }} />
+                <Area type="linear" dataKey="value" stroke={chartColor ?? t.stroke} strokeWidth={2} fill={`url(#${gid})`} dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: '#fff' }} />
+              </AreaChart>
             </ResponsiveContainer>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </SGFCard>
   );

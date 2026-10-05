@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { managersApi, tenantsApi } from '@/lib/api';
-import { Card, Button, Input } from '@/lib/ui';
+import { managersApi, tenantsApi, type Manager } from '@/lib/api';
+import { Button, Input } from '@/lib/ui';
 import { PASSWORD_MIN_LENGTH, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
-import { SGFSelect } from '@/components/sgf';
+import { SGFSelect, SGFTable, SGFBadge, SGFButton, Sheet } from '@/components/sgf';
+import { Plus } from '@/components/sgf/icons';
 import { TenantIdentity } from '@/components/TenantIdentity';
 
 const ROLE_LABEL: Record<string, string> = { admin: 'Administrador', gestor: 'Gestor', secretario: 'Secretário' };
@@ -42,67 +43,103 @@ export function ManagersPanel({ tenantId }: { tenantId?: string }) {
   });
 
   const canSubmit = (fixed || f.tenant_id) && f.email.includes('@') && f.password.length >= PASSWORD_MIN_LENGTH;
+  const [creating, setCreating] = useState(false);
+  const [resetFor, setResetFor] = useState<Manager | null>(null);
+  const [newPass, setNewPass] = useState('');
 
   return (
-    <div className="space-y-5">
-      <Card>
-        <h2 className="mb-1 text-lg font-semibold text-slate-800">Novo gestor de acesso</h2>
-        <p className="mb-4 text-sm text-slate-500">Cria o login do gestor/administrador da prefeitura (acesso ao painel do gestor).</p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-[var(--rt-ink500)]">
+          {managers.length} {managers.length === 1 ? 'pessoa com acesso' : 'pessoas com acesso'} ao painel do gestor.
+        </p>
+        <Button onClick={() => setCreating(true)}><Plus width={18} height={18} /> Novo gestor</Button>
+      </div>
+
+      <SGFTable<Manager>
+        loading={isLoading}
+        data={managers}
+        keyExtractor={(m) => m.id}
+        emptyMessage="Nenhum gestor cadastrado."
+        columns={[
+          ...(!fixed ? [{ header: 'Prefeitura', accessor: (m: Manager) => <TenantIdentity tenant={m.tenant_id ? tenantById[m.tenant_id] : null} /> }] : []),
+          {
+            header: 'Pessoa',
+            accessor: (m: Manager) => (
+              <div className="flex items-center gap-3">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--rt-brand-100)] text-xs font-bold text-[#0B7A50]">
+                  {(m.full_name ?? m.email ?? '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-[var(--rt-ink900)]">{m.full_name ?? '—'}</p>
+                  <p className="truncate text-xs text-[var(--rt-ink500)]">{m.email ?? '—'}</p>
+                </div>
+              </div>
+            ),
+          },
+          { header: 'Papel', accessor: (m: Manager) => ROLE_LABEL[m.role] ?? m.role },
+          { header: 'Acesso', accessor: (m: Manager) => <SGFBadge variant={m.access_blocked ? 'error' : 'success'} dot>{m.access_blocked ? 'Bloqueado' : 'Ativo'}</SGFBadge> },
+          {
+            header: '',
+            className: 'text-right',
+            accessor: (m: Manager) => (
+              <div className="flex justify-end gap-1.5">
+                <SGFButton size="sm" variant="outline" onClick={() => { setNewPass(''); setResetFor(m); }}>Nova senha</SGFButton>
+                <SGFButton size="sm" variant="ghost" className={m.access_blocked ? '' : '!text-[var(--rt-red600)]'} onClick={() => setBlocked.mutate({ userId: m.id, blocked: !m.access_blocked })}>
+                  {m.access_blocked ? 'Reativar' : 'Bloquear'}
+                </SGFButton>
+              </div>
+            ),
+          },
+        ]}
+      />
+
+      <Sheet
+        open={creating}
+        onClose={() => setCreating(false)}
+        title="Novo gestor"
+        subtitle="Cria o login de gestor ou administrador da prefeitura, com acesso ao painel do gestor."
+        footer={<>
+          <Button variant="ghost" onClick={() => setCreating(false)}>Cancelar</Button>
+          <Button disabled={!canSubmit || create.isPending} onClick={() => create.mutate(undefined, { onSuccess: () => setCreating(false) })}>
+            {create.isPending ? 'Criando…' : 'Criar gestor'}
+          </Button>
+        </>}
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {!fixed && (
             <SGFSelect label="Prefeitura" fullWidth value={f.tenant_id} onChange={(tenant_id) => set({ tenant_id })}
-              options={tenants.map((t) => ({ value: t.id, label: t.name }))} />
+              options={tenants.map((t) => ({ value: t.id, label: t.name }))} placeholder="Escolha a prefeitura" className="sm:col-span-2" />
           )}
-          <SGFSelect label="Papel" fullWidth value={f.role} onChange={(role) => set({ role })}
+          <SGFSelect label="Papel" fullWidth value={f.role} onChange={(role) => set({ role })} className="sm:col-span-2"
             options={[
               { value: 'gestor', label: 'Gestor (acesso total da prefeitura)' },
               { value: 'admin', label: 'Administrador' },
             ]} />
-          <Input label="Nome" value={f.name} onChange={(e) => set({ name: e.target.value })} />
+          <Input label="Nome completo" value={f.name} onChange={(e) => set({ name: e.target.value })} />
           <Input label="E-mail" type="email" value={f.email} onChange={(e) => set({ email: e.target.value })} />
-          <Input label="Senha inicial" type="text" value={f.password} onChange={(e) => set({ password: e.target.value })} placeholder={PASSWORD_PLACEHOLDER} />
+          <Input label="Senha inicial" type="text" value={f.password} onChange={(e) => set({ password: e.target.value })} placeholder={PASSWORD_PLACEHOLDER} hint={`Mínimo de ${PASSWORD_MIN_LENGTH} caracteres.`} />
         </div>
-        <div className="mt-4 flex justify-end">
-          <Button disabled={!canSubmit || create.isPending} onClick={() => create.mutate()}>{create.isPending ? 'Criando…' : 'Criar gestor'}</Button>
-        </div>
-      </Card>
+      </Sheet>
 
-      <Card className="p-0">
-        {isLoading ? <p className="p-5 text-slate-400">Carregando…</p> : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-                {!fixed && <th className="px-5 py-3">Prefeitura</th>}
-                <th className="px-5 py-3">Nome</th><th className="px-5 py-3">E-mail</th><th className="px-5 py-3">Papel</th><th className="px-5 py-3">Acesso</th><th></th>
-              </tr></thead>
-              <tbody>
-                {managers.map((m) => (
-                  <tr key={m.id} className="border-b border-slate-100">
-                    {!fixed && <td className="px-5 py-3 text-slate-600"><TenantIdentity tenant={m.tenant_id ? tenantById[m.tenant_id] : null} /></td>}
-                    <td className="px-5 py-3 font-medium text-slate-800">{m.full_name ?? '—'}</td>
-                    <td className="px-5 py-3 text-slate-600">{m.email ?? '—'}</td>
-                    <td className="px-5 py-3">{ROLE_LABEL[m.role] ?? m.role}</td>
-                    <td className="px-5 py-3">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${m.access_blocked ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                        {m.access_blocked ? 'Bloqueado' : 'Ativo'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex justify-end gap-3">
-                        <button onClick={() => setBlocked.mutate({ userId: m.id, blocked: !m.access_blocked })} className="text-xs font-semibold text-[var(--sgf-primary)] hover:underline">
-                          {m.access_blocked ? 'Reativar' : 'Bloquear'}
-                        </button>
-                        <button onClick={() => { const p = prompt(`Nova senha (mín. ${PASSWORD_MIN_LENGTH}):`); if (p && p.length >= PASSWORD_MIN_LENGTH) resetPass.mutate({ userId: m.id, password: p }); }} className="text-xs font-semibold text-slate-500 hover:underline">Redefinir senha</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {managers.length === 0 && <tr><td colSpan={fixed ? 5 : 6} className="px-5 py-8 text-center text-slate-400">Nenhum gestor cadastrado.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      <Sheet
+        open={!!resetFor}
+        onClose={() => setResetFor(null)}
+        size="sm"
+        title="Definir nova senha"
+        subtitle={resetFor ? `Para ${resetFor.full_name ?? resetFor.email}` : undefined}
+        footer={<>
+          <Button variant="ghost" onClick={() => setResetFor(null)}>Cancelar</Button>
+          <Button
+            disabled={newPass.length < PASSWORD_MIN_LENGTH || resetPass.isPending}
+            onClick={() => resetFor && resetPass.mutate({ userId: resetFor.id, password: newPass }, { onSuccess: () => setResetFor(null) })}
+          >
+            {resetPass.isPending ? 'Salvando…' : 'Salvar senha'}
+          </Button>
+        </>}
+      >
+        <Input label="Nova senha" type="text" value={newPass} onChange={(e) => setNewPass(e.target.value)} placeholder={PASSWORD_PLACEHOLDER} hint={`Mínimo de ${PASSWORD_MIN_LENGTH} caracteres. Passe para a pessoa por um canal seguro.`} />
+      </Sheet>
     </div>
   );
 }

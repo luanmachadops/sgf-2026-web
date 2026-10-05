@@ -46,27 +46,28 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="grid min-h-screen place-items-center bg-gradient-to-br from-[var(--sgf-dark)] to-[var(--sgf-primary)] p-6">
-      <div className="w-full max-w-sm space-y-5 rounded-3xl bg-white p-8 shadow-2xl">
+    <div className="grid min-h-screen place-items-center bg-[var(--rt-ink900)] p-5">
+      <div className="rt-rise w-full max-w-[400px] space-y-5 rounded-[28px] bg-white p-7 shadow-[0_24px_64px_rgb(0_0_0/0.35)] sm:p-8">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-slate-900">Definir nova senha</h1>
-          <p className="text-sm text-slate-500">Exattus Rotta • Superadmin</p>
+          <img src="/exattus-rotta.svg" alt="" className="mx-auto mb-5 h-16 w-16" />
+          <h1 className="text-[26px] font-bold tracking-[-0.02em] text-[var(--rt-ink900)]">Nova senha</h1>
+          <p className="mt-1 text-sm text-[var(--rt-ink500)]">Exattus Rotta · Superadmin</p>
         </div>
 
         {done ? (
-          <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">
+          <div role="status" className="rounded-2xl bg-[var(--rt-brand-100)] px-4 py-3 text-sm font-medium text-[#0B7A50]">
             Senha alterada com sucesso. Redirecionando para o login…
           </div>
         ) : !ready ? (
-          <p className="text-center text-sm text-slate-500">
+          <p className="text-center text-sm text-[var(--rt-ink500)]">
             Validando o link de recuperação… Se você não veio pelo e-mail, solicite um novo link na tela de login.
           </p>
         ) : (
           <form onSubmit={submit} className="space-y-5">
-            {err && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{err}</div>}
+            {err && <div role="alert" className="rounded-2xl bg-[var(--rt-red100)] px-4 py-3 text-sm font-medium text-[var(--rt-red600)]">{err}</div>}
             <Input label="Nova senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={PASSWORD_PLACEHOLDER} required />
             <Input label="Confirmar nova senha" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
-            <Button type="submit" disabled={loading} className="w-full">{loading ? 'Salvando…' : 'Salvar nova senha'}</Button>
+            <Button type="submit" disabled={loading} className="h-12 w-full text-[15px]">{loading ? 'Salvando…' : 'Salvar nova senha'}</Button>
           </form>
         )}
       </div>

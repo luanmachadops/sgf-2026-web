@@ -348,3 +348,47 @@
     line-height: var(--sgf-leading-normal);
   }
 }
+
+/* ============================================================= */
+/* ROTTA v2 — mesmos tokens do app do motorista (src/theme.ts)   */
+/* Fundo papel, cards brancos 28px, hero escuro, pílulas.         */
+/* ============================================================= */
+:root {
+  --rt-ink900: #0F2B2F;
+  --rt-ink700: #2B4448;
+  --rt-ink500: #5E7376;
+  --rt-ink400: #8FA1A3;
+  --rt-ink300: #C3CFCE;
+  --rt-paper: #F2F5F3;
+  --rt-paper2: #E8EEEB;
+  --rt-card: #FFFFFF;
+  --rt-hairline: #E6ECE9;
+  --rt-brand: #00A86B;
+  --rt-brand-700: #0F2B2F;
+  --rt-brand-100: #DDF3EA;
+  --rt-brand-50: #EEF8F4;
+  --rt-accent: #F26A1F;
+  --rt-green600: #15803D; --rt-green100: #DCFCE7;
+  --rt-amber600: #B45309; --rt-amber100: #FEF3C7;
+  --rt-red600: #DC2626;   --rt-red100: #FEE2E2;
+  --rt-blue600: #2563EB;  --rt-blue100: #DBEAFE;
+  --rt-radius-card: 28px;
+  --rt-radius-tile: 22px;
+  --rt-shadow-card: 0 6px 18px rgb(15 43 47 / 0.06);
+  --rt-shadow-float: 0 6px 20px rgb(15 43 47 / 0.12);
+
+  /* Tokens legados apontam para os novos: telas antigas herdam o visual. */
+  --sgf-surface: var(--rt-paper);
+  --sgf-card-radius: var(--rt-radius-card);
+  --sgf-text-primary: var(--rt-ink900);
+  --sgf-text-secondary: var(--rt-ink500);
+  --sgf-text-tertiary: var(--rt-ink400);
+}
+body { background: var(--rt-paper); color: var(--rt-ink900); font-feature-settings: 'cv11', 'ss01'; }
+.rt-num { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.rt-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.rt-scroll::-webkit-scrollbar-thumb { background: var(--rt-ink300); border-radius: 999px; }
+.rt-scroll::-webkit-scrollbar-track { background: transparent; }
+@keyframes rt-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.rt-rise { animation: rt-rise 420ms cubic-bezier(.2,.8,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .rt-rise { animation: none; } }

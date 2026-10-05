@@ -4,8 +4,8 @@ import { toast } from 'sonner';
 import { iopgpsApi } from '@/lib/iopgpsApi';
 import { trackersApi, tenantsApi } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { Card, Button, Input } from '@/lib/ui';
-import { SGFSelect } from '@/components/sgf';
+import { Button, Input } from '@/lib/ui';
+import { SGFSelect, SGFCard, SGFBadge, SGFButton } from '@/components/sgf';
 import { TenantIdentity } from '@/components/TenantIdentity';
 
 function ago(iso: string | null): string {
@@ -64,61 +64,102 @@ export function IopgpsPanel({ tenantId }: { tenantId?: string }) {
     fuel.mutate({ trackerId, command: cut ? 'FUEL_CUT' : 'FUEL_RESTORE' });
   }
 
-  return (
-    <div className="space-y-5">
-      <CredentialsCard fixed={fixed} tenantId={tenantId} tenants={tenants} onSaved={() => qc.invalidateQueries({ queryKey: ['iopgps-status'] })} />
+  // A IOPGPS guarda o último estado recebido: um aparelho que parou de transmitir
+  // continua "online" e "ligado" para sempre. Sem sinal há mais de 15 min = offline.
+  const STALE_MS = 15 * 60 * 1000;
+  const isLive = (d: (typeof status)[number]) => {
+    const t = d.gps_time ?? d.updated_at;
+    return !!d.online && !!t && Date.now() - new Date(t).getTime() < STALE_MS;
+  };
+  const online = status.filter(isLive).length;
+  const moving = status.filter((d) => isLive(d) && (d.speed ?? 0) > 3).length;
+  const ignitionOn = status.filter((d) => isLive(d) && d.ignition).length;
 
-      <Card className="p-0">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3">
-          <h2 className="text-lg font-semibold text-slate-800">Status dos dispositivos</h2>
-          <Button variant="secondary" disabled={sync.isPending} onClick={() => sync.mutate()}>
-            {sync.isPending ? 'Sincronizando…' : 'Sincronizar agora'}
-          </Button>
-        </div>
-        {isLoading ? <p className="p-5 text-slate-400">Carregando…</p> : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-sm">
-              <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-                {!fixed && <th className="px-5 py-3">Prefeitura</th>}
-                <th className="px-5 py-3">Veículo</th><th className="px-5 py-3">IMEI</th><th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3">Velocidade</th><th className="px-5 py-3">Ignição</th><th className="px-5 py-3">Tensão</th>
-                <th className="px-5 py-3">Fonte</th><th className="px-5 py-3">Atualizado</th><th></th>
-              </tr></thead>
-              <tbody>
-                {status.map((s) => {
-                  const trk = (s.vehicle_id && trkByVehicle[s.vehicle_id]) || trkById[s.tracker_id];
-                  return (
-                    <tr key={s.tracker_id} className="border-b border-slate-100">
-                      {!fixed && <td className="px-5 py-3 text-slate-600"><TenantIdentity tenant={tenantById[s.tenant_id]} /></td>}
-                      <td className="px-5 py-3 font-medium text-slate-800">{(s.vehicle_id && plates[s.vehicle_id]) || trk?.label || '—'}</td>
-                      <td className="px-5 py-3 font-mono text-xs text-slate-600">{s.imei}</td>
-                      <td className="px-5 py-3">
-                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${s.online ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
-                          {s.online ? 'Online' : 'Offline'}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3">{s.speed != null ? `${Math.round(s.speed)} km/h` : '—'}</td>
-                      <td className="px-5 py-3">{s.ignition == null ? '—' : s.ignition ? 'Ligada' : 'Desligada'}</td>
-                      <td className="px-5 py-3">{s.voltage != null ? `${s.voltage.toFixed(1)} V` : '—'}</td>
-                      <td className="px-5 py-3 uppercase text-xs text-slate-500">{s.fix_source ?? '—'}</td>
-                      <td className="px-5 py-3 text-slate-500">{ago(s.gps_time ?? s.updated_at)}</td>
-                      <td className="px-5 py-3 text-right">
-                        {trk && (
-                          <div className="flex justify-end gap-3">
-                            <button onClick={() => onFuel(trk.id, true)} className="text-xs font-semibold text-rose-600 hover:underline">Cortar</button>
-                            <button onClick={() => onFuel(trk.id, false)} className="text-xs font-semibold text-[var(--sgf-primary)] hover:underline">Retomar</button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {status.length === 0 && <tr><td colSpan={fixed ? 9 : 10} className="px-5 py-8 text-center text-slate-400">Nenhum dado de rastreador ainda. Configure as credenciais e clique em “Sincronizar agora”.</td></tr>}
-              </tbody>
-            </table>
+  return (
+    <div className="space-y-4">
+      {/* Resumo da frota rastreada */}
+      <section className="rt-rise relative overflow-hidden rounded-[var(--rt-radius-card)] bg-[var(--rt-ink900)] p-6 text-white sm:p-8">
+        <div className="pointer-events-none absolute -left-20 -top-28 h-72 w-72 rounded-full bg-[var(--rt-brand)]/20 blur-3xl" aria-hidden />
+        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#3EF074]" /> Atualiza a cada 30 s
+            </span>
+            <div className="mt-5 flex items-end gap-3">
+              <span className="rt-num text-[56px] font-light leading-none">{online}</span>
+              <span className="pb-1.5 text-lg text-white/60">de {status.length} online</span>
+            </div>
           </div>
-        )}
-      </Card>
+          <div className="flex items-end gap-6">
+            {[{ label: 'Em movimento', value: moving }, { label: 'Ignição ligada', value: ignitionOn }].map((k) => (
+              <div key={k.label}>
+                <p className="rt-num text-[28px] font-light leading-none">{k.value}</p>
+                <p className="mt-1.5 text-xs text-white/55">{k.label}</p>
+              </div>
+            ))}
+            <Button variant="primary" disabled={sync.isPending} onClick={() => sync.mutate()}>
+              {sync.isPending ? 'Sincronizando…' : 'Sincronizar agora'}
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-56 animate-pulse rounded-[var(--rt-radius-card)] bg-white" />)}</div>
+      ) : status.length === 0 ? (
+        <div className="grid place-items-center rounded-[var(--rt-radius-card)] bg-white px-6 py-14 text-center shadow-[var(--rt-shadow-card)]">
+          <p className="text-[15px] font-semibold text-[var(--rt-ink900)]">Nenhum dado de rastreador ainda</p>
+          <p className="mt-1 text-sm text-[var(--rt-ink500)]">Configure as credenciais da IOPGPS abaixo e toque em “Sincronizar agora”.</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {status.map((d, i) => {
+            const trk = (d.vehicle_id && trkByVehicle[d.vehicle_id]) || trkById[d.tracker_id];
+            const plate = (d.vehicle_id && plates[d.vehicle_id]) || trk?.label || 'Sem veículo';
+            const live = isLive(d);
+            const movingNow = live && (d.speed ?? 0) > 3;
+            const state = !live ? { label: d.online ? 'Sem sinal' : 'Offline', variant: 'stopped' as const }
+              : movingNow ? { label: 'Em movimento', variant: 'moving' as const }
+              : d.ignition ? { label: 'Parado, ligado', variant: 'idle' as const }
+              : { label: 'Parado', variant: 'stopped' as const };
+            return (
+              <article key={d.tracker_id} className="rt-rise flex flex-col rounded-[var(--rt-radius-card)] bg-white p-5 shadow-[var(--rt-shadow-card)]" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="rt-num truncate font-mono text-[17px] font-bold tracking-wide text-[var(--rt-ink900)]">{plate}</p>
+                    <p className="rt-num truncate font-mono text-xs text-[var(--rt-ink500)]">{d.imei}</p>
+                    {!fixed && <div className="mt-2"><TenantIdentity tenant={tenantById[d.tenant_id]} /></div>}
+                  </div>
+                  <SGFBadge variant={state.variant} dot>{state.label}</SGFBadge>
+                </div>
+
+                <div className="mt-5 flex items-end gap-2">
+                  <span className="rt-num text-[40px] font-light leading-none text-[var(--rt-ink900)]">{d.speed != null ? Math.round(d.speed) : '—'}</span>
+                  <span className="pb-1 text-sm text-[var(--rt-ink500)]">km/h</span>
+                </div>
+
+                <dl className="mt-5 grid grid-cols-3 gap-2 rounded-2xl bg-[var(--rt-paper)] p-3 text-center">
+                  <div><dt className="text-[11px] text-[var(--rt-ink500)]">Ignição</dt><dd className="mt-0.5 text-sm font-semibold text-[var(--rt-ink900)]">{d.ignition == null ? '—' : d.ignition ? 'Ligada' : 'Desligada'}</dd></div>
+                  <div><dt className="text-[11px] text-[var(--rt-ink500)]">Tensão</dt><dd className="rt-num mt-0.5 text-sm font-semibold text-[var(--rt-ink900)]">{d.voltage != null ? `${d.voltage.toFixed(1)} V` : '—'}</dd></div>
+                  <div><dt className="text-[11px] text-[var(--rt-ink500)]">Sinal</dt><dd className="mt-0.5 text-sm font-semibold uppercase text-[var(--rt-ink900)]">{d.fix_source ?? '—'}</dd></div>
+                </dl>
+
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  <span className="text-xs text-[var(--rt-ink400)]">Atualizado {ago(d.gps_time ?? d.updated_at)}</span>
+                  {trk && (
+                    <div className="flex gap-1.5">
+                      <SGFButton size="sm" variant="ghost" className="!text-[var(--rt-red600)]" onClick={() => onFuel(trk.id, true)}>Cortar</SGFButton>
+                      <SGFButton size="sm" variant="outline" onClick={() => onFuel(trk.id, false)}>Retomar</SGFButton>
+                    </div>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      <CredentialsCard fixed={fixed} tenantId={tenantId} tenants={tenants} onSaved={() => qc.invalidateQueries({ queryKey: ['iopgps-status'] })} />
     </div>
   );
 }
@@ -139,16 +180,16 @@ function CredentialsCard({ fixed, tenantId, tenants, onSaved }: {
   });
 
   return (
-    <Card>
-      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between text-left">
+    <SGFCard padding="lg">
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-3 text-left" aria-expanded={open}>
         <div>
-          <h2 className="text-lg font-semibold text-slate-800">Credenciais IOPGPS</h2>
-          <p className="text-sm text-slate-500">appid + chave secreta da conta Open API (open.iopgps.com).</p>
+          <h2 className="text-[15px] font-semibold text-[var(--rt-ink900)]">Credenciais IOPGPS</h2>
+          <p className="text-sm text-[var(--rt-ink500)]">appid e chave secreta da conta Open API (open.iopgps.com).</p>
         </div>
-        <span className="text-sm text-[var(--sgf-primary)]">{open ? 'Fechar' : 'Configurar'}</span>
+        <span className="inline-flex h-9 shrink-0 items-center rounded-full bg-[var(--rt-paper)] px-4 text-[13px] font-semibold text-[var(--rt-ink900)]">{open ? 'Fechar' : 'Configurar'}</span>
       </button>
       {open && (
-        <div className="mt-4 space-y-3">
+        <div className="mt-5 space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {!fixed && (
               <SGFSelect label="Prefeitura (vazio = global)" fullWidth value={f.tenant_id} placeholder="Global (todas)"
@@ -164,7 +205,7 @@ function CredentialsCard({ fixed, tenantId, tenants, onSaved }: {
           </div>
         </div>
       )}
-    </Card>
+    </SGFCard>
   );
 }
 

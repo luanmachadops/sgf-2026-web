@@ -1,6 +1,7 @@
 import React from 'react';
 import type { IconType } from './icons';
 
+/** Pílula de status no padrão do app: fundo suave + ponto opcional, texto em tinta da cor. */
 export interface SGFBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: 'default' | 'success' | 'warning' | 'error' | 'info' | 'moving' | 'idle' | 'stopped' | 'alert';
   size?: 'sm' | 'md' | 'lg';
@@ -8,82 +9,31 @@ export interface SGFBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   dot?: boolean;
 }
 
+const TONE: Record<NonNullable<SGFBadgeProps['variant']>, { box: string; dot: string }> = {
+  default: { box: 'bg-[var(--rt-paper2)] text-[var(--rt-ink700)]', dot: 'bg-[var(--rt-ink400)]' },
+  success: { box: 'bg-[var(--rt-brand-100)] text-[#0B7A50]', dot: 'bg-[var(--rt-brand)]' },
+  warning: { box: 'bg-[var(--rt-amber100)] text-[var(--rt-amber600)]', dot: 'bg-[#F59E0B]' },
+  error: { box: 'bg-[var(--rt-red100)] text-[var(--rt-red600)]', dot: 'bg-[var(--rt-red600)]' },
+  info: { box: 'bg-[var(--rt-blue100)] text-[var(--rt-blue600)]', dot: 'bg-[var(--rt-blue600)]' },
+  moving: { box: 'bg-[var(--rt-green100)] text-[var(--rt-green600)]', dot: 'bg-[#22C55E]' },
+  idle: { box: 'bg-[var(--rt-blue100)] text-[var(--rt-blue600)]', dot: 'bg-[#3B82F6]' },
+  stopped: { box: 'bg-[var(--rt-paper2)] text-[var(--rt-ink500)]', dot: 'bg-[#9CA3AF]' },
+  alert: { box: 'bg-[var(--rt-red100)] text-[var(--rt-red600)]', dot: 'bg-[#EF4444] animate-pulse' },
+};
+const SIZE = { sm: 'h-6 px-2.5 text-[11px]', md: 'h-7 px-3 text-xs', lg: 'h-8 px-3.5 text-[13px]' };
+const ICON = { sm: 11, md: 12, lg: 14 };
+
 export const SGFBadge = React.forwardRef<HTMLSpanElement, SGFBadgeProps>(
-  (
-    {
-      variant = 'default',
-      size = 'md',
-      icon: Icon,
-      dot = false,
-      className = '',
-      children,
-      ...props
-    },
-    ref
-  ) => {
-    const baseStyles = `
-      inline-flex items-center gap-1.5
-      font-[var(--sgf-font-bold)]
-      rounded-[var(--sgf-radius-full)]
-      transition-colors duration-[var(--sgf-transition-fast)]
-    `;
-
-    const variantStyles = {
-      default: 'bg-slate-100 text-slate-700',
-      success: 'bg-emerald-100 text-emerald-700',
-      warning: 'bg-amber-100 text-amber-700',
-      error: 'bg-red-100 text-red-700',
-      info: 'bg-blue-100 text-blue-700',
-      moving: 'bg-emerald-100 text-emerald-700',
-      idle: 'bg-blue-100 text-blue-700',
-      stopped: 'bg-slate-100 text-slate-600',
-      alert: 'bg-red-100 text-red-700 animate-pulse',
-    };
-
-    // Using design tokens for consistent spacing
-    const sizeStyles = {
-      sm: 'px-[var(--sgf-space-2)] py-[2px] text-[var(--sgf-text-2xs)]',
-      md: 'px-[var(--sgf-space-3)] py-[var(--sgf-space-1)] text-[var(--sgf-text-xs)]',
-      lg: 'px-[var(--sgf-space-4)] py-[6px] text-[var(--sgf-text-sm)]',
-    };
-
-    const dotColors = {
-      default: 'bg-slate-500',
-      success: 'bg-emerald-500',
-      warning: 'bg-amber-500',
-      error: 'bg-red-500',
-      info: 'bg-blue-500',
-      moving: 'bg-[var(--sgf-status-moving)]',
-      idle: 'bg-[var(--sgf-status-idle)]',
-      stopped: 'bg-[var(--sgf-status-stopped)]',
-      alert: 'bg-[var(--sgf-status-alert)]',
-    };
-
-    const iconSizes = {
-      sm: 10,
-      md: 12,
-      lg: 14,
-    };
-
+  ({ variant = 'default', size = 'md', icon: Icon, dot = false, className = '', children, ...props }, ref) => {
+    const t = TONE[variant];
     return (
-      <span
-        ref={ref}
-        className={`
-          ${baseStyles}
-          ${variantStyles[variant]}
-          ${sizeStyles[size]}
-          ${className}
-        `.trim().replace(/\s+/g, ' ')}
-        {...props}
-      >
-        {dot && (
-          <span className={`w-1.5 h-1.5 rounded-full ${dotColors[variant]}`} />
-        )}
-        {Icon && <Icon width={iconSizes[size]} height={iconSizes[size]} />}
+      <span ref={ref} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full font-semibold ${t.box} ${SIZE[size]} ${className}`} {...props}>
+        {dot && <span className={`h-1.5 w-1.5 rounded-full ${t.dot}`} />}
+        {Icon && <Icon width={ICON[size]} height={ICON[size]} />}
         {children}
       </span>
     );
-  }
+  },
 );
 
 SGFBadge.displayName = 'SGFBadge';

@@ -37,18 +37,18 @@ export default function Login() {
   };
 
   return (
-    <div className="sgf-auth-background grid min-h-screen place-items-center p-6">
-      <form onSubmit={mode === 'login' ? submit : sendReset} className="relative z-[1] w-full max-w-sm space-y-5 rounded-3xl bg-white p-8 shadow-2xl">
+    <div className="grid min-h-screen place-items-center bg-[var(--rt-ink900)] p-5">
+      <form onSubmit={mode === 'login' ? submit : sendReset} className="rt-rise w-full max-w-[400px] space-y-5 rounded-[28px] bg-white p-7 shadow-[0_24px_64px_rgb(0_0_0/0.35)] sm:p-8">
         <div className="text-center">
-          <img src="/exattus-rotta.svg" alt="" className="mx-auto mb-4 h-16 w-16" />
-          <h1 className="text-2xl font-bold text-slate-900">Exattus Rotta • Superadmin</h1>
-          <p className="text-sm text-slate-500">
-            {mode === 'login' ? 'Painel de gestão de prefeituras' : 'Recuperar acesso'}
+          <img src="/exattus-rotta.svg" alt="" className="mx-auto mb-5 h-16 w-16" />
+          <h1 className="text-[26px] font-bold tracking-[-0.02em] text-[var(--rt-ink900)]">{mode === 'login' ? 'Superadmin' : 'Recuperar acesso'}</h1>
+          <p className="mt-1 text-sm text-[var(--rt-ink500)]">
+            {mode === 'login' ? 'Exattus Rotta · gestão das prefeituras' : 'Enviaremos um link para redefinir a senha.'}
           </p>
         </div>
 
-        {err && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{err}</div>}
-        {info && <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{info}</div>}
+        {err && <div role="alert" className="rounded-2xl bg-[var(--rt-red100)] px-4 py-3 text-sm font-medium text-[var(--rt-red600)]">{err}</div>}
+        {info && <div role="status" className="rounded-2xl bg-[var(--rt-brand-100)] px-4 py-3 text-sm font-medium text-[#0B7A50]">{info}</div>}
 
         <Input label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
 
@@ -56,19 +56,19 @@ export default function Login() {
           <Input label="Senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         )}
 
-        <Button type="submit" disabled={loading} className="w-full">
+        <Button type="submit" disabled={loading} className="h-12 w-full text-[15px]">
           {loading ? (mode === 'login' ? 'Entrando…' : 'Enviando…') : (mode === 'login' ? 'Entrar' : 'Enviar link de recuperação')}
         </Button>
 
         <div className="text-center">
           {mode === 'login' ? (
             <button type="button" onClick={() => { setMode('forgot'); setErr(''); setInfo(''); }}
-              className="text-sm font-medium text-[var(--sgf-primary)] hover:underline">
+              className="rounded-full px-3 py-1.5 text-sm font-semibold text-[var(--rt-brand)] hover:bg-[var(--rt-brand-50)]">
               Esqueci minha senha
             </button>
           ) : (
             <button type="button" onClick={() => { setMode('login'); setErr(''); setInfo(''); }}
-              className="text-sm font-medium text-slate-500 hover:underline">
+              className="rounded-full px-3 py-1.5 text-sm font-semibold text-[var(--rt-ink500)] hover:bg-[var(--rt-paper)]">
               ← Voltar ao login
             </button>
           )}

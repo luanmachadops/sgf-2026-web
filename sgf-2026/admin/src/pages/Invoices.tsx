@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { invoicesApi, tenantsApi } from '@/lib/api';
-import { Card, Button, Input, Badge, fmtBrl } from '@/lib/ui';
-import { SGFSelect } from '@/components/sgf';
+import { invoicesApi, tenantsApi, type Invoice } from '@/lib/api';
+import { Button, Input, Badge, fmtBrl } from '@/lib/ui';
+import { SGFSelect, SGFTable, SGFKPICard, SGFButton, PageHeader, Sheet } from '@/components/sgf';
+import { Receipt, Clock, ShieldCheck, Plus } from '@/components/sgf/icons';
 import { TenantIdentity } from '@/components/TenantIdentity';
 
 export default function Invoices() {
@@ -28,54 +29,67 @@ export default function Invoices() {
   const total = invoices.filter((i) => i.status !== 'canceled').reduce((s, i) => s + Number(i.amount), 0);
   const pending = invoices.filter((i) => i.status === 'pending' || i.status === 'overdue').reduce((s, i) => s + Number(i.amount), 0);
 
+  const [formOpen, setFormOpen] = useState(false);
+  const paidCount = invoices.filter((i) => i.status === 'paid').length;
+  const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const comp = (c: string) => { const [y, m] = c.split('-'); return m ? `${MES[Number(m) - 1] ?? m}/${y}` : c; };
+  const br = (d: string | null) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('pt-BR') : '—');
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Pagamentos</h1>
-        <p className="text-sm text-slate-500">Faturamento manual por prefeitura.</p>
+      <PageHeader
+        title="Pagamentos"
+        subtitle="Faturas lançadas para cada prefeitura."
+        actions={<Button onClick={() => setFormOpen(true)}><Plus width={18} height={18} /> Lançar fatura</Button>}
+      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <SGFKPICard title="Total faturado" value={fmtBrl(total)} icon={Receipt} tone="brand" loading={isLoading} />
+        <SGFKPICard title="A receber" value={fmtBrl(pending)} icon={Clock} tone={pending > 0 ? 'amber' : 'neutral'} loading={isLoading} />
+        <SGFKPICard title="Faturas pagas" value={paidCount} hint={`de ${invoices.length} lançadas`} icon={ShieldCheck} tone="blue" loading={isLoading} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <Card><div className="text-2xl font-bold text-[var(--sgf-dark)]">{fmtBrl(total)}</div><div className="text-xs uppercase text-slate-400">Faturado</div></Card>
-        <Card><div className="text-2xl font-bold text-amber-600">{fmtBrl(pending)}</div><div className="text-xs uppercase text-slate-400">A receber</div></Card>
-      </div>
+      <SGFTable<Invoice>
+        loading={isLoading}
+        data={invoices}
+        keyExtractor={(i) => i.id}
+        emptyMessage="Nenhuma fatura lançada."
+        columns={[
+          { header: 'Prefeitura', accessor: (i) => <TenantIdentity tenant={tenantById[i.tenant_id]} /> },
+          { header: 'Competência', accessor: (i) => <span className="font-medium capitalize text-[var(--rt-ink900)]">{comp(i.competencia)}</span> },
+          { header: 'Valor', accessor: (i) => <span className="rt-num whitespace-nowrap font-semibold text-[var(--rt-ink900)]">{fmtBrl(Number(i.amount))}</span> },
+          { header: 'Vencimento', accessor: (i) => <span className="rt-num">{br(i.due_date)}</span> },
+          { header: 'Situação', accessor: (i) => <Badge status={i.status} /> },
+          {
+            header: '',
+            className: 'text-right',
+            accessor: (i) => i.status !== 'paid' && i.status !== 'canceled'
+              ? <SGFButton size="sm" variant="outline" onClick={() => markPaid.mutate(i.id)}>Marcar como paga</SGFButton>
+              : null,
+          },
+        ]}
+      />
 
-      <Card>
-        <h2 className="mb-3 text-lg font-semibold">Lançar fatura</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+      <Sheet
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        size="sm"
+        title="Lançar fatura"
+        footer={<>
+          <Button variant="ghost" onClick={() => setFormOpen(false)}>Cancelar</Button>
+          <Button disabled={!f.tenant_id || !f.competencia || create.isPending} onClick={() => create.mutate(undefined, { onSuccess: () => setFormOpen(false) })}>
+            {create.isPending ? 'Lançando…' : 'Lançar fatura'}
+          </Button>
+        </>}
+      >
+        <div className="space-y-4">
           <SGFSelect label="Prefeitura" fullWidth value={f.tenant_id} onChange={(tenant_id) => set({ tenant_id })}
-            options={tenants.map((t) => ({ value: t.id, label: t.name }))} />
-          <Input label="Competência (AAAA-MM)" value={f.competencia} onChange={(e) => set({ competencia: e.target.value })} placeholder="2026-06" />
-          <Input label="Valor (R$)" type="number" value={f.amount} onChange={(e) => set({ amount: e.target.value })} />
+            options={tenants.map((t) => ({ value: t.id, label: t.name }))} placeholder="Escolha a prefeitura" />
+          <Input label="Competência" type="month" value={f.competencia} onChange={(e) => set({ competencia: e.target.value })} />
+          <Input label="Valor (R$)" type="number" min="0" step="0.01" value={f.amount} onChange={(e) => set({ amount: e.target.value })} />
           <Input label="Vencimento" type="date" value={f.due_date} onChange={(e) => set({ due_date: e.target.value })} />
         </div>
-        <div className="mt-3 flex justify-end">
-          <Button disabled={!f.tenant_id || !f.competencia || create.isPending} onClick={() => create.mutate()}>Lançar</Button>
-        </div>
-      </Card>
-
-      <Card className="p-0">
-        {isLoading ? <p className="p-5 text-slate-400">Carregando…</p> : (
-          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm">
-            <thead><tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-              <th className="px-5 py-3">Prefeitura</th><th className="px-5 py-3">Competência</th><th className="px-5 py-3">Valor</th><th className="px-5 py-3">Vencimento</th><th className="px-5 py-3">Status</th><th></th>
-            </tr></thead>
-            <tbody>
-              {invoices.map((i) => (
-                <tr key={i.id} className="border-b border-slate-100">
-                  <td className="px-5 py-3"><TenantIdentity tenant={tenantById[i.tenant_id]} /></td>
-                  <td className="px-5 py-3">{i.competencia}</td>
-                  <td className="px-5 py-3">{fmtBrl(Number(i.amount))}</td>
-                  <td className="px-5 py-3">{i.due_date ?? '—'}</td>
-                  <td className="px-5 py-3"><Badge status={i.status} /></td>
-                  <td className="px-5 py-3 text-right">{i.status !== 'paid' && <button onClick={() => markPaid.mutate(i.id)} className="text-xs font-semibold text-[var(--sgf-primary)] hover:underline">Marcar paga</button>}</td>
-                </tr>
-              ))}
-              {invoices.length === 0 && <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">Sem faturas.</td></tr>}
-            </tbody>
-          </table></div>
-        )}
-      </Card>
+      </Sheet>
     </div>
   );
 }
