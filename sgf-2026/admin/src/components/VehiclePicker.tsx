@@ -88,9 +88,9 @@ export function VehiclePicker({
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <p className="font-mono text-sm font-bold text-[var(--rt-ink900)]">
+              <p className="text-sm font-bold text-[var(--rt-ink900)]">
                 {formatPlate(v.plate)}
-                {v.departmentName && <span className="ml-2 font-sans text-xs font-normal text-[var(--rt-ink400)]">· {v.departmentName}</span>}
+                {v.departmentName && <span className="ml-2 text-xs font-normal text-[var(--rt-ink400)]">· {v.departmentName}</span>}
               </p>
               <p className="truncate text-xs text-[var(--rt-ink500)]">{[v.brand, v.model].filter(Boolean).join(' ') || 'Veículo'}</p>
             </div>
@@ -118,7 +118,7 @@ export function VehiclePicker({
                   {selected.photo_url
                     ? <img src={selected.photo_url} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
                     : <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white text-[var(--rt-ink500)]"><Car className="h-3.5 w-3.5" /></span>}
-                  <span className="truncate font-mono font-semibold text-[var(--rt-ink900)]">{formatPlate(selected.plate)}</span>
+                  <span className="truncate font-semibold text-[var(--rt-ink900)]">{formatPlate(selected.plate)}</span>
                 </>
               ) : (
                 <span className="pl-2 font-medium text-[var(--rt-ink500)]">+ {emptyLabel ?? 'Vincular veículo'}</span>
@@ -159,7 +159,7 @@ export function VehiclePicker({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="font-mono text-base font-bold text-[var(--rt-ink900)]">{formatPlate(selected.plate)}</p>
+          <p className="text-base font-bold text-[var(--rt-ink900)]">{formatPlate(selected.plate)}</p>
           <p className="text-xs font-medium text-[var(--rt-ink700)]">{[selected.brand, selected.model].filter(Boolean).join(' ') || 'Veículo'}</p>
           {selected.departmentName && <p className="text-[11px] text-[var(--rt-ink500)]">{selected.departmentName}</p>}
         </div>

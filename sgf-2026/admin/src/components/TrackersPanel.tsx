@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { trackersApi, tenantsApi, vehiclesApi, TRACKER_MODELS, type VehicleOption, type Tracker } from '@/lib/api';
+import { trackersApi, tenantsApi, vehiclesApi, formatPlate, TRACKER_MODELS, type Tracker } from '@/lib/api';
 import { iopgpsApi } from '@/lib/iopgpsApi';
 import { VehiclePicker } from '@/components/VehiclePicker';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
-import { Camera, Plus } from '@/components/sgf/icons';
+import { Camera, Car, Plus } from '@/components/sgf/icons';
 import { Button } from '@/lib/ui';
-import { SGFSelect, SGFTable, SGFBadge, SGFButton, Sheet } from '@/components/sgf';
+import { SGFSelect, SGFTable, SGFBadge, Sheet } from '@/components/sgf';
 import { TenantIdentity } from '@/components/TenantIdentity';
+import { TrackerSheet } from '@/components/TrackerSheet';
 
 // Estilo padrão dos campos (mesma altura/design do SGFInput) reutilizado em toda a página.
 const LABEL_CLS = 'mb-2 block text-[13px] font-medium text-[var(--rt-ink500)]';
@@ -33,30 +34,36 @@ function maskPhone(value: string): string {
 export function TrackersPanel({ tenantId }: { tenantId?: string }) {
   const qc = useQueryClient();
   const fixed = !!tenantId;
-  const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: tenantsApi.list, enabled: !fixed });
+  const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: tenantsApi.list });
   const { data: trackers = [], isLoading } = useQuery({
     queryKey: ['trackers', tenantId ?? 'all'],
     queryFn: () => trackersApi.list(tenantId),
   });
-  const { data: vehicles = [] } = useQuery({
-    queryKey: ['vehicles', tenantId ?? 'all'],
-    queryFn: () => vehiclesApi.list(tenantId),
-  });
   const tenantById = useMemo(() => Object.fromEntries(tenants.map((t) => [t.id, t])), [tenants]);
 
-  // Veículos agrupados por prefeitura (para filtrar as opções por tenant do rastreador).
-  const vehiclesByTenant = useMemo(() => {
-    const m = new Map<string, VehicleOption[]>();
-    for (const v of vehicles) { const a = m.get(v.tenant_id) ?? []; a.push(v); m.set(v.tenant_id, a); }
-    return m;
-  }, [vehicles]);
+  // Na tabela só interessam os veículos já vinculados (não carrega a frota de todas as prefeituras).
+  const linkedIds = useMemo(() => [...new Set(trackers.map((t) => t.vehicle_id).filter((id): id is string => !!id))].sort(), [trackers]);
+  const { data: linkedVehicles = [] } = useQuery({
+    queryKey: ['vehicles', 'linked', linkedIds],
+    queryFn: () => vehiclesApi.list(tenantId, linkedIds),
+    enabled: linkedIds.length > 0,
+  });
+  const vehicleById = useMemo(() => Object.fromEntries(linkedVehicles.map((v) => [v.id, v])), [linkedVehicles]);
+
   const [f, setF] = useState({ tenant_id: tenantId ?? '', model: '' as string, identifier: '', label: '', sim_number: '', vehicle_id: '' });
   const set = (p: Partial<typeof f>) => setF((c) => ({ ...c, ...p }));
   const formTenant = tenantId ?? f.tenant_id;
-  const formVehicles = formTenant ? (vehiclesByTenant.get(formTenant) ?? []) : [];
+  const [formOpen, setFormOpen] = useState(false);
+  // No cadastro, a lista de veículos é buscada só da prefeitura escolhida.
+  const { data: formVehicles = [], isFetching: loadingFormVehicles } = useQuery({
+    queryKey: ['vehicles', formTenant],
+    queryFn: () => vehiclesApi.list(formTenant),
+    enabled: formOpen && !!formTenant,
+  });
+  const [openId, setOpenId] = useState<string | null>(null);
+  const opened = trackers.find((t) => t.id === openId) ?? null;
   const [detected, setDetected] = useState<{ model: string | null; online: boolean | null } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
 
   // Detecta o modelo do aparelho na IOPGPS pelo IMEI e preenche automaticamente.
   const detect = useMutation({
@@ -84,22 +91,6 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
     },
     onError: (e) => toast.error((e as Error).message),
   });
-  const toggle = useMutation({
-    mutationFn: ({ id, active }: { id: string; active: boolean }) => trackersApi.setActive(id, active),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['trackers'] }); },
-    onError: (e) => toast.error((e as Error).message),
-  });
-  const setVehicle = useMutation({
-    mutationFn: ({ id, vehicleId }: { id: string; vehicleId: string | null }) => trackersApi.setVehicle(id, vehicleId),
-    onSuccess: () => { toast.success('Veículo vinculado.'); qc.invalidateQueries({ queryKey: ['trackers'] }); },
-    onError: (e) => toast.error((e as Error).message),
-  });
-  const remove = useMutation({
-    mutationFn: (id: string) => trackersApi.remove(id),
-    onSuccess: () => { toast.success('Rastreador removido.'); qc.invalidateQueries({ queryKey: ['trackers'] }); },
-    onError: (e) => toast.error((e as Error).message),
-  });
-
   const canSubmit = (fixed || f.tenant_id) && f.identifier.trim().length > 0;
 
   const linked = trackers.filter((t) => t.vehicle_id).length;
@@ -189,8 +180,8 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
               vehicles={formVehicles}
               value={f.vehicle_id || null}
               onChange={(id) => set({ vehicle_id: id ?? '' })}
-              disabled={!formTenant}
-              emptyLabel={formTenant ? 'Buscar placa ou modelo…' : 'Selecione a prefeitura primeiro'}
+              disabled={!formTenant || loadingFormVehicles}
+              emptyLabel={!formTenant ? 'Selecione a prefeitura primeiro' : 'Carregando veículos…'}
             />
           </label>
           <label className="block">
@@ -208,46 +199,44 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
         loading={isLoading}
         data={trackers}
         keyExtractor={(t) => t.id}
+        onRowClick={(t) => setOpenId(t.id)}
         emptyMessage="Nenhum rastreador cadastrado."
         columns={[
-          ...(!fixed ? [{ header: 'Prefeitura', accessor: (t: Tracker) => <TenantIdentity tenant={tenantById[t.tenant_id]} /> }] : []),
           {
             header: 'Rastreador',
             accessor: (t: Tracker) => (
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-[var(--rt-ink900)]">{t.label || t.model}</p>
-                <p className="rt-num truncate text-xs text-[var(--rt-ink500)]">{t.identifier}</p>
+              <div className="min-w-0 max-w-[220px]">
+                <p className="rt-num truncate font-semibold text-[var(--rt-ink900)]">{t.identifier}</p>
+                {t.label && <p className="truncate text-xs text-[var(--rt-ink500)]">{t.label}</p>}
               </div>
             ),
           },
+          ...(!fixed ? [{ header: 'Prefeitura', accessor: (t: Tracker) => <TenantIdentity tenant={tenantById[t.tenant_id]} /> }] : []),
           {
             header: 'Veículo',
-            className: 'min-w-[220px]',
-            accessor: (t: Tracker) => (
-              <VehiclePicker
-                compact
-                vehicles={vehiclesByTenant.get(t.tenant_id) ?? []}
-                value={t.vehicle_id ?? null}
-                onChange={(id) => setVehicle.mutate({ id: t.id, vehicleId: id })}
-                emptyLabel="Vincular veículo"
-              />
-            ),
+            accessor: (t: Tracker) => {
+              const v = t.vehicle_id ? vehicleById[t.vehicle_id] : null;
+              if (!t.vehicle_id) return <span className="whitespace-nowrap text-[var(--rt-ink400)]">Sem veículo</span>;
+              return (
+                <span className="flex min-w-0 max-w-[240px] items-center gap-2.5">
+                  {v?.photo_url
+                    ? <img src={v.photo_url} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+                    : <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--rt-paper)] text-[var(--rt-ink500)]"><Car className="h-4 w-4" /></span>}
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-[var(--rt-ink900)]">{v ? formatPlate(v.plate) || 'Sem placa' : '…'}</span>
+                    {v && <span className="block truncate text-xs text-[var(--rt-ink500)]">{[v.brand, v.model].filter(Boolean).join(' ') || v.name}</span>}
+                  </span>
+                </span>
+              );
+            },
           },
-          { header: 'Modelo', accessor: (t: Tracker) => t.model },
+          { header: 'Modelo', accessor: (t: Tracker) => <span className="whitespace-nowrap">{t.model}</span> },
           { header: 'Chip', accessor: (t: Tracker) => <span className="rt-num whitespace-nowrap">{t.sim_number ?? '—'}</span> },
           { header: 'Situação', accessor: (t: Tracker) => <SGFBadge variant={t.active ? 'success' : 'default'} dot>{t.active ? 'Ativo' : 'Inativo'}</SGFBadge> },
-          {
-            header: '',
-            className: 'text-right',
-            accessor: (t: Tracker) => (
-              <div className="flex justify-end gap-1.5">
-                <SGFButton size="sm" variant="outline" onClick={() => toggle.mutate({ id: t.id, active: !t.active })}>{t.active ? 'Desativar' : 'Ativar'}</SGFButton>
-                <SGFButton size="sm" variant="ghost" className="!text-[var(--rt-red600)]" onClick={() => { if (confirm('Remover este rastreador?')) remove.mutate(t.id); }}>Remover</SGFButton>
-              </div>
-            ),
-          },
         ]}
       />
+
+      <TrackerSheet tracker={opened} tenant={opened ? tenantById[opened.tenant_id] : undefined} onClose={() => setOpenId(null)} />
 
       <BarcodeScanner
         open={scanOpen}
