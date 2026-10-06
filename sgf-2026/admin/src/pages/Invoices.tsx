@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { invoicesApi, tenantsApi, type Invoice } from '@/lib/api';
+import { invoicesApi, tenantsApi, DOC_ACCEPT, type Invoice, type InvoiceDocKind } from '@/lib/api';
 import { Button, Input, Badge, fmtBrl, MoneyInput } from '@/lib/ui';
 import { SGFSelect, SGFTable, SGFKPICard, SGFButton, PageHeader, Sheet } from '@/components/sgf';
-import { Receipt, Clock, ShieldCheck, Plus, Edit, Trash2 } from '@/components/sgf/icons';
+import { Receipt, Clock, ShieldCheck, Plus, Edit, Trash2, FileText } from '@/components/sgf/icons';
 import { TenantIdentity } from '@/components/TenantIdentity';
+import { InvoiceDocuments, DocKindPicker } from '@/components/InvoiceDocuments';
 
 export default function Invoices() {
   const qc = useQueryClient();
@@ -15,10 +16,20 @@ export default function Invoices() {
 
   const [f, setF] = useState({ tenant_id: '', competencia: '', amount: '', due_date: '' });
   const set = (p: Partial<typeof f>) => setF((c) => ({ ...c, ...p }));
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [newKind, setNewKind] = useState<InvoiceDocKind>('empenho');
 
   const create = useMutation({
-    mutationFn: () => invoicesApi.create({ tenant_id: f.tenant_id, competencia: f.competencia, amount: Number(f.amount) || 0, due_date: f.due_date || null }),
-    onSuccess: () => { toast.success('Fatura lançada.'); setF({ tenant_id: '', competencia: '', amount: '', due_date: '' }); qc.invalidateQueries({ queryKey: ['invoices'] }); },
+    mutationFn: async () => {
+      const invoice = await invoicesApi.create({ tenant_id: f.tenant_id, competencia: f.competencia, amount: Number(f.amount) || 0, due_date: f.due_date || null });
+      if (newFiles.length) await invoicesApi.uploadDocuments(invoice, newFiles, newKind);
+    },
+    onSuccess: () => {
+      toast.success(newFiles.length ? 'Fatura e documentos lançados.' : 'Fatura lançada.');
+      setF({ tenant_id: '', competencia: '', amount: '', due_date: '' });
+      setNewFiles([]);
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+    },
     onError: (e) => toast.error((e as Error).message),
   });
   const markPaid = useMutation({
@@ -88,6 +99,17 @@ export default function Invoices() {
           { header: 'Competência', accessor: (i) => <span className="font-medium capitalize text-[var(--rt-ink900)]">{comp(i.competencia)}</span> },
           { header: 'Valor', accessor: (i) => <span className="rt-num whitespace-nowrap font-semibold text-[var(--rt-ink900)]">{fmtBrl(Number(i.amount))}</span> },
           { header: 'Vencimento', accessor: (i) => <span className="rt-num">{br(i.due_date)}</span> },
+          {
+            header: 'Documentos',
+            accessor: (i) => {
+              const n = invoicesApi.documents(i).length;
+              return (
+                <span className={`inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs font-semibold ${n ? 'bg-[var(--rt-paper)] text-[var(--rt-ink700)]' : 'text-[var(--rt-ink400)]'}`}>
+                  <FileText width={14} height={14} /> {n ? `${n} ${n === 1 ? 'documento' : 'documentos'}` : 'Nenhum'}
+                </span>
+              );
+            },
+          },
           { header: 'Situação', accessor: (i) => <Badge status={i.status} /> },
           {
             header: '',
@@ -107,7 +129,7 @@ export default function Invoices() {
       <Sheet
         open={!!editing}
         onClose={() => setEditing(null)}
-        size="sm"
+        size="md"
         title="Editar fatura"
         subtitle={editing ? tenantById[editing.tenant_id]?.name : undefined}
         footer={
@@ -139,6 +161,11 @@ export default function Invoices() {
               { value: 'canceled', label: 'Cancelada' },
             ]} />
           <Input label="Observação" value={ed.notes} onChange={(e) => setEd((c) => ({ ...c, notes: e.target.value }))} placeholder="Opcional" />
+          {editing && (
+            <div className="pt-2">
+              <InvoiceDocuments invoice={invoices.find((i) => i.id === editing.id) ?? editing} />
+            </div>
+          )}
         </div>
       </Sheet>
 
@@ -160,6 +187,20 @@ export default function Invoices() {
           <Input label="Competência" type="month" value={f.competencia} onChange={(e) => set({ competencia: e.target.value })} />
           <MoneyInput label="Valor" value={f.amount} onChange={(v) => set({ amount: v })} />
           <Input label="Vencimento" type="date" value={f.due_date} onChange={(e) => set({ due_date: e.target.value })} />
+          <div>
+            <span className="mb-2 block text-[13px] font-medium text-[var(--rt-ink500)]">Documentos (opcional)</span>
+            <div className="space-y-3">
+              <DocKindPicker value={newKind} onChange={setNewKind} />
+              <label className="flex cursor-pointer items-center gap-3 rounded-2xl bg-[var(--rt-paper)] p-3 transition hover:bg-[var(--rt-paper2)]">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-[var(--rt-ink500)]"><FileText width={20} height={20} /></span>
+                <span className="min-w-0 text-sm text-[var(--rt-ink700)]">
+                  {newFiles.length ? `${newFiles.length} arquivo(s) selecionado(s)` : 'Escolher arquivos (PDF, Word, Excel, XML ou imagem)'}
+                </span>
+                <input type="file" multiple accept={DOC_ACCEPT} className="sr-only" onChange={(e) => setNewFiles(Array.from(e.target.files ?? []))} />
+              </label>
+              <p className="text-xs text-[var(--rt-ink400)]">Outros tipos podem ser anexados depois, ao abrir a fatura.</p>
+            </div>
+          </div>
         </div>
       </Sheet>
     </div>

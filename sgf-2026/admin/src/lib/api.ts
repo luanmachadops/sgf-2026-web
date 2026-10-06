@@ -14,6 +14,20 @@ export interface ContractDocument {
   size: number;
   type: string;
 }
+
+/** Tipos de documento de uma fatura. */
+export const INVOICE_DOC_KINDS = [
+  { value: 'empenho', label: 'Nota de empenho' },
+  { value: 'nota_fiscal', label: 'Nota fiscal' },
+  { value: 'comprovante', label: 'Comprovante de pagamento' },
+  { value: 'outro', label: 'Outro' },
+] as const;
+export type InvoiceDocKind = (typeof INVOICE_DOC_KINDS)[number]['value'];
+export interface InvoiceDocument extends ContractDocument { kind: InvoiceDocKind; uploaded_at: string }
+
+const MAX_DOC_BYTES = 20 * 1024 * 1024;
+const DOC_ACCEPT_RE = /\.(pdf|docx?|xlsx?|png|jpe?g|webp|xml)$/i;
+export const DOC_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.xml';
 // Sugestões de modelos (o modelo real é detectado pela IOPGPS via IMEI e pode ser
 // qualquer aparelho suportado por eles — o campo aceita texto livre).
 export const TRACKER_MODELS = ['SL48', 'SL48-4G', 'SL46-4G', 'S5', 'S20', 'GT06N'] as const;
@@ -71,9 +85,9 @@ export const invoicesApi = {
     const { data, error } = await q;
     return bail(data ?? [], error);
   },
-  create: async (patch: TablesInsert<'tenant_invoices'>): Promise<void> => {
-    const { error } = await supabase.from('tenant_invoices').insert(patch);
-    bail(null, error);
+  create: async (patch: TablesInsert<'tenant_invoices'>): Promise<Invoice> => {
+    const { data, error } = await supabase.from('tenant_invoices').insert(patch).select('*').single();
+    return bail(data, error)!;
   },
   update: async (id: string, patch: TablesUpdate<'tenant_invoices'>): Promise<void> => {
     const { error } = await supabase.from('tenant_invoices').update(patch).eq('id', id);
@@ -82,6 +96,35 @@ export const invoicesApi = {
   remove: async (id: string): Promise<void> => {
     const { error } = await supabase.from('tenant_invoices').delete().eq('id', id);
     bail(null, error);
+  },
+  documents: (invoice: Invoice): InvoiceDocument[] => {
+    return Array.isArray(invoice.documents) ? invoice.documents as unknown as InvoiceDocument[] : [];
+  },
+  /** Envia arquivos ao bucket privado `documentos` e acrescenta na fatura. */
+  uploadDocuments: async (invoice: Invoice, files: File[], kind: InvoiceDocKind): Promise<InvoiceDocument[]> => {
+    const uploaded: InvoiceDocument[] = [];
+    for (const [index, file] of files.entries()) {
+      if (file.size > MAX_DOC_BYTES) throw new Error(`${file.name} ultrapassa o limite de 20 MB.`);
+      if (!DOC_ACCEPT_RE.test(file.name)) throw new Error(`${file.name}: envie PDF, Word, Excel, XML ou imagem.`);
+      const safeName = file.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-');
+      const path = `${invoice.tenant_id}/invoices/${invoice.id}/${Date.now()}-${index}-${safeName}`;
+      const { error } = await supabase.storage.from('documentos').upload(path, file, {
+        cacheControl: '3600',
+        contentType: file.type || 'application/octet-stream',
+        upsert: false,
+      });
+      if (error) throw new Error(`Falha ao enviar ${file.name}: ${error.message}`);
+      uploaded.push({ name: file.name, path, size: file.size, type: file.type, kind, uploaded_at: new Date().toISOString() });
+    }
+    const documents = [...invoicesApi.documents(invoice), ...uploaded];
+    await invoicesApi.update(invoice.id, { documents: documents as unknown as TablesUpdate<'tenant_invoices'>['documents'] });
+    return documents;
+  },
+  /** Tira o documento da fatura (o arquivo fica guardado no storage). */
+  unlinkDocument: async (invoice: Invoice, path: string): Promise<InvoiceDocument[]> => {
+    const documents = invoicesApi.documents(invoice).filter((d) => d.path !== path);
+    await invoicesApi.update(invoice.id, { documents: documents as unknown as TablesUpdate<'tenant_invoices'>['documents'] });
+    return documents;
   },
 };
 
