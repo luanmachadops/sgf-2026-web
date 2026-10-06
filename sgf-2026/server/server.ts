@@ -15,6 +15,7 @@ import webPartners from '../web/api/partners/index.js';
 import adminIopgpsDevice from '../admin/api/iopgps-device.js';
 import adminIopgps from '../admin/api/iopgps.js';
 import adminManagers from '../admin/api/managers.js';
+import adminVehiclePhotos from '../admin/api/vehicle-photos.js';
 import adminTenantCreate from '../admin/api/tenants/create.js';
 
 type LegacyHandler = (req: any, res: any) => unknown | Promise<unknown>;
@@ -111,6 +112,7 @@ app.all('/api/partners', webOnly(webPartners));
 app.all('/api/tenants/create', adminOnly(adminTenantCreate));
 app.all('/api/iopgps-device', adminOnly(adminIopgpsDevice));
 app.all('/api/iopgps', adminOnly(adminIopgps));
+app.all('/api/vehicle-photos', adminOnly(adminVehiclePhotos));
 
 app.get('/health', (_req, res) => {
   res.status(200).json({

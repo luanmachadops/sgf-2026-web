@@ -217,20 +217,52 @@ export const trackersApi = {
 };
 
 export interface VehicleOption {
-  id: string; plate: string | null; brand: string | null; model: string | null;
+  id: string; plate: string | null; brand: string | null; model: string | null; name: string | null;
+  year: number | null; color: string | null; status: string | null; unit_code: string | null;
   tenant_id: string; photo_url: string | null; departmentName: string | null;
+}
+
+/**
+ * Fotos de veículo ficam no bucket privado `fotos` (caminho `tenant/<id>/...`).
+ * O RLS do storage só libera o próprio tenant, então o superadmin pede a
+ * assinatura à rota serverless. URLs http já prontas passam direto.
+ */
+async function signVehiclePhotos(paths: string[]): Promise<Record<string, string>> {
+  if (!paths.length) return {};
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(apiUrl('vehicle-photos'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+      body: JSON.stringify({ paths }),
+    });
+    if (!res.ok) return {};
+    const json = await res.json();
+    return (json?.urls ?? {}) as Record<string, string>;
+  } catch {
+    return {};
+  }
 }
 
 export const vehiclesApi = {
   // Veículos cadastrados (para vincular a rastreadores). Escopo por prefeitura quando informado.
-  list: async (tenantId?: string): Promise<VehicleOption[]> => {
-    let q = supabase.from('vehicles').select('id, plate, brand, model, tenant_id, photo_url, departments(name)').order('plate');
+  list: async (tenantId?: string, ids?: string[]): Promise<VehicleOption[]> => {
+    if (ids && !ids.length) return [];
+    let q = supabase.from('vehicles')
+      .select('id, plate, brand, model, name, year, color, status, unit_code, tenant_id, photo_url, departments(name)')
+      .order('plate');
     if (tenantId) q = q.eq('tenant_id', tenantId);
+    if (ids) q = q.in('id', ids);
     const { data, error } = await q;
-    const rows = bail(data ?? [], error);
-    return (rows as any[]).map((v) => ({
-      id: v.id, plate: v.plate, brand: v.brand, model: v.model, tenant_id: v.tenant_id,
-      photo_url: v.photo_url ?? null, departmentName: (v.departments as { name?: string } | null)?.name ?? null,
+    const rows = bail(data ?? [], error) as any[];
+    const paths = rows.map((v) => v.photo_url as string | null).filter((p): p is string => !!p && !/^https?:/i.test(p));
+    const signed = await signVehiclePhotos(paths);
+    return rows.map((v) => ({
+      id: v.id, plate: v.plate, brand: v.brand, model: v.model, name: v.name ?? null,
+      year: v.year ?? null, color: v.color ?? null, status: v.status ?? null, unit_code: v.unit_code ?? null,
+      tenant_id: v.tenant_id,
+      photo_url: v.photo_url ? (/^https?:/i.test(v.photo_url) ? v.photo_url : signed[v.photo_url] ?? null) : null,
+      departmentName: (v.departments as { name?: string } | null)?.name ?? null,
     }));
   },
 };
