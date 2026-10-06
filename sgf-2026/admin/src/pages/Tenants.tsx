@@ -68,15 +68,18 @@ export default function Tenants() {
         actions={<Button onClick={() => setOpen(true)}><Plus width={18} height={18} /> Nova prefeitura</Button>}
       />
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        {/* Filtros: em telas estreitas rolam na horizontal em vez de quebrar em várias linhas. */}
+        <div className="-mx-4 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0">
           <FilterChip label="Todas" count={counts.all} active={filter === 'all'} onClick={() => setFilter('all')} />
           <FilterChip label="Ativas" count={counts.active} active={filter === 'active'} onClick={() => setFilter('active')} />
           <FilterChip label="Em trial" count={counts.trial} active={filter === 'trial'} onClick={() => setFilter('trial')} />
           <FilterChip label="Suspensas" count={counts.suspended} active={filter === 'suspended'} onClick={() => setFilter('suspended')} />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <SearchField value={q} onChange={setQ} placeholder="Buscar prefeitura ou cidade" />
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1 xl:w-72 xl:flex-none [&>label]:!w-full">
+            <SearchField value={q} onChange={setQ} placeholder="Buscar prefeitura ou cidade" />
+          </div>
           <ViewToggle value={view} onChange={setView} />
         </div>
       </div>

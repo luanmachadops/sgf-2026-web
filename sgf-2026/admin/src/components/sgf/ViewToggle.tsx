@@ -23,18 +23,20 @@ export function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v:
     { v: 'table' as const, label: 'Tabela', Icon: LayoutTable },
   ];
   return (
-    <div className="inline-flex rounded-full bg-white p-1 shadow-[var(--rt-shadow-card)]" role="group" aria-label="Modo de visualização">
+    <div className="inline-flex shrink-0 rounded-full bg-white p-1 shadow-[var(--rt-shadow-card)]" role="group" aria-label="Modo de visualização">
       {items.map(({ v, label, Icon }) => (
         <button
           key={v}
           type="button"
           aria-pressed={value === v}
           onClick={() => onChange(v)}
+          aria-label={label}
+          title={label}
           className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition ${
             value === v ? 'bg-[var(--rt-brand)] text-white' : 'text-[var(--rt-ink500)] hover:text-[var(--rt-ink900)]'
           }`}
         >
-          <Icon width={16} height={16} /> {label}
+          <Icon width={16} height={16} /> <span className="hidden sm:inline">{label}</span>
         </button>
       ))}
     </div>
