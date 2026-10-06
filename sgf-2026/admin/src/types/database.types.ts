@@ -1165,6 +1165,7 @@ export type Database = {
           amount: number
           competencia: string
           created_at: string
+          documents: Json
           due_date: string | null
           id: string
           notes: string | null
@@ -1177,6 +1178,7 @@ export type Database = {
           amount?: number
           competencia: string
           created_at?: string
+          documents?: Json
           due_date?: string | null
           id?: string
           notes?: string | null
@@ -1189,6 +1191,7 @@ export type Database = {
           amount?: number
           competencia?: string
           created_at?: string
+          documents?: Json
           due_date?: string | null
           id?: string
           notes?: string | null
