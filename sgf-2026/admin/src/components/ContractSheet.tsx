@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { contractsApi, type Contract, type Tenant } from '@/lib/api';
-import { Button, Input, Badge, fmtBrl } from '@/lib/ui';
+import { Button, Input, Badge, fmtBrl, MoneyInput } from '@/lib/ui';
 import { Sheet, SGFSelect, SGFButton } from '@/components/sgf';
 import { FileText, Trash2, Upload, Clock } from '@/components/sgf/icons';
 
@@ -157,7 +157,7 @@ export function ContractSheet({ contract, tenant, onClose }: { contract: Contrac
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Input label="Título" value={f.title} onChange={(e) => setF((c) => ({ ...c, title: e.target.value }))} className="sm:col-span-2" />
               <Input label="Objeto" value={f.object} onChange={(e) => setF((c) => ({ ...c, object: e.target.value }))} className="sm:col-span-2" />
-              <Input label="Valor (R$)" type="number" min="0" step="0.01" value={f.value} onChange={(e) => setF((c) => ({ ...c, value: e.target.value }))} />
+              <MoneyInput label="Valor" value={f.value} onChange={(v) => setF((c) => ({ ...c, value: v }))} />
               <SGFSelect label="Situação" fullWidth value={f.status} onChange={(status) => setF((c) => ({ ...c, status }))}
                 options={[{ value: 'active', label: 'Ativo' }, { value: 'expired', label: 'Vencido' }, { value: 'canceled', label: 'Cancelado' }]} />
               <Input label="Início" type="date" value={f.start_date} onChange={(e) => setF((c) => ({ ...c, start_date: e.target.value }))} />

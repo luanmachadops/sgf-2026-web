@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { invoicesApi, tenantsApi, type Invoice } from '@/lib/api';
-import { Button, Input, Badge, fmtBrl } from '@/lib/ui';
+import { Button, Input, Badge, fmtBrl, MoneyInput } from '@/lib/ui';
 import { SGFSelect, SGFTable, SGFKPICard, SGFButton, PageHeader, Sheet } from '@/components/sgf';
 import { Receipt, Clock, ShieldCheck, Plus, Edit, Trash2 } from '@/components/sgf/icons';
 import { TenantIdentity } from '@/components/TenantIdentity';
@@ -129,7 +129,7 @@ export default function Invoices() {
       >
         <div className="space-y-4">
           <Input label="Competência" type="month" value={ed.competencia} onChange={(e) => setEd((c) => ({ ...c, competencia: e.target.value }))} />
-          <Input label="Valor (R$)" type="number" min="0" step="0.01" value={ed.amount} onChange={(e) => setEd((c) => ({ ...c, amount: e.target.value }))} />
+          <MoneyInput label="Valor" value={ed.amount} onChange={(v) => setEd((c) => ({ ...c, amount: v }))} />
           <Input label="Vencimento" type="date" value={ed.due_date} onChange={(e) => setEd((c) => ({ ...c, due_date: e.target.value }))} />
           <SGFSelect label="Situação" fullWidth value={ed.status} onChange={(status) => setEd((c) => ({ ...c, status }))}
             options={[
@@ -158,7 +158,7 @@ export default function Invoices() {
           <SGFSelect label="Prefeitura" fullWidth value={f.tenant_id} onChange={(tenant_id) => set({ tenant_id })}
             options={tenants.map((t) => ({ value: t.id, label: t.name }))} placeholder="Escolha a prefeitura" />
           <Input label="Competência" type="month" value={f.competencia} onChange={(e) => set({ competencia: e.target.value })} />
-          <Input label="Valor (R$)" type="number" min="0" step="0.01" value={f.amount} onChange={(e) => set({ amount: e.target.value })} />
+          <MoneyInput label="Valor" value={f.amount} onChange={(v) => set({ amount: v })} />
           <Input label="Vencimento" type="date" value={f.due_date} onChange={(e) => set({ due_date: e.target.value })} />
         </div>
       </Sheet>

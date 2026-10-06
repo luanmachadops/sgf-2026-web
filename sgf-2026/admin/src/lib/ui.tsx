@@ -64,3 +64,30 @@ export const fmtUsdSmart = (n: number) => {
 /** Valor curto para eixo de gráfico (R$ 12 mil). */
 export const fmtBrlCompact = (n: number) =>
   n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 });
+
+/**
+ * Campo de dinheiro com máscara (R$ 10.000,00). Digita-se como em app de banco:
+ * os dígitos entram pelos centavos. `value`/`onChange` usam o número em texto
+ * simples ("10000.5"), igual aos campos antigos, então o resto da tela não muda.
+ */
+export function MoneyInput({ label, value, onChange, hint, className = '' }: {
+  label?: string; value: string; onChange: (v: string) => void; hint?: string; className?: string;
+}) {
+  const n = Number(value);
+  const shown = value === '' || !Number.isFinite(n) ? '' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return (
+    <SGFInput
+      label={label}
+      hint={hint}
+      fullWidth
+      className={className}
+      inputMode="numeric"
+      placeholder="R$ 0,00"
+      value={shown}
+      onChange={(e) => {
+        const digits = e.target.value.replace(/\D/g, '').replace(/^0+/, '');
+        onChange(digits ? String(Number(digits) / 100) : '');
+      }}
+    />
+  );
+}

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { contractsApi, tenantsApi, type Contract } from '@/lib/api';
-import { Button, Input, Badge, fmtBrl } from '@/lib/ui';
+import { Button, Input, Badge, fmtBrl, MoneyInput } from '@/lib/ui';
 import { SGFSelect, SGFTable, SGFKPICard, PageHeader, Sheet } from '@/components/sgf';
 import { FileText, ShieldCheck, Clock, Receipt, Plus } from '@/components/sgf/icons';
 import { TenantIdentity } from '@/components/TenantIdentity';
@@ -142,7 +142,7 @@ export default function Contracts() {
           <SGFSelect label="Prefeitura" fullWidth value={f.tenant_id} onChange={(tenant_id) => set({ tenant_id })} options={tenantOptions} placeholder="Escolha a prefeitura" className="sm:col-span-2" />
           <Input label="Título" value={f.title} onChange={(e) => set({ title: e.target.value })} className="sm:col-span-2" />
           <Input label="Objeto" value={f.object} onChange={(e) => set({ object: e.target.value })} className="sm:col-span-2" />
-          <Input label="Valor (R$)" type="number" min="0" step="0.01" value={f.value} onChange={(e) => set({ value: e.target.value })} />
+          <MoneyInput label="Valor" value={f.value} onChange={(v) => set({ value: v })} />
           <div />
           <Input label="Início" type="date" value={f.start_date} onChange={(e) => set({ start_date: e.target.value })} />
           <Input label="Fim" type="date" value={f.end_date} onChange={(e) => set({ end_date: e.target.value })} />
