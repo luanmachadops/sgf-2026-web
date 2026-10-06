@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { Button, Input } from '@/lib/ui';
 import { PageHeader, SGFCard } from '@/components/sgf';
 import { ShieldCheck, User, Camera } from '@/components/sgf/icons';
-import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
+import { NotificationPrefsCard } from '@/components/Notifications';
 import { useMyProfile, useInvalidateProfile, uploadMyPhoto, maskPhone } from '@/lib/profile';
 
 function initials(name: string | null | undefined, email: string | null) {
@@ -28,10 +28,6 @@ export default function Settings() {
     setPhone(maskPhone(profile.phone ?? ''));
   }, [profile]);
 
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [saving, setSaving] = useState(false);
-
   const saveProfile = async () => {
     if (!profile) return;
     setSavingProfile(true);
@@ -52,24 +48,12 @@ export default function Settings() {
     finally { setUploading(false); }
   };
 
-  const savePassword = async () => {
-    if (password.length < PASSWORD_MIN_LENGTH) return toast.error(PASSWORD_MIN_LENGTH_MESSAGE);
-    if (password !== confirm) return toast.error('As senhas não conferem.');
-    setSaving(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
-      toast.success('Senha alterada com sucesso.');
-      setPassword(''); setConfirm('');
-    } catch (e) { toast.error((e as Error).message); }
-    finally { setSaving(false); }
-  };
 
   const dirty = !!profile && (name.trim() !== (profile.full_name ?? '') || phone.replace(/\D/g, '') !== (profile.phone ?? '').replace(/\D/g, ''));
 
   return (
     <div className="max-w-3xl space-y-6">
-      <PageHeader title="Configurações" subtitle="Seu perfil e a segurança da conta de superusuário." />
+      <PageHeader title="Configurações" subtitle="Seu perfil e as preferências de avisos." />
 
       {/* Perfil em destaque */}
       <section className="rt-rise relative overflow-hidden rounded-[var(--rt-radius-card)] bg-[var(--rt-ink900)] p-6 text-white sm:p-8">
@@ -103,15 +87,7 @@ export default function Settings() {
         </div>
       </SGFCard>
 
-      <SGFCard padding="lg" title="Senha" icon={ShieldCheck}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Input label="Nova senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={PASSWORD_PLACEHOLDER} autoComplete="new-password" />
-          <Input label="Confirmar nova senha" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
-        </div>
-        <div className="mt-5 flex justify-end">
-          <Button onClick={savePassword} disabled={saving || !password}>{saving ? 'Salvando…' : 'Alterar senha'}</Button>
-        </div>
-      </SGFCard>
+      <NotificationPrefsCard />
 
       <SGFCard padding="lg">
         <div className="flex flex-wrap items-center justify-between gap-3">

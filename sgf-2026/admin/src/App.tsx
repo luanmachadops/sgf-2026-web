@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/auth';
 import { useMyProfile } from './lib/profile';
+import { NotificationBell } from './components/Notifications';
 import {
   Home, Building2, FileText, Receipt, Sparkle, Settings2, LogOut, User, Menu, X, Map, ShieldCheck, MapPin,
 } from './components/sgf/icons';
@@ -52,8 +53,9 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
           <p className="truncate text-[15px] font-bold tracking-[-0.01em]">Exattus Rotta</p>
           <p className="text-xs font-medium text-white/50">Superadmin</p>
         </div>
+        <div className="ml-auto"><NotificationBell /></div>
         {onClose && (
-          <button onClick={onClose} className="ml-auto grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white/80 lg:hidden" aria-label="Fechar menu">
+          <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white/80 lg:hidden" aria-label="Fechar menu">
             <X className="h-5 w-5" />
           </button>
         )}
@@ -134,6 +136,7 @@ function Shell() {
           </button>
           <img src="/exattus-rotta.svg" alt="" className="h-8 w-8" />
           <span className="text-[15px] font-bold text-[var(--rt-ink900)]">Exattus Rotta</span>
+          <div className="ml-auto"><NotificationBell onDark={false} /></div>
         </div>
 
         <main className="rt-scroll flex-1 overflow-y-auto scroll-smooth px-4 pb-10 pt-2 sm:px-6 lg:px-10 lg:pt-10">
