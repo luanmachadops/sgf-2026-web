@@ -129,7 +129,7 @@ export function IopgpsPanel({ tenantId }: { tenantId?: string }) {
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 lg:grid-cols-2">{[0, 1].map((i) => <div key={i} className="h-72 animate-pulse rounded-[var(--rt-radius-card)] bg-white" />)}</div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-40 animate-pulse rounded-[var(--rt-radius-card)] bg-white" />)}</div>
       ) : status.length === 0 ? (
         <div className="grid place-items-center rounded-[var(--rt-radius-card)] bg-white px-6 py-14 text-center shadow-[var(--rt-shadow-card)]">
           <p className="text-[15px] font-semibold text-[var(--rt-ink900)]">Nenhum dado de rastreador ainda</p>
@@ -168,39 +168,39 @@ export function IopgpsPanel({ tenantId }: { tenantId?: string }) {
           ]}
         />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map(({ d, trk, plate, state }, i) => (
-            <article key={d.tracker_id} className="rt-rise flex flex-col rounded-[var(--rt-radius-card)] bg-white p-6 shadow-[var(--rt-shadow-card)]" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[var(--rt-brand-100)] text-[var(--rt-brand)]"><MapPin width={22} height={22} /></span>
-                  <div className="min-w-0">
-                    <p className="truncate font-mono text-xl font-bold tracking-wide text-[var(--rt-ink900)]">{plate}</p>
-                    <p className="rt-num truncate font-mono text-xs text-[var(--rt-ink500)]">IMEI {d.imei}</p>
-                  </div>
+            <article key={d.tracker_id} className="rt-rise rounded-[22px] bg-white p-4 shadow-[var(--rt-shadow-card)]" style={{ animationDelay: `${Math.min(i, 8) * 30}ms` }}>
+              <div className="flex items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--rt-brand-100)] text-[var(--rt-brand)]"><MapPin width={18} height={18} /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-mono text-[15px] font-bold text-[var(--rt-ink900)]">{plate}</p>
+                  <p className="rt-num truncate font-mono text-[11px] text-[var(--rt-ink500)]">{d.imei}</p>
                 </div>
-                <SGFBadge variant={state.variant} size="lg" dot>{state.label}</SGFBadge>
+                <SGFBadge variant={state.variant} size="sm" dot>{state.label}</SGFBadge>
               </div>
 
-              {!fixed && <div className="mt-4"><TenantIdentity tenant={tenantById[d.tenant_id]} /></div>}
-
-              <div className="mt-6 flex items-end gap-2">
-                <span className="rt-num text-[56px] font-light leading-none text-[var(--rt-ink900)]">{d.speed != null ? Math.round(d.speed) : '—'}</span>
-                <span className="pb-2 text-base text-[var(--rt-ink500)]">km/h</span>
+              <div className="mt-3 flex items-center gap-3 rounded-2xl bg-[var(--rt-paper)] px-3 py-2.5">
+                <div className="flex items-baseline gap-1 pr-3 shadow-[1px_0_0_var(--rt-hairline)]">
+                  <span className="rt-num text-2xl font-light leading-none text-[var(--rt-ink900)]">{d.speed != null ? Math.round(d.speed) : '—'}</span>
+                  <span className="text-[11px] text-[var(--rt-ink500)]">km/h</span>
+                </div>
+                <dl className="grid flex-1 grid-cols-3 gap-1 text-center">
+                  <div><dt className="text-[10px] text-[var(--rt-ink500)]">Ignição</dt><dd className="text-xs font-semibold text-[var(--rt-ink900)]">{d.ignition == null ? '—' : d.ignition ? 'Ligada' : 'Desligada'}</dd></div>
+                  <div><dt className="text-[10px] text-[var(--rt-ink500)]">Tensão</dt><dd className="rt-num whitespace-nowrap text-xs font-semibold text-[var(--rt-ink900)]">{d.voltage != null ? `${d.voltage.toFixed(1)} V` : '—'}</dd></div>
+                  <div><dt className="text-[10px] text-[var(--rt-ink500)]">Sinal</dt><dd className="text-xs font-semibold uppercase text-[var(--rt-ink900)]">{d.fix_source ?? '—'}</dd></div>
+                </dl>
               </div>
 
-              <dl className="mt-6 grid grid-cols-3 gap-2 rounded-[22px] bg-[var(--rt-paper)] p-4 text-center">
-                <div><dt className="text-xs text-[var(--rt-ink500)]">Ignição</dt><dd className="mt-1 text-[15px] font-semibold text-[var(--rt-ink900)]">{d.ignition == null ? '—' : d.ignition ? 'Ligada' : 'Desligada'}</dd></div>
-                <div><dt className="text-xs text-[var(--rt-ink500)]">Tensão</dt><dd className="rt-num mt-1 text-[15px] font-semibold text-[var(--rt-ink900)]">{d.voltage != null ? `${d.voltage.toFixed(1)} V` : '—'}</dd></div>
-                <div><dt className="text-xs text-[var(--rt-ink500)]">Sinal</dt><dd className="mt-1 text-[15px] font-semibold uppercase text-[var(--rt-ink900)]">{d.fix_source ?? '—'}</dd></div>
-              </dl>
-
-              <div className="mt-5 flex items-center justify-between gap-2">
-                <span className="text-[13px] text-[var(--rt-ink400)]">Atualizado {ago(d.gps_time ?? d.updated_at)}</span>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <p className="min-w-0 truncate text-[11px] text-[var(--rt-ink400)]">
+                  {!fixed && <span title={tenantById[d.tenant_id]?.name}>{tenantById[d.tenant_id]?.name ?? '—'} · </span>}
+                  {ago(d.gps_time ?? d.updated_at)}
+                </p>
                 {trk && (
-                  <div className="flex gap-2">
-                    <SGFButton variant="ghost" className="!text-[var(--rt-red600)]" onClick={() => onFuel(trk.id, true)}>Cortar combustível</SGFButton>
-                    <SGFButton variant="outline" onClick={() => onFuel(trk.id, false)}>Retomar</SGFButton>
+                  <div className="flex shrink-0 gap-1">
+                    <button onClick={() => onFuel(trk.id, true)} className="h-8 rounded-full px-3 text-xs font-semibold text-[var(--rt-red600)] transition hover:bg-[var(--rt-red100)]">Cortar</button>
+                    <button onClick={() => onFuel(trk.id, false)} className="h-8 rounded-full bg-[var(--rt-paper)] px-3 text-xs font-semibold text-[var(--rt-ink900)] transition hover:bg-[var(--rt-paper2)]">Retomar</button>
                   </div>
                 )}
               </div>
