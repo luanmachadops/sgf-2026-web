@@ -16,3 +16,4 @@ export { PeriodSelect, PeriodPresetSelect, PeriodRangeFields, PERIOD_PRESETS, ma
 export type { PeriodValue, ResolvedPeriod, PeriodSelectProps } from './PeriodSelect';
 export { PageHeader, SectionTitle } from './PageHeader';
 export { Sheet, ImageDrop, FilterChip, SearchField } from './Sheet';
+export { ViewToggle, useViewMode, type ViewMode } from './ViewToggle';

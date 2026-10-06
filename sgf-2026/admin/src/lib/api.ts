@@ -79,6 +79,10 @@ export const invoicesApi = {
     const { error } = await supabase.from('tenant_invoices').update(patch).eq('id', id);
     bail(null, error);
   },
+  remove: async (id: string): Promise<void> => {
+    const { error } = await supabase.from('tenant_invoices').delete().eq('id', id);
+    bail(null, error);
+  },
 };
 
 export const contractsApi = {
@@ -95,6 +99,15 @@ export const contractsApi = {
   update: async (id: string, patch: TablesUpdate<'tenant_contracts'>): Promise<void> => {
     const { error } = await supabase.from('tenant_contracts').update(patch).eq('id', id);
     bail(null, error);
+  },
+  remove: async (id: string): Promise<void> => {
+    const { error } = await supabase.from('tenant_contracts').delete().eq('id', id);
+    bail(null, error);
+  },
+  /** Tira o documento da lista do contrato (o arquivo fica guardado no storage). */
+  unlinkDocument: async (contract: Contract, path: string): Promise<void> => {
+    const documents = contractsApi.documents(contract).filter((d) => d.path !== path);
+    await contractsApi.update(contract.id, { documents: documents as unknown as TablesUpdate<'tenant_contracts'>['documents'] });
   },
   documents: (contract: Contract): ContractDocument[] => {
     return Array.isArray(contract.documents) ? contract.documents as unknown as ContractDocument[] : [];
@@ -271,7 +284,7 @@ function buckets(rows: { created_at?: string | null }[], field?: string): Series
   return keys.map((k) => ({ month: k.label, value: map.get(`${k.y}-${k.m}`) ?? 0 }));
 }
 
-export interface TrendPoint { month: string; aiCost: number; invoices: number }
+export interface TrendPoint { month: string; aiCost: number; invoices: number; vehicles: number; drivers: number }
 
 /** Resolve um intervalo [from,to] a partir de monthsBack OU datas explícitas. */
 function resolveRange(p: { monthsBack?: number; from?: string; to?: string }): { from: Date; to: Date } {
@@ -298,16 +311,34 @@ export const dashboardApi = {
     const { from, to } = resolveRange(p);
     const fromIso = from.toISOString();
     const toIso = new Date(to.getFullYear(), to.getMonth() + 1, 0, 23, 59, 59).toISOString();
-    const [ai, inv] = await Promise.all([
+    const [ai, inv, veh, drv] = await Promise.all([
       supabase.from('ai_usage').select('created_at, cost_usd').gte('created_at', fromIso).lte('created_at', toIso),
       supabase.from('tenant_invoices').select('created_at, amount').gte('created_at', fromIso).lte('created_at', toIso),
+      supabase.from('vehicles').select('created_at').lte('created_at', toIso),
+      supabase.from('profiles').select('created_at').eq('role', 'motorista').lte('created_at', toIso),
     ]);
+    // Acumulado ao fim de cada mês (quantos existiam até ali), para o gráfico de crescimento.
+    const cumulative = (rows: { created_at: string | null }[] | null) => {
+      const dates = (rows ?? []).map((r) => (r.created_at ? new Date(r.created_at).getTime() : 0));
+      return (y: number, m: number) => {
+        const end = new Date(y, m + 1, 0, 23, 59, 59).getTime();
+        return dates.filter((t) => t <= end).length;
+      };
+    };
+    const vehAt = cumulative(veh.data as { created_at: string | null }[] | null);
+    const drvAt = cumulative(drv.data as { created_at: string | null }[] | null);
     const keys = monthKeys(from, to);
     const aiMap = new Map(keys.map((k) => [`${k.y}-${k.m}`, 0]));
     const invMap = new Map(keys.map((k) => [`${k.y}-${k.m}`, 0]));
     for (const r of ai.data ?? []) { const d = new Date(r.created_at!); const k = `${d.getFullYear()}-${d.getMonth()}`; if (aiMap.has(k)) aiMap.set(k, (aiMap.get(k) ?? 0) + Number(r.cost_usd ?? 0)); }
     for (const r of inv.data ?? []) { const d = new Date(r.created_at!); const k = `${d.getFullYear()}-${d.getMonth()}`; if (invMap.has(k)) invMap.set(k, (invMap.get(k) ?? 0) + Number(r.amount ?? 0)); }
-    return keys.map((k) => ({ month: k.label, aiCost: aiMap.get(`${k.y}-${k.m}`) ?? 0, invoices: invMap.get(`${k.y}-${k.m}`) ?? 0 }));
+    return keys.map((k) => ({
+      month: k.label,
+      aiCost: aiMap.get(`${k.y}-${k.m}`) ?? 0,
+      invoices: invMap.get(`${k.y}-${k.m}`) ?? 0,
+      vehicles: vehAt(k.y, k.m),
+      drivers: drvAt(k.y, k.m),
+    }));
   },
 
   kpis: async (): Promise<GlobalKpis> => {

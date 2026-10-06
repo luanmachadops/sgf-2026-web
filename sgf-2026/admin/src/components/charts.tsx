@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 
 /**
@@ -118,5 +118,70 @@ export function ChartCard({ title, subtitle, action, children, className = '' }:
       </div>
       <div className="h-[260px] w-full min-w-0 sm:h-[300px]">{children}</div>
     </section>
+  );
+}
+
+/**
+ * Duas séries da mesma unidade (contagem) num eixo só: cores categóricas 1 e 2
+ * da paleta validada (azul e laranja), legenda sempre visível e valor final
+ * escrito na ponta de cada linha — a cor nunca é a única pista.
+ */
+export function MultiLineTrend({ data, series, format }: {
+  data: Point[];
+  series: { key: string; label: string; color: string }[];
+  format: (n: number) => string;
+}) {
+  const last = data[data.length - 1];
+  return (
+    <div className="flex h-full flex-col">
+      <div className="mb-3 flex flex-wrap gap-4">
+        {series.map((sr) => (
+          <span key={sr.key} className="inline-flex items-center gap-2 text-sm text-[var(--rt-ink700)]">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: sr.color }} />
+            {sr.label}
+            {last && <span className="rt-num font-semibold text-[var(--rt-ink900)]">{format(Number(last[sr.key] ?? 0))}</span>}
+          </span>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+            <CartesianGrid vertical={false} stroke={GRID} />
+            <XAxis dataKey="month" axisLine={false} tickLine={false} tick={AXIS} dy={8} />
+            <YAxis axisLine={false} tickLine={false} tick={AXIS} width={48} allowDecimals={false} tickFormatter={(v: number) => format(v)} />
+            <Tooltip
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                return (
+                  <div className="rounded-2xl bg-white px-3.5 py-2.5 shadow-[0_12px_32px_rgb(15_43_47/0.16)]">
+                    <p className="text-xs font-medium capitalize text-[var(--rt-ink500)]">{label}</p>
+                    {payload.map((p) => (
+                      <p key={String(p.dataKey)} className="mt-0.5 flex items-center gap-2 text-sm">
+                        <span className="h-2 w-2 rounded-full" style={{ background: p.color }} />
+                        <span className="text-[var(--rt-ink500)]">{series.find((x) => x.key === p.dataKey)?.label}</span>
+                        <span className="rt-num ml-auto pl-3 font-semibold text-[var(--rt-ink900)]">{format(Number(p.value))}</span>
+                      </p>
+                    ))}
+                  </div>
+                );
+              }}
+              cursor={{ stroke: '#0F2B2F', strokeOpacity: 0.18, strokeWidth: 1 }}
+              wrapperStyle={{ outline: 'none' }}
+            />
+            {series.map((sr) => (
+              <Line
+                key={sr.key}
+                type="linear"
+                dataKey={sr.key}
+                stroke={sr.color}
+                strokeWidth={2}
+                dot={{ r: 3.5, fill: '#fff', stroke: sr.color, strokeWidth: 2 }}
+                activeDot={{ r: 5, fill: sr.color, stroke: '#fff', strokeWidth: 2 }}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
   );
 }

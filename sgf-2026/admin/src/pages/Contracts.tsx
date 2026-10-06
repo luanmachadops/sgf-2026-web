@@ -6,6 +6,7 @@ import { Button, Input, Badge, fmtBrl } from '@/lib/ui';
 import { SGFSelect, SGFTable, SGFKPICard, PageHeader, Sheet } from '@/components/sgf';
 import { FileText, ShieldCheck, Clock, Receipt, Plus } from '@/components/sgf/icons';
 import { TenantIdentity } from '@/components/TenantIdentity';
+import { ContractSheet } from '@/components/ContractSheet';
 
 export default function Contracts() {
   const qc = useQueryClient();
@@ -52,6 +53,8 @@ export default function Contracts() {
   const tenantOptions = tenants.map((tenant) => ({ value: tenant.id, label: tenant.name }));
 
   const [formOpen, setFormOpen] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const opened = contracts.find((c) => c.id === openId) ?? null;
   const br = (d: string | null) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('pt-BR') : '—');
 
   return (
@@ -73,6 +76,7 @@ export default function Contracts() {
         loading={isLoading}
         data={contracts}
         keyExtractor={(c) => c.id}
+        onRowClick={(c) => setOpenId(c.id)}
         emptyMessage="Nenhum contrato cadastrado."
         columns={[
           { header: 'Prefeitura', accessor: (c) => <TenantIdentity tenant={tenantById[c.tenant_id]} /> },
@@ -97,7 +101,7 @@ export default function Contracts() {
           {
             header: 'Documentos',
             accessor: (c) => (
-              <div className="flex max-w-[280px] flex-wrap items-center gap-1.5">
+              <div className="flex max-w-[280px] flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                 {contractsApi.documents(c).map((document) => (
                   <button key={document.path} onClick={() => contractsApi.openDocument(document).catch((e) => toast.error((e as Error).message))}
                     className="inline-flex h-7 max-w-36 items-center gap-1.5 truncate rounded-full bg-[var(--rt-paper)] px-3 text-xs font-medium text-[var(--rt-ink700)] hover:bg-[var(--rt-brand-100)] hover:text-[#0B7A50]"
@@ -119,6 +123,8 @@ export default function Contracts() {
           { header: 'Situação', accessor: (c) => <Badge status={c.status} /> },
         ]}
       />
+
+      <ContractSheet contract={opened} tenant={opened ? tenantById[opened.tenant_id] : undefined} onClose={() => setOpenId(null)} />
 
       <Sheet
         open={formOpen}

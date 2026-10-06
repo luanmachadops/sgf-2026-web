@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { invoicesApi, tenantsApi, type Invoice } from '@/lib/api';
 import { Button, Input, Badge, fmtBrl } from '@/lib/ui';
 import { SGFSelect, SGFTable, SGFKPICard, SGFButton, PageHeader, Sheet } from '@/components/sgf';
-import { Receipt, Clock, ShieldCheck, Plus } from '@/components/sgf/icons';
+import { Receipt, Clock, ShieldCheck, Plus, Edit, Trash2 } from '@/components/sgf/icons';
 import { TenantIdentity } from '@/components/TenantIdentity';
 
 export default function Invoices() {
@@ -24,6 +24,34 @@ export default function Invoices() {
   const markPaid = useMutation({
     mutationFn: (id: string) => invoicesApi.update(id, { status: 'paid', paid_at: new Date().toISOString() }),
     onSuccess: () => { toast.success('Fatura paga.'); qc.invalidateQueries({ queryKey: ['invoices'] }); },
+  });
+
+  // Editor de fatura: clique na linha abre; dá para corrigir tudo ou excluir.
+  const [editing, setEditing] = useState<Invoice | null>(null);
+  const [ed, setEd] = useState({ competencia: '', amount: '', due_date: '', status: 'pending', notes: '' });
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const openEditor = (i: Invoice) => {
+    setEditing(i);
+    setConfirmDelete(false);
+    setEd({ competencia: i.competencia, amount: String(i.amount ?? ''), due_date: i.due_date ?? '', status: i.status, notes: i.notes ?? '' });
+  };
+  const saveEdit = useMutation({
+    mutationFn: () => invoicesApi.update(editing!.id, {
+      competencia: ed.competencia,
+      amount: Number(ed.amount) || 0,
+      due_date: ed.due_date || null,
+      status: ed.status,
+      notes: ed.notes.trim() || null,
+      // Mantém a data de pagamento coerente com a situação.
+      paid_at: ed.status === 'paid' ? (editing!.paid_at ?? new Date().toISOString()) : null,
+    }),
+    onSuccess: () => { toast.success('Fatura atualizada.'); setEditing(null); qc.invalidateQueries({ queryKey: ['invoices'] }); },
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const removeInvoice = useMutation({
+    mutationFn: () => invoicesApi.remove(editing!.id),
+    onSuccess: () => { toast.success('Fatura excluída.'); setEditing(null); qc.invalidateQueries({ queryKey: ['invoices'] }); },
+    onError: (e) => toast.error((e as Error).message),
   });
 
   const total = invoices.filter((i) => i.status !== 'canceled').reduce((s, i) => s + Number(i.amount), 0);
@@ -53,6 +81,7 @@ export default function Invoices() {
         loading={isLoading}
         data={invoices}
         keyExtractor={(i) => i.id}
+        onRowClick={openEditor}
         emptyMessage="Nenhuma fatura lançada."
         columns={[
           { header: 'Prefeitura', accessor: (i) => <TenantIdentity tenant={tenantById[i.tenant_id]} /> },
@@ -63,12 +92,55 @@ export default function Invoices() {
           {
             header: '',
             className: 'text-right',
-            accessor: (i) => i.status !== 'paid' && i.status !== 'canceled'
-              ? <SGFButton size="sm" variant="outline" onClick={() => markPaid.mutate(i.id)}>Marcar como paga</SGFButton>
-              : null,
+            accessor: (i) => (
+              <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                {i.status !== 'paid' && i.status !== 'canceled' && (
+                  <SGFButton size="sm" variant="outline" onClick={() => markPaid.mutate(i.id)}>Marcar como paga</SGFButton>
+                )}
+                <SGFButton size="sm" variant="ghost" icon={Edit} onClick={() => openEditor(i)}>Editar</SGFButton>
+              </div>
+            ),
           },
         ]}
       />
+
+      <Sheet
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        size="sm"
+        title="Editar fatura"
+        subtitle={editing ? tenantById[editing.tenant_id]?.name : undefined}
+        footer={
+          <div className="flex w-full items-center justify-between gap-2">
+            {confirmDelete ? (
+              <div className="flex items-center gap-2">
+                <SGFButton variant="danger" size="sm" loading={removeInvoice.isPending} onClick={() => removeInvoice.mutate()}>Confirmar exclusão</SGFButton>
+                <SGFButton variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>Não</SGFButton>
+              </div>
+            ) : (
+              <SGFButton variant="ghost" size="sm" icon={Trash2} className="!text-[var(--rt-red600)]" onClick={() => setConfirmDelete(true)}>Excluir</SGFButton>
+            )}
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button>
+              <Button disabled={!ed.competencia || saveEdit.isPending} onClick={() => saveEdit.mutate()}>{saveEdit.isPending ? 'Salvando…' : 'Salvar'}</Button>
+            </div>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <Input label="Competência" type="month" value={ed.competencia} onChange={(e) => setEd((c) => ({ ...c, competencia: e.target.value }))} />
+          <Input label="Valor (R$)" type="number" min="0" step="0.01" value={ed.amount} onChange={(e) => setEd((c) => ({ ...c, amount: e.target.value }))} />
+          <Input label="Vencimento" type="date" value={ed.due_date} onChange={(e) => setEd((c) => ({ ...c, due_date: e.target.value }))} />
+          <SGFSelect label="Situação" fullWidth value={ed.status} onChange={(status) => setEd((c) => ({ ...c, status }))}
+            options={[
+              { value: 'pending', label: 'Pendente' },
+              { value: 'paid', label: 'Paga' },
+              { value: 'overdue', label: 'Atrasada' },
+              { value: 'canceled', label: 'Cancelada' },
+            ]} />
+          <Input label="Observação" value={ed.notes} onChange={(e) => setEd((c) => ({ ...c, notes: e.target.value }))} placeholder="Opcional" />
+        </div>
+      </Sheet>
 
       <Sheet
         open={formOpen}

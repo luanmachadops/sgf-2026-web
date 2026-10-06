@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { tenantsApi, provisionTenant } from '@/lib/api';
+import { tenantsApi, provisionTenant, type Tenant } from '@/lib/api';
 import { Button, Input, Badge } from '@/lib/ui';
-import { PageHeader, Sheet, ImageDrop, FilterChip, SearchField } from '@/components/sgf';
+import { PageHeader, Sheet, ImageDrop, FilterChip, SearchField, SGFTable, ViewToggle, useViewMode } from '@/components/sgf';
+import { TenantIdentity } from '@/components/TenantIdentity';
 import { Building2, ChevronRight, Plus } from '@/components/sgf/icons';
 import { PASSWORD_MIN_LENGTH, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
 
@@ -44,6 +45,7 @@ export default function Tenants() {
 
   const [filter, setFilter] = useState<'all' | 'active' | 'trial' | 'suspended'>('all');
   const [q, setQ] = useState('');
+  const [view, setView] = useViewMode('tenants');
   const counts = useMemo(() => ({
     all: tenants.length,
     active: tenants.filter((t) => t.status === 'active').length,
@@ -73,7 +75,10 @@ export default function Tenants() {
           <FilterChip label="Em trial" count={counts.trial} active={filter === 'trial'} onClick={() => setFilter('trial')} />
           <FilterChip label="Suspensas" count={counts.suspended} active={filter === 'suspended'} onClick={() => setFilter('suspended')} />
         </div>
-        <SearchField value={q} onChange={setQ} placeholder="Buscar prefeitura ou cidade" />
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchField value={q} onChange={setQ} placeholder="Buscar prefeitura ou cidade" />
+          <ViewToggle value={view} onChange={setView} />
+        </div>
       </div>
 
       {isLoading ? (
@@ -86,6 +91,19 @@ export default function Tenants() {
           <p className="mt-4 text-[15px] font-semibold text-[var(--rt-ink900)]">{tenants.length === 0 ? 'Nenhuma prefeitura cadastrada' : 'Nada encontrado'}</p>
           <p className="mt-1 text-sm text-[var(--rt-ink500)]">{tenants.length === 0 ? 'Comece provisionando a primeira prefeitura.' : 'Ajuste o filtro ou a busca.'}</p>
         </div>
+      ) : view === 'table' ? (
+        <SGFTable<Tenant>
+          data={visible}
+          keyExtractor={(t) => t.id}
+          onRowClick={(t) => navigate(`/prefeituras/${t.id}`)}
+          columns={[
+            { header: 'Prefeitura', accessor: (t) => <TenantIdentity tenant={t} /> },
+            { header: 'Cidade', accessor: (t) => (t.city ? `${t.city}${t.state ? '/' + t.state : ''}` : '—') },
+            { header: 'Endereço no sistema', accessor: (t) => <span className="font-mono text-xs">{t.slug}</span> },
+            { header: 'Situação', accessor: (t) => <Badge status={t.status} /> },
+            { header: '', className: 'text-right', accessor: () => <ChevronRight width={18} height={18} className="ml-auto text-[var(--rt-ink400)]" /> },
+          ]}
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {visible.map((t, i) => (
@@ -103,7 +121,7 @@ export default function Tenants() {
                 <div className="absolute right-3 top-3"><Badge status={t.status} /></div>
               </div>
               <div className="flex flex-1 items-center gap-3 p-5">
-                <span className="-mt-12 grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white text-[var(--rt-brand)] shadow-[var(--rt-shadow-float)] ring-4 ring-white">
+                <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[var(--rt-paper)] text-[var(--rt-brand)]">
                   {t.seal_url || t.logo_url
                     ? <img src={(t.seal_url || t.logo_url) as string} alt="" className="h-full w-full object-contain p-1" />
                     : <Building2 width={24} height={24} />}

@@ -5,7 +5,8 @@ import { iopgpsApi } from '@/lib/iopgpsApi';
 import { trackersApi, tenantsApi } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { Button, Input } from '@/lib/ui';
-import { SGFSelect, SGFCard, SGFBadge, SGFButton } from '@/components/sgf';
+import { SGFSelect, SGFCard, SGFBadge, SGFButton, SGFTable, ViewToggle, useViewMode } from '@/components/sgf';
+import { MapPin } from '@/components/sgf/icons';
 import { TenantIdentity } from '@/components/TenantIdentity';
 
 function ago(iso: string | null): string {
@@ -75,6 +76,24 @@ export function IopgpsPanel({ tenantId }: { tenantId?: string }) {
   const moving = status.filter((d) => isLive(d) && (d.speed ?? 0) > 3).length;
   const ignitionOn = status.filter((d) => isLive(d) && d.ignition).length;
 
+  const [view, setView] = useViewMode('iopgps');
+  type Row = {
+    d: (typeof status)[number];
+    trk: (typeof trackers)[number] | undefined;
+    plate: string;
+    state: { label: string; variant: 'moving' | 'idle' | 'stopped' };
+  };
+  const rows: Row[] = status.map((d) => {
+    const trk = (d.vehicle_id && trkByVehicle[d.vehicle_id]) || trkById[d.tracker_id];
+    const live = isLive(d);
+    const movingNow = live && (d.speed ?? 0) > 3;
+    const state = !live ? { label: d.online ? 'Sem sinal' : 'Offline', variant: 'stopped' as const }
+      : movingNow ? { label: 'Em movimento', variant: 'moving' as const }
+      : d.ignition ? { label: 'Parado, ligado', variant: 'idle' as const }
+      : { label: 'Parado', variant: 'stopped' as const };
+    return { d, trk, plate: (d.vehicle_id && plates[d.vehicle_id]) || trk?.label || 'Sem veículo', state };
+  });
+
   return (
     <div className="space-y-4">
       {/* Resumo da frota rastreada */}
@@ -104,58 +123,89 @@ export function IopgpsPanel({ tenantId }: { tenantId?: string }) {
         </div>
       </section>
 
+      <div className="flex items-center justify-between gap-3">
+        <p className="px-1 text-sm text-[var(--rt-ink500)]">{status.length} {status.length === 1 ? 'rastreador' : 'rastreadores'}</p>
+        <ViewToggle value={view} onChange={setView} />
+      </div>
+
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-56 animate-pulse rounded-[var(--rt-radius-card)] bg-white" />)}</div>
+        <div className="grid gap-4 lg:grid-cols-2">{[0, 1].map((i) => <div key={i} className="h-72 animate-pulse rounded-[var(--rt-radius-card)] bg-white" />)}</div>
       ) : status.length === 0 ? (
         <div className="grid place-items-center rounded-[var(--rt-radius-card)] bg-white px-6 py-14 text-center shadow-[var(--rt-shadow-card)]">
           <p className="text-[15px] font-semibold text-[var(--rt-ink900)]">Nenhum dado de rastreador ainda</p>
           <p className="mt-1 text-sm text-[var(--rt-ink500)]">Configure as credenciais da IOPGPS abaixo e toque em “Sincronizar agora”.</p>
         </div>
+      ) : view === 'table' ? (
+        <SGFTable<Row>
+          data={rows}
+          keyExtractor={(r) => r.d.tracker_id}
+          columns={[
+            ...(!fixed ? [{ header: 'Prefeitura', accessor: (r: Row) => <TenantIdentity tenant={tenantById[r.d.tenant_id]} /> }] : []),
+            {
+              header: 'Veículo',
+              accessor: (r: Row) => (
+                <div className="min-w-0">
+                  <p className="truncate font-mono font-bold text-[var(--rt-ink900)]">{r.plate}</p>
+                  <p className="rt-num truncate font-mono text-xs text-[var(--rt-ink500)]">{r.d.imei}</p>
+                </div>
+              ),
+            },
+            { header: 'Situação', accessor: (r: Row) => <SGFBadge variant={r.state.variant} dot>{r.state.label}</SGFBadge> },
+            { header: 'Velocidade', accessor: (r: Row) => <span className="rt-num whitespace-nowrap">{r.d.speed != null ? `${Math.round(r.d.speed)} km/h` : '—'}</span> },
+            { header: 'Ignição', accessor: (r: Row) => (r.d.ignition == null ? '—' : r.d.ignition ? 'Ligada' : 'Desligada') },
+            { header: 'Tensão', accessor: (r: Row) => <span className="rt-num whitespace-nowrap">{r.d.voltage != null ? `${r.d.voltage.toFixed(1)} V` : '—'}</span> },
+            { header: 'Atualizado', accessor: (r: Row) => <span className="whitespace-nowrap text-[var(--rt-ink500)]">{ago(r.d.gps_time ?? r.d.updated_at)}</span> },
+            {
+              header: '',
+              className: 'text-right',
+              accessor: (r: Row) => r.trk && (
+                <div className="flex justify-end gap-1.5">
+                  <SGFButton size="sm" variant="ghost" className="!text-[var(--rt-red600)]" onClick={() => onFuel(r.trk!.id, true)}>Cortar</SGFButton>
+                  <SGFButton size="sm" variant="outline" onClick={() => onFuel(r.trk!.id, false)}>Retomar</SGFButton>
+                </div>
+              ),
+            },
+          ]}
+        />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {status.map((d, i) => {
-            const trk = (d.vehicle_id && trkByVehicle[d.vehicle_id]) || trkById[d.tracker_id];
-            const plate = (d.vehicle_id && plates[d.vehicle_id]) || trk?.label || 'Sem veículo';
-            const live = isLive(d);
-            const movingNow = live && (d.speed ?? 0) > 3;
-            const state = !live ? { label: d.online ? 'Sem sinal' : 'Offline', variant: 'stopped' as const }
-              : movingNow ? { label: 'Em movimento', variant: 'moving' as const }
-              : d.ignition ? { label: 'Parado, ligado', variant: 'idle' as const }
-              : { label: 'Parado', variant: 'stopped' as const };
-            return (
-              <article key={d.tracker_id} className="rt-rise flex flex-col rounded-[var(--rt-radius-card)] bg-white p-5 shadow-[var(--rt-shadow-card)]" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
-                <div className="flex items-start justify-between gap-3">
+        <div className="grid gap-4 lg:grid-cols-2">
+          {rows.map(({ d, trk, plate, state }, i) => (
+            <article key={d.tracker_id} className="rt-rise flex flex-col rounded-[var(--rt-radius-card)] bg-white p-6 shadow-[var(--rt-shadow-card)]" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[var(--rt-brand-100)] text-[var(--rt-brand)]"><MapPin width={22} height={22} /></span>
                   <div className="min-w-0">
-                    <p className="rt-num truncate font-mono text-[17px] font-bold tracking-wide text-[var(--rt-ink900)]">{plate}</p>
-                    <p className="rt-num truncate font-mono text-xs text-[var(--rt-ink500)]">{d.imei}</p>
-                    {!fixed && <div className="mt-2"><TenantIdentity tenant={tenantById[d.tenant_id]} /></div>}
+                    <p className="truncate font-mono text-xl font-bold tracking-wide text-[var(--rt-ink900)]">{plate}</p>
+                    <p className="rt-num truncate font-mono text-xs text-[var(--rt-ink500)]">IMEI {d.imei}</p>
                   </div>
-                  <SGFBadge variant={state.variant} dot>{state.label}</SGFBadge>
                 </div>
+                <SGFBadge variant={state.variant} size="lg" dot>{state.label}</SGFBadge>
+              </div>
 
-                <div className="mt-5 flex items-end gap-2">
-                  <span className="rt-num text-[40px] font-light leading-none text-[var(--rt-ink900)]">{d.speed != null ? Math.round(d.speed) : '—'}</span>
-                  <span className="pb-1 text-sm text-[var(--rt-ink500)]">km/h</span>
-                </div>
+              {!fixed && <div className="mt-4"><TenantIdentity tenant={tenantById[d.tenant_id]} /></div>}
 
-                <dl className="mt-5 grid grid-cols-3 gap-2 rounded-2xl bg-[var(--rt-paper)] p-3 text-center">
-                  <div><dt className="text-[11px] text-[var(--rt-ink500)]">Ignição</dt><dd className="mt-0.5 text-sm font-semibold text-[var(--rt-ink900)]">{d.ignition == null ? '—' : d.ignition ? 'Ligada' : 'Desligada'}</dd></div>
-                  <div><dt className="text-[11px] text-[var(--rt-ink500)]">Tensão</dt><dd className="rt-num mt-0.5 text-sm font-semibold text-[var(--rt-ink900)]">{d.voltage != null ? `${d.voltage.toFixed(1)} V` : '—'}</dd></div>
-                  <div><dt className="text-[11px] text-[var(--rt-ink500)]">Sinal</dt><dd className="mt-0.5 text-sm font-semibold uppercase text-[var(--rt-ink900)]">{d.fix_source ?? '—'}</dd></div>
-                </dl>
+              <div className="mt-6 flex items-end gap-2">
+                <span className="rt-num text-[56px] font-light leading-none text-[var(--rt-ink900)]">{d.speed != null ? Math.round(d.speed) : '—'}</span>
+                <span className="pb-2 text-base text-[var(--rt-ink500)]">km/h</span>
+              </div>
 
-                <div className="mt-4 flex items-center justify-between gap-2">
-                  <span className="text-xs text-[var(--rt-ink400)]">Atualizado {ago(d.gps_time ?? d.updated_at)}</span>
-                  {trk && (
-                    <div className="flex gap-1.5">
-                      <SGFButton size="sm" variant="ghost" className="!text-[var(--rt-red600)]" onClick={() => onFuel(trk.id, true)}>Cortar</SGFButton>
-                      <SGFButton size="sm" variant="outline" onClick={() => onFuel(trk.id, false)}>Retomar</SGFButton>
-                    </div>
-                  )}
-                </div>
-              </article>
-            );
-          })}
+              <dl className="mt-6 grid grid-cols-3 gap-2 rounded-[22px] bg-[var(--rt-paper)] p-4 text-center">
+                <div><dt className="text-xs text-[var(--rt-ink500)]">Ignição</dt><dd className="mt-1 text-[15px] font-semibold text-[var(--rt-ink900)]">{d.ignition == null ? '—' : d.ignition ? 'Ligada' : 'Desligada'}</dd></div>
+                <div><dt className="text-xs text-[var(--rt-ink500)]">Tensão</dt><dd className="rt-num mt-1 text-[15px] font-semibold text-[var(--rt-ink900)]">{d.voltage != null ? `${d.voltage.toFixed(1)} V` : '—'}</dd></div>
+                <div><dt className="text-xs text-[var(--rt-ink500)]">Sinal</dt><dd className="mt-1 text-[15px] font-semibold uppercase text-[var(--rt-ink900)]">{d.fix_source ?? '—'}</dd></div>
+              </dl>
+
+              <div className="mt-5 flex items-center justify-between gap-2">
+                <span className="text-[13px] text-[var(--rt-ink400)]">Atualizado {ago(d.gps_time ?? d.updated_at)}</span>
+                {trk && (
+                  <div className="flex gap-2">
+                    <SGFButton variant="ghost" className="!text-[var(--rt-red600)]" onClick={() => onFuel(trk.id, true)}>Cortar combustível</SGFButton>
+                    <SGFButton variant="outline" onClick={() => onFuel(trk.id, false)}>Retomar</SGFButton>
+                  </div>
+                )}
+              </div>
+            </article>
+          ))}
         </div>
       )}
 

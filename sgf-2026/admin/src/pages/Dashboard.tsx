@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { dashboardApi } from '@/lib/api';
 import { fmtBrl, fmtBrlCompact, fmtUsdSmart } from '@/lib/ui';
 import { SGFKPICard, PeriodSelect, PageHeader, SectionTitle, makePeriod, resolvePeriod, type PeriodValue } from '@/components/sgf';
-import { AreaTrend, BarTrend, ChartCard, EmptyChart } from '@/components/charts';
+import { AreaTrend, BarTrend, ChartCard, EmptyChart, MultiLineTrend } from '@/components/charts';
 import { Building2, Sparkle, User, FileText, Car } from '@/components/sgf/icons';
 
 function greeting() {
@@ -13,6 +13,7 @@ function greeting() {
 
 export default function Dashboard() {
   const { data, isLoading } = useQuery({ queryKey: ['admin-kpis'], queryFn: dashboardApi.kpis });
+  // Um período para todos os gráficos: mudar em um muda em todos.
   const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('6'));
   const { data: trend = [] } = useQuery({
     queryKey: ['admin-trend', period],
@@ -82,12 +83,31 @@ export default function Dashboard() {
             ? <EmptyChart message="Nenhum custo de IA no período." />
             : <AreaTrend data={trend as never} dataKey="aiCost" format={fmtUsdSmart} compact={(n) => `$${n.toLocaleString('pt-BR', { maximumSignificantDigits: 2 })}`} unitLabel="Custo" />}
         </ChartCard>
-        <ChartCard className="xl:col-span-2" title="Faturamento" subtitle="Faturas emitidas por mês">
+        <ChartCard className="xl:col-span-2" title="Faturamento" subtitle="Faturas emitidas por mês" action={<PeriodSelect value={period} onChange={setPeriod} />}>
           {trend.every((d) => d.invoices === 0)
             ? <EmptyChart message="Nenhuma fatura no período." />
             : <BarTrend data={trend as never} dataKey="invoices" format={fmtBrl} compact={fmtBrlCompact} unitLabel="Faturado" />}
         </ChartCard>
       </div>
+
+      <ChartCard
+        title="Crescimento da plataforma"
+        subtitle="Veículos e motoristas cadastrados, acumulado ao fim de cada mês"
+        action={<PeriodSelect value={period} onChange={setPeriod} />}
+      >
+        {trend.every((d) => d.vehicles === 0 && d.drivers === 0)
+          ? <EmptyChart message="Nenhum cadastro no período." />
+          : (
+            <MultiLineTrend
+              data={trend as never}
+              format={(n) => n.toLocaleString('pt-BR')}
+              series={[
+                { key: 'vehicles', label: 'Veículos', color: '#2A78D6' },
+                { key: 'drivers', label: 'Motoristas', color: '#EB6834' },
+              ]}
+            />
+          )}
+      </ChartCard>
     </div>
   );
 }
