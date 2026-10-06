@@ -21223,10 +21223,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // admin/dist/index.html
-var dist_default = '<!doctype html>\n<html lang="pt-BR">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n    <link rel="preconnect" href="https://fonts.googleapis.com" />\n    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />\n    <meta name="description" content="Painel superadministrativo da Exattus Rotta." />\n    <title>Exattus Rotta \u2014 Superadmin</title>\n    <script type="module" crossorigin src="/assets/index-DTHVFosw.js"></script>\n    <link rel="stylesheet" crossorigin href="/assets/index-BFi_jCVg.css">\n  </head>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>\n';
+var dist_default = '<!doctype html>\n<html lang="pt-BR">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n    <link rel="preconnect" href="https://fonts.googleapis.com" />\n    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />\n    <meta name="description" content="Painel superadministrativo da Exattus Rotta." />\n    <title>Exattus Rotta \u2014 Superadmin</title>\n    <script type="module" crossorigin src="/assets/index-08KKYHGe.js"></script>\n    <link rel="stylesheet" crossorigin href="/assets/index-Bukfg2W4.css">\n  </head>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>\n';
 
 // web/dist/index.html
-var dist_default2 = '<!doctype html>\n<html lang="pt-BR">\n\n<head>\n  <meta charset="UTF-8" />\n  <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n  <link rel="manifest" href="/manifest.webmanifest" />\n  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <meta name="description" content="Exattus Rotta \u2014 gest\xE3o inteligente de frotas p\xFAblicas." />\n  <meta name="theme-color" content="#0F2B2F" />\n  <meta name="mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />\n  <meta name="apple-mobile-web-app-title" content="Exattus Rotta" />\n  <title>Exattus Rotta \u2014 Gest\xE3o de Frotas</title>\n\n  <!-- Google Fonts - Inter -->\n  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\n\n  <!-- Leaflet CSS -->\n  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"\n    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />\n  <script type="module" crossorigin src="/assets/index-B3gJ6--U.js"></script>\n  <link rel="stylesheet" crossorigin href="/assets/index-WLuPr7Jv.css">\n</head>\n\n<body>\n  <div id="root"></div>\n</body>\n\n</html>\n';
+var dist_default2 = '<!doctype html>\n<html lang="pt-BR">\n\n<head>\n  <meta charset="UTF-8" />\n  <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n  <link rel="manifest" href="/manifest.webmanifest" />\n  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <meta name="description" content="Exattus Rotta \u2014 gest\xE3o inteligente de frotas p\xFAblicas." />\n  <meta name="theme-color" content="#0F2B2F" />\n  <meta name="mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />\n  <meta name="apple-mobile-web-app-title" content="Exattus Rotta" />\n  <title>Exattus Rotta \u2014 Gest\xE3o de Frotas</title>\n\n  <!-- Google Fonts - Inter -->\n  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\n\n  <!-- Leaflet CSS -->\n  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"\n    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />\n  <script type="module" crossorigin src="/assets/index-Ckj_iJ9J.js"></script>\n  <link rel="stylesheet" crossorigin href="/assets/index-CNzzkL32.css">\n</head>\n\n<body>\n  <div id="root"></div>\n</body>\n\n</html>\n';
 
 // web/node_modules/@supabase/supabase-js/dist/index.mjs
 var dist_exports = {};
@@ -36153,7 +36153,10 @@ async function handler10(req, res) {
   }
 }
 
-// admin/api/tenants/create.ts
+// admin/api/vehicle-photos.ts
+var MAX_PATHS = 300;
+var TTL_SECONDS = 60 * 60;
+var PATH_RE = /^tenant\/[0-9a-f-]{36}\/vehicles\/[A-Za-z0-9._\/-]+$/;
 function getAdmin5() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -36173,10 +36176,7 @@ async function assertSuperadmin3(req, admin) {
   await assertServerSession(admin, data.user.id, token);
   const { data: profile } = await admin.from("profiles").select("role").eq("id", data.user.id).single();
   if (profile?.role !== "superadmin") throw Object.assign(new Error("Apenas superusu\xE1rio"), { status: 403 });
-  return data.user.id;
 }
-var WINDOW_SECONDS7 = 60;
-var MAX_HITS6 = 5;
 async function handler11(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -36184,14 +36184,61 @@ async function handler11(req, res) {
   }
   try {
     const admin = getAdmin5();
-    const callerId = await assertSuperadmin3(req, admin);
+    await assertSuperadmin3(req, admin);
+    const b = parseBody10(req);
+    const raw = b.paths;
+    if (!Array.isArray(raw)) throw Object.assign(new Error("paths deve ser uma lista"), { status: 400 });
+    const paths = [...new Set(raw.filter((p) => typeof p === "string" && PATH_RE.test(p) && !p.includes("..")))].slice(0, MAX_PATHS);
+    if (!paths.length) return res.status(200).json({ urls: {} });
+    const { data, error } = await admin.storage.from("fotos").createSignedUrls(paths, TTL_SECONDS);
+    if (error) throw Object.assign(new Error(error.message), { status: 400 });
+    const urls = {};
+    for (const item of data ?? []) if (item.path && item.signedUrl) urls[item.path] = item.signedUrl;
+    return res.status(200).json({ urls });
+  } catch (e) {
+    return res.status(e?.status ?? 500).json({ message: e?.message ?? "Erro interno" });
+  }
+}
+
+// admin/api/tenants/create.ts
+function getAdmin6() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw Object.assign(new Error("SUPABASE_URL/SERVICE_ROLE_KEY ausentes"), { status: 500 });
+  return createClient2(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+function parseBody11(req) {
+  if (typeof req.body === "string") return JSON.parse(req.body);
+  return req.body ?? {};
+}
+async function assertSuperadmin4(req, admin) {
+  const header = req.headers?.authorization || req.headers?.Authorization;
+  const token = typeof header === "string" && header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!token) throw Object.assign(new Error("N\xE3o autenticado"), { status: 401 });
+  const { data, error } = await admin.auth.getUser(token);
+  if (error || !data.user) throw Object.assign(new Error("Sess\xE3o inv\xE1lida"), { status: 401 });
+  await assertServerSession(admin, data.user.id, token);
+  const { data: profile } = await admin.from("profiles").select("role").eq("id", data.user.id).single();
+  if (profile?.role !== "superadmin") throw Object.assign(new Error("Apenas superusu\xE1rio"), { status: 403 });
+  return data.user.id;
+}
+var WINDOW_SECONDS7 = 60;
+var MAX_HITS6 = 5;
+async function handler12(req, res) {
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ message: "Method not allowed" });
+  }
+  try {
+    const admin = getAdmin6();
+    const callerId = await assertSuperadmin4(req, admin);
     const ip = getClientIp2(req);
     const check = await checkRateLimit2("admin-tenants-create", callerId, ip, WINDOW_SECONDS7, MAX_HITS6);
     if (!check.allowed) {
       await logRateLimitBlocked2(callerId, `Limite de cria\xE7\xE3o de prefeituras atingido (${check.currentCount} chamadas/min), IP ${ip}.`);
       return sendRateLimited2(res, check, "Muitas requisi\xE7\xF5es em pouco tempo. Aguarde e tente novamente.");
     }
-    const b = parseBody10(req);
+    const b = parseBody11(req);
     const name = (b.name || "").trim();
     const slug = (b.slug || "").trim().toLowerCase();
     if (!name || !slug) throw Object.assign(new Error("Nome e slug s\xE3o obrigat\xF3rios"), { status: 400 });
@@ -36265,7 +36312,7 @@ function isSuperadminRequest(req) {
   if (forcedSurface === "web") return false;
   return cleanHostname(req) === SUPERADMIN_HOST;
 }
-function invoke(handler12, params = {}) {
+function invoke(handler13, params = {}) {
   return async (req, res, next) => {
     const legacyReq = Object.create(req);
     Object.defineProperty(legacyReq, "query", {
@@ -36274,28 +36321,28 @@ function invoke(handler12, params = {}) {
       value: { ...req.query, ...params, ...req.params }
     });
     try {
-      await handler12(legacyReq, res);
+      await handler13(legacyReq, res);
     } catch (error) {
       next(error);
     }
   };
 }
-function adminOnly(handler12) {
+function adminOnly(handler13) {
   return (req, res, next) => {
     if (!isSuperadminRequest(req)) {
       res.status(404).json({ message: "Endpoint n\xE3o encontrado." });
       return;
     }
-    void invoke(handler12)(req, res, next);
+    void invoke(handler13)(req, res, next);
   };
 }
-function webOnly(handler12) {
+function webOnly(handler13) {
   return (req, res, next) => {
     if (isSuperadminRequest(req)) {
       res.status(404).json({ message: "Endpoint n\xE3o encontrado." });
       return;
     }
-    void invoke(handler12)(req, res, next);
+    void invoke(handler13)(req, res, next);
   };
 }
 app.all("/api/drivers", webOnly(handler));
@@ -36303,14 +36350,15 @@ app.all("/api/drivers/pre-register", webOnly(handler2));
 app.all("/api/drivers/:id/provision-access", webOnly(handler3));
 app.all("/api/drivers/:id/reset-password", webOnly(handler4));
 app.all("/api/managers", (req, res, next) => {
-  const handler12 = isSuperadminRequest(req) ? handler10 : handler5;
-  void invoke(handler12)(req, res, next);
+  const handler13 = isSuperadminRequest(req) ? handler10 : handler5;
+  void invoke(handler13)(req, res, next);
 });
 app.all("/api/access", webOnly(handler6));
 app.all("/api/partners", webOnly(handler7));
-app.all("/api/tenants/create", adminOnly(handler11));
+app.all("/api/tenants/create", adminOnly(handler12));
 app.all("/api/iopgps-device", adminOnly(handler8));
 app.all("/api/iopgps", adminOnly(handler9));
+app.all("/api/vehicle-photos", adminOnly(handler11));
 app.get("/health", (_req, res) => {
   res.status(200).json({
     ok: true,
