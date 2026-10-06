@@ -216,7 +216,7 @@ export function TrackersPanel({ tenantId }: { tenantId?: string }) {
             accessor: (t: Tracker) => (
               <div className="min-w-0">
                 <p className="truncate font-semibold text-[var(--rt-ink900)]">{t.label || t.model}</p>
-                <p className="rt-num truncate font-mono text-xs text-[var(--rt-ink500)]">{t.identifier}</p>
+                <p className="rt-num truncate text-xs text-[var(--rt-ink500)]">{t.identifier}</p>
               </div>
             ),
           },

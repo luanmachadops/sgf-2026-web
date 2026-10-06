@@ -145,8 +145,8 @@ export function IopgpsPanel({ tenantId }: { tenantId?: string }) {
               header: 'Veículo',
               accessor: (r: Row) => (
                 <div className="min-w-0">
-                  <p className="truncate font-mono font-bold text-[var(--rt-ink900)]">{r.plate}</p>
-                  <p className="rt-num truncate font-mono text-xs text-[var(--rt-ink500)]">{r.d.imei}</p>
+                  <p className="truncate font-bold text-[var(--rt-ink900)]">{r.plate}</p>
+                  <p className="rt-num truncate text-xs text-[var(--rt-ink500)]">{r.d.imei}</p>
                 </div>
               ),
             },
@@ -174,8 +174,8 @@ export function IopgpsPanel({ tenantId }: { tenantId?: string }) {
               <div className="flex items-center gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--rt-brand-100)] text-[var(--rt-brand)]"><MapPin width={18} height={18} /></span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-[15px] font-bold text-[var(--rt-ink900)]">{plate}</p>
-                  <p className="rt-num truncate font-mono text-[11px] text-[var(--rt-ink500)]">{d.imei}</p>
+                  <p className="truncate text-[15px] font-bold text-[var(--rt-ink900)]">{plate}</p>
+                  <p className="rt-num truncate text-[11px] text-[var(--rt-ink500)]">{d.imei}</p>
                 </div>
                 <SGFBadge variant={state.variant} size="sm" dot>{state.label}</SGFBadge>
               </div>
