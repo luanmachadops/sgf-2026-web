@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { iopgpsApi } from '@/lib/iopgpsApi';
 import { trackersApi, tenantsApi } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { Button, Input } from '@/lib/ui';
-import { SGFSelect, SGFCard, SGFBadge, SGFButton, SGFTable, ViewToggle, useViewMode } from '@/components/sgf';
+import { Button } from '@/lib/ui';
+import { SGFBadge, SGFButton, SGFTable, ViewToggle, useViewMode } from '@/components/sgf';
 import { MapPin } from '@/components/sgf/icons';
 import { TenantIdentity } from '@/components/TenantIdentity';
 
@@ -209,53 +209,7 @@ export function IopgpsPanel({ tenantId }: { tenantId?: string }) {
         </div>
       )}
 
-      <CredentialsCard fixed={fixed} tenantId={tenantId} tenants={tenants} onSaved={() => qc.invalidateQueries({ queryKey: ['iopgps-status'] })} />
     </div>
-  );
-}
-
-function CredentialsCard({ fixed, tenantId, tenants, onSaved }: {
-  fixed: boolean; tenantId?: string; tenants: { id: string; name: string }[]; onSaved: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ tenant_id: tenantId ?? '', appid: '', app_secret: '', base_url: 'https://open.iopgps.com' });
-  const set = (p: Partial<typeof f>) => setF((c) => ({ ...c, ...p }));
-
-  const save = useMutation({
-    mutationFn: () => iopgpsApi.saveCredentials({
-      tenant_id: fixed ? tenantId : (f.tenant_id || null), base_url: f.base_url, appid: f.appid.trim(), app_secret: f.app_secret.trim(),
-    }),
-    onSuccess: () => { toast.success('Credenciais salvas.'); setF((c) => ({ ...c, appid: '', app_secret: '' })); onSaved(); },
-    onError: (e) => toast.error((e as Error).message),
-  });
-
-  return (
-    <SGFCard padding="lg">
-      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-3 text-left" aria-expanded={open}>
-        <div>
-          <h2 className="text-[15px] font-semibold text-[var(--rt-ink900)]">Credenciais IOPGPS</h2>
-          <p className="text-sm text-[var(--rt-ink500)]">appid e chave secreta da conta Open API (open.iopgps.com).</p>
-        </div>
-        <span className="inline-flex h-9 shrink-0 items-center rounded-full bg-[var(--rt-paper)] px-4 text-[13px] font-semibold text-[var(--rt-ink900)]">{open ? 'Fechar' : 'Configurar'}</span>
-      </button>
-      {open && (
-        <div className="mt-5 space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {!fixed && (
-              <SGFSelect label="Prefeitura (vazio = global)" fullWidth value={f.tenant_id} placeholder="Global (todas)"
-                onChange={(tenant_id) => set({ tenant_id })}
-                options={[{ value: '', label: 'Global (todas)' }, ...tenants.map((t) => ({ value: t.id, label: t.name }))]} />
-            )}
-            <Input label="Base URL" value={f.base_url} onChange={(e) => set({ base_url: e.target.value })} />
-            <Input label="appid" value={f.appid} onChange={(e) => set({ appid: e.target.value })} />
-            <Input label="Chave secreta (app secret)" type="password" value={f.app_secret} onChange={(e) => set({ app_secret: e.target.value })} />
-          </div>
-          <div className="flex justify-end">
-            <Button disabled={!f.appid || !f.app_secret || save.isPending} onClick={() => save.mutate()}>{save.isPending ? 'Salvando…' : 'Salvar credenciais'}</Button>
-          </div>
-        </div>
-      )}
-    </SGFCard>
   );
 }
 

@@ -6,6 +6,7 @@ import { Button, Input } from '@/lib/ui';
 import { PageHeader, SGFCard } from '@/components/sgf';
 import { ShieldCheck, User, Camera } from '@/components/sgf/icons';
 import { NotificationPrefsCard } from '@/components/Notifications';
+import { IopgpsCredentialsCard } from '@/components/IopgpsCredentialsCard';
 import { useMyProfile, useInvalidateProfile, uploadMyPhoto, maskPhone } from '@/lib/profile';
 
 function initials(name: string | null | undefined, email: string | null) {
@@ -53,7 +54,7 @@ export default function Settings() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <PageHeader title="Configurações" subtitle="Seu perfil e as preferências de avisos." />
+      <PageHeader title="Configurações" subtitle="Seu perfil, avisos e integrações." />
 
       {/* Perfil em destaque */}
       <section className="rt-rise relative overflow-hidden rounded-[var(--rt-radius-card)] bg-[var(--rt-ink900)] p-6 text-white sm:p-8">
@@ -88,6 +89,8 @@ export default function Settings() {
       </SGFCard>
 
       <NotificationPrefsCard />
+
+      <IopgpsCredentialsCard />
 
       <SGFCard padding="lg">
         <div className="flex flex-wrap items-center justify-between gap-3">
