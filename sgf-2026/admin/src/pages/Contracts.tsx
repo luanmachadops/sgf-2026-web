@@ -39,11 +39,6 @@ export default function Contracts() {
     },
     onError: (e) => toast.error((e as Error).message),
   });
-  const upload = useMutation({
-    mutationFn: ({ contract, selected }: { contract: Contract; selected: File[] }) => contractsApi.uploadDocuments(contract, selected),
-    onSuccess: () => { toast.success('Documento enviado.'); qc.invalidateQueries({ queryKey: ['contracts'] }); },
-    onError: (e) => toast.error((e as Error).message),
-  });
 
   const today = new Date().toISOString().slice(0, 10);
   const soon = (d: string | null) => d && d >= today && d <= new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
@@ -100,25 +95,14 @@ export default function Contracts() {
           },
           {
             header: 'Documentos',
-            accessor: (c) => (
-              <div className="flex max-w-[280px] flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                {contractsApi.documents(c).map((document) => (
-                  <button key={document.path} onClick={() => contractsApi.openDocument(document).catch((e) => toast.error((e as Error).message))}
-                    className="inline-flex h-7 max-w-36 items-center gap-1.5 truncate rounded-full bg-[var(--rt-paper)] px-3 text-xs font-medium text-[var(--rt-ink700)] hover:bg-[var(--rt-brand-100)] hover:text-[#0B7A50]"
-                    title={document.name}>
-                    <FileText width={13} height={13} /> <span className="truncate">{document.name}</span>
-                  </button>
-                ))}
-                <label className="inline-flex h-7 cursor-pointer items-center rounded-full px-2.5 text-xs font-semibold text-[var(--rt-brand)] hover:bg-[var(--rt-brand-50)]">
-                  + Enviar
-                  <input type="file" multiple className="hidden" onChange={(e) => {
-                    const selected = Array.from(e.target.files ?? []);
-                    if (selected.length) upload.mutate({ contract: c, selected });
-                    e.currentTarget.value = '';
-                  }} />
-                </label>
-              </div>
-            ),
+            accessor: (c) => {
+              const n = contractsApi.documents(c).length;
+              return (
+                <span className={`inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs font-semibold ${n ? 'bg-[var(--rt-paper)] text-[var(--rt-ink700)]' : 'text-[var(--rt-ink400)]'}`}>
+                  <FileText width={14} height={14} /> {n ? `${n} ${n === 1 ? 'documento' : 'documentos'}` : 'Nenhum'}
+                </span>
+              );
+            },
           },
           { header: 'Situação', accessor: (c) => <Badge status={c.status} /> },
         ]}

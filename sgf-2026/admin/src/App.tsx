@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/auth';
+import { useMyProfile } from './lib/profile';
 import {
   Home, Building2, FileText, Receipt, Sparkle, Settings2, LogOut, User, Menu, X, Map, ShieldCheck, MapPin,
 } from './components/sgf/icons';
@@ -41,6 +42,7 @@ const SECTIONS: Section[] = [
  */
 function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: () => void }) {
   const { email, logout } = useAuth();
+  const { data: me } = useMyProfile();
   const location = useLocation();
   return (
     <div className="flex h-full w-[264px] flex-col rounded-[28px] bg-[var(--rt-ink900)] text-white">
@@ -86,11 +88,11 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
 
       <div className="shrink-0 p-3">
         <div className="flex items-center gap-3 rounded-[22px] bg-white/[0.06] p-2.5">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--rt-brand)] text-white">
-            <User className="h-5 w-5" />
-          </span>
+          <NavLink to="/configuracoes" onClick={onNavigate} className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--rt-brand)] text-white" title="Meu perfil">
+            {me?.photoSrc ? <img src={me.photoSrc} alt="" className="h-full w-full object-cover" /> : <User className="h-5 w-5" />}
+          </NavLink>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">Superusuário</p>
+            <p className="truncate text-sm font-semibold">{me?.full_name || 'Superusuário'}</p>
             <p className="truncate text-[11px] text-white/45">{email}</p>
           </div>
           <button onClick={logout} title="Sair" aria-label="Sair" className="grid h-9 w-9 place-items-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white">
