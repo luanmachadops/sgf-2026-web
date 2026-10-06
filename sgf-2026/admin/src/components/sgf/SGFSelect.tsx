@@ -23,6 +23,8 @@ export interface SGFSelectProps {
   className?: string;
   /** sobrescreve estilos do gatilho (altura/padding/fonte) */
   triggerClassName?: string;
+  /** `dark`: gatilho para fundo escuro (hero), texto e seta claros. */
+  tone?: 'default' | 'dark';
   disabled?: boolean;
   name?: string;
   id?: string;
@@ -45,6 +47,7 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
       onChange,
       className = '',
       triggerClassName,
+      tone = 'default',
       id,
       disabled,
     },
@@ -152,14 +155,14 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
             triggerClassName
           )}
         >
-          <span className={cn('flex items-center gap-2 truncate pr-2', selectedOption ? 'text-[var(--rt-ink900)]' : 'text-[var(--rt-ink400)]')}>
+          <span className={cn('flex items-center gap-2 truncate pr-2', tone === 'dark' ? 'font-semibold text-white' : selectedOption ? 'text-[var(--rt-ink900)]' : 'text-[var(--rt-ink400)]')}>
             {selectedOption?.icon && <selectedOption.icon className="h-4 w-4 shrink-0 text-[var(--rt-ink400)]" />}
             {!selectedOption?.icon && Icon && <Icon className="h-4 w-4 shrink-0 text-[var(--rt-ink400)]" />}
             {selectedOption ? selectedOption.label : placeholder}
           </span>
           <CaretDown
             className={cn(
-              "h-2.5 w-2.5 text-[var(--rt-ink400)] transition-transform duration-[var(--sgf-transition-base)] shrink-0",
+              tone === 'dark' ? "h-2.5 w-2.5 text-white/70 transition-transform" : "h-2.5 w-2.5 text-[var(--rt-ink400)] transition-transform duration-[var(--sgf-transition-base)] shrink-0",
               isOpen && 'transform rotate-180 text-emerald-600'
             )}
           />

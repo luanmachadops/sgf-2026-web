@@ -85,7 +85,7 @@ export default function TenantDetail() {
             <div className="flex items-center gap-2">
               <SGFSelect value={t.status} onChange={(status) => set({ status })}
                 options={[{ value: 'active', label: 'Ativa' }, { value: 'trial', label: 'Trial / Demo' }, { value: 'suspended', label: 'Suspensa' }]}
-                className="w-40" triggerClassName="!h-10 !bg-white/10 !text-white hover:!bg-white/15" />
+                className="w-44" tone="dark" triggerClassName="!h-11 !rounded-full !bg-white/12 hover:!bg-white/20" />
               <Button onClick={save} disabled={saving}>{saving ? 'Salvando…' : 'Salvar alterações'}</Button>
             </div>
           </div>
