@@ -5,7 +5,6 @@ import { contractsApi, type Contract, type Tenant } from '@/lib/api';
 import { Button, Input, Badge, fmtBrl } from '@/lib/ui';
 import { Sheet, SGFSelect, SGFButton } from '@/components/sgf';
 import { FileText, Trash2, Upload, Clock } from '@/components/sgf/icons';
-import { TenantIdentity } from '@/components/TenantIdentity';
 
 const br = (d: string | null) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString('pt-BR') : '—');
 const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -80,19 +79,32 @@ export function ContractSheet({ contract, tenant, onClose }: { contract: Contrac
       {contract && (
         <div className="space-y-6">
           {/* Resumo */}
-          <div className="rounded-[22px] bg-[var(--rt-ink900)] p-5 text-white">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="[&_*]:!text-white"><TenantIdentity tenant={tenant} /></span>
+          <div className="relative overflow-hidden rounded-[22px] bg-[var(--rt-ink900)] text-white">
+            {tenant?.photo_url && <img src={tenant.photo_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-30" />}
+            <div className="absolute inset-0 bg-gradient-to-t from-[var(--rt-ink900)] via-[var(--rt-ink900)]/85 to-[var(--rt-ink900)]/40" aria-hidden />
+            <div className="relative p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white ring-4 ring-white/10">
+                  {tenant?.seal_url || tenant?.logo_url
+                    ? <img src={(tenant.seal_url || tenant.logo_url) as string} alt="" className="h-full w-full object-contain p-1" />
+                    : <FileText width={22} height={22} className="text-[var(--rt-ink900)]" />}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[15px] font-semibold leading-snug">{tenant?.name ?? '—'}</p>
+                  <p className="text-xs text-white/60">{[tenant?.city && `${tenant.city}${tenant.state ? '/' + tenant.state : ''}`, contract.object].filter(Boolean).join(' · ')}</p>
+                </div>
+              </div>
               <Badge status={contract.status} />
             </div>
-            <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <div className="mt-6 grid grid-cols-2 gap-4 border-t border-white/10 pt-5 sm:grid-cols-3">
               <div>
                 <p className="text-xs text-white/55">Valor</p>
                 <p className="rt-num mt-1 text-2xl font-light">{contract.value != null ? fmtBrl(Number(contract.value)) : '—'}</p>
               </div>
               <div>
                 <p className="text-xs text-white/55">Vigência</p>
-                <p className="rt-num mt-1 text-[15px]">{br(contract.start_date)} – {br(contract.end_date)}</p>
+                <p className="rt-num mt-1 whitespace-nowrap text-[15px]">{br(contract.start_date)} – {br(contract.end_date)}</p>
               </div>
               <div>
                 <p className="text-xs text-white/55">Prazo</p>
@@ -101,6 +113,7 @@ export function ContractSheet({ contract, tenant, onClose }: { contract: Contrac
                   {daysLeft == null ? 'Sem data de fim' : daysLeft < 0 ? `Venceu há ${-daysLeft} dias` : `${daysLeft} dias restantes`}
                 </p>
               </div>
+            </div>
             </div>
           </div>
 
