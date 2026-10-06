@@ -4,9 +4,16 @@ import { cn } from '@/lib/utils';
 import { PeriodPresetSelect, PeriodRangeFields, makePeriod, resolvePeriod, type PeriodValue } from './PeriodSelect';
 import { useFuelTypeBreakdown } from '@/hooks/useDashboard';
 
-export default function FuelExpenseChart() {
+/**
+ * `period`/`onPeriodChange` opcionais: no Dashboard o período é compartilhado
+ * entre todos os gráficos (mudar em um muda em todos). Sem eles, o gráfico
+ * guarda o próprio período.
+ */
+export default function FuelExpenseChart({ period: sharedPeriod, onPeriodChange }: { period?: PeriodValue; onPeriodChange?: (p: PeriodValue) => void } = {}) {
     const [activeIndex, setActiveIndex] = useState<number | null>(null);
-    const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('1'));
+    const [ownPeriod, setOwnPeriod] = useState<PeriodValue>(() => makePeriod('1'));
+    const period = sharedPeriod ?? ownPeriod;
+    const setPeriod = onPeriodChange ?? setOwnPeriod;
 
     const { data: rawItems = [], isLoading, isError } = useFuelTypeBreakdown(resolvePeriod(period));
 

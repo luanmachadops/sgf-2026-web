@@ -41,6 +41,7 @@ export default function Dashboard() {
     const navigate = useNavigate();
     const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler } = useHeader();
     const { branding } = useBranding();
+    // Um período só para todos os gráficos da página: mudar em um muda em todos.
     const [expensePeriod, setExpensePeriod] = useState<PeriodValue>(() => makePeriod('1'));
     const [isAlertsModalOpen, setIsAlertsModalOpen] = useState<boolean | undefined>(undefined);
 
@@ -240,7 +241,7 @@ export default function Dashboard() {
                     <div className="space-y-6">
                         {/* h-full puxa altura do vizinho em lg; em mobile precisa de min-h próprio */}
                         <SGFCard className="relative overflow-hidden h-[360px] lg:h-full lg:min-h-[360px]" padding="lg">
-                            <FuelExpenseChart />
+                            <FuelExpenseChart period={expensePeriod} onPeriodChange={setExpensePeriod} />
                         </SGFCard>
                     </div>
                 </div>
@@ -249,7 +250,7 @@ export default function Dashboard() {
                     {/* Altura explícita: o ResponsiveContainer do recharts precisa de um
                         pai com altura definida — só min-h não resolve o h-full interno. */}
                     <SGFCard padding="lg" className="overflow-hidden h-[460px]">
-                        <DepartmentConsumptionChart />
+                        <DepartmentConsumptionChart period={expensePeriod} onPeriodChange={setExpensePeriod} />
                     </SGFCard>
                 </div>
             </div>

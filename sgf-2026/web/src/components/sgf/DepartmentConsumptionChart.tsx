@@ -35,8 +35,15 @@ function VerticalBarLabel(props: { x?: number; y?: number; width?: number; heigh
     );
 }
 
-export default function DepartmentConsumptionChart() {
-    const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('1'));
+/**
+ * `period`/`onPeriodChange` opcionais: no Dashboard o período é compartilhado
+ * entre todos os gráficos (mudar em um muda em todos). Sem eles, o gráfico
+ * guarda o próprio período.
+ */
+export default function DepartmentConsumptionChart({ period: sharedPeriod, onPeriodChange }: { period?: PeriodValue; onPeriodChange?: (p: PeriodValue) => void } = {}) {
+    const [ownPeriod, setOwnPeriod] = useState<PeriodValue>(() => makePeriod('1'));
+    const period = sharedPeriod ?? ownPeriod;
+    const setPeriod = onPeriodChange ?? setOwnPeriod;
     const { data: rawRows = [], isLoading, isError } = useDepartmentConsumption(resolvePeriod(period));
 
     const { data: departments = [] } = useQuery({
