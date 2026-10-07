@@ -78,11 +78,11 @@ function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void
                     to={item.path}
                     onClick={onNavigate}
                     title={rail ? item.label : undefined}
-                    className={`flex items-center gap-3 rounded-full ${rail ? 'h-[44px] px-[13px]' : 'h-11 px-3.5'} text-[15px] font-medium transition ${
+                    className={`flex items-center gap-3 rounded-full ${rail ? 'h-[44px] px-[15px]' : 'h-11 px-3.5'} text-[13px] font-medium transition ${
                       active ? 'bg-white text-[var(--rt-ink900)] shadow-[0_6px_16px_rgb(0_0_0/0.18)]' : 'text-white/65 hover:bg-white/[0.07] hover:text-white'
                     }`}
                   >
-                    <Icon className={`h-[22px] w-[22px] shrink-0 ${active ? 'text-[var(--rt-brand)]' : ''}`} />
+                    <Icon className={`h-[18px] w-[18px] shrink-0 ${active ? 'text-[var(--rt-brand)]' : ''}`} />
                     <span className={`truncate whitespace-nowrap ${hide}`}>{item.label}</span>
                   </NavLink>
                 );
