@@ -50,8 +50,8 @@ function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void
   const location = useLocation();
   return (
     <div className={`flex h-full flex-col overflow-hidden rounded-[28px] ${rail ? 'w-[60px] transition-[width] duration-200 ease-out group-hover/rail:w-[264px] group-hover/rail:shadow-[0_24px_64px_rgb(15_43_47/0.35)]' : 'w-[264px]'} bg-[var(--rt-ink900)] text-white`}>
-      <div className={`flex shrink-0 items-center gap-3 pb-4 pt-6 ${rail ? 'px-2.5' : 'px-5'}`}>
-        <img src="/exattus-rotta.svg" alt="" className="h-10 w-10 shrink-0" />
+      <div className={`flex shrink-0 items-center gap-3 pb-4 pt-6 ${rail ? 'px-[10px]' : 'px-5'}`}>
+        <img src="/exattus-rotta.svg" alt="" className={`shrink-0 ${rail ? 'h-[40px] w-[40px]' : 'h-10 w-10'}`} />
         <div className={`min-w-0 leading-tight ${hide}`}>
           <p className="truncate text-[15px] font-bold tracking-[-0.01em]">Exattus Rotta</p>
           <p className="text-xs font-medium text-white/50">Superadmin</p>
@@ -64,7 +64,7 @@ function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void
         )}
       </div>
 
-      <nav className={`rt-scroll flex-1 overflow-y-auto overflow-x-hidden pb-3 ${rail ? 'px-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'px-3'}`}>
+      <nav className={`rt-scroll flex-1 overflow-y-auto overflow-x-hidden pb-3 ${rail ? 'px-[6px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'px-3'}`}>
         {SECTIONS.map((section) => (
           <div key={section.title} className="mt-4 first:mt-1">
             <p className={`mb-1.5 select-none truncate whitespace-nowrap px-3 text-[11px] font-medium text-white/35 ${rail ? 'invisible group-hover/rail:visible' : ''}`}>{section.title}</p>
@@ -78,11 +78,11 @@ function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void
                     to={item.path}
                     onClick={onNavigate}
                     title={rail ? item.label : undefined}
-                    className={`flex items-center gap-3 rounded-full ${rail ? 'h-10 px-3.5' : 'h-11 px-3.5'} text-sm font-medium transition ${
+                    className={`flex items-center gap-3 rounded-full ${rail ? 'h-[44px] px-[13px]' : 'h-11 px-3.5'} text-[15px] font-medium transition ${
                       active ? 'bg-white text-[var(--rt-ink900)] shadow-[0_6px_16px_rgb(0_0_0/0.18)]' : 'text-white/65 hover:bg-white/[0.07] hover:text-white'
                     }`}
                   >
-                    <Icon className={`h-5 w-5 shrink-0 ${active ? 'text-[var(--rt-brand)]' : ''}`} />
+                    <Icon className={`h-[22px] w-[22px] shrink-0 ${active ? 'text-[var(--rt-brand)]' : ''}`} />
                     <span className={`truncate whitespace-nowrap ${hide}`}>{item.label}</span>
                   </NavLink>
                 );
@@ -92,9 +92,9 @@ function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void
         ))}
       </nav>
 
-      <div className={`shrink-0 ${rail ? 'p-1' : 'p-3'}`}>
-        <div className={`flex items-center gap-3 rounded-[22px] ${rail ? 'p-1.5' : 'p-2.5'} ${rail ? 'group-hover/rail:bg-white/[0.06]' : 'bg-white/[0.06]'}`}>
-          <NavLink to="/configuracoes" onClick={onNavigate} className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--rt-brand)] text-white" title="Meu perfil">
+      <div className={`shrink-0 ${rail ? 'p-[4px]' : 'p-3'}`}>
+        <div className={`flex items-center gap-3 rounded-[22px] ${rail ? 'p-[6px]' : 'p-2.5'} ${rail ? 'group-hover/rail:bg-white/[0.06]' : 'bg-white/[0.06]'}`}>
+          <NavLink to="/configuracoes" onClick={onNavigate} className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--rt-brand)] ${rail ? 'h-[40px] w-[40px]' : 'h-10 w-10'} text-white`} title="Meu perfil">
             {me?.photoSrc ? <img src={me.photoSrc} alt="" className="h-full w-full object-cover" /> : <User className="h-5 w-5" />}
           </NavLink>
           <div className={`min-w-0 flex-1 ${hide}`}>
