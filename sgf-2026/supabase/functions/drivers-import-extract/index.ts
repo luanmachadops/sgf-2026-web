@@ -1,4 +1,5 @@
 import { sessionAllowed } from '../_shared/session-access.ts';
+import { resolveAiModel, DEFAULT_AI_MODEL } from '../_shared/ai-model.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -7,7 +8,8 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-const MODEL = Deno.env.get('OPENROUTER_MODEL') ?? 'google/gemini-3.6-flash';
+// Modelo escolhido no superadmin (Configurações); resolvido a cada requisição.
+let MODEL = DEFAULT_AI_MODEL;
 
 function admin() {
   return createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
@@ -41,6 +43,7 @@ Responda somente JSON válido:
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  MODEL = await resolveAiModel(admin());
   try {
     const apiKey = Deno.env.get('OPENROUTER_API_KEY');
     if (!apiKey) throw new Error('OPENROUTER_API_KEY não configurada.');

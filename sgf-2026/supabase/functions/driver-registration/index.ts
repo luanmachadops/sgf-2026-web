@@ -1,4 +1,5 @@
 import { sessionAllowed } from '../_shared/session-access.ts';
+import { resolveAiModel } from '../_shared/ai-model.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -9,7 +10,6 @@ const CORS = {
 };
 const JSON_HEADERS = { ...CORS, "Content-Type": "application/json" };
 const BUCKET = "documentos";
-const AI_MODEL = Deno.env.get("OPENROUTER_MODEL") ?? "google/gemini-3.6-flash";
 const ALLOWED_MANAGER_ROLES = new Set(["admin", "gestor", "secretario", "superadmin"]);
 const CURRENT_TERMS_VERSION = "2026-07-29";
 
@@ -236,6 +236,7 @@ async function extractCnh(body: Json) {
     .update({ ai_use_count: invite.ai_use_count + 1 })
     .eq("id", invite.id).eq("ai_use_count", invite.ai_use_count);
 
+  const aiModel = await resolveAiModel(admin());
   const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -245,7 +246,7 @@ async function extractCnh(body: Json) {
       "X-Title": "Exattus Rotta - Pré-cadastro CNH",
     },
     body: JSON.stringify({
-      model: AI_MODEL,
+      model: aiModel,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {

@@ -2633,6 +2633,27 @@ export type Database = {
           },
         ]
       }
+      platform_settings: {
+        Row: {
+          ai_document_model: string | null
+          id: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ai_document_model?: string | null
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ai_document_model?: string | null
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           access_blocked: boolean
