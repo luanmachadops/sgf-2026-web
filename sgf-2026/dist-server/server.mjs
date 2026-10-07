@@ -21223,10 +21223,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // admin/dist/index.html
-var dist_default = '<!doctype html>\n<html lang="pt-BR">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n    <link rel="preconnect" href="https://fonts.googleapis.com" />\n    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />\n    <meta name="description" content="Painel superadministrativo da Exattus Rotta." />\n    <title>Exattus Rotta \u2014 Superadmin</title>\n    <script type="module" crossorigin src="/assets/index-D1WUo5ok.js"></script>\n    <link rel="stylesheet" crossorigin href="/assets/index-CnnQM7Hl.css">\n  </head>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>\n';
+var dist_default = '<!doctype html>\n<html lang="pt-BR">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n    <link rel="preconnect" href="https://fonts.googleapis.com" />\n    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />\n    <meta name="description" content="Painel superadministrativo da Exattus Rotta." />\n    <title>Exattus Rotta \u2014 Superadmin</title>\n    <script type="module" crossorigin src="/assets/index-BuyjP9dF.js"></script>\n    <link rel="stylesheet" crossorigin href="/assets/index-CnnQM7Hl.css">\n  </head>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>\n';
 
 // web/dist/index.html
-var dist_default2 = '<!doctype html>\n<html lang="pt-BR">\n\n<head>\n  <meta charset="UTF-8" />\n  <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n  <link rel="manifest" href="/manifest.webmanifest" />\n  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <meta name="description" content="Exattus Rotta \u2014 gest\xE3o inteligente de frotas p\xFAblicas." />\n  <meta name="theme-color" content="#0F2B2F" />\n  <meta name="mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />\n  <meta name="apple-mobile-web-app-title" content="Exattus Rotta" />\n  <title>Exattus Rotta \u2014 Gest\xE3o de Frotas</title>\n\n  <!-- Google Fonts - Inter -->\n  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\n\n  <!-- Leaflet CSS -->\n  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"\n    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />\n  <script type="module" crossorigin src="/assets/index-DCi6sJlU.js"></script>\n  <link rel="stylesheet" crossorigin href="/assets/index-CEFrgoy7.css">\n</head>\n\n<body>\n  <div id="root"></div>\n</body>\n\n</html>\n';
+var dist_default2 = '<!doctype html>\n<html lang="pt-BR">\n\n<head>\n  <meta charset="UTF-8" />\n  <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n  <link rel="manifest" href="/manifest.webmanifest" />\n  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <meta name="description" content="Exattus Rotta \u2014 gest\xE3o inteligente de frotas p\xFAblicas." />\n  <meta name="theme-color" content="#0F2B2F" />\n  <meta name="mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />\n  <meta name="apple-mobile-web-app-title" content="Exattus Rotta" />\n  <title>Exattus Rotta \u2014 Gest\xE3o de Frotas</title>\n\n  <!-- Google Fonts - Inter -->\n  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\n\n  <!-- Leaflet CSS -->\n  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"\n    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />\n  <script type="module" crossorigin src="/assets/index-CCF7bu9x.js"></script>\n  <link rel="stylesheet" crossorigin href="/assets/index-B1VzNf_A.css">\n</head>\n\n<body>\n  <div id="root"></div>\n</body>\n\n</html>\n';
 
 // web/node_modules/@supabase/supabase-js/dist/index.mjs
 var dist_exports = {};
@@ -26590,6 +26590,35 @@ async function createPartnerUser(caller, tenantId, body) {
   }
   return { id: authData.user.id, tempPassword: password };
 }
+async function reactivateArchivedDriver(caller, tenantId, body, departmentId) {
+  const cpf = String(body.cpf ?? "").replace(/\D/g, "");
+  if (cpf.length !== 11) return null;
+  const admin = getSupabaseAdmin();
+  const { data: archived } = await admin.from("profiles").select("id").eq("tenant_id", tenantId).eq("role", "motorista").not("archived_at", "is", null).or(`cpf.eq.${cpf},cpf.eq.${cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")}`).maybeSingle();
+  if (!archived) return null;
+  const id = archived.id;
+  const password = generateTempPassword();
+  const { error: authError } = await admin.auth.admin.updateUserById(id, {
+    email: `driver-${cpf}@internal.sgf2026.local`,
+    email_confirm: true,
+    password,
+    ban_duration: "none"
+  });
+  if (authError) fail("N\xE3o foi poss\xEDvel reativar o acesso deste motorista. Tente novamente.", 503);
+  const name = cleanText(body.name);
+  const { error } = await admin.from("profiles").update({
+    archived_at: null,
+    access_blocked: false,
+    driver_status: "ativo",
+    must_change_password: true,
+    ...name.length >= 3 ? { full_name: name } : {},
+    ...departmentId ? { department_id: departmentId } : {},
+    ...cleanText(body.registrationNumber) ? { registration_number: cleanText(body.registrationNumber) } : {},
+    updated_by: caller.id
+  }).eq("id", id);
+  if (error) throw error;
+  return { id, tempPassword: password };
+}
 async function handler6(req, res) {
   try {
     res.setHeader("Cache-Control", "no-store");
@@ -26638,7 +26667,7 @@ async function handler6(req, res) {
       if (PARTNER_ROLES.has(role)) {
         created = await createPartnerUser(caller, tenantId, { ...body, partnerType: role });
       } else if (role === "motorista") {
-        created = await preRegisterDriver({
+        created = await reactivateArchivedDriver(caller, tenantId, body, departmentId) ?? await preRegisterDriver({
           cpf: String(body.cpf ?? ""),
           name: String(body.name ?? ""),
           registrationNumber: String(body.registrationNumber ?? ""),
