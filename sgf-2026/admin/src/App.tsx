@@ -4,7 +4,7 @@ import { useAuth } from './lib/auth';
 import { useMyProfile } from './lib/profile';
 import { NotificationBell } from './components/Notifications';
 import {
-  Home, Building2, FileText, Receipt, Sparkle, Settings2, LogOut, User, Menu, X, Map, ShieldCheck, MapPin,
+  Home, Building2, FileText, Receipt, Sparkle, Settings2, LogOut, User, Menu, Map, ShieldCheck, MapPin,
 } from './components/sgf/icons';
 import type { IconType } from './components/sgf/icons';
 import Login from './pages/Login';
@@ -41,7 +41,7 @@ const SECTIONS: Section[] = [
  * pílula; o ativo inverte para branco com tinta escura, como a pílula ativa da
  * barra de abas do motorista.
  */
-function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void; onClose?: () => void; rail?: boolean }) {
+function SidebarContent({ onNavigate, rail }: { onNavigate?: () => void; rail?: boolean }) {
   // Modo trilho (tablet): só ícones; os textos aparecem quando o mouse entra e o painel se expande.
   // Recolhido, os textos saem do fluxo (hidden) para o ícone ficar exatamente no centro.
   const hide = rail ? 'hidden group-hover/rail:block' : '';
@@ -56,11 +56,6 @@ function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void
           <p className="truncate text-[15px] font-bold tracking-[-0.01em]">Exattus Rotta</p>
           <p className="text-xs font-medium text-white/50">Superadmin</p>
         </div>
-        {onClose && (
-          <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white/80 lg:hidden" aria-label="Fechar menu">
-            <X className="h-5 w-5" />
-          </button>
-        )}
       </div>
 
       <nav className={`rt-scroll flex-1 overflow-y-auto overflow-x-hidden pb-3 ${rail ? 'px-[6px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'px-3'}`}>
@@ -133,7 +128,7 @@ function Shell() {
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-[var(--rt-ink900)]/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
           <div className="absolute inset-y-0 left-0 p-3">
-            <SidebarContent onNavigate={() => setMobileOpen(false)} onClose={() => setMobileOpen(false)} />
+            <SidebarContent onNavigate={() => setMobileOpen(false)} />
           </div>
         </div>
       )}
