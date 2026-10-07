@@ -41,19 +41,21 @@ const SECTIONS: Section[] = [
  * pílula; o ativo inverte para branco com tinta escura, como a pílula ativa da
  * barra de abas do motorista.
  */
-function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onClose?: () => void }) {
+function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void; onClose?: () => void; rail?: boolean }) {
+  // Modo trilho (tablet): só ícones; os textos aparecem quando o mouse entra e o painel se expande.
+  const hide = rail ? 'opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100' : '';
   const { email, logout } = useAuth();
   const { data: me } = useMyProfile();
   const location = useLocation();
   return (
-    <div className="flex h-full w-[264px] flex-col rounded-[28px] bg-[var(--rt-ink900)] text-white">
-      <div className="flex shrink-0 items-center gap-3 px-5 pb-4 pt-6">
+    <div className={`flex h-full flex-col overflow-hidden rounded-[28px] ${rail ? 'w-[72px] transition-[width] duration-200 ease-out group-hover/rail:w-[264px] group-hover/rail:shadow-[0_24px_64px_rgb(15_43_47/0.35)]' : 'w-[264px]'} bg-[var(--rt-ink900)] text-white`}>
+      <div className={`flex shrink-0 items-center gap-3 pb-4 pt-6 ${rail ? 'px-4' : 'px-5'}`}>
         <img src="/exattus-rotta.svg" alt="" className="h-10 w-10 shrink-0" />
-        <div className="min-w-0 leading-tight">
+        <div className={`min-w-0 leading-tight ${hide}`}>
           <p className="truncate text-[15px] font-bold tracking-[-0.01em]">Exattus Rotta</p>
           <p className="text-xs font-medium text-white/50">Superadmin</p>
         </div>
-        <div className="ml-auto"><NotificationBell /></div>
+        <div className={`ml-auto ${hide}`}><NotificationBell /></div>
         {onClose && (
           <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white/80 lg:hidden" aria-label="Fechar menu">
             <X className="h-5 w-5" />
@@ -61,10 +63,10 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
         )}
       </div>
 
-      <nav className="rt-scroll flex-1 overflow-y-auto px-3 pb-3">
+      <nav className={`rt-scroll flex-1 overflow-y-auto overflow-x-hidden pb-3 ${rail ? 'px-2.5' : 'px-3'}`}>
         {SECTIONS.map((section) => (
           <div key={section.title} className="mt-4 first:mt-1">
-            <p className="mb-1.5 select-none px-3 text-[11px] font-medium text-white/35">{section.title}</p>
+            <p className={`mb-1.5 select-none truncate whitespace-nowrap px-3 text-[11px] font-medium text-white/35 ${hide}`}>{section.title}</p>
             <div className="space-y-1">
               {section.items.map((item) => {
                 const active = item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
@@ -74,12 +76,13 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
                     key={item.path}
                     to={item.path}
                     onClick={onNavigate}
+                    title={rail ? item.label : undefined}
                     className={`flex h-11 items-center gap-3 rounded-full px-3.5 text-sm font-medium transition ${
                       active ? 'bg-white text-[var(--rt-ink900)] shadow-[0_6px_16px_rgb(0_0_0/0.18)]' : 'text-white/65 hover:bg-white/[0.07] hover:text-white'
                     }`}
                   >
                     <Icon className={`h-5 w-5 shrink-0 ${active ? 'text-[var(--rt-brand)]' : ''}`} />
-                    <span className="truncate">{item.label}</span>
+                    <span className={`truncate whitespace-nowrap ${hide}`}>{item.label}</span>
                   </NavLink>
                 );
               })}
@@ -88,16 +91,16 @@ function SidebarContent({ onNavigate, onClose }: { onNavigate?: () => void; onCl
         ))}
       </nav>
 
-      <div className="shrink-0 p-3">
-        <div className="flex items-center gap-3 rounded-[22px] bg-white/[0.06] p-2.5">
+      <div className={`shrink-0 ${rail ? 'p-2' : 'p-3'}`}>
+        <div className={`flex items-center gap-3 rounded-[22px] p-2.5 ${rail ? 'group-hover/rail:bg-white/[0.06]' : 'bg-white/[0.06]'}`}>
           <NavLink to="/configuracoes" onClick={onNavigate} className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--rt-brand)] text-white" title="Meu perfil">
             {me?.photoSrc ? <img src={me.photoSrc} alt="" className="h-full w-full object-cover" /> : <User className="h-5 w-5" />}
           </NavLink>
-          <div className="min-w-0 flex-1">
+          <div className={`min-w-0 flex-1 ${hide}`}>
             <p className="truncate text-sm font-semibold">{me?.full_name || 'Superusuário'}</p>
             <p className="truncate text-[11px] text-white/45">{email}</p>
           </div>
-          <button onClick={logout} title="Sair" aria-label="Sair" className="grid h-9 w-9 place-items-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white">
+          <button onClick={logout} title="Sair" aria-label="Sair" className={`${hide} grid h-9 w-9 shrink-0 place-items-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white`}>
             <LogOut className="h-[18px] w-[18px]" />
           </button>
         </div>
@@ -118,9 +121,16 @@ function Shell() {
       {/* Menu flutuante no desktop */}
       <div className="hidden shrink-0 p-4 pr-0 lg:block"><SidebarContent /></div>
 
+      {/* Tablet: trilho de ícones que se expande por cima do conteúdo ao passar o mouse */}
+      <div className="relative hidden w-[88px] shrink-0 md:block lg:hidden">
+        <div className="group/rail absolute inset-y-0 left-0 z-40 p-4 pr-0">
+          <SidebarContent rail />
+        </div>
+      </div>
+
       {/* Drawer no mobile */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-[var(--rt-ink900)]/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
           <div className="absolute inset-y-0 left-0 p-3">
             <SidebarContent onNavigate={() => setMobileOpen(false)} onClose={() => setMobileOpen(false)} />
@@ -130,7 +140,7 @@ function Shell() {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Barra superior no mobile */}
-        <div className="flex h-16 shrink-0 items-center gap-3 px-4 lg:hidden">
+        <div className="flex h-16 shrink-0 items-center gap-3 px-4 md:hidden">
           <button onClick={() => setMobileOpen(true)} className="grid h-11 w-11 place-items-center rounded-full bg-white text-[var(--rt-ink900)] shadow-[var(--rt-shadow-card)]" aria-label="Abrir menu">
             <Menu className="h-5 w-5" />
           </button>
@@ -139,7 +149,7 @@ function Shell() {
           <div className="ml-auto"><NotificationBell onDark={false} /></div>
         </div>
 
-        <main className="rt-scroll flex-1 overflow-y-auto scroll-smooth px-4 pb-10 pt-2 sm:px-6 lg:px-10 lg:pt-10">
+        <main className="rt-scroll flex-1 overflow-y-auto scroll-smooth px-4 pb-10 pt-2 sm:px-6 md:pt-8 lg:px-10 lg:pt-10">
           <div className="mx-auto w-full max-w-[1320px]">
             <Outlet />
           </div>
