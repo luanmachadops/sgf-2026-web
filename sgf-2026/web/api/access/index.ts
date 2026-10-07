@@ -179,6 +179,43 @@ async function createPartnerUser(caller: Caller, tenantId: string, body: Record<
     return { id: authData.user.id, tempPassword: password };
 }
 
+/**
+ * Motorista arquivado que volta: reativa o MESMO perfil (o CPF é único por
+ * prefeitura e o histórico continua dele) em vez de recusar o cadastro.
+ */
+async function reactivateArchivedDriver(caller: Caller, tenantId: string, body: Record<string, unknown>, departmentId?: string) {
+    const cpf = String(body.cpf ?? '').replace(/\D/g, '');
+    if (cpf.length !== 11) return null;
+    const admin = getSupabaseAdmin();
+    const { data: archived } = await admin.from('profiles').select('id')
+        .eq('tenant_id', tenantId).eq('role', 'motorista').not('archived_at', 'is', null)
+        .or(`cpf.eq.${cpf},cpf.eq.${cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}`)
+        .maybeSingle();
+    if (!archived) return null;
+    const id = (archived as { id: string }).id;
+    const password = generateTempPassword();
+    const { error: authError } = await admin.auth.admin.updateUserById(id, {
+        email: `driver-${cpf}@internal.sgf2026.local`,
+        email_confirm: true,
+        password,
+        ban_duration: 'none',
+    });
+    if (authError) fail('Não foi possível reativar o acesso deste motorista. Tente novamente.', 503);
+    const name = cleanText(body.name);
+    const { error } = await admin.from('profiles').update({
+        archived_at: null,
+        access_blocked: false,
+        driver_status: 'ativo',
+        must_change_password: true,
+        ...(name.length >= 3 ? { full_name: name } : {}),
+        ...(departmentId ? { department_id: departmentId } : {}),
+        ...(cleanText(body.registrationNumber) ? { registration_number: cleanText(body.registrationNumber) } : {}),
+        updated_by: caller.id,
+    }).eq('id', id);
+    if (error) throw error;
+    return { id, tempPassword: password };
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse) {
     try {
         res.setHeader('Cache-Control', 'no-store');
@@ -239,7 +276,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
             if (PARTNER_ROLES.has(role)) {
                 created = await createPartnerUser(caller, tenantId, { ...body, partnerType: role });
             } else if (role === 'motorista') {
-                created = await preRegisterDriver({
+                created = await reactivateArchivedDriver(caller, tenantId, body, departmentId) ?? await preRegisterDriver({
                     cpf: String(body.cpf ?? ''),
                     name: String(body.name ?? ''),
                     registrationNumber: String(body.registrationNumber ?? ''),

@@ -36,7 +36,8 @@ export function DepartmentFormModal({ isOpen, onClose, department }: DepartmentF
             const { data, error } = await supabase
                 .from('profiles')
                 .select('id, full_name, email, department_id, role')
-                .in('role', ['secretario', 'manager', 'ADMIN', 'gestor']);
+                .in('role', ['secretario', 'gestor', 'admin'])
+                .is('archived_at', null);
             if (error) return [];
             return data || [];
         },

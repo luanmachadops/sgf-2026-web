@@ -53,9 +53,9 @@ export const tenantsApi = {
   stats: async (id: string): Promise<TenantStats> => {
     const [veh, drv, trk, mgr] = await Promise.all([
       supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('tenant_id', id),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', id).eq('role', 'motorista'),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', id).eq('role', 'motorista').is('archived_at', null),
       supabase.from('trackers').select('id', { count: 'exact', head: true }).eq('tenant_id', id),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', id).in('role', ['admin', 'gestor', 'secretario']),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', id).in('role', ['admin', 'gestor', 'secretario']).is('archived_at', null),
     ]);
     return { vehicles: veh.count ?? 0, drivers: drv.count ?? 0, trackers: trk.count ?? 0, managers: mgr.count ?? 0 };
   },
@@ -215,6 +215,7 @@ export const managersApi = {
     let q = supabase.from('profiles')
       .select('id, full_name, email, role, tenant_id, access_blocked, created_at')
       .in('role', ['admin', 'gestor', 'secretario'])
+      .is('archived_at', null)
       .order('created_at', { ascending: false });
     if (tenantId) q = q.eq('tenant_id', tenantId);
     const { data, error } = await q;

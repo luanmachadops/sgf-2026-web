@@ -73,17 +73,6 @@ export function useUpdateDriver() {
     });
 }
 
-export function useDeleteDriver() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: (id: string) => driversApi.delete(id),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['drivers'] });
-        },
-    });
-}
-
 export function useProvisionDriverAccess() {
     const queryClient = useQueryClient();
 

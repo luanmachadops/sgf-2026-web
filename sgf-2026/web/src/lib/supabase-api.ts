@@ -519,6 +519,7 @@ export const driversApi = withFotoUrls({
             .from('profiles')
             .select('*, departments(id, name)')
             .eq('role', 'motorista')
+            .is('archived_at', null)
             .order('full_name', { ascending: true });
 
         if (filters?.departmentId) {
@@ -575,13 +576,6 @@ export const driversApi = withFotoUrls({
         return data as Tables<'profiles'>;
     },
 
-    delete: async (id: string): Promise<void> => {
-        const { error } = await supabase
-            .from('profiles')
-            .delete()
-            .eq('id', id);
-        if (error) handleError(error);
-    },
 
     updatePhoto: async (id: string, photoUrl: string): Promise<Tables<'profiles'>> => {
         const { data, error } = await supabase
@@ -1598,7 +1592,7 @@ export const departmentsApi = withFotoUrls({
         ] = await Promise.all([
             supabase.from('departments').select('*').order('name', { ascending: true }),
             supabase.from('vehicles').select('id, department_id, status'),
-            supabase.from('profiles').select('id, department_id, driver_status').eq('role', 'motorista'),
+            supabase.from('profiles').select('id, department_id, driver_status').eq('role', 'motorista').is('archived_at', null),
             tripsQuery,
             fuelingsQuery,
             maintenancesQuery,
@@ -1709,6 +1703,7 @@ export const departmentsApi = withFotoUrls({
                 .from('profiles')
                 .select('*, departments(id, name)')
                 .eq('role', 'motorista')
+                .is('archived_at', null)
                 .eq('department_id', departmentId)
                 .order('full_name', { ascending: true }),
         ]);
@@ -1907,7 +1902,7 @@ export const dashboardApi = withFotoUrls({
             maintenancesResult,
         ] = await Promise.all([
             supabase.from('vehicles').select('id, status'),
-            supabase.from('profiles').select('id, driver_status, cnh_expiry, score').eq('role', 'motorista'),
+            supabase.from('profiles').select('id, driver_status, cnh_expiry, score').eq('role', 'motorista').is('archived_at', null),
             supabase.from('trips').select('id, distance_km, start_at, end_at, status')
                 .gte('start_at', monthStart).lte('start_at', monthEnd),
             supabase.from('fuelings').select('id, liters, total_cost, km_per_liter, has_anomaly')

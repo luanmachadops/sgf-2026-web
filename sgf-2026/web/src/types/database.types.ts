@@ -2656,6 +2656,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          archived_at: string | null
           access_blocked: boolean
           allowed_modules: string[]
           birth_date: string | null
@@ -2690,6 +2691,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          archived_at?: string | null
           access_blocked?: boolean
           allowed_modules?: string[]
           birth_date?: string | null
@@ -2724,6 +2726,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          archived_at?: string | null
           access_blocked?: boolean
           allowed_modules?: string[]
           birth_date?: string | null

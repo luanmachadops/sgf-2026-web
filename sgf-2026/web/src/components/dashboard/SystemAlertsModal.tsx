@@ -102,6 +102,7 @@ export function SystemAlertsModal({ isOpen: externalIsOpen, onClose: externalOnC
                 .from('profiles')
                 .select('id, full_name, photo_url, cnh_expiry, cnh_category')
                 .eq('role', 'motorista')
+                .is('archived_at', null)
                 .not('cnh_expiry', 'is', null);
             await signFotos(data);
 

@@ -885,6 +885,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          archived_at: string | null
           access_blocked: boolean
           birth_date: string | null
           cnh_category: string | null
@@ -912,6 +913,7 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          archived_at?: string | null
           access_blocked?: boolean
           birth_date?: string | null
           cnh_category?: string | null
@@ -939,6 +941,7 @@ export type Database = {
           tenant_id?: string
         }
         Update: {
+          archived_at?: string | null
           access_blocked?: boolean
           birth_date?: string | null
           cnh_category?: string | null
