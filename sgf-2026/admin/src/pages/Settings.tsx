@@ -7,6 +7,7 @@ import { PageHeader, SGFCard } from '@/components/sgf';
 import { ShieldCheck, User, Camera } from '@/components/sgf/icons';
 import { NotificationPrefsCard } from '@/components/Notifications';
 import { IopgpsCredentialsCard } from '@/components/IopgpsCredentialsCard';
+import { AiModelCard } from '@/components/AiModelCard';
 import { useMyProfile, useInvalidateProfile, uploadMyPhoto, maskPhone } from '@/lib/profile';
 
 function initials(name: string | null | undefined, email: string | null) {
@@ -78,7 +79,6 @@ export default function Settings() {
       </section>
 
       <div className="grid items-start gap-6 xl:grid-cols-2">
-      <div className="space-y-6">
       <SGFCard padding="lg" title="Dados pessoais" icon={User}>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Nome completo" value={name} onChange={(e) => setName(e.target.value)} className="sm:col-span-2" />
@@ -90,6 +90,12 @@ export default function Settings() {
         </div>
       </SGFCard>
 
+      <NotificationPrefsCard />
+      </div>
+
+      <AiModelCard />
+
+      <IopgpsCredentialsCard />
 
       <SGFCard padding="lg">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -100,12 +106,6 @@ export default function Settings() {
           <Button variant="outline" onClick={logout}>Sair</Button>
         </div>
       </SGFCard>
-      </div>
-
-      <NotificationPrefsCard />
-      </div>
-
-      <IopgpsCredentialsCard />
     </div>
   );
 }
