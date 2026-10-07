@@ -1252,6 +1252,10 @@ export type Database = {
           slug: string
           state: string | null
           status: string
+          tracking_source: string
+          trip_close_required_min: number
+          trip_reminder_first_min: number
+          trip_reminder_interval_min: number
           updated_at: string
         }
         Insert: {
@@ -1274,6 +1278,10 @@ export type Database = {
           slug: string
           state?: string | null
           status?: string
+          tracking_source?: string
+          trip_close_required_min?: number
+          trip_reminder_first_min?: number
+          trip_reminder_interval_min?: number
           updated_at?: string
         }
         Update: {
@@ -1296,6 +1304,10 @@ export type Database = {
           slug?: string
           state?: string | null
           status?: string
+          tracking_source?: string
+          trip_close_required_min?: number
+          trip_reminder_first_min?: number
+          trip_reminder_interval_min?: number
           updated_at?: string
         }
         Relationships: []
@@ -1417,6 +1429,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      trip_watch: {
+        Row: {
+          anchor_lat: number | null
+          anchor_lng: number | null
+          close_required_at: string | null
+          driver_id: string
+          last_reminder_at: string | null
+          last_signal_at: string | null
+          manager_alerted_at: string | null
+          reminders_sent: number
+          source: string
+          stopped_since: string | null
+          tenant_id: string
+          trip_id: string
+          updated_at: string
+        }
+        Insert: {
+          anchor_lat?: number | null
+          anchor_lng?: number | null
+          close_required_at?: string | null
+          driver_id: string
+          last_reminder_at?: string | null
+          last_signal_at?: string | null
+          manager_alerted_at?: string | null
+          reminders_sent?: number
+          source?: string
+          stopped_since?: string | null
+          tenant_id: string
+          trip_id: string
+          updated_at?: string
+        }
+        Update: {
+          anchor_lat?: number | null
+          anchor_lng?: number | null
+          close_required_at?: string | null
+          driver_id?: string
+          last_reminder_at?: string | null
+          last_signal_at?: string | null
+          manager_alerted_at?: string | null
+          reminders_sent?: number
+          source?: string
+          stopped_since?: string | null
+          tenant_id?: string
+          trip_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       trips: {
         Row: {
