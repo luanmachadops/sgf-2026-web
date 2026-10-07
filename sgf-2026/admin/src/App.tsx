@@ -77,7 +77,7 @@ function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void
                     to={item.path}
                     onClick={onNavigate}
                     title={rail ? item.label : undefined}
-                    className={`flex h-11 items-center gap-3 rounded-full px-3.5 text-sm font-medium transition ${
+                    className={`flex h-11 items-center gap-3 rounded-full ${rail ? 'px-4' : 'px-3.5'} text-sm font-medium transition ${
                       active ? 'bg-white text-[var(--rt-ink900)] shadow-[0_6px_16px_rgb(0_0_0/0.18)]' : 'text-white/65 hover:bg-white/[0.07] hover:text-white'
                     }`}
                   >
@@ -92,7 +92,7 @@ function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void
       </nav>
 
       <div className={`shrink-0 ${rail ? 'p-2' : 'p-3'}`}>
-        <div className={`flex items-center gap-3 rounded-[22px] p-2.5 ${rail ? 'group-hover/rail:bg-white/[0.06]' : 'bg-white/[0.06]'}`}>
+        <div className={`flex items-center gap-3 rounded-[22px] ${rail ? 'p-2' : 'p-2.5'} ${rail ? 'group-hover/rail:bg-white/[0.06]' : 'bg-white/[0.06]'}`}>
           <NavLink to="/configuracoes" onClick={onNavigate} className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--rt-brand)] text-white" title="Meu perfil">
             {me?.photoSrc ? <img src={me.photoSrc} alt="" className="h-full w-full object-cover" /> : <User className="h-5 w-5" />}
           </NavLink>
