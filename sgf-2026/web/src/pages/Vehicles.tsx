@@ -16,6 +16,7 @@ import { departmentsApi } from '@/lib/supabase-api';
 import { formatDistance, formatPlate, getStatusColor, getStatusLabel, normalizeSearchIdentifier } from '@/lib/utils';
 import { useVehicles } from '@/hooks/useVehicles';
 import type { VehicleRecord } from '@/lib/supabase-api';
+import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
 type VehicleTableRow = VehicleRecord & {
     departmentName: string;
@@ -53,11 +54,9 @@ export default function Vehicles() {
     const paramId = searchParams.get('id') || searchParams.get('vehicleId');
     const paramSearch = searchParams.get('search');
 
-    useEffect(() => {
-        if (paramSearch) {
-            setSearchTerm(paramSearch);
-        }
-    }, [paramSearch]);
+    useSyncOnChange(paramSearch, () => {
+        if (paramSearch) setSearchTerm(paramSearch);
+    });
 
     const { data: departments = [] } = useQuery({
         queryKey: ['departments'],

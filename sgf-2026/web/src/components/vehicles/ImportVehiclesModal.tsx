@@ -110,7 +110,7 @@ const FIELD_SYNONYMS: Record<string, string[]> = {
 };
 
 /** Gerador do modelo Excel (.xlsx) */
-export async function downloadExcelTemplate() {
+async function downloadExcelTemplate() {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Veículos');
 
@@ -185,7 +185,7 @@ export async function downloadExcelTemplate() {
 }
 
 /** Gerador do modelo CSV (.csv) */
-export function downloadCsvTemplate() {
+function downloadCsvTemplate() {
     const csvContent = [
         'Placa;Marca;Modelo;Ano;Tipo / Categoria;Secretaria;Cor;Combustível;Status;Capacidade Tanque (L);Odômetro (km);RENAVAM;Chassi;Vencimento Seguro',
         'ABC1D23;Fiat;Argo 1.0;2023;Carro;Secretaria de Obras;Branco;Flex;Disponível;48;15400;12345678901;9BWCA05W012345678;2026-12-31',

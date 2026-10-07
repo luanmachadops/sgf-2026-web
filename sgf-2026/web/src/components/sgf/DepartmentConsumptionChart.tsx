@@ -10,7 +10,8 @@ import {
     ResponsiveContainer,
     LabelList,
 } from 'recharts';
-import { PeriodPresetSelect, PeriodRangeFields, makePeriod, resolvePeriod, type PeriodValue } from './PeriodSelect';
+import { PeriodPresetSelect, PeriodRangeFields } from './PeriodSelect';
+import { makePeriod, resolvePeriod, type PeriodValue } from './period';
 import { useDepartmentConsumption } from '@/hooks/useDashboard';
 import { departmentsApi } from '@/lib/supabase-api';
 

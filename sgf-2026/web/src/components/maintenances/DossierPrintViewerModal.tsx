@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Modal } from '@/components/ui/Modal';
 import { SGFButton } from '@/components/sgf/SGFButton';
@@ -13,6 +13,9 @@ interface DossierPrintViewerModalProps {
 export function DossierPrintViewerModal({ orderId, onClose }: DossierPrintViewerModalProps) {
     const [loading, setLoading] = useState(false);
     const [dossier, setDossier] = useState<DossierResult | null>(null);
+    // A geração não recomeça quando o pai recria onClose; usa sempre a versão mais nova.
+    const onCloseRef = useRef(onClose);
+    useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
     useEffect(() => {
         if (!orderId) {
@@ -38,7 +41,7 @@ export function DossierPrintViewerModal({ orderId, onClose }: DossierPrintViewer
                 if (isMounted) {
                     toast.error(err instanceof Error ? err.message : 'Erro ao compilar o PDF do processo.');
                     setLoading(false);
-                    onClose();
+                    onCloseRef.current();
                 }
             });
 

@@ -14,6 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { mapApi, departmentsApi, type LiveVehicle } from '@/lib/supabase-api';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import 'leaflet/dist/leaflet.css';
+import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
 // Fix for default marker icons in Leaflet with Vite
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
@@ -148,7 +149,8 @@ export default function MapPage() {
     });
 
     // Ao abrir o mapa via link com vehicleId (ex.: vindo de notificação), foca e abre os detalhes do veículo
-    useEffect(() => {
+    const urlFocusKey = urlVehicleId && vehicles.length > 0 ? urlVehicleId : null;
+    useSyncOnChange(urlFocusKey, () => {
         if (urlVehicleId && vehicles.length > 0) {
             const found = vehicles.find(
                 (v) => v.id === urlVehicleId
@@ -161,7 +163,7 @@ export default function MapPage() {
                 }
             }
         }
-    }, [urlVehicleId, vehicles]);
+    });
 
     // Realtime: qualquer mudança em live_positions (viagem iniciou / veículo se moveu /
     // viagem encerrou) atualiza o mapa SEM recarregar a página. Debounce p/ coalescer rajadas.

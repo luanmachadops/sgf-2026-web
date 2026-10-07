@@ -10,6 +10,7 @@ import { useAppSettings, useUpdateSettings } from '@/hooks/useSettings';
 import { NewSecretarioModal } from '@/components/settings/NewSecretarioModal';
 import { TenantIdentityCard } from '@/components/settings/TenantIdentityCard';
 import { cn } from '@/lib/utils';
+import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
 const FUEL_MODE_OPTIONS = [
     {
@@ -81,14 +82,14 @@ export default function Configuracoes() {
         setDescription('Preferências gerais do sistema de gestão de frota.');
     }, [setTitle, setDescription]);
 
-    useEffect(() => {
+    useSyncOnChange(settings, () => {
         if (!settings) return;
         setFuelPriceMode(settings.fuelPriceMode);
         setCnhAlertDays(String(settings.cnhAlertDays));
         setContractAlertDays(String(settings.contractAlertDays));
         setRequireFuelValidation(settings.requireFuelValidation);
         setTankOverflowAlert(settings.tankOverflowAlert);
-    }, [settings]);
+    });
 
     // Salva Precificação de Combustível
     const handleSaveFuelPrice = () => {

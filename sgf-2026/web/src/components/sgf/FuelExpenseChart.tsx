@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { cn } from '@/lib/utils';
-import { PeriodPresetSelect, PeriodRangeFields, makePeriod, resolvePeriod, type PeriodValue } from './PeriodSelect';
+import { PeriodPresetSelect, PeriodRangeFields } from './PeriodSelect';
+import { makePeriod, resolvePeriod, type PeriodValue } from './period';
 import { useFuelTypeBreakdown } from '@/hooks/useDashboard';
 
 /**

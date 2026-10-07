@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
 import { SGFButton, SGFInput, SGFSelect } from '@/components/sgf';
@@ -7,6 +7,7 @@ import { departmentsApi } from '@/lib/supabase-api';
 import { supabase } from '@/lib/supabase';
 import { NewSecretarioModal } from '@/components/settings/NewSecretarioModal';
 import type { Tables } from '@/types/database.types';
+import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
 export interface DepartmentFormModalProps {
     isOpen: boolean;
@@ -48,7 +49,10 @@ export function DepartmentFormModal({ isOpen, onClose, department }: DepartmentF
     }, [secretarios]);
 
     // Sincroniza form com a secretaria a editar (ou limpa para criar)
-    useEffect(() => {
+    const formKey = isOpen
+        ? `${department?.id ?? 'new'}|${department?.name ?? ''}|${department?.code ?? ''}|${secretarios.map((s) => `${s.id}:${s.department_id ?? ''}`).join(',')}`
+        : 'closed';
+    useSyncOnChange(formKey, () => {
         if (isOpen) {
             setName(department?.name ?? '');
             setCode(department?.code ?? '');
@@ -62,7 +66,7 @@ export function DepartmentFormModal({ isOpen, onClose, department }: DepartmentF
                 setSelectedSecretarioId('');
             }
         }
-    }, [isOpen, department, secretarios]);
+    });
 
     const createMutation = useMutation({
         mutationFn: (payload: { name: string; code: string }) =>

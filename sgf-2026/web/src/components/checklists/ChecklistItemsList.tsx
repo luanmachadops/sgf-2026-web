@@ -1,27 +1,9 @@
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { AlertTriangle, Loader2 } from '@/components/sgf/icons';
 import type { Tables } from '@/types/database.types';
+import { CHECKLIST_STATE_LABEL, CHECKLIST_STATE_BADGE, isCriticalItem } from './checklistItems';
 
 type ChecklistItemRow = Pick<Tables<'checklist_items'>, 'id' | 'item_key' | 'label' | 'state'>;
-
-export const CHECKLIST_STATE_LABEL: Record<string, string> = {
-    ok: 'OK',
-    atencao: 'Atenção',
-    pendente: 'Pendente',
-};
-
-export const CHECKLIST_STATE_BADGE: Record<string, 'success' | 'warning' | 'error'> = {
-    ok: 'success',
-    atencao: 'warning',
-    pendente: 'error',
-};
-
-/** Itens do checklist considerados "críticos": bloqueiam viagem e sugerem prioridade alta na O.S. */
-export const CRITICAL_ITEM_KEYS = ['freios', 'pneus', 'luzes'];
-
-export function isCriticalItem(itemKey: string): boolean {
-    return CRITICAL_ITEM_KEYS.includes(itemKey);
-}
 
 interface ChecklistItemsListProps {
     items: ChecklistItemRow[];

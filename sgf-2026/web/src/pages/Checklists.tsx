@@ -25,6 +25,7 @@ import { useHeader } from '@/contexts/HeaderContext';
 import { checklistsApi, departmentsApi } from '@/lib/supabase-api';
 import type { ChecklistListRecord } from '@/lib/supabase-api';
 import { formatDateTime, formatPlate, matchesSearch } from '@/lib/utils';
+import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
 export default function Checklists() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -41,14 +42,10 @@ export default function Checklists() {
     const paramId = searchParams.get('id') || searchParams.get('checklistId');
     const paramSearch = searchParams.get('search');
 
-    useEffect(() => {
-        if (paramSearch) {
-            setSearchTerm(paramSearch);
-        }
-        if (paramId) {
-            setSelectedId(paramId);
-        }
-    }, [paramSearch, paramId]);
+    useSyncOnChange(`${paramSearch ?? ''}|${paramId ?? ''}`, () => {
+        if (paramSearch) setSearchTerm(paramSearch);
+        if (paramId) setSelectedId(paramId);
+    });
 
     useEffect(() => {
         setTitle('Checklists');

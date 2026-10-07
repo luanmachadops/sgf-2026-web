@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { dashboardSummaryApi, dashboardApi } from '@/lib/supabase-api';
-import type { ResolvedPeriod } from '@/components/sgf/PeriodSelect';
+import type { ResolvedPeriod } from '@/components/sgf/period';
 
 export function useDashboardKPIs() {
     return useQuery({

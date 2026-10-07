@@ -32,6 +32,13 @@ export interface SGFTableProps<T> {
 type SortDir = 'asc' | 'desc';
 
 /** Extrai o texto exibido de um ReactNode para permitir ordenação automática. */
+function getSortValue<T>(column: SGFTableColumn<T>, row: T): string | number | Date | null | undefined {
+  if (column.sortValue) return column.sortValue(row);
+  if (typeof column.accessor !== 'function') return row[column.accessor] as unknown as string | number;
+  // Função: ordena pelo texto efetivamente exibido.
+  return extractText(column.accessor(row));
+}
+
 function extractText(node: React.ReactNode): string {
   if (node == null || typeof node === 'boolean') return '';
   if (typeof node === 'string' || typeof node === 'number') return String(node);
@@ -78,13 +85,6 @@ export function SGFTable<T>({
     if (!sortable || column.sortable === false) return false;
     if (column.sortable === true) return true;
     return typeof column.header === 'string' && column.header.trim() !== '';
-  };
-
-  const getSortValue = (column: SGFTableColumn<T>, row: T): string | number | Date | null | undefined => {
-    if (column.sortValue) return column.sortValue(row);
-    if (typeof column.accessor !== 'function') return row[column.accessor] as unknown as string | number;
-    // Função: ordena pelo texto efetivamente exibido.
-    return extractText(column.accessor(row));
   };
 
   const sortedData = useMemo(() => {

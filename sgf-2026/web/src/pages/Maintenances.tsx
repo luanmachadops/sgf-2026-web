@@ -6,7 +6,8 @@ import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
-import { PeriodPresetSelect, PeriodRangeFields, makePeriod, type PeriodValue } from '@/components/sgf/PeriodSelect';
+import { PeriodPresetSelect, PeriodRangeFields } from '@/components/sgf/PeriodSelect';
+import { makePeriod, type PeriodValue } from '@/components/sgf/period';
 import { Modal } from '@/components/ui/Modal';
 import {
     Building2,
@@ -29,6 +30,7 @@ import { useHeader } from '@/contexts/HeaderContext';
 import { formatCurrency, formatDate, matchesSearch, NO_DRIVER_LABEL } from '@/lib/utils';
 import type { FinStatus, OpStatus } from '@/lib/supabase-api';
 import { maintenanceManagerNextAction, maintenanceOperationalLabel } from '@/lib/maintenance-status';
+import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
 type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info';
 
@@ -202,11 +204,9 @@ export default function Maintenances() {
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const { data: rows = [], isLoading } = useMaintenances();
 
-    useEffect(() => {
-        if (paramSearch) {
-            setSearch(paramSearch);
-        }
-    }, [paramSearch]);
+    useSyncOnChange(paramSearch, () => {
+        if (paramSearch) setSearch(paramSearch);
+    });
 
     useEffect(() => {
         setTitle('Manutenções');

@@ -28,8 +28,10 @@ export type { SGFProgressBarProps } from './SGFProgressBar';
 export { SGFSelect } from './SGFSelect';
 export type { SGFSelectProps, SGFSelectOption } from './SGFSelect';
 
-export { PeriodSelect, PeriodPresetSelect, PeriodRangeFields, PERIOD_PRESETS, makePeriod, resolvePeriod } from './PeriodSelect';
-export type { PeriodValue, ResolvedPeriod, PeriodSelectProps } from './PeriodSelect';
+export { PeriodSelect, PeriodPresetSelect, PeriodRangeFields } from './PeriodSelect';
+export type { PeriodSelectProps } from './PeriodSelect';
+export { PERIOD_PRESETS, makePeriod, resolvePeriod } from './period';
+export type { PeriodValue, ResolvedPeriod } from './period';
 
 export { SGFTextarea } from './SGFTextarea';
 export type { SGFTextareaProps } from './SGFTextarea';

@@ -34,6 +34,7 @@ import { formatCurrency, formatPlate, formatDriverLabel, matchesSearch } from '@
 import { uploadFoto } from '@/lib/fotoStorage';
 import { prepareUpload, uploadFileId } from '@/lib/imageUtils';
 import type { Tables } from '@/types/database.types';
+import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
 type InfractionRow = Tables<'infractions'> & {
     vehicles?: { plate?: string; brand?: string; model?: string; photo_url?: string | null; departments?: { name?: string } | null } | null;
@@ -77,11 +78,9 @@ export default function Infracoes() {
     const paramId = searchParams.get('id') || searchParams.get('infractionId');
     const paramSearch = searchParams.get('search');
 
-    useEffect(() => {
-        if (paramSearch) {
-            setSearchTerm(paramSearch);
-        }
-    }, [paramSearch]);
+    useSyncOnChange(paramSearch, () => {
+        if (paramSearch) setSearchTerm(paramSearch);
+    });
 
     const { data: infractions = [], isLoading } = useQuery({
         queryKey: ['infractions', statusFilter, searchTerm],
@@ -741,12 +740,12 @@ function ManageInfractionModal({ infraction, onClose }: { infraction: Infraction
         enabled: Boolean(infraction),
     });
 
-    useEffect(() => {
+    useSyncOnChange(infraction, () => {
         if (infraction) {
             setDriverId(infraction.indicated_driver_id ?? infraction.suggested_driver_id ?? '');
             setTripId(infraction.indicated_trip_id ?? null);
         }
-    }, [infraction]);
+    });
 
     const invalidate = () => queryClient.invalidateQueries({ queryKey: ['infractions'] });
 

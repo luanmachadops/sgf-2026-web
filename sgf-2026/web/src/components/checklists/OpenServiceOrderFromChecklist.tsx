@@ -5,7 +5,7 @@ import { SGFButton } from '@/components/sgf/SGFButton';
 import { Loader2, Save, Car, User } from '@/components/sgf/icons';
 import { toast } from 'sonner';
 import { useCreateMaintenance } from '@/hooks/useMaintenances';
-import { isCriticalItem, CHECKLIST_STATE_LABEL } from '@/components/checklists/ChecklistItemsList';
+import { isCriticalItem, CHECKLIST_STATE_LABEL } from '@/components/checklists/checklistItems';
 import type { ChecklistListRecord } from '@/lib/supabase-api';
 import type { Tables } from '@/types/database.types';
 

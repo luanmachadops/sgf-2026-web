@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight } from '@/components/sgf/icons';
+import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
 interface PhotoViewerProps {
     /** Uma imagem (atalho) ou várias (carrossel). */
@@ -16,7 +17,7 @@ export function PhotoViewer({ src, images, startIndex = 0, alt, onClose }: Photo
     const list = (images && images.length > 0 ? images : src ? [src] : []).filter(Boolean) as string[];
     const [idx, setIdx] = useState(startIndex);
 
-    useEffect(() => { setIdx(startIndex); }, [startIndex, src]);
+    useSyncOnChange(`${startIndex}|${src ?? ''}`, () => setIdx(startIndex));
 
     useEffect(() => {
         if (list.length === 0) return;

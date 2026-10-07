@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
@@ -9,6 +9,7 @@ import { Eye, EyeOff, Loader2, Save, Sparkles } from '@/components/sgf/icons';
 import { departmentsApi } from '@/lib/supabase-api';
 import { managerAccessApi } from '@/lib/backend-api';
 import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
+import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
 interface NewSecretarioModalProps {
     isOpen: boolean;
@@ -40,11 +41,9 @@ export function NewSecretarioModal({ isOpen, onClose, defaultDepartmentId }: New
     const [departmentId, setDepartmentId] = useState(defaultDepartmentId || '');
     const [showPassword, setShowPassword] = useState(false);
 
-    useEffect(() => {
-        if (isOpen && defaultDepartmentId) {
-            setDepartmentId(defaultDepartmentId);
-        }
-    }, [isOpen, defaultDepartmentId]);
+    useSyncOnChange(`${isOpen}|${defaultDepartmentId ?? ''}`, () => {
+        if (isOpen && defaultDepartmentId) setDepartmentId(defaultDepartmentId);
+    });
 
     const { data: departments = [] } = useQuery({
         queryKey: ['departments', 'list-all'],

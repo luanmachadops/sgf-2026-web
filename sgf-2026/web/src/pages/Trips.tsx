@@ -20,6 +20,7 @@ import { useHeader } from '@/contexts/HeaderContext';
 import { useTrips } from '@/hooks/useTrips';
 import type { TripRecord } from '@/lib/supabase-api';
 import type { TripStatus } from '@/types';
+import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
 type TripStatusBadge = 'default' | 'success' | 'warning' | 'error' | 'info';
 
@@ -70,14 +71,10 @@ export default function Trips() {
     const paramId = searchParams.get('id') || searchParams.get('tripId');
     const paramSearch = searchParams.get('search');
 
-    useEffect(() => {
-        if (paramSearch) {
-            setSearchTerm(paramSearch);
-        }
-        if (paramId) {
-            setSelectedTripId(paramId);
-        }
-    }, [paramSearch, paramId]);
+    useSyncOnChange(`${paramSearch ?? ''}|${paramId ?? ''}`, () => {
+        if (paramSearch) setSearchTerm(paramSearch);
+        if (paramId) setSelectedTripId(paramId);
+    });
 
     const { data: rawTrips = [], isLoading, isError } = useTrips({
         status: (statusFilter || undefined) as TripStatus | undefined,

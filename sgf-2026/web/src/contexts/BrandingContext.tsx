@@ -12,20 +12,19 @@ const BrandingContext = createContext<BrandingContextType | undefined>(undefined
 
 export function BrandingProvider({ children }: { children: ReactNode }) {
     const { user } = useAuth();
-    const [publicBranding, setPublicBranding] = useState<TenantBranding | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-
     // Sem sessão: resolve branding público pela slug do subdomínio (tela de login).
+    const slug = user?.tenant ? null : getSlugFromHost();
+    const [fetched, setFetched] = useState<{ slug: string; branding: TenantBranding | null } | null>(null);
     useEffect(() => {
+        if (!slug) return;
         let active = true;
-        if (user?.tenant) { setIsLoading(false); return; }
-        const slug = getSlugFromHost();
-        if (!slug) { setIsLoading(false); return; }
         fetchPublicBranding(slug)
-            .then((b) => { if (active) setPublicBranding(b); })
-            .finally(() => { if (active) setIsLoading(false); });
+            .then((b) => { if (active) setFetched({ slug, branding: b }); })
+            .catch(() => { if (active) setFetched({ slug, branding: null }); });
         return () => { active = false; };
-    }, [user?.tenant]);
+    }, [slug]);
+    const publicBranding = fetched?.slug === slug ? fetched.branding : null;
+    const isLoading = !!slug && fetched?.slug !== slug;
 
     const branding = useMemo<TenantBranding>(
         () => user?.tenant ?? publicBranding ?? DEFAULT_BRANDING,
@@ -41,6 +40,7 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useBranding() {
     const ctx = useContext(BrandingContext);
     if (ctx === undefined) throw new Error('useBranding must be used within a BrandingProvider');

@@ -71,7 +71,6 @@ if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
         if (stale.length > 0) {
             localStorage.removeItem('user');
             localStorage.removeItem('token');
-            // eslint-disable-next-line no-console
             console.info(`[supabase] limpei ${stale.length} token(s) de projeto(s) anterior(es)`);
         }
     } catch {

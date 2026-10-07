@@ -55,4 +55,5 @@ function Button({
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- padrão shadcn: variantes reutilizadas pelo alert-dialog
 export { Button, buttonVariants };
