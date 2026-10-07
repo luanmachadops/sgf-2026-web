@@ -21226,7 +21226,7 @@ import { fileURLToPath } from "node:url";
 var dist_default = '<!doctype html>\n<html lang="pt-BR">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n    <link rel="preconnect" href="https://fonts.googleapis.com" />\n    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />\n    <meta name="description" content="Painel superadministrativo da Exattus Rotta." />\n    <title>Exattus Rotta \u2014 Superadmin</title>\n    <script type="module" crossorigin src="/assets/index-D1WUo5ok.js"></script>\n    <link rel="stylesheet" crossorigin href="/assets/index-CnnQM7Hl.css">\n  </head>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>\n';
 
 // web/dist/index.html
-var dist_default2 = '<!doctype html>\n<html lang="pt-BR">\n\n<head>\n  <meta charset="UTF-8" />\n  <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n  <link rel="manifest" href="/manifest.webmanifest" />\n  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <meta name="description" content="Exattus Rotta \u2014 gest\xE3o inteligente de frotas p\xFAblicas." />\n  <meta name="theme-color" content="#0F2B2F" />\n  <meta name="mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />\n  <meta name="apple-mobile-web-app-title" content="Exattus Rotta" />\n  <title>Exattus Rotta \u2014 Gest\xE3o de Frotas</title>\n\n  <!-- Google Fonts - Inter -->\n  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\n\n  <!-- Leaflet CSS -->\n  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"\n    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />\n  <script type="module" crossorigin src="/assets/index-DT8bviAW.js"></script>\n  <link rel="stylesheet" crossorigin href="/assets/index-CNzzkL32.css">\n</head>\n\n<body>\n  <div id="root"></div>\n</body>\n\n</html>\n';
+var dist_default2 = '<!doctype html>\n<html lang="pt-BR">\n\n<head>\n  <meta charset="UTF-8" />\n  <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n  <link rel="manifest" href="/manifest.webmanifest" />\n  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n  <meta name="description" content="Exattus Rotta \u2014 gest\xE3o inteligente de frotas p\xFAblicas." />\n  <meta name="theme-color" content="#0F2B2F" />\n  <meta name="mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />\n  <meta name="apple-mobile-web-app-title" content="Exattus Rotta" />\n  <title>Exattus Rotta \u2014 Gest\xE3o de Frotas</title>\n\n  <!-- Google Fonts - Inter -->\n  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\n\n  <!-- Leaflet CSS -->\n  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"\n    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />\n  <script type="module" crossorigin src="/assets/index-DCi6sJlU.js"></script>\n  <link rel="stylesheet" crossorigin href="/assets/index-CEFrgoy7.css">\n</head>\n\n<body>\n  <div id="root"></div>\n</body>\n\n</html>\n';
 
 // web/node_modules/@supabase/supabase-js/dist/index.mjs
 var dist_exports = {};
@@ -25828,7 +25828,7 @@ async function getCaller(req) {
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user) return null;
   await assertServerSession(admin, data.user.id, token);
-  const { data: profile } = await admin.from("profiles").select("role, department_id, tenant_id, access_blocked, driver_status, allowed_modules").eq("id", data.user.id).single();
+  const { data: profile } = await admin.from("profiles").select("role, department_id, tenant_id, access_blocked, driver_status, allowed_modules, archived_at").eq("id", data.user.id).single();
   if (!profile) return null;
   if (profile.role !== "superadmin") {
     const { data: tenant, error: tenantError } = await admin.from("tenants").select("status").eq("id", profile.tenant_id).maybeSingle();
@@ -25837,7 +25837,7 @@ async function getCaller(req) {
       throw Object.assign(new Error("Acesso da prefeitura indispon\xEDvel."), { status: 403 });
     }
   }
-  const accessBlocked = profile.access_blocked === true;
+  const accessBlocked = profile.access_blocked === true || Boolean(profile.archived_at);
   const driverStatus = profile.driver_status ?? null;
   if (accessBlocked || driverStatus === "inativo" || driverStatus === "suspenso") {
     throw Object.assign(new Error("Acesso bloqueado. Procure a prefeitura."), { status: 403 });
@@ -26434,8 +26434,8 @@ async function handler5(req, res) {
   try {
     const caller = await getCaller(req);
     if (!caller) throw Object.assign(new Error("N\xE3o autenticado"), { status: 401 });
-    if (!["admin", "gestor"].includes(caller.role)) {
-      throw Object.assign(new Error("Apenas administradores e gestores podem criar secret\xE1rios"), { status: 403 });
+    if (caller.role !== "admin") {
+      throw Object.assign(new Error("Apenas o administrador pode criar acessos"), { status: 403 });
     }
     const ip = getClientIp(req);
     const check = await checkRateLimit("managers-create", caller.id, ip, WINDOW_SECONDS4, MAX_HITS4);
@@ -26443,8 +26443,8 @@ async function handler5(req, res) {
       await logRateLimitBlocked(caller.id, `Limite de cria\xE7\xE3o de gestores/secret\xE1rios atingido (${check.currentCount} chamadas/min), IP ${ip}.`);
       return sendRateLimited(res, check, "Muitas requisi\xE7\xF5es em pouco tempo. Aguarde e tente novamente.");
     }
-    const manager2 = await createManager({ ...parseBody5(req), tenantId: caller.tenantId, actorId: caller.id });
-    return sendJson5(res, 201, manager2);
+    const manager = await createManager({ ...parseBody5(req), tenantId: caller.tenantId, actorId: caller.id });
+    return sendJson5(res, 201, manager);
   } catch (error) {
     const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 400;
     const message = error instanceof Error ? error.message : "Erro ao criar acesso";
@@ -26453,8 +26453,12 @@ async function handler5(req, res) {
 }
 
 // web/api/_lib/access-policy.ts
+function canManageAccess(role) {
+  return role === "admin" || role === "superadmin";
+}
+var MANAGEABLE_ROLES = ["admin", "gestor", "secretario", "motorista", "posto", "oficina"];
 function assertManagedTarget(actor, target) {
-  const allowed = actor.role === "superadmin" ? ["admin", "gestor", "secretario", "motorista"] : actor.role === "admin" ? ["admin", "gestor", "secretario", "motorista"] : actor.role === "gestor" ? ["secretario", "motorista"] : [];
+  const allowed = canManageAccess(actor.role) ? MANAGEABLE_ROLES : [];
   if (!allowed.includes(target.role)) {
     throw Object.assign(
       new Error("Este perfil n\xE3o pode ser alterado por voc\xEA nesta \xE1rea."),
@@ -26483,7 +26487,12 @@ var MODULES = /* @__PURE__ */ new Set([
   "budgets",
   "procurement"
 ]);
-var ROLES = /* @__PURE__ */ new Set(["admin", "gestor", "secretario", "motorista"]);
+var STAFF_ROLES = /* @__PURE__ */ new Set(["admin", "gestor", "secretario"]);
+var PARTNER_ROLES = /* @__PURE__ */ new Set(["posto", "oficina"]);
+var LISTED_ROLES = ["admin", "gestor", "secretario", "motorista", "posto", "oficina"];
+var PARTNER_TABLE = { posto: "fuel_stations", oficina: "repair_shops" };
+var PARTNER_LINK = { posto: "station_id", oficina: "repair_shop_id" };
+var SELECT = "id, full_name, email, cpf, phone, role, tenant_id, department_id, station_id, repair_shop_id, access_blocked, must_change_password, allowed_modules, driver_status, created_at, departments(id, name), tenants(id, name), fuel_stations(id, name), repair_shops(id, name)";
 function bodyOf(req) {
   if (typeof req.body === "string") {
     const parsed = JSON.parse(req.body);
@@ -26491,8 +26500,20 @@ function bodyOf(req) {
   }
   return req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
 }
+function queryValue(req, key) {
+  const value = req.query?.[key];
+  return (Array.isArray(value) ? value[0] : value)?.trim() ?? "";
+}
 function fail(message, status) {
   throw Object.assign(new Error(message), { status });
+}
+function cleanText(value, max = 160) {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
+}
+function cleanEmail(value) {
+  const email = cleanText(value, 254).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail("Informe um e-mail v\xE1lido.", 400);
+  return email;
 }
 function cleanModules(value) {
   if (!Array.isArray(value)) return [...MODULES];
@@ -26500,25 +26521,74 @@ function cleanModules(value) {
   if (modules.some((module) => !MODULES.has(module))) fail("H\xE1 m\xF3dulos de acesso inv\xE1lidos.", 400);
   return modules;
 }
-async function manager(req) {
+function duplicateEmail(message) {
+  return /already|registered|exists|duplicate/i.test(message ?? "");
+}
+async function accessManager(req) {
   const caller = await getCaller(req);
   if (!caller) fail("N\xE3o autenticado", 401);
-  if (!["admin", "gestor", "superadmin"].includes(caller.role)) {
-    fail("Apenas administradores, gestores e superadministradores podem gerenciar acessos.", 403);
-  }
-  if (caller.role !== "superadmin" && !caller.tenantId) {
-    fail("Usu\xE1rio sem prefeitura vinculada.", 403);
-  }
+  if (!canManageAccess(caller.role)) fail("Somente o administrador pode gerenciar acessos.", 403);
+  if (caller.role !== "superadmin" && !caller.tenantId) fail("Usu\xE1rio sem prefeitura vinculada.", 403);
   return caller;
 }
 async function targetInScope(id, caller) {
-  let query = getSupabaseAdmin().from("profiles").select("id, role, tenant_id").eq("id", id);
-  if (caller.role !== "superadmin") {
-    query = query.eq("tenant_id", caller.tenantId);
-  }
+  let query = getSupabaseAdmin().from("profiles").select("id, role, tenant_id, email, full_name").eq("id", id).is("archived_at", null);
+  if (caller.role !== "superadmin") query = query.eq("tenant_id", caller.tenantId);
   const { data } = await query.maybeSingle();
-  if (!data) fail("Acesso n\xE3o encontrado no seu escopo.", 404);
+  if (!data) fail("Acesso n\xE3o encontrado.", 404);
   return data;
+}
+async function partnerInScope(type, partnerId, tenantId) {
+  if (type !== "posto" && type !== "oficina") fail("Tipo de parceiro inv\xE1lido.", 400);
+  const id = cleanText(partnerId, 50);
+  if (!id) fail("Informe o posto ou a oficina.", 400);
+  const { data } = await getSupabaseAdmin().from(PARTNER_TABLE[type]).select("id, name, tenant_id").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+  if (!data) fail(type === "posto" ? "Posto n\xE3o encontrado nesta prefeitura." : "Oficina n\xE3o encontrada nesta prefeitura.", 404);
+  return { type, id: data.id };
+}
+async function assertNotLastAdmin(target) {
+  if (target.role !== "admin") return;
+  const { count } = await getSupabaseAdmin().from("profiles").select("id", { count: "exact", head: true }).eq("tenant_id", target.tenant_id).eq("role", "admin").eq("access_blocked", false).is("archived_at", null).neq("id", target.id);
+  if (!count) fail("Esta \xE9 a \xFAltima conta de administrador ativa da prefeitura. Crie ou reative outro administrador antes.", 409);
+}
+async function historyCount(id) {
+  const { data, error } = await getSupabaseAdmin().rpc("profile_history_count", { p_profile_id: id });
+  if (error) fail("N\xE3o foi poss\xEDvel verificar o hist\xF3rico deste acesso.", 503);
+  return Number(data ?? 0);
+}
+async function createPartnerUser(caller, tenantId, body) {
+  const partner = await partnerInScope(body.partnerType ?? body.role, body.partnerId, tenantId);
+  const admin = getSupabaseAdmin();
+  const name = cleanText(body.name);
+  if (name.length < 3) fail("Informe o nome do respons\xE1vel.", 400);
+  const email = cleanEmail(body.email);
+  const password = generateTempPassword();
+  const { data: authData, error: authError } = await admin.auth.admin.createUser({
+    app_metadata: { tenant_id: tenantId },
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: name, role: partner.type, tenant_id: tenantId }
+  });
+  if (authError || !authData.user) {
+    fail(duplicateEmail(authError?.message) ? "J\xE1 existe uma conta com esse e-mail." : authError?.message || "N\xE3o foi poss\xEDvel criar o acesso.", duplicateEmail(authError?.message) ? 409 : 400);
+  }
+  const { error } = await admin.from("profiles").update({
+    full_name: name,
+    email,
+    role: partner.type,
+    tenant_id: tenantId,
+    [PARTNER_LINK[partner.type]]: partner.id,
+    must_change_password: true,
+    access_blocked: false,
+    created_by: caller.id,
+    updated_by: caller.id
+  }).eq("id", authData.user.id);
+  if (error) {
+    await admin.auth.admin.deleteUser(authData.user.id);
+    fail(error.message, 400);
+  }
+  return { id: authData.user.id, tempPassword: password };
 }
 async function handler6(req, res) {
   try {
@@ -26527,306 +26597,197 @@ async function handler6(req, res) {
       res.setHeader("Allow", "GET, POST, PATCH, DELETE");
       return res.status(405).json({ message: "M\xE9todo n\xE3o permitido." });
     }
-    const caller = await manager(req);
+    const caller = await accessManager(req);
     const admin = getSupabaseAdmin();
     if (req.method === "GET") {
-      let query = admin.from("profiles").select("id, full_name, email, cpf, role, tenant_id, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name), tenants(id, name)").in("role", [...ROLES]).order("full_name");
-      if (caller.role !== "superadmin") {
-        query = query.eq("tenant_id", caller.tenantId);
+      const impactId = queryValue(req, "impact");
+      if (impactId) {
+        const target2 = await targetInScope(impactId, caller);
+        assertManagedTarget(caller, target2);
+        const history2 = await historyCount(target2.id);
+        return res.status(200).json({ history: history2, action: history2 > 0 ? "archive" : "delete" });
       }
-      const { data, error } = await query;
-      if (error) throw error;
+      let query = admin.from("profiles").select(SELECT).in("role", LISTED_ROLES).is("archived_at", null).order("full_name");
+      if (caller.role !== "superadmin") query = query.eq("tenant_id", caller.tenantId);
+      const partnerType = queryValue(req, "partnerType");
+      const partnerId = queryValue(req, "partnerId");
+      if (partnerType || partnerId) {
+        if (partnerType !== "posto" && partnerType !== "oficina") fail("Tipo de parceiro inv\xE1lido.", 400);
+        query = query.eq("role", partnerType).eq(PARTNER_LINK[partnerType], partnerId);
+      }
+      const { data, error: error2 } = await query;
+      if (error2) throw error2;
       return res.status(200).json(data ?? []);
     }
     const body = bodyOf(req);
-    const limit = await checkRateLimitByKey(`access-management:${caller.id}`, 60, 20);
+    const limit = await checkRateLimitByKey(`access-management:${caller.id}`, 60, 30);
     if (!limit.allowed) return sendRateLimited(res, limit, "Muitas altera\xE7\xF5es de acesso. Aguarde e tente novamente.");
     if (req.method === "POST") {
       const role = String(body.role ?? "").toLowerCase();
-      if (!ROLES.has(role)) fail("Cargo inv\xE1lido.", 400);
-      if (["admin", "gestor"].includes(role) && !["admin", "superadmin"].includes(caller.role)) {
-        fail("Somente um administrador pode criar administradores ou gestores.", 403);
-      }
-      const targetTenantId = caller.role === "superadmin" ? String(body.tenantId ?? "") : caller.tenantId;
-      if (!targetTenantId) fail("Selecione a prefeitura do novo acesso.", 400);
-      const { data: tenant } = await admin.from("tenants").select("id").eq("id", targetTenantId).maybeSingle();
+      if (!STAFF_ROLES.has(role) && !PARTNER_ROLES.has(role) && role !== "motorista") fail("Cargo inv\xE1lido.", 400);
+      const tenantId = caller.role === "superadmin" ? cleanText(body.tenantId, 50) : caller.tenantId;
+      if (!tenantId) fail("Selecione a prefeitura do novo acesso.", 400);
+      const { data: tenant } = await admin.from("tenants").select("id").eq("id", tenantId).maybeSingle();
       if (!tenant) fail("Prefeitura n\xE3o encontrada.", 404);
-      if (body.departmentId) {
-        const { data: department } = await admin.from("departments").select("id").eq("id", String(body.departmentId)).eq("tenant_id", targetTenantId).maybeSingle();
+      const departmentId = cleanText(body.departmentId, 50) || void 0;
+      if (departmentId) {
+        const { data: department } = await admin.from("departments").select("id").eq("id", departmentId).eq("tenant_id", tenantId).maybeSingle();
         if (!department) fail("A secretaria n\xE3o pertence \xE0 prefeitura selecionada.", 400);
       }
-      const allowedModules = role === "motorista" ? [] : cleanModules(body.allowedModules);
-      if (caller.role === "gestor" && allowedModules.some((module) => !caller.allowedModules.includes(module))) {
-        fail("Voc\xEA n\xE3o pode conceder m\xF3dulos aos quais n\xE3o possui acesso.", 403);
-      }
       let created;
-      if (role === "motorista") {
+      if (PARTNER_ROLES.has(role)) {
+        created = await createPartnerUser(caller, tenantId, { ...body, partnerType: role });
+      } else if (role === "motorista") {
         created = await preRegisterDriver({
           cpf: String(body.cpf ?? ""),
           name: String(body.name ?? ""),
           registrationNumber: String(body.registrationNumber ?? ""),
-          departmentId: typeof body.departmentId === "string" ? body.departmentId : void 0,
-          tenantId: targetTenantId,
+          departmentId,
+          tenantId,
           actorId: caller.id
         });
       } else {
-        created = await createManager({
-          name: String(body.name ?? ""),
-          email: String(body.email ?? ""),
-          password: String(body.password ?? ""),
-          departmentId: typeof body.departmentId === "string" ? body.departmentId : void 0,
+        const password = cleanText(body.password, 72) || generateTempPassword();
+        assertStrongPassword(password);
+        const profile2 = await createManager({
+          name: cleanText(body.name),
+          email: cleanEmail(body.email),
+          password,
+          departmentId,
           role,
-          tenantId: targetTenantId,
+          tenantId,
           actorId: caller.id
+        }).catch((error3) => {
+          const message = error3 instanceof Error ? error3.message : "";
+          if (duplicateEmail(message)) fail("J\xE1 existe uma conta com esse e-mail.", 409);
+          throw error3;
         });
+        created = { id: profile2.id, tempPassword: password };
+        await admin.from("profiles").update({
+          allowed_modules: cleanModules(body.allowedModules),
+          must_change_password: true,
+          updated_by: caller.id
+        }).eq("id", created.id);
       }
-      const { data: profile, error } = await admin.from("profiles").update({ allowed_modules: allowedModules, updated_by: caller.id }).eq("id", created.id).select("id, full_name, email, cpf, role, tenant_id, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name), tenants(id, name)").single();
-      if (error) {
-        await admin.auth.admin.deleteUser(created.id);
-        throw error;
-      }
-      return res.status(201).json({
-        ...profile,
-        tempPassword: created.tempPassword ?? null
-      });
+      const { data: profile, error: error2 } = await admin.from("profiles").select(SELECT).eq("id", created.id).single();
+      if (error2) throw error2;
+      return res.status(201).json({ ...profile, tempPassword: created.tempPassword ?? null });
     }
-    const id = String(body.id ?? "");
+    const id = cleanText(body.id, 50);
     if (!id) fail("Informe o acesso.", 400);
     const target = await targetInScope(id, caller);
     assertManagedTarget(caller, target);
-    if (target.id === caller.id && body.allowedModules !== void 0) {
-      fail("Outro administrador deve alterar suas permiss\xF5es.", 403);
-    }
-    if (target.id === caller.id && (req.method === "DELETE" || body.accessBlocked === true)) {
-      fail("Voc\xEA n\xE3o pode excluir ou desativar o pr\xF3prio acesso.", 400);
-    }
-    if (caller.role === "gestor" && target.role === "admin") {
-      fail("Gestores n\xE3o podem alterar administradores.", 403);
-    }
+    const isSelf = target.id === caller.id;
     if (req.method === "PATCH") {
       const update = { updated_by: caller.id };
+      const authUpdate = {};
+      let tempPassword = null;
+      if (body.name !== void 0) {
+        const name = cleanText(body.name);
+        if (name.length < 3) fail("Informe o nome completo.", 400);
+        update.full_name = name;
+        authUpdate.user_metadata = { full_name: name };
+      }
+      if (body.email !== void 0) {
+        const email = body.email === "" && target.role === "motorista" ? null : cleanEmail(body.email);
+        update.email = email;
+        if (target.role !== "motorista" && email && email !== target.email) {
+          authUpdate.email = email;
+          authUpdate.email_confirm = true;
+        }
+      }
+      if (body.role !== void 0 && body.role !== target.role) {
+        const role = String(body.role);
+        if (!STAFF_ROLES.has(role) || !STAFF_ROLES.has(target.role)) {
+          fail("S\xF3 \xE9 poss\xEDvel trocar o cargo entre administrador, gestor e secret\xE1rio.", 400);
+        }
+        if (isSelf) fail("Outro administrador deve alterar o seu cargo.", 403);
+        await assertNotLastAdmin(target);
+        update.role = role;
+        authUpdate.user_metadata = { ...authUpdate.user_metadata ?? {}, role };
+      }
+      const finalRole = update.role ?? target.role;
+      if (body.departmentId !== void 0) {
+        const departmentId = cleanText(body.departmentId, 50) || null;
+        if (departmentId) {
+          const { data: department } = await admin.from("departments").select("id, name").eq("id", departmentId).eq("tenant_id", target.tenant_id).maybeSingle();
+          if (!department) fail("A secretaria n\xE3o pertence a esta prefeitura.", 400);
+          update.department = department.name;
+        } else {
+          update.department = null;
+        }
+        update.department_id = departmentId;
+      }
+      if (finalRole === "secretario" && update.role === "secretario" && body.departmentId === void 0) {
+        const { data: current } = await admin.from("profiles").select("department_id").eq("id", id).single();
+        if (!current?.department_id) fail("Secret\xE1rio precisa de uma secretaria.", 400);
+      }
+      if (finalRole === "secretario" && body.departmentId !== void 0 && !update.department_id) {
+        fail("Secret\xE1rio precisa de uma secretaria.", 400);
+      }
+      if (body.allowedModules !== void 0 && STAFF_ROLES.has(finalRole)) {
+        if (isSelf) fail("Outro administrador deve alterar suas permiss\xF5es.", 403);
+        update.allowed_modules = cleanModules(body.allowedModules);
+      }
       if (typeof body.accessBlocked === "boolean") {
+        if (isSelf && body.accessBlocked) fail("Voc\xEA n\xE3o pode desativar o pr\xF3prio acesso.", 400);
+        if (body.accessBlocked) await assertNotLastAdmin(target);
         update.access_blocked = body.accessBlocked;
-        if (target.role === "motorista") {
-          update.driver_status = body.accessBlocked ? "inativo" : "ativo";
+        if (target.role === "motorista") update.driver_status = body.accessBlocked ? "inativo" : "ativo";
+        authUpdate.ban_duration = body.accessBlocked ? "876000h" : "none";
+      }
+      if (body.resetPassword === true) {
+        if (isSelf) fail('Para trocar a sua senha, use "Meu perfil".', 400);
+        tempPassword = generateTempPassword();
+        authUpdate.password = tempPassword;
+        update.must_change_password = true;
+      }
+      if (Object.keys(authUpdate).length > 0) {
+        if (authUpdate.user_metadata) {
+          const { data: current } = await admin.auth.admin.getUserById(id);
+          authUpdate.user_metadata = { ...current?.user?.user_metadata ?? {}, ...authUpdate.user_metadata };
+        }
+        const { error: authError2 } = await admin.auth.admin.updateUserById(id, authUpdate);
+        if (authError2) {
+          fail(duplicateEmail(authError2.message) ? "J\xE1 existe uma conta com esse e-mail." : "N\xE3o foi poss\xEDvel atualizar o login deste acesso. Tente novamente.", duplicateEmail(authError2.message) ? 409 : 503);
         }
       }
-      if (body.allowedModules !== void 0 && target.role !== "motorista") {
-        const modules = cleanModules(body.allowedModules);
-        if (caller.role === "gestor" && modules.some((module) => !caller.allowedModules.includes(module))) {
-          fail("Voc\xEA n\xE3o pode conceder m\xF3dulos aos quais n\xE3o possui acesso.", 403);
-        }
-        update.allowed_modules = modules;
-      }
-      const { data, error } = await admin.from("profiles").update(update).eq("id", id).select("id, full_name, email, cpf, role, tenant_id, department_id, access_blocked, allowed_modules, driver_status, created_at, departments(id, name), tenants(id, name)").single();
-      if (error) throw error;
-      if (typeof body.accessBlocked === "boolean") {
-        const { error: authError } = await admin.auth.admin.updateUserById(id, {
-          ban_duration: body.accessBlocked ? "876000h" : "none"
-        });
-        if (authError) fail("O perfil foi atualizado, mas n\xE3o foi poss\xEDvel sincronizar o bloqueio de login. Repita a opera\xE7\xE3o.", 503);
-      }
-      return res.status(200).json(data);
+      const { data, error: error2 } = await admin.from("profiles").update(update).eq("id", id).select(SELECT).single();
+      if (error2) throw error2;
+      return res.status(200).json({ ...data, tempPassword });
     }
-    if (req.method === "DELETE") {
-      const { error } = await admin.auth.admin.deleteUser(id);
-      if (error) throw error;
-      return res.status(204).end();
+    if (isSelf) fail("Voc\xEA n\xE3o pode excluir o pr\xF3prio acesso.", 400);
+    await assertNotLastAdmin(target);
+    const history = await historyCount(target.id);
+    if (history === 0) {
+      const { error: error2 } = await admin.auth.admin.deleteUser(id);
+      if (error2) fail("N\xE3o foi poss\xEDvel excluir este acesso. Tente novamente.", 503);
+      return res.status(200).json({ result: "deleted" });
     }
-    res.setHeader("Allow", "GET, POST, PATCH, DELETE");
-    return res.status(405).json({ message: "M\xE9todo n\xE3o permitido." });
+    if (target.role === "motorista") {
+      const { count } = await admin.from("trips").select("id", { count: "exact", head: true }).eq("driver_id", id).eq("status", "andamento");
+      if (count) fail("Este motorista est\xE1 com uma viagem em andamento. Encerre a viagem antes de remover o acesso.", 409);
+    }
+    const { error: authError } = await admin.auth.admin.updateUserById(id, {
+      email: `arquivado+${id}@arquivado.invalid`,
+      email_confirm: true,
+      ban_duration: "876000h"
+    });
+    if (authError) fail("N\xE3o foi poss\xEDvel desligar o login deste acesso. Tente novamente.", 503);
+    const { error } = await admin.from("profiles").update({
+      archived_at: (/* @__PURE__ */ new Date()).toISOString(),
+      access_blocked: true,
+      current_vehicle_id: null,
+      ...target.role === "motorista" ? { driver_status: "inativo" } : {},
+      updated_by: caller.id
+    }).eq("id", id);
+    if (error) throw error;
+    return res.status(200).json({ result: "archived" });
   } catch (error) {
     const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 400;
     return res.status(status).json({
       message: error instanceof Error ? error.message : "N\xE3o foi poss\xEDvel gerenciar o acesso."
     });
-  }
-}
-
-// web/api/_lib/partner-access.ts
-var TABLE = {
-  posto: "fuel_stations",
-  oficina: "repair_shops"
-};
-var LINK_COLUMN = {
-  posto: "station_id",
-  oficina: "repair_shop_id"
-};
-var LABEL = {
-  posto: "posto",
-  oficina: "oficina"
-};
-function assertPartnerType(value) {
-  if (value !== "posto" && value !== "oficina") {
-    throw Object.assign(new Error("Tipo de parceiro inv\xE1lido"), { status: 400 });
-  }
-}
-function assertCanManagePartners(caller) {
-  if (!caller) throw Object.assign(new Error("N\xE3o autenticado"), { status: 401 });
-  if (caller.role !== "admin") {
-    throw Object.assign(new Error("Apenas o administrador pode gerenciar acessos de parceiros"), { status: 403 });
-  }
-  if (!caller.tenantId) {
-    throw Object.assign(new Error("Usu\xE1rio sem prefeitura vinculada"), { status: 403 });
-  }
-}
-async function loadPartnerScoped(caller, partnerType, partnerId) {
-  assertPartnerType(partnerType);
-  if (!caller.allowedModules.includes(partnerType === "posto" ? "stations" : "repair_shops")) {
-    throw Object.assign(new Error("M\xF3dulo do parceiro n\xE3o autorizado."), { status: 403 });
-  }
-  const admin = getSupabaseAdmin();
-  const { data, error } = await admin.from(TABLE[partnerType]).select("id, name, tenant_id, is_active").eq("id", partnerId).maybeSingle();
-  if (error || !data) {
-    throw Object.assign(new Error(`${LABEL[partnerType]} n\xE3o encontrado`), { status: 404 });
-  }
-  if (data.tenant_id !== caller.tenantId) {
-    throw Object.assign(new Error(`Este ${LABEL[partnerType]} \xE9 de outra prefeitura`), { status: 403 });
-  }
-  return data;
-}
-async function getPartnerAccess(caller, partnerType, partnerId) {
-  await loadPartnerScoped(caller, partnerType, partnerId);
-  const admin = getSupabaseAdmin();
-  const { data, error } = await admin.from("profiles").select("id, full_name, email, access_blocked, must_change_password, created_at").eq(LINK_COLUMN[partnerType], partnerId).eq("role", partnerType).maybeSingle();
-  if (error) throw Object.assign(new Error("N\xE3o foi poss\xEDvel consultar o acesso do parceiro."), { status: 503 });
-  if (!data) return { access: null };
-  const { data: authUser } = await admin.auth.admin.getUserById(data.id);
-  return {
-    access: {
-      ...data,
-      last_sign_in_at: authUser?.user?.last_sign_in_at ?? null
-    }
-  };
-}
-async function createPartnerAccess(caller, payload) {
-  assertPartnerType(payload.partnerType);
-  const partner = await loadPartnerScoped(caller, payload.partnerType, payload.partnerId);
-  const admin = getSupabaseAdmin();
-  const email = (payload.email || "").trim().toLowerCase();
-  if (!payload.name?.trim()) throw Object.assign(new Error("Informe o nome do respons\xE1vel"), { status: 400 });
-  if (!email.includes("@")) throw Object.assign(new Error("E-mail inv\xE1lido"), { status: 400 });
-  const existing = await getPartnerAccess(caller, payload.partnerType, payload.partnerId);
-  if (existing.access) {
-    throw Object.assign(
-      new Error(`Este ${LABEL[payload.partnerType]} j\xE1 tem um acesso (${existing.access.email}).`),
-      { status: 409 }
-    );
-  }
-  const password = payload.password?.trim() || generateTempPassword();
-  assertStrongPassword(password);
-  const { data: authData, error: authError } = await admin.auth.admin.createUser({
-    app_metadata: { tenant_id: partner.tenant_id },
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { full_name: payload.name.trim(), role: payload.partnerType, tenant_id: partner.tenant_id }
-  });
-  if (authError || !authData.user) {
-    const dup = /already|registered|exists/i.test(authError?.message ?? "");
-    throw Object.assign(
-      new Error(dup ? "J\xE1 existe uma conta com esse e-mail." : authError?.message || "N\xE3o foi poss\xEDvel criar o acesso"),
-      { status: dup ? 409 : 400 }
-    );
-  }
-  const { data: profile, error: profError } = await admin.from("profiles").update({
-    full_name: payload.name.trim(),
-    email,
-    role: payload.partnerType,
-    tenant_id: partner.tenant_id,
-    [LINK_COLUMN[payload.partnerType]]: partner.id,
-    must_change_password: true,
-    access_blocked: false,
-    created_by: caller.id,
-    updated_by: caller.id
-  }).eq("id", authData.user.id).select("id, full_name, email, access_blocked, must_change_password").single();
-  if (profError) {
-    await admin.auth.admin.deleteUser(authData.user.id);
-    throw Object.assign(new Error(profError.message), { status: 400 });
-  }
-  return { access: profile, tempPassword: password };
-}
-async function resetPartnerPassword(caller, partnerType, partnerId) {
-  const existing = await getPartnerAccess(caller, partnerType, partnerId);
-  if (!existing.access) throw Object.assign(new Error("Este parceiro ainda n\xE3o tem acesso"), { status: 404 });
-  const admin = getSupabaseAdmin();
-  const password = generateTempPassword();
-  const { error } = await admin.auth.admin.updateUserById(existing.access.id, { password });
-  if (error) throw Object.assign(new Error(error.message), { status: 400 });
-  const { error: profileError } = await admin.from("profiles").update({ must_change_password: true, updated_by: caller.id }).eq("id", existing.access.id);
-  if (profileError) throw Object.assign(new Error("A senha foi redefinida, mas a troca obrigat\xF3ria n\xE3o foi registrada. Tente redefinir novamente."), { status: 503 });
-  return { success: true, tempPassword: password };
-}
-async function setPartnerBlocked(caller, partnerType, partnerId, blocked) {
-  const existing = await getPartnerAccess(caller, partnerType, partnerId);
-  if (!existing.access) throw Object.assign(new Error("Este parceiro ainda n\xE3o tem acesso"), { status: 404 });
-  const admin = getSupabaseAdmin();
-  const { error } = await admin.from("profiles").update({ access_blocked: blocked, updated_by: caller.id }).eq("id", existing.access.id);
-  if (error) throw Object.assign(new Error(error.message), { status: 400 });
-  const { error: authError } = await admin.auth.admin.updateUserById(existing.access.id, {
-    ban_duration: blocked ? "876000h" : "none"
-  });
-  if (authError) throw Object.assign(new Error("O perfil foi atualizado, mas o bloqueio no login n\xE3o foi sincronizado. Repita a a\xE7\xE3o."), { status: 503 });
-  return { success: true, blocked };
-}
-
-// web/api/partners/index.ts
-function sendJson6(res, status, body) {
-  res.status(status).json(body);
-}
-function parseBody6(req) {
-  if (typeof req.body === "string") return JSON.parse(req.body);
-  return req.body ?? {};
-}
-var WINDOW_SECONDS5 = 60;
-var MAX_HITS_BY_ACTION = {
-  reset: 10,
-  create: 10,
-  block: 20,
-  unblock: 20
-};
-var DEFAULT_MAX_HITS = 10;
-async function handler7(req, res) {
-  try {
-    res.setHeader("Cache-Control", "no-store");
-    const caller = await getCaller(req);
-    assertCanManagePartners(caller);
-    if (req.method === "GET") {
-      const partnerType2 = req.query.partnerType;
-      const partnerId2 = req.query.partnerId;
-      if (!partnerId2) throw Object.assign(new Error("partnerId \xE9 obrigat\xF3rio"), { status: 400 });
-      return sendJson6(res, 200, await getPartnerAccess(caller, partnerType2, partnerId2));
-    }
-    if (req.method !== "POST") {
-      res.setHeader("Allow", "GET, POST");
-      return sendJson6(res, 405, { message: "Method not allowed" });
-    }
-    const body = parseBody6(req);
-    const { action, partnerType, partnerId } = body;
-    if (!partnerId) throw Object.assign(new Error("partnerId \xE9 obrigat\xF3rio"), { status: 400 });
-    const ip = getClientIp(req);
-    const maxHits = MAX_HITS_BY_ACTION[action ?? ""] ?? DEFAULT_MAX_HITS;
-    const check = await checkRateLimit(`partners-${action}`, caller.id, ip, WINDOW_SECONDS5, maxHits);
-    if (!check.allowed) {
-      await logRateLimitBlocked(caller.id, `Limite de a\xE7\xE3o '${action}' sobre acesso de parceiro atingido (${check.currentCount} chamadas/min), IP ${ip}.`);
-      return sendRateLimited(res, check, "Muitas requisi\xE7\xF5es em pouco tempo. Aguarde e tente novamente.");
-    }
-    switch (action) {
-      case "create":
-        return sendJson6(res, 201, await createPartnerAccess(caller, body));
-      case "reset":
-        return sendJson6(res, 200, await resetPartnerPassword(caller, partnerType, partnerId));
-      case "block":
-        return sendJson6(res, 200, await setPartnerBlocked(caller, partnerType, partnerId, true));
-      case "unblock":
-        return sendJson6(res, 200, await setPartnerBlocked(caller, partnerType, partnerId, false));
-      default:
-        throw Object.assign(new Error("A\xE7\xE3o inv\xE1lida"), { status: 400 });
-    }
-  } catch (error) {
-    const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" ? error.status : 400;
-    const message = error instanceof Error ? error.message : "Erro ao gerenciar acesso do parceiro";
-    return sendJson6(res, status, { message });
   }
 }
 
@@ -35823,7 +35784,7 @@ function getAdmin() {
   if (!url || !key) throw Object.assign(new Error("SUPABASE_URL/SERVICE_ROLE_KEY ausentes"), { status: 500 });
   return createClient2(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
-function parseBody7(req) {
+function parseBody6(req) {
   if (typeof req.body === "string") return JSON.parse(req.body);
   return req.body ?? {};
 }
@@ -35867,7 +35828,7 @@ async function iopgpsToken(admin, tenantId) {
   await admin.from("iopgps_credentials").update({ access_token: token, token_expires_at: new Date(expiresAtMs).toISOString(), updated_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", row.id);
   return { token, baseUrl: row.base_url };
 }
-async function handler8(req, res) {
+async function handler7(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -35875,7 +35836,7 @@ async function handler8(req, res) {
   try {
     const admin = getAdmin();
     const caller = await assertRole(req, admin, ["superadmin", "admin", "gestor"]);
-    const b = parseBody7(req);
+    const b = parseBody6(req);
     const imei = String(b.imei ?? "").trim();
     if (!imei) throw Object.assign(new Error("IMEI obrigat\xF3rio"), { status: 400 });
     const tenantId = caller.role === "superadmin" ? b.tenantId ?? null : caller.tenantId;
@@ -35910,7 +35871,7 @@ function getAdmin2() {
   if (!url || !key) throw Object.assign(new Error("SUPABASE_URL/SERVICE_ROLE_KEY ausentes"), { status: 500 });
   return createClient2(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
-function parseBody8(req) {
+function parseBody7(req) {
   if (typeof req.body === "string") return JSON.parse(req.body);
   return req.body ?? {};
 }
@@ -35924,7 +35885,7 @@ async function assertSuperadmin(req, admin) {
   const { data: profile } = await admin.from("profiles").select("role").eq("id", data.user.id).single();
   if (profile?.role !== "superadmin") throw Object.assign(new Error("Apenas superusu\xE1rio"), { status: 403 });
 }
-async function handler9(req, res) {
+async function handler8(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -35932,7 +35893,7 @@ async function handler9(req, res) {
   try {
     const admin = getAdmin2();
     await assertSuperadmin(req, admin);
-    const b = parseBody8(req);
+    const b = parseBody7(req);
     if (b.action === "saveCredentials") {
       const appid = (b.appid || "").trim();
       const appSecret = (b.app_secret || "").trim();
@@ -36035,7 +35996,7 @@ function getAdmin4() {
   if (!url || !key) throw Object.assign(new Error("SUPABASE_URL/SERVICE_ROLE_KEY ausentes"), { status: 500 });
   return createClient2(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
-function parseBody9(req) {
+function parseBody8(req) {
   if (typeof req.body === "string") return JSON.parse(req.body);
   return req.body ?? {};
 }
@@ -36050,7 +36011,7 @@ async function assertSuperadmin2(req, admin) {
   if (profile?.role !== "superadmin") throw Object.assign(new Error("Apenas superusu\xE1rio"), { status: 403 });
   return data.user.id;
 }
-var WINDOW_SECONDS6 = 60;
+var WINDOW_SECONDS5 = 60;
 var MAX_HITS5 = 10;
 async function findUserByEmail(admin, email) {
   for (let page = 1; page <= 20; page += 1) {
@@ -36062,7 +36023,7 @@ async function findUserByEmail(admin, email) {
   }
   return null;
 }
-async function handler10(req, res) {
+async function handler9(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -36070,10 +36031,10 @@ async function handler10(req, res) {
   try {
     const admin = getAdmin4();
     const callerId = await assertSuperadmin2(req, admin);
-    const b = parseBody9(req);
+    const b = parseBody8(req);
     const action = b.action;
     const ip = getClientIp2(req);
-    const check = await checkRateLimit2(`admin-managers-${action}`, callerId, ip, WINDOW_SECONDS6, MAX_HITS5);
+    const check = await checkRateLimit2(`admin-managers-${action}`, callerId, ip, WINDOW_SECONDS5, MAX_HITS5);
     if (!check.allowed) {
       await logRateLimitBlocked2(callerId, `Limite de a\xE7\xE3o '${action}' em admin/managers atingido (${check.currentCount} chamadas/min), IP ${ip}.`);
       return sendRateLimited2(res, check, "Muitas requisi\xE7\xF5es em pouco tempo. Aguarde e tente novamente.");
@@ -36163,7 +36124,7 @@ function getAdmin5() {
   if (!url || !key) throw Object.assign(new Error("SUPABASE_URL/SERVICE_ROLE_KEY ausentes"), { status: 500 });
   return createClient2(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
-function parseBody10(req) {
+function parseBody9(req) {
   if (typeof req.body === "string") return JSON.parse(req.body);
   return req.body ?? {};
 }
@@ -36177,7 +36138,7 @@ async function assertSuperadmin3(req, admin) {
   const { data: profile } = await admin.from("profiles").select("role").eq("id", data.user.id).single();
   if (profile?.role !== "superadmin") throw Object.assign(new Error("Apenas superusu\xE1rio"), { status: 403 });
 }
-async function handler11(req, res) {
+async function handler10(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -36185,7 +36146,7 @@ async function handler11(req, res) {
   try {
     const admin = getAdmin5();
     await assertSuperadmin3(req, admin);
-    const b = parseBody10(req);
+    const b = parseBody9(req);
     const raw = b.paths;
     if (!Array.isArray(raw)) throw Object.assign(new Error("paths deve ser uma lista"), { status: 400 });
     const paths = [...new Set(raw.filter((p) => typeof p === "string" && PATH_RE.test(p) && !p.includes("..")))].slice(0, MAX_PATHS);
@@ -36207,7 +36168,7 @@ function getAdmin6() {
   if (!url || !key) throw Object.assign(new Error("SUPABASE_URL/SERVICE_ROLE_KEY ausentes"), { status: 500 });
   return createClient2(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
-function parseBody11(req) {
+function parseBody10(req) {
   if (typeof req.body === "string") return JSON.parse(req.body);
   return req.body ?? {};
 }
@@ -36222,9 +36183,9 @@ async function assertSuperadmin4(req, admin) {
   if (profile?.role !== "superadmin") throw Object.assign(new Error("Apenas superusu\xE1rio"), { status: 403 });
   return data.user.id;
 }
-var WINDOW_SECONDS7 = 60;
+var WINDOW_SECONDS6 = 60;
 var MAX_HITS6 = 5;
-async function handler12(req, res) {
+async function handler11(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -36233,12 +36194,12 @@ async function handler12(req, res) {
     const admin = getAdmin6();
     const callerId = await assertSuperadmin4(req, admin);
     const ip = getClientIp2(req);
-    const check = await checkRateLimit2("admin-tenants-create", callerId, ip, WINDOW_SECONDS7, MAX_HITS6);
+    const check = await checkRateLimit2("admin-tenants-create", callerId, ip, WINDOW_SECONDS6, MAX_HITS6);
     if (!check.allowed) {
       await logRateLimitBlocked2(callerId, `Limite de cria\xE7\xE3o de prefeituras atingido (${check.currentCount} chamadas/min), IP ${ip}.`);
       return sendRateLimited2(res, check, "Muitas requisi\xE7\xF5es em pouco tempo. Aguarde e tente novamente.");
     }
-    const b = parseBody11(req);
+    const b = parseBody10(req);
     const name = (b.name || "").trim();
     const slug = (b.slug || "").trim().toLowerCase();
     if (!name || !slug) throw Object.assign(new Error("Nome e slug s\xE3o obrigat\xF3rios"), { status: 400 });
@@ -36312,7 +36273,7 @@ function isSuperadminRequest(req) {
   if (forcedSurface === "web") return false;
   return cleanHostname(req) === SUPERADMIN_HOST;
 }
-function invoke(handler13, params = {}) {
+function invoke(handler12, params = {}) {
   return async (req, res, next) => {
     const legacyReq = Object.create(req);
     Object.defineProperty(legacyReq, "query", {
@@ -36321,28 +36282,28 @@ function invoke(handler13, params = {}) {
       value: { ...req.query, ...params, ...req.params }
     });
     try {
-      await handler13(legacyReq, res);
+      await handler12(legacyReq, res);
     } catch (error) {
       next(error);
     }
   };
 }
-function adminOnly(handler13) {
+function adminOnly(handler12) {
   return (req, res, next) => {
     if (!isSuperadminRequest(req)) {
       res.status(404).json({ message: "Endpoint n\xE3o encontrado." });
       return;
     }
-    void invoke(handler13)(req, res, next);
+    void invoke(handler12)(req, res, next);
   };
 }
-function webOnly(handler13) {
+function webOnly(handler12) {
   return (req, res, next) => {
     if (isSuperadminRequest(req)) {
       res.status(404).json({ message: "Endpoint n\xE3o encontrado." });
       return;
     }
-    void invoke(handler13)(req, res, next);
+    void invoke(handler12)(req, res, next);
   };
 }
 app.all("/api/drivers", webOnly(handler));
@@ -36350,15 +36311,14 @@ app.all("/api/drivers/pre-register", webOnly(handler2));
 app.all("/api/drivers/:id/provision-access", webOnly(handler3));
 app.all("/api/drivers/:id/reset-password", webOnly(handler4));
 app.all("/api/managers", (req, res, next) => {
-  const handler13 = isSuperadminRequest(req) ? handler10 : handler5;
-  void invoke(handler13)(req, res, next);
+  const handler12 = isSuperadminRequest(req) ? handler9 : handler5;
+  void invoke(handler12)(req, res, next);
 });
 app.all("/api/access", webOnly(handler6));
-app.all("/api/partners", webOnly(handler7));
-app.all("/api/tenants/create", adminOnly(handler12));
-app.all("/api/iopgps-device", adminOnly(handler8));
-app.all("/api/iopgps", adminOnly(handler9));
-app.all("/api/vehicle-photos", adminOnly(handler11));
+app.all("/api/tenants/create", adminOnly(handler11));
+app.all("/api/iopgps-device", adminOnly(handler7));
+app.all("/api/iopgps", adminOnly(handler8));
+app.all("/api/vehicle-photos", adminOnly(handler10));
 app.get("/health", (_req, res) => {
   res.status(200).json({
     ok: true,
