@@ -122,7 +122,8 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
                 : data.message;
             message = apiMessage || data.error || message;
         } catch {
-            // Ignore body parsing errors and use fallback message.
+            // Corpo sem JSON: proxy/servidor de API fora do ar (comum no ambiente local).
+            if (response.status >= 500) message = 'O servidor do sistema não respondeu. Tente novamente em instantes.';
         }
 
         if (response.status === 401 && typeof window !== 'undefined') {
