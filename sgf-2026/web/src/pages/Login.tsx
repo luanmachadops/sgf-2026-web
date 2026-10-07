@@ -95,7 +95,7 @@ export default function Login({ portal = 'panel' }: LoginProps) {
                     {tenantLogo ? (
                         <>
                             <img src={tenantLogo} alt={branding.name} className="h-24 w-24 object-contain" />
-                            <h1 className="mt-4 text-2xl font-bold text-white">{branding.name}</h1>
+                            <h1 className="mt-4 text-center text-2xl font-bold text-white">{branding.name}</h1>
                         </>
                     ) : (
                         <svg
