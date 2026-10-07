@@ -48,3 +48,83 @@ body { margin: 0; background: var(--sgf-surface, #F5F7F9); color: var(--sgf-text
     transform: none !important;
   }
 }
+
+/* Telas de acesso e tela de início: iguais às do painel do gestor (web/src/index.css). */
+/* Fundo das telas de acesso: mesma cor sólida da tela de início. */
+.sgf-auth-background {
+  position: relative;
+  background: #0F2B2F;
+}
+
+/* Campo das telas de acesso: pílula de vidro com borda clara (referência ClasseEbd). */
+.auth-field {
+  display: flex;
+  height: 55px;
+  width: 100%;
+  cursor: text;
+  align-items: center;
+  gap: 11px;
+  padding: 0 22px 0 18px;
+  border-radius: 27.5px;
+  border: 1px solid rgb(255 255 255 / 0.28);
+  background: linear-gradient(180deg, rgb(0 0 0 / 0.14) 0%, rgb(0 0 0 / 0.04) 45%, rgb(255 255 255 / 0.012) 100%);
+  box-shadow: inset 0 -1px 0 rgb(255 255 255 / 0.2);
+  transition: border-color 150ms ease;
+}
+.auth-field:focus-within { border-color: color-mix(in srgb, var(--sgf-primary) 80%, #fff); }
+.auth-field input {
+  min-width: 0;
+  flex: 1;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 400;
+  outline: none;
+}
+.auth-field input::placeholder { color: rgb(255 255 255 / 0.6); }
+.auth-field input:-webkit-autofill {
+  -webkit-text-fill-color: #fff;
+  box-shadow: inset 0 0 0 1000px #0F2B2F;
+  caret-color: #fff;
+}
+
+/* Tela de início: logo de inicio-web+app.svg montado camada a camada. */
+.pwa-launch-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  background: #0F2B2F;
+  animation: pwa-splash-exit 380ms ease 1.75s forwards;
+}
+
+.pwa-launch-logo {
+  width: min(62vw, 260px);
+  height: auto;
+  overflow: visible;
+}
+
+.pwa-launch-logo path { transform-box: view-box; }
+.pwa-layer-frame { animation: pwa-frame 420ms cubic-bezier(.16, 1, .3, 1) both; transform-origin: 30% 20%; }
+.pwa-layer-route { animation: pwa-route 520ms cubic-bezier(.16, 1, .3, 1) 180ms both; }
+.pwa-layer-pin { animation: pwa-pin 620ms cubic-bezier(.34, 1.56, .64, 1) 360ms both, pwa-pin-breathe 1.4s ease-in-out 1s infinite; }
+.pwa-layer-title { animation: pwa-rise 420ms cubic-bezier(.16, 1, .3, 1) 540ms both; }
+.pwa-layer-subtitle { animation: pwa-rise-sm 420ms cubic-bezier(.16, 1, .3, 1) 720ms both; }
+
+@keyframes pwa-frame { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+@keyframes pwa-route { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: none; } }
+@keyframes pwa-pin { from { opacity: 0; transform: translateY(-90px); } 40% { opacity: 1; } to { opacity: 1; transform: none; } }
+@keyframes pwa-pin-breathe { 0%, 100% { transform: none; } 50% { transform: translateY(-8px); } }
+@keyframes pwa-rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+@keyframes pwa-rise-sm { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes pwa-splash-exit { to { opacity: 0; visibility: hidden; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pwa-launch-splash,
+  .pwa-launch-logo path {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

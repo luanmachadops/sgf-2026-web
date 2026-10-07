@@ -2,78 +2,118 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { Button, Input } from '@/lib/ui';
+import { authErrorMessage } from '@/lib/authErrors';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from '@/components/sgf/icons';
+import { AuthShell, AuthAlert, AUTH_SUBMIT_CLS } from '@/components/AuthShell';
 
+/** Login do superadmin no mesmo padrão visual do painel do gestor. */
 export default function Login() {
   const { login } = useAuth();
   const nav = useNavigate();
   const [mode, setMode] = useState<'login' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [err, setErr] = useState('');
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErr(''); setLoading(true);
-    try { await login(email, password); nav('/'); }
-    catch (e) { setErr((e as Error).message); }
-    finally { setLoading(false); }
-  };
+  const switchMode = (next: 'login' | 'forgot') => { setMode(next); setErr(''); setInfo(''); };
 
-  const sendReset = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(''); setInfo(''); setLoading(true);
     try {
-      // Volta para a tela de definição de senha do admin (sob /admin).
-      const redirectTo = `${window.location.origin}${import.meta.env.BASE_URL}reset-password`;
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
-      if (error) throw new Error(error.message);
-      setInfo('Se este e-mail estiver cadastrado, enviamos um link de recuperação. Verifique sua caixa de entrada (e o spam).');
+      if (mode === 'login') {
+        await login(email, password);
+        nav('/');
+      } else {
+        // Volta para a tela de definição de senha do admin.
+        const redirectTo = `${window.location.origin}${import.meta.env.BASE_URL}reset-password`;
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+        if (error) throw error;
+        setInfo('Se este e-mail estiver cadastrado, enviamos um link de recuperação. Verifique sua caixa de entrada (e o spam).');
+      }
     } catch (e) {
-      setErr((e as Error).message);
-    } finally { setLoading(false); }
+      setErr(authErrorMessage(e));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="grid min-h-screen place-items-center bg-[var(--rt-ink900)] p-5">
-      <form onSubmit={mode === 'login' ? submit : sendReset} className="rt-rise w-full max-w-[400px] space-y-5 rounded-[28px] bg-white p-7 shadow-[0_24px_64px_rgb(0_0_0/0.35)] sm:p-8">
-        <div className="text-center">
-          <img src="/exattus-rotta.svg" alt="" className="mx-auto mb-5 h-16 w-16" />
-          <h1 className="text-[26px] font-bold tracking-[-0.02em] text-[var(--rt-ink900)]">{mode === 'login' ? 'Superadmin' : 'Recuperar acesso'}</h1>
-          <p className="mt-1 text-sm text-[var(--rt-ink500)]">
-            {mode === 'login' ? 'Exattus Rotta · gestão das prefeituras' : 'Enviaremos um link para redefinir a senha.'}
-          </p>
-        </div>
+    <AuthShell subtitle="Superadmin">
+      <form onSubmit={submit} className="flex w-full flex-col gap-[19px]">
+        <p className="text-center text-[14px] font-medium text-white">
+          {mode === 'login' ? 'Entre com sua conta' : 'Recuperar senha'}
+        </p>
 
-        {err && <div role="alert" className="rounded-2xl bg-[var(--rt-red100)] px-4 py-3 text-sm font-medium text-[var(--rt-red600)]">{err}</div>}
-        {info && <div role="status" className="rounded-2xl bg-[var(--rt-brand-100)] px-4 py-3 text-sm font-medium text-[#0B7A50]">{info}</div>}
+        {err && <AuthAlert tone="error">{err}</AuthAlert>}
+        {info && <AuthAlert tone="success">{info}</AuthAlert>}
 
-        <Input label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <label className="auth-field">
+          <Mail className="h-6 w-6 shrink-0 text-white/90" />
+          <input
+            type="email"
+            placeholder="e-mail de acesso"
+            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </label>
 
         {mode === 'login' && (
-          <Input label="Senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <>
+            <label className="auth-field">
+              <Lock className="h-6 w-6 shrink-0 text-white/90" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="shrink-0 text-white/70 transition-colors hover:text-white"
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </label>
+            <button
+              type="button"
+              onClick={() => switchMode('forgot')}
+              className="-mt-1 self-end text-[12px] font-bold text-[var(--sgf-primary)] hover:underline"
+            >
+              Esqueceu a senha?
+            </button>
+          </>
         )}
 
-        <Button type="submit" disabled={loading} className="h-12 w-full text-[15px]">
-          {loading ? (mode === 'login' ? 'Entrando…' : 'Enviando…') : (mode === 'login' ? 'Entrar' : 'Enviar link de recuperação')}
-        </Button>
-
-        <div className="text-center">
-          {mode === 'login' ? (
-            <button type="button" onClick={() => { setMode('forgot'); setErr(''); setInfo(''); }}
-              className="rounded-full px-3 py-1.5 text-sm font-semibold text-[var(--rt-brand)] hover:bg-[var(--rt-brand-50)]">
-              Esqueci minha senha
-            </button>
+        <button type="submit" disabled={loading} className={AUTH_SUBMIT_CLS}>
+          {loading ? (
+            <>
+              <Loader2 className="h-[18px] w-[18px] animate-spin" />
+              {mode === 'login' ? 'Entrando...' : 'Enviando...'}
+            </>
           ) : (
-            <button type="button" onClick={() => { setMode('login'); setErr(''); setInfo(''); }}
-              className="rounded-full px-3 py-1.5 text-sm font-semibold text-[var(--rt-ink500)] hover:bg-[var(--rt-paper)]">
-              ← Voltar ao login
-            </button>
+            <>
+              {mode === 'login' ? 'Entrar' : 'Enviar link de recuperação'}
+              <ArrowRight className="h-[18px] w-[18px]" />
+            </>
           )}
-        </div>
+        </button>
+
+        {mode === 'forgot' && (
+          <button type="button" onClick={() => switchMode('login')} className="text-center text-sm font-semibold text-white/80 hover:text-white">
+            Voltar para o login
+          </button>
+        )}
       </form>
-    </div>
+    </AuthShell>
   );
 }

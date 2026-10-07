@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { Button, Input } from '@/lib/ui';
 import { PASSWORD_MIN_LENGTH, PASSWORD_MIN_LENGTH_MESSAGE, PASSWORD_PLACEHOLDER } from '@/lib/passwordPolicy';
+import { Lock, ArrowRight, Loader2 } from '@/components/sgf/icons';
+import { AuthShell, AuthAlert, AUTH_SUBMIT_CLS } from '@/components/AuthShell';
 
 /**
  * Tela de definição de nova senha. O usuário chega aqui pelo link do e-mail de
@@ -46,31 +47,35 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="grid min-h-screen place-items-center bg-[var(--rt-ink900)] p-5">
-      <div className="rt-rise w-full max-w-[400px] space-y-5 rounded-[28px] bg-white p-7 shadow-[0_24px_64px_rgb(0_0_0/0.35)] sm:p-8">
-        <div className="text-center">
-          <img src="/exattus-rotta.svg" alt="" className="mx-auto mb-5 h-16 w-16" />
-          <h1 className="text-[26px] font-bold tracking-[-0.02em] text-[var(--rt-ink900)]">Nova senha</h1>
-          <p className="mt-1 text-sm text-[var(--rt-ink500)]">Exattus Rotta · Superadmin</p>
-        </div>
-
+    <AuthShell subtitle="Superadmin">
+      <div className="flex w-full flex-col gap-[19px]">
+        <p className="text-center text-[14px] font-medium text-white">Definir nova senha</p>
         {done ? (
-          <div role="status" className="rounded-2xl bg-[var(--rt-brand-100)] px-4 py-3 text-sm font-medium text-[#0B7A50]">
-            Senha alterada com sucesso. Redirecionando para o login…
-          </div>
+          <AuthAlert tone="success">Senha alterada com sucesso. Redirecionando para o login…</AuthAlert>
         ) : !ready ? (
-          <p className="text-center text-sm text-[var(--rt-ink500)]">
+          <p className="text-center text-sm text-white/70">
             Validando o link de recuperação… Se você não veio pelo e-mail, solicite um novo link na tela de login.
           </p>
         ) : (
-          <form onSubmit={submit} className="space-y-5">
-            {err && <div role="alert" className="rounded-2xl bg-[var(--rt-red100)] px-4 py-3 text-sm font-medium text-[var(--rt-red600)]">{err}</div>}
-            <Input label="Nova senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={PASSWORD_PLACEHOLDER} required />
-            <Input label="Confirmar nova senha" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
-            <Button type="submit" disabled={loading} className="h-12 w-full text-[15px]">{loading ? 'Salvando…' : 'Salvar nova senha'}</Button>
+          <form onSubmit={submit} className="flex flex-col gap-[19px]">
+            {err && <AuthAlert tone="error">{err}</AuthAlert>}
+            <label className="auth-field">
+              <Lock className="h-6 w-6 shrink-0 text-white/90" />
+              <input type="password" autoComplete="new-password" placeholder={PASSWORD_PLACEHOLDER} value={password} onChange={(e) => setPassword(e.target.value)} required aria-label="Nova senha" />
+            </label>
+            <label className="auth-field">
+              <Lock className="h-6 w-6 shrink-0 text-white/90" />
+              <input type="password" autoComplete="new-password" placeholder="Confirmar nova senha" value={confirm} onChange={(e) => setConfirm(e.target.value)} required aria-label="Confirmar nova senha" />
+            </label>
+            <button type="submit" disabled={loading} className={AUTH_SUBMIT_CLS}>
+              {loading ? <><Loader2 className="h-[18px] w-[18px] animate-spin" /> Salvando...</> : <>Salvar nova senha <ArrowRight className="h-[18px] w-[18px]" /></>}
+            </button>
           </form>
         )}
+        <button type="button" onClick={() => nav('/login')} className="text-center text-sm font-semibold text-white/80 hover:text-white">
+          Voltar para o login
+        </button>
       </div>
-    </div>
+    </AuthShell>
   );
 }

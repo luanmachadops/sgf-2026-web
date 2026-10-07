@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, NavLink, Outlet, useLocation } 
 import { useAuth } from './lib/auth';
 import { useMyProfile } from './lib/profile';
 import { NotificationBell } from './components/Notifications';
+import { AppLaunchSplash } from './components/pwa/AppLaunchSplash';
 import {
   Home, Building2, FileText, Receipt, Sparkle, Settings2, LogOut, User, Menu, Map, ShieldCheck, MapPin,
 } from './components/sgf/icons';
@@ -169,6 +170,7 @@ function Private() {
 export default function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <AppLaunchSplash />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
