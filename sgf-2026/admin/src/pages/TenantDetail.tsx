@@ -7,10 +7,11 @@ import { Button, Input, Badge } from '@/lib/ui';
 import { SGFCard, SGFSelect } from '@/components/sgf';
 import { ArrowLeft, Building2, Car, User, Map, ShieldCheck } from '@/components/sgf/icons';
 import { ManagersPanel } from '@/components/ManagersPanel';
+import { TrackingSettingsCard } from '@/components/TrackingSettingsCard';
 import { TenantBrandingPreviewModal } from '@/components/branding/TenantBrandingPreviewModal';
 import { Eye } from '@/components/sgf/icons';
 
-type Tab = 'identidade' | 'acessos';
+type Tab = 'identidade' | 'rastreamento' | 'acessos';
 
 export default function TenantDetail() {
   const { id = '' } = useParams();
@@ -118,10 +119,10 @@ export default function TenantDetail() {
       </section>
 
       {/* Abas em pílula */}
-      <div className="inline-flex rounded-full bg-white p-1 shadow-[var(--rt-shadow-card)]" role="tablist">
-        {([['identidade', 'Identidade'], ['acessos', 'Gestores e acessos']] as const).map(([key, label]) => (
+      <div className="inline-flex max-w-full overflow-x-auto rounded-full bg-white p-1 shadow-[var(--rt-shadow-card)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist">
+        {([['identidade', 'Identidade'], ['rastreamento', 'Rastreamento'], ['acessos', 'Gestores e acessos']] as const).map(([key, label]) => (
           <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
-            className={`h-10 rounded-full px-5 text-sm font-semibold transition ${tab === key ? 'bg-[var(--rt-ink900)] text-white' : 'text-[var(--rt-ink500)] hover:text-[var(--rt-ink900)]'}`}>
+            className={`h-10 shrink-0 whitespace-nowrap rounded-full px-5 text-sm font-semibold transition ${tab === key ? 'bg-[var(--rt-ink900)] text-white' : 'text-[var(--rt-ink500)] hover:text-[var(--rt-ink900)]'}`}>
             {label}
           </button>
         ))}
@@ -203,6 +204,8 @@ export default function TenantDetail() {
           </SGFCard>
         </div>
       )}
+
+      {tab === 'rastreamento' && <TrackingSettingsCard tenant={t} onSaved={(patch) => set(patch)} />}
 
       {tab === 'acessos' && <ManagersPanel tenantId={t.id} />}
 
