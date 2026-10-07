@@ -56,7 +56,6 @@ function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void
           <p className="truncate text-[15px] font-bold tracking-[-0.01em]">Exattus Rotta</p>
           <p className="text-xs font-medium text-white/50">Superadmin</p>
         </div>
-        <div className={`ml-auto ${hide}`}><NotificationBell /></div>
         {onClose && (
           <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white/80 lg:hidden" aria-label="Fechar menu">
             <X className="h-5 w-5" />
@@ -150,7 +149,12 @@ function Shell() {
           <div className="ml-auto"><NotificationBell onDark={false} /></div>
         </div>
 
-        <main className="rt-scroll flex-1 overflow-y-auto scroll-smooth px-4 pb-10 pt-2 sm:px-6 md:pt-8 lg:px-10 lg:pt-10">
+        {/* Barra superior no tablet/desktop: avisos no canto direito, como nos sites */}
+        <div className="hidden h-[72px] shrink-0 items-center justify-end px-6 md:flex lg:px-10">
+          <NotificationBell onDark={false} />
+        </div>
+
+        <main className="rt-scroll flex-1 overflow-y-auto scroll-smooth px-4 pb-10 pt-2 sm:px-6 md:pt-0 lg:px-10">
           <div className="mx-auto w-full max-w-[1320px]">
             <Outlet />
           </div>

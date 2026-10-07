@@ -148,7 +148,7 @@ export function NotificationBell({ onDark = true }: { onDark?: boolean }) {
       >
         <Bell width={20} height={20} />
         {unread.length > 0 && (
-          <span className="rt-num absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[var(--rt-accent)] px-1 text-[11px] font-bold text-white ring-2 ring-[var(--rt-ink900)]">
+          <span className={`rt-num absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[var(--rt-accent)] px-1 text-[11px] font-bold text-white ring-2 ${onDark ? 'ring-[var(--rt-ink900)]' : 'ring-white'}`}>
             {unread.length > 99 ? '99+' : unread.length}
           </span>
         )}
