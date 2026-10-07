@@ -86,7 +86,7 @@ export async function getCaller(req: ApiRequest): Promise<Caller | null> {
 
     const { data: profile } = await admin
         .from('profiles')
-        .select('role, department_id, tenant_id, access_blocked, driver_status, allowed_modules')
+        .select('role, department_id, tenant_id, access_blocked, driver_status, allowed_modules, archived_at')
         .eq('id', data.user.id)
         .single();
     if (!profile) return null;
@@ -102,7 +102,7 @@ export async function getCaller(req: ApiRequest): Promise<Caller | null> {
     // Bloqueio é decidido no perfil, não no JWT: o token continua válido até
     // expirar, então sem esta checagem bloquear alguém no painel não impede
     // que ele siga chamando as rotas /api com o token que já tinha em mãos.
-    const accessBlocked = profile.access_blocked === true;
+    const accessBlocked = profile.access_blocked === true || Boolean(profile.archived_at);
     const driverStatus = profile.driver_status ?? null;
     if (accessBlocked || driverStatus === 'inativo' || driverStatus === 'suspenso') {
         throw Object.assign(new Error('Acesso bloqueado. Procure a prefeitura.'), { status: 403 });

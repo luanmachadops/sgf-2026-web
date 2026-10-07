@@ -15,25 +15,22 @@ test("todas as senhas provisórias respeitam a política e não se repetem", () 
   }
   assert.equal(values.size, 1000);
 });
-test("gestor não altera administradores, gestores, superadmin nem parceiros pela rota genérica", () => {
-  for (const role of ["admin", "gestor", "superadmin", "posto", "oficina"]) {
-    assert.throws(
-      () => assertManagedTarget({ id: "a", role: "gestor" }, { id: "b", role }),
-      { status: 403 },
-    );
+test("somente administrador e superadmin gerenciam acessos", () => {
+  for (const actor of ["gestor", "secretario", "motorista", "posto", "oficina"]) {
+    for (const role of ["admin", "gestor", "secretario", "motorista", "posto", "oficina"]) {
+      assert.throws(
+        () => assertManagedTarget({ id: "a", role: actor }, { id: "b", role }),
+        { status: 403 },
+      );
+    }
   }
-  assert.doesNotThrow(() =>
-    assertManagedTarget(
-      { id: "a", role: "gestor" },
-      { id: "b", role: "motorista" },
-    ),
-  );
-  assert.doesNotThrow(() =>
-    assertManagedTarget(
-      { id: "a", role: "gestor" },
-      { id: "b", role: "secretario" },
-    ),
-  );
+  for (const actor of ["admin", "superadmin"]) {
+    for (const role of ["admin", "gestor", "secretario", "motorista", "posto", "oficina"]) {
+      assert.doesNotThrow(() =>
+        assertManagedTarget({ id: "a", role: actor }, { id: "b", role }),
+      );
+    }
+  }
 });
 test("admin municipal não altera superadministrador", () => {
   assert.throws(

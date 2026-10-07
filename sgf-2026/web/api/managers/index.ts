@@ -37,11 +37,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
 
     try {
-        // Administrador e gestor podem criar secretários da própria prefeitura.
+        // Criar acesso é exclusivo do administrador (mesma regra da Gestão de acessos).
         const caller = await getCaller(req);
         if (!caller) throw Object.assign(new Error('Não autenticado'), { status: 401 });
-        if (!['admin', 'gestor'].includes(caller.role)) {
-            throw Object.assign(new Error('Apenas administradores e gestores podem criar secretários'), { status: 403 });
+        if (caller.role !== 'admin') {
+            throw Object.assign(new Error('Apenas o administrador pode criar acessos'), { status: 403 });
         }
 
         const ip = getClientIp(req);
