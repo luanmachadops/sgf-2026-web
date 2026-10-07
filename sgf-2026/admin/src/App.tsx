@@ -43,13 +43,14 @@ const SECTIONS: Section[] = [
  */
 function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void; onClose?: () => void; rail?: boolean }) {
   // Modo trilho (tablet): só ícones; os textos aparecem quando o mouse entra e o painel se expande.
-  const hide = rail ? 'opacity-0 transition-opacity duration-150 group-hover/rail:opacity-100' : '';
+  // Recolhido, os textos saem do fluxo (hidden) para o ícone ficar exatamente no centro.
+  const hide = rail ? 'hidden group-hover/rail:block' : '';
   const { email, logout } = useAuth();
   const { data: me } = useMyProfile();
   const location = useLocation();
   return (
     <div className={`flex h-full flex-col overflow-hidden rounded-[28px] ${rail ? 'w-[72px] transition-[width] duration-200 ease-out group-hover/rail:w-[264px] group-hover/rail:shadow-[0_24px_64px_rgb(15_43_47/0.35)]' : 'w-[264px]'} bg-[var(--rt-ink900)] text-white`}>
-      <div className={`flex shrink-0 items-center gap-3 pb-4 pt-6 ${rail ? 'px-4' : 'px-5'}`}>
+      <div className={`flex shrink-0 items-center gap-3 pb-4 pt-6 ${rail ? 'justify-center group-hover/rail:justify-start group-hover/rail:px-5' : 'px-5'}`}>
         <img src="/exattus-rotta.svg" alt="" className="h-10 w-10 shrink-0" />
         <div className={`min-w-0 leading-tight ${hide}`}>
           <p className="truncate text-[15px] font-bold tracking-[-0.01em]">Exattus Rotta</p>
@@ -63,10 +64,10 @@ function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void
         )}
       </div>
 
-      <nav className={`rt-scroll flex-1 overflow-y-auto overflow-x-hidden pb-3 ${rail ? 'px-2.5' : 'px-3'}`}>
+      <nav className={`rt-scroll flex-1 overflow-y-auto overflow-x-hidden pb-3 ${rail ? 'px-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden' : 'px-3'}`}>
         {SECTIONS.map((section) => (
           <div key={section.title} className="mt-4 first:mt-1">
-            <p className={`mb-1.5 select-none truncate whitespace-nowrap px-3 text-[11px] font-medium text-white/35 ${hide}`}>{section.title}</p>
+            <p className={`mb-1.5 select-none truncate whitespace-nowrap px-3 text-[11px] font-medium text-white/35 ${rail ? 'invisible group-hover/rail:visible' : ''}`}>{section.title}</p>
             <div className="space-y-1">
               {section.items.map((item) => {
                 const active = item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
@@ -77,7 +78,7 @@ function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void
                     to={item.path}
                     onClick={onNavigate}
                     title={rail ? item.label : undefined}
-                    className={`flex h-11 items-center gap-3 rounded-full ${rail ? 'px-4' : 'px-3.5'} text-sm font-medium transition ${
+                    className={`flex h-11 items-center gap-3 rounded-full ${rail ? 'justify-center group-hover/rail:justify-start group-hover/rail:px-3.5' : 'px-3.5'} text-sm font-medium transition ${
                       active ? 'bg-white text-[var(--rt-ink900)] shadow-[0_6px_16px_rgb(0_0_0/0.18)]' : 'text-white/65 hover:bg-white/[0.07] hover:text-white'
                     }`}
                   >
@@ -92,7 +93,7 @@ function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void
       </nav>
 
       <div className={`shrink-0 ${rail ? 'p-2' : 'p-3'}`}>
-        <div className={`flex items-center gap-3 rounded-[22px] ${rail ? 'p-2' : 'p-2.5'} ${rail ? 'group-hover/rail:bg-white/[0.06]' : 'bg-white/[0.06]'}`}>
+        <div className={`flex items-center gap-3 rounded-[22px] ${rail ? 'justify-center p-1.5 group-hover/rail:justify-start group-hover/rail:p-2.5' : 'p-2.5'} ${rail ? 'group-hover/rail:bg-white/[0.06]' : 'bg-white/[0.06]'}`}>
           <NavLink to="/configuracoes" onClick={onNavigate} className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--rt-brand)] text-white" title="Meu perfil">
             {me?.photoSrc ? <img src={me.photoSrc} alt="" className="h-full w-full object-cover" /> : <User className="h-5 w-5" />}
           </NavLink>
@@ -100,7 +101,7 @@ function SidebarContent({ onNavigate, onClose, rail }: { onNavigate?: () => void
             <p className="truncate text-sm font-semibold">{me?.full_name || 'Superusuário'}</p>
             <p className="truncate text-[11px] text-white/45">{email}</p>
           </div>
-          <button onClick={logout} title="Sair" aria-label="Sair" className={`${hide} grid h-9 w-9 shrink-0 place-items-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white`}>
+          <button onClick={logout} title="Sair" aria-label="Sair" className={`${rail ? 'hidden group-hover/rail:grid' : 'grid'} h-9 w-9 shrink-0 place-items-center rounded-full text-white/50 transition hover:bg-white/10 hover:text-white`}>
             <LogOut className="h-[18px] w-[18px]" />
           </button>
         </div>
