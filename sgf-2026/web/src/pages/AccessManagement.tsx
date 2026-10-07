@@ -8,252 +8,194 @@ import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
-import { Check, KeyRound, Plus, ShieldCheck, Trash2, Users } from '@/components/sgf/icons';
-import { ACCESS_MODULES, ALL_ACCESS_MODULES } from '@/lib/accessModules';
-import {
-    accessManagementApi,
-    type CreateManagedAccess,
-    type ManagedAccess,
-    type ManagedAccessRole,
-} from '@/lib/backend-api';
-import { departmentsApi, tenantApi } from '@/lib/supabase-api';
-import { PASSWORD_MIN_LENGTH } from '@/lib/passwordPolicy';
+import { ChevronRight, Fuel, KeyRound, Plus, Search, ShieldCheck, Users, Wrench } from '@/components/sgf/icons';
+import { ALL_ACCESS_MODULES } from '@/lib/accessModules';
+import { accessManagementApi, type CreateManagedAccess, type ManagedAccess, type ManagedAccessRole } from '@/lib/backend-api';
+import { departmentsApi, repairShopsApi, stationsApi, tenantApi } from '@/lib/supabase-api';
+import { AccessEditModal } from '@/components/access/AccessEditModal';
+import { ModuleChecks, RemoveAccessDialog, TempPasswordDialog } from '@/components/access/accessShared';
+import { ROLE_LABEL, STAFF_ROLES, loginOf } from '@/components/access/accessRoles';
 
-const ROLE_LABEL: Record<ManagedAccessRole, string> = {
-    admin: 'Administrador',
-    gestor: 'Gestor',
-    secretario: 'Secretário',
-    motorista: 'Motorista',
-};
+type Tab = 'equipe' | 'motoristas' | 'parceiros';
 
-function randomPassword() {
-    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-    const values = crypto.getRandomValues(new Uint8Array(PASSWORD_MIN_LENGTH));
-    return Array.from(values, (value) => alphabet[value % alphabet.length]).join('');
-}
+const TABS: Array<{ value: Tab; label: string; roles: ManagedAccessRole[] }> = [
+    { value: 'equipe', label: 'Equipe', roles: ['admin', 'gestor', 'secretario'] },
+    { value: 'motoristas', label: 'Motoristas', roles: ['motorista'] },
+    { value: 'parceiros', label: 'Postos e oficinas', roles: ['posto', 'oficina'] },
+];
 
-function ModuleChecks({
-    value,
-    onChange,
-}: {
-    value: string[];
-    onChange: (modules: string[]) => void;
-}) {
-    const allSelected = value.length === ALL_ACCESS_MODULES.length;
+const ROLE_OPTIONS: Array<{ value: ManagedAccessRole; label: string }> = [
+    { value: 'admin', label: 'Administrador' },
+    { value: 'gestor', label: 'Gestor' },
+    { value: 'secretario', label: 'Secretário' },
+    { value: 'motorista', label: 'Motorista' },
+    { value: 'posto', label: 'Usuário de posto' },
+    { value: 'oficina', label: 'Usuário de oficina' },
+];
+
+function RoleIcon({ role }: { role: ManagedAccessRole }) {
+    const Icon = role === 'motorista' ? Users : role === 'posto' ? Fuel : role === 'oficina' ? Wrench : ShieldCheck;
     return (
-        <div>
-            <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                    <p className="text-sm font-semibold text-slate-800">Abas permitidas</p>
-                    <p className="text-xs text-slate-500">As rotas e o menu respeitam esta seleção.</p>
-                </div>
-                <button
-                    type="button"
-                    onClick={() => onChange(allSelected ? [] : [...ALL_ACCESS_MODULES])}
-                    className="text-xs font-bold text-[var(--sgf-primary)] hover:underline"
-                >
-                    {allSelected ? 'Desmarcar todas' : 'Marcar todas'}
-                </button>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-                {ACCESS_MODULES.map((module) => {
-                    const checked = value.includes(module.id);
-                    return (
-                        <label
-                            key={module.id}
-                            className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition ${
-                                checked
-                                    ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-                                    : 'border-slate-200 bg-white text-slate-600'
-                            }`}
-                        >
-                            <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => onChange(
-                                    checked
-                                        ? value.filter((item) => item !== module.id)
-                                        : [...value, module.id],
-                                )}
-                                className="sr-only"
-                            />
-                            <span className={`grid h-5 w-5 place-items-center rounded-md ${checked ? 'bg-emerald-600 text-white' : 'border border-slate-300'}`}>
-                                {checked && <Check className="h-3.5 w-3.5" />}
-                            </span>
-                            {module.label}
-                        </label>
-                    );
-                })}
-            </div>
-        </div>
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
+            <Icon className="h-5 w-5" />
+        </span>
     );
 }
 
+/**
+ * Gestão de acessos — só administrador e superadministrador (a rota, o menu e a
+ * API bloqueiam os demais). Cada linha abre a edição completa do acesso.
+ */
 export default function AccessManagement() {
     const { setTitle, setDescription } = useHeader();
     const { user } = useAuth();
     const queryClient = useQueryClient();
-    const [createOpen, setCreateOpen] = useState(false);
+    const isSuperadmin = user?.accountRole === 'superadmin';
+
+    const [tab, setTab] = useState<Tab>('equipe');
+    const [search, setSearch] = useState('');
+    const [showBlocked, setShowBlocked] = useState(true);
     const [editing, setEditing] = useState<ManagedAccess | null>(null);
-    const [tempCredential, setTempCredential] = useState<{ name: string; cpf: string; password: string } | null>(null);
+    const [removing, setRemoving] = useState<ManagedAccess | null>(null);
+    const [credential, setCredential] = useState<{ name: string; login: string; password: string } | null>(null);
+
+    const [createOpen, setCreateOpen] = useState(false);
     const [role, setRole] = useState<ManagedAccessRole>('secretario');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [cpf, setCpf] = useState('');
     const [registrationNumber, setRegistrationNumber] = useState('');
-    const [password, setPassword] = useState('');
     const [departmentId, setDepartmentId] = useState('');
+    const [partnerId, setPartnerId] = useState('');
     const [tenantId, setTenantId] = useState('');
     const [allowedModules, setAllowedModules] = useState<string[]>([...ALL_ACCESS_MODULES]);
-    const [editModules, setEditModules] = useState<string[]>([]);
 
     useEffect(() => {
         setTitle('Gerenciamento de acessos');
-        setDescription('Crie, desative e defina quais áreas cada usuário pode acessar.');
+        setDescription('Crie, edite, bloqueie e remova os acessos da prefeitura, dos motoristas e dos parceiros.');
     }, [setDescription, setTitle]);
 
-    const accesses = useQuery({
-        queryKey: ['managed-accesses'],
-        queryFn: accessManagementApi.list,
-    });
-    const departments = useQuery({
-        queryKey: ['departments', 'access-management'],
-        queryFn: departmentsApi.getAll,
-    });
-    const tenants = useQuery({
-        queryKey: ['tenants', 'access-management'],
-        queryFn: tenantApi.getAll,
-        enabled: user?.accountRole === 'superadmin',
-    });
+    const accesses = useQuery({ queryKey: ['managed-accesses'], queryFn: accessManagementApi.list });
+    const departments = useQuery({ queryKey: ['departments', 'access-management'], queryFn: departmentsApi.getAll });
+    const tenants = useQuery({ queryKey: ['tenants', 'access-management'], queryFn: tenantApi.getAll, enabled: isSuperadmin });
+    const stations = useQuery({ queryKey: ['stations', 'access-management'], queryFn: () => stationsApi.getAll(), enabled: createOpen && role === 'posto' });
+    const shops = useQuery({ queryKey: ['repair-shops', 'access-management'], queryFn: () => repairShopsApi.getAll(), enabled: createOpen && role === 'oficina' });
 
-    const roleOptions = useMemo(() => {
-        const roles: Array<{ value: string; label: string }> = [
-            { value: 'secretario', label: 'Secretário' },
-            { value: 'motorista', label: 'Motorista' },
-        ];
-        if (user?.accountRole === 'admin' || user?.accountRole === 'superadmin') {
-            roles.push({ value: 'gestor', label: 'Gestor' });
-            roles.push({ value: 'admin', label: 'Administrador' });
-        }
-        return roles;
-    }, [user?.accountRole]);
+    const refresh = () => {
+        void queryClient.invalidateQueries({ queryKey: ['managed-accesses'] });
+        void queryClient.invalidateQueries({ queryKey: ['drivers'] });
+        void queryClient.invalidateQueries({ queryKey: ['partner-users'] });
+    };
 
-    const departmentOptions = (departments.data ?? [])
-        .filter((item) => user?.accountRole !== 'superadmin' || !tenantId || item.tenant_id === tenantId)
-        .map((item) => ({
-        value: item.id,
-        label: item.name,
-        }));
-    const tenantOptions = (tenants.data ?? []).map((tenant) => ({
-        value: tenant.id,
-        label: tenant.name,
-    }));
+    const rows = useMemo(() => accesses.data ?? [], [accesses.data]);
+    const counts = useMemo(() => Object.fromEntries(TABS.map((item) => [item.value, rows.filter((row) => item.roles.includes(row.role)).length])) as Record<Tab, number>, [rows]);
+    const visible = useMemo(() => {
+        const roles = TABS.find((item) => item.value === tab)!.roles;
+        const term = search.trim().toLocaleLowerCase('pt-BR');
+        return rows
+            .filter((row) => roles.includes(row.role))
+            .filter((row) => showBlocked || !row.access_blocked)
+            .filter((row) => !term || [row.full_name, row.email, row.cpf, row.departments?.name, row.fuel_stations?.name, row.repair_shops?.name]
+                .some((value) => value?.toLocaleLowerCase('pt-BR').includes(term)));
+    }, [rows, tab, search, showBlocked]);
 
     const resetCreate = () => {
-        setRole('secretario');
-        setName('');
-        setEmail('');
-        setCpf('');
-        setRegistrationNumber('');
-        setPassword('');
-        setDepartmentId('');
-        setTenantId('');
+        setRole(tab === 'motoristas' ? 'motorista' : tab === 'parceiros' ? 'posto' : 'secretario');
+        setName(''); setEmail(''); setCpf(''); setRegistrationNumber('');
+        setDepartmentId(''); setPartnerId(''); setTenantId('');
         setAllowedModules([...ALL_ACCESS_MODULES]);
     };
+    const openCreate = () => { resetCreate(); setCreateOpen(true); };
 
     const createAccess = useMutation({
         mutationFn: (payload: CreateManagedAccess) => accessManagementApi.create(payload),
         onSuccess: (created) => {
-            toast.success('Acesso criado com sucesso.');
-            if (created.role === 'motorista' && created.tempPassword && created.cpf) {
-                setTempCredential({
-                    name: created.full_name,
-                    cpf: created.cpf,
-                    password: created.tempPassword,
-                });
-            }
             setCreateOpen(false);
-            resetCreate();
-            void queryClient.invalidateQueries({ queryKey: ['managed-accesses'] });
-            void queryClient.invalidateQueries({ queryKey: ['drivers'] });
+            refresh();
+            if (created.tempPassword) {
+                setCredential({ name: created.full_name, login: loginOf(created), password: created.tempPassword });
+            } else {
+                toast.success('Acesso criado.');
+            }
         },
         onError: (error) => toast.error((error as Error).message),
     });
 
-    const updateAccess = useMutation({
-        mutationFn: ({ id, update }: { id: string; update: { accessBlocked?: boolean; allowedModules?: string[] } }) =>
-            accessManagementApi.update(id, update),
-        onSuccess: () => {
-            toast.success('Permissões atualizadas.');
-            setEditing(null);
-            void queryClient.invalidateQueries({ queryKey: ['managed-accesses'] });
-        },
-        onError: (error) => toast.error((error as Error).message),
-    });
-
-    const removeAccess = useMutation({
-        mutationFn: accessManagementApi.remove,
-        onSuccess: () => {
-            toast.success('Acesso excluído.');
-            void queryClient.invalidateQueries({ queryKey: ['managed-accesses'] });
-            void queryClient.invalidateQueries({ queryKey: ['drivers'] });
-        },
-        onError: (error) => toast.error((error as Error).message),
-    });
+    const isStaffRole = STAFF_ROLES.includes(role);
+    const isPartnerRole = role === 'posto' || role === 'oficina';
+    const departmentOptions = (departments.data ?? [])
+        .filter((item) => !isSuperadmin || !tenantId || item.tenant_id === tenantId)
+        .map((item) => ({ value: item.id, label: item.name }));
+    const partnerOptions = (role === 'posto' ? stations.data ?? [] : shops.data ?? [])
+        .filter((item) => !isSuperadmin || !tenantId || item.tenant_id === tenantId)
+        .map((item) => ({ value: item.id, label: item.name }));
 
     const submitCreate = () => {
-        if (!name.trim()) return toast.error('Informe o nome completo.');
-        if (role === 'motorista') {
-            if (cpf.replace(/\D/g, '').length !== 11) return toast.error('Informe um CPF válido.');
-        } else {
-            if (!email.includes('@')) return toast.error('Informe um e-mail válido.');
-            if (password.length < PASSWORD_MIN_LENGTH) return toast.error(`A senha deve ter ao menos ${PASSWORD_MIN_LENGTH} caracteres.`);
-        }
+        if (name.trim().length < 3) return toast.error('Informe o nome completo.');
+        if (role === 'motorista' && cpf.replace(/\D/g, '').length !== 11) return toast.error('Informe um CPF válido.');
+        if (role !== 'motorista' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return toast.error('Informe um e-mail válido.');
         if (role === 'secretario' && !departmentId) return toast.error('Selecione a secretaria.');
-        if (user?.accountRole === 'superadmin' && !tenantId) return toast.error('Selecione a prefeitura.');
-        if (role !== 'motorista' && allowedModules.length === 0) return toast.error('Selecione ao menos uma aba.');
-
+        if (isPartnerRole && !partnerId) return toast.error(role === 'posto' ? 'Selecione o posto.' : 'Selecione a oficina.');
+        if (isSuperadmin && !tenantId) return toast.error('Selecione a prefeitura.');
+        if (isStaffRole && allowedModules.length === 0) return toast.error('Selecione ao menos uma aba.');
         createAccess.mutate({
             role,
             name: name.trim(),
             email: email.trim(),
             cpf: cpf.replace(/\D/g, ''),
             registrationNumber: registrationNumber.trim(),
-            password,
             departmentId: departmentId || undefined,
+            partnerId: partnerId || undefined,
             tenantId: tenantId || undefined,
-            allowedModules,
+            allowedModules: isStaffRole ? allowedModules : undefined,
         });
     };
 
-    const openEdit = (access: ManagedAccess) => {
-        setEditing(access);
-        setEditModules(access.allowed_modules ?? []);
-    };
-
-    const rows = accesses.data ?? [];
-    const activeCount = rows.filter((item) => !item.access_blocked).length;
+    const subtitleOf = (access: ManagedAccess) => [
+        loginOf(access),
+        ROLE_LABEL[access.role],
+        access.departments?.name,
+        access.fuel_stations?.name,
+        access.repair_shops?.name,
+        isSuperadmin ? access.tenants?.name : null,
+    ].filter(Boolean).join(' · ');
 
     return (
         <div className="space-y-6 pb-16">
-            <div className="grid gap-4 sm:grid-cols-3">
-                <SGFCard padding="lg">
-                    <p className="text-sm font-semibold text-slate-400">Acessos cadastrados</p>
-                    <p className="mt-2 text-3xl font-bold text-slate-900">{rows.length}</p>
-                </SGFCard>
-                <SGFCard padding="lg">
-                    <p className="text-sm font-semibold text-slate-400">Ativos</p>
-                    <p className="mt-2 text-3xl font-bold text-emerald-600">{activeCount}</p>
-                </SGFCard>
-                <SGFCard padding="lg" className="flex items-center justify-center">
-                    <SGFButton icon={Plus} onClick={() => setCreateOpen(true)}>Novo acesso</SGFButton>
-                </SGFCard>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {TABS.map((item) => (
+                        <button
+                            key={item.value}
+                            type="button"
+                            onClick={() => setTab(item.value)}
+                            className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ${
+                                tab === item.value ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 shadow-sm hover:bg-slate-50'
+                            }`}
+                        >
+                            {item.label}
+                            <span className={`rounded-full px-2 py-0.5 text-xs ${tab === item.value ? 'bg-white/15' : 'bg-slate-100 text-slate-500'}`}>{counts[item.value] ?? 0}</span>
+                        </button>
+                    ))}
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1 lg:w-72 lg:flex-none">
+                        <SGFInput icon={Search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar nome, e-mail, CPF…" fullWidth />
+                    </div>
+                    <SGFButton icon={Plus} onClick={openCreate}>Novo acesso</SGFButton>
+                </div>
             </div>
 
             <SGFCard padding="none" className="overflow-hidden">
-                <div className="border-b border-slate-100 px-5 py-4">
-                    <h2 className="font-bold text-slate-900">Usuários da prefeitura</h2>
-                    <p className="text-sm text-slate-500">Administradores, gestores, secretários e motoristas.</p>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                    <div>
+                        <h2 className="font-bold text-slate-900">{TABS.find((item) => item.value === tab)!.label}</h2>
+                        <p className="text-sm text-slate-500">Clique em um acesso para editar, gerar nova senha, bloquear ou remover.</p>
+                    </div>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                        <input type="checkbox" checked={showBlocked} onChange={(event) => setShowBlocked(event.target.checked)} className="h-4 w-4 accent-emerald-600" />
+                        Mostrar bloqueados
+                    </label>
                 </div>
                 {accesses.isLoading ? (
                     <div className="p-8 text-center text-sm text-slate-500">Carregando acessos…</div>
@@ -261,74 +203,46 @@ export default function AccessManagement() {
                     <div className="p-8 text-center">
                         <p className="text-sm font-semibold text-red-700">Não foi possível carregar os acessos.</p>
                         <p className="mt-1 text-xs text-slate-500">{(accesses.error as Error).message}</p>
-                        <SGFButton className="mt-4" variant="ghost" size="sm" onClick={() => accesses.refetch()}>
-                            Tentar novamente
-                        </SGFButton>
+                        <SGFButton className="mt-4" variant="ghost" size="sm" onClick={() => accesses.refetch()}>Tentar novamente</SGFButton>
                     </div>
-                ) : rows.length === 0 ? (
-                    <div className="p-8 text-center text-sm text-slate-500">Nenhum acesso encontrado.</div>
+                ) : visible.length === 0 ? (
+                    <div className="p-8 text-center text-sm text-slate-500">{search ? 'Nenhum acesso encontrado para a busca.' : 'Nenhum acesso nesta aba.'}</div>
                 ) : (
-                    <div className="divide-y divide-slate-100">
-                        {rows.map((access) => (
-                            <div key={access.id} className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center">
-                                <div className="flex min-w-0 flex-1 items-center gap-3">
-                                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
-                                        {access.role === 'motorista' ? <Users className="h-5 w-5" /> : <ShieldCheck className="h-5 w-5" />}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="truncate font-bold text-slate-900">{access.full_name}</p>
-                                        <p className="truncate text-sm text-slate-500">
-                                            {access.email || access.cpf || 'Sem identificação'} · {ROLE_LABEL[access.role]}
-                                            {access.departments?.name ? ` · ${access.departments.name}` : ''}
-                                            {user?.accountRole === 'superadmin' && access.tenants?.name ? ` · ${access.tenants.name}` : ''}
-                                        </p>
-                                    </div>
-                                </div>
-                                <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${access.access_blocked ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                                    {access.access_blocked ? 'Desativado' : 'Ativo'}
-                                </span>
-                                <div className="flex flex-wrap gap-2">
-                                    {access.role !== 'motorista' && access.id !== user?.id && (user?.accountRole !== 'gestor' || access.role === 'secretario') && (
-                                        <SGFButton variant="ghost" size="sm" onClick={() => openEdit(access)}>
-                                            Permissões
-                                        </SGFButton>
+                    <ul className="divide-y divide-slate-100">
+                        {visible.map((access) => (
+                            <li key={access.id}>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditing(access)}
+                                    className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-slate-50"
+                                >
+                                    <RoleIcon role={access.role} />
+                                    <span className="min-w-0 flex-1">
+                                        <span className="flex items-center gap-2">
+                                            <span className="truncate font-bold text-slate-900">{access.full_name}</span>
+                                            {access.id === user?.id && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">você</span>}
+                                        </span>
+                                        <span className="block truncate text-sm text-slate-500">{subtitleOf(access)}</span>
+                                    </span>
+                                    {access.must_change_password && !access.access_blocked && (
+                                        <span className="hidden rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 sm:inline">Senha provisória</span>
                                     )}
-                                    <SGFButton
-                                        variant="ghost"
-                                        size="sm"
-                                        disabled={access.id === user?.id || updateAccess.isPending || (user?.accountRole === 'gestor' && ['admin', 'gestor'].includes(access.role))}
-                                        onClick={() => updateAccess.mutate({
-                                            id: access.id,
-                                            update: { accessBlocked: !access.access_blocked },
-                                        })}
-                                    >
-                                        {access.access_blocked ? 'Reativar' : 'Desativar'}
-                                    </SGFButton>
-                                    <button
-                                        type="button"
-                                        title="Excluir acesso"
-                                        disabled={access.id === user?.id || removeAccess.isPending || (user?.accountRole === 'gestor' && ['admin', 'gestor'].includes(access.role))}
-                                        onClick={() => {
-                                            if (window.confirm(`Excluir definitivamente o acesso de ${access.full_name}?`)) {
-                                                removeAccess.mutate(access.id);
-                                            }
-                                        }}
-                                        className="grid h-9 w-9 place-items-center rounded-full text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </div>
+                                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${access.access_blocked ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                                        {access.access_blocked ? 'Bloqueado' : 'Ativo'}
+                                    </span>
+                                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                                </button>
+                            </li>
                         ))}
-                    </div>
+                    </ul>
                 )}
             </SGFCard>
 
             <Modal
                 isOpen={createOpen}
-                onClose={() => { setCreateOpen(false); resetCreate(); }}
-                title="Criar novo acesso"
-                description="Defina o cargo, os dados de login e as abas disponíveis."
+                onClose={() => setCreateOpen(false)}
+                title="Novo acesso"
+                description="A senha provisória é gerada pelo sistema e mostrada uma única vez. A pessoa troca no primeiro acesso."
                 size="lg"
                 footer={(
                     <ModalFooter>
@@ -338,42 +252,41 @@ export default function AccessManagement() {
                 )}
             >
                 <div className="space-y-5">
-                    {user?.accountRole === 'superadmin' && (
+                    {isSuperadmin && (
                         <SGFSelect
                             label="Prefeitura"
                             value={tenantId}
-                            onChange={(value) => {
-                                setTenantId(value);
-                                setDepartmentId('');
-                            }}
-                            options={tenantOptions}
+                            onChange={(value) => { setTenantId(value); setDepartmentId(''); setPartnerId(''); }}
+                            options={(tenants.data ?? []).map((tenant) => ({ value: tenant.id, label: tenant.name }))}
                             placeholder="Selecione a prefeitura"
                             fullWidth
                         />
                     )}
                     <SGFSelect
-                        label="Cargo"
+                        label="Tipo de acesso"
                         value={role}
-                        onChange={(value) => setRole(value as ManagedAccessRole)}
-                        options={roleOptions}
+                        onChange={(value) => { setRole(value as ManagedAccessRole); setPartnerId(''); }}
+                        options={ROLE_OPTIONS}
                         fullWidth
                     />
-                    <SGFInput label="Nome completo" value={name} onChange={(event) => setName(event.target.value)} fullWidth />
+                    {isPartnerRole && (
+                        <SGFSelect
+                            label={role === 'posto' ? 'Posto' : 'Oficina'}
+                            value={partnerId}
+                            onChange={setPartnerId}
+                            options={partnerOptions}
+                            placeholder={role === 'posto' ? 'Selecione o posto' : 'Selecione a oficina'}
+                            fullWidth
+                        />
+                    )}
+                    <SGFInput label={isPartnerRole ? 'Nome do responsável' : 'Nome completo'} value={name} onChange={(event) => setName(event.target.value)} fullWidth />
                     {role === 'motorista' ? (
                         <div className="grid gap-4 sm:grid-cols-2">
-                            <SGFInput label="CPF" value={cpf} onChange={(event) => setCpf(event.target.value)} inputMode="numeric" fullWidth />
+                            <SGFInput label="CPF (login do motorista)" value={cpf} onChange={(event) => setCpf(event.target.value)} inputMode="numeric" fullWidth />
                             <SGFInput label="Matrícula (opcional)" value={registrationNumber} onChange={(event) => setRegistrationNumber(event.target.value)} fullWidth />
                         </div>
                     ) : (
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <SGFInput label="E-mail de acesso" type="email" value={email} onChange={(event) => setEmail(event.target.value)} fullWidth />
-                            <div className="space-y-2">
-                                <SGFInput label="Senha inicial" type="password" value={password} onChange={(event) => setPassword(event.target.value)} fullWidth />
-                                <button type="button" onClick={() => setPassword(randomPassword())} className="text-xs font-bold text-[var(--sgf-primary)]">
-                                    Gerar senha segura
-                                </button>
-                            </div>
-                        </div>
+                        <SGFInput label="E-mail de acesso" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="nome@empresa.com.br" fullWidth />
                     )}
                     {(role === 'secretario' || role === 'motorista') && (
                         <SGFSelect
@@ -385,64 +298,23 @@ export default function AccessManagement() {
                             fullWidth
                         />
                     )}
-                    {role !== 'motorista' && <ModuleChecks value={allowedModules} onChange={setAllowedModules} />}
-                    {role === 'motorista' && (
-                        <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                            O sistema gerará uma senha provisória, exibida uma única vez. O motorista trocará a senha no primeiro acesso.
-                        </p>
-                    )}
+                    {isStaffRole && <ModuleChecks value={allowedModules} onChange={setAllowedModules} />}
                 </div>
             </Modal>
 
-            <Modal
-                isOpen={Boolean(editing)}
+            <AccessEditModal
+                access={editing}
                 onClose={() => setEditing(null)}
-                title={`Permissões de ${editing?.full_name ?? ''}`}
-                description="As alterações passam a valer na próxima navegação do usuário."
-                size="lg"
-                footer={(
-                    <ModalFooter>
-                        <SGFButton variant="ghost" onClick={() => setEditing(null)}>Cancelar</SGFButton>
-                        <SGFButton
-                            loading={updateAccess.isPending}
-                            onClick={() => editing && updateAccess.mutate({
-                                id: editing.id,
-                                update: { allowedModules: editModules },
-                            })}
-                        >
-                            Salvar permissões
-                        </SGFButton>
-                    </ModalFooter>
-                )}
-            >
-                <ModuleChecks value={editModules} onChange={setEditModules} />
-            </Modal>
-
-            <Modal
-                isOpen={Boolean(tempCredential)}
-                onClose={() => setTempCredential(null)}
-                title="Acesso do motorista criado"
-                description="Copie agora: a senha provisória não será exibida novamente."
-                size="sm"
-            >
-                <div className="space-y-3 rounded-2xl bg-slate-900 p-5 text-white">
-                    <p className="font-bold">{tempCredential?.name}</p>
-                    <p className="text-sm text-slate-300">CPF: {tempCredential?.cpf}</p>
-                    <p className="font-mono text-xl font-bold text-emerald-300">{tempCredential?.password}</p>
-                    <SGFButton
-                        fullWidth
-                        onClick={() => {
-                            if (!tempCredential) return;
-                            void navigator.clipboard.writeText(
-                                `CPF: ${tempCredential.cpf}\nSenha provisória: ${tempCredential.password}`,
-                            );
-                            toast.success('Credenciais copiadas.');
-                        }}
-                    >
-                        Copiar credenciais
-                    </SGFButton>
-                </div>
-            </Modal>
+                onSaved={refresh}
+                onRemove={(access) => { setEditing(null); setRemoving(access); }}
+                onTempPassword={setCredential}
+            />
+            <RemoveAccessDialog
+                access={removing}
+                onClose={() => setRemoving(null)}
+                onRemoved={() => { setRemoving(null); refresh(); }}
+            />
+            <TempPasswordDialog credential={credential} onClose={() => setCredential(null)} />
         </div>
     );
 }

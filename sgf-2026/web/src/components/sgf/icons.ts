@@ -145,6 +145,8 @@ export { ShieldCheckmark24Regular as ShieldCheckmark } from '@fluentui/react-ico
 export { ShieldCheckmark24Regular as BadgeCheck } from '@fluentui/react-icons';
 export { ShieldDismiss24Regular as ShieldAlert } from '@fluentui/react-icons';
 export { LockClosed24Regular as Lock } from '@fluentui/react-icons';
+export { LockOpen24Regular as LockOpen } from '@fluentui/react-icons';
+export { Copy24Regular as Copy } from '@fluentui/react-icons';
 export { LockClosedKey24Regular as LockKeyhole } from '@fluentui/react-icons';
 export { LockClosedKey24Regular as LockClosedKey } from '@fluentui/react-icons';
 export { Key24Regular as KeyRound } from '@fluentui/react-icons';

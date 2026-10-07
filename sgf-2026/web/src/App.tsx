@@ -61,8 +61,8 @@ function ModuleRoute({ module, children }: { module: AccessModule; children: Rea
 
 function AccessManagersRoute({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  // Gestão de acessos: só administrador e superadministrador.
   return user?.accountRole === 'admin'
-    || user?.accountRole === 'gestor'
     || user?.accountRole === 'superadmin'
     ? children
     : <Navigate to="/" replace />;

@@ -64,6 +64,7 @@ import {
     resolvePeriod,
     type PeriodValue,
 } from '@/components/sgf';
+import { useAuth } from '@/contexts/AuthContext';
 
 const fuelTypeColors = ['#00A86B', '#3B82F6', '#F59E0B', '#F97316', '#8B5CF6', '#EC4899'];
 
@@ -193,6 +194,9 @@ function DepartmentOverviewPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [isFormOpen, setFormOpen] = useState(false);
     const [isSecretarioOpen, setSecretarioOpen] = useState(false);
+    // Criar acesso (secretário) é exclusivo do administrador.
+    const { user } = useAuth();
+    const canCreateAccess = user?.accountRole === 'admin';
 
     const { data = [], isLoading } = useQuery({
         queryKey: ['departments', 'operational-overview'],
@@ -217,9 +221,11 @@ function DepartmentOverviewPage() {
         setSearchHandler((term) => setSearchTerm(term.trim().toLowerCase()));
         setHeaderAction(
             <div className="flex items-center gap-2">
-                <SGFButton variant="outline" onClick={() => setSecretarioOpen(true)} icon={User} className="!rounded-full !h-[37px] !border-slate-200 hover:!bg-slate-50">
-                    Novo secretário
-                </SGFButton>
+                {canCreateAccess && (
+                    <SGFButton variant="outline" onClick={() => setSecretarioOpen(true)} icon={User} className="!rounded-full !h-[37px] !border-slate-200 hover:!bg-slate-50">
+                        Novo secretário
+                    </SGFButton>
+                )}
                 <SGFButton variant="primary" onClick={() => setFormOpen(true)} icon={Plus} className="!rounded-full !h-[37px]">
                     Nova secretaria
                 </SGFButton>
@@ -229,7 +235,7 @@ function DepartmentOverviewPage() {
             setSearchHandler(() => { });
             setHeaderAction(null);
         };
-    }, [setDescription, setHeaderAction, setSearchHandler, setSearchPlaceholder, setTitle]);
+    }, [canCreateAccess, setDescription, setHeaderAction, setSearchHandler, setSearchPlaceholder, setTitle]);
 
     const filtered = useMemo(() => {
         if (!searchTerm) return data;

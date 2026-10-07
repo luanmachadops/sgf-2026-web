@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { NewSecretarioModal } from '@/components/settings/NewSecretarioModal';
 import type { Tables } from '@/types/database.types';
 import { useSyncOnChange } from '@/hooks/useSyncOnChange';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface DepartmentFormModalProps {
     isOpen: boolean;
@@ -19,6 +20,8 @@ export interface DepartmentFormModalProps {
 export function DepartmentFormModal({ isOpen, onClose, department }: DepartmentFormModalProps) {
     const queryClient = useQueryClient();
     const isEditing = Boolean(department);
+    const { user } = useAuth();
+    const canCreateAccess = user?.accountRole === 'admin';
 
     const [name, setName] = useState('');
     const [code, setCode] = useState('');
@@ -177,14 +180,14 @@ export function DepartmentFormModal({ isOpen, onClose, department }: DepartmentF
                             <label className="block text-[var(--sgf-text-sm)] font-[var(--sgf-font-semibold)] text-[var(--sgf-text-primary)]">
                                 Secretário responsável
                             </label>
-                            <button
+                            {canCreateAccess && <button
                                 type="button"
                                 onClick={() => setShowNewSecretarioModal(true)}
                                 className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
                             >
                                 <Plus className="h-3.5 w-3.5" />
                                 Cadastrar novo secretário
-                            </button>
+                            </button>}
                         </div>
                         <SGFSelect
                             options={secretarioOptions}

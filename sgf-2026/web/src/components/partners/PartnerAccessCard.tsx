@@ -3,10 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { SGFBadge, SGFButton, SGFCard } from '@/components/sgf';
 import { SGFInput } from '@/components/sgf/SGFInput';
-import { Loader2, Lock, Mail, Plus, X } from '@/components/sgf/icons';
-import { partnersApi, type PartnerType } from '@/lib/backend-api';
+import { ChevronRight, Loader2, Plus, X } from '@/components/sgf/icons';
+import { accessManagementApi, type ManagedAccess, type PartnerType } from '@/lib/backend-api';
 import { useAuth } from '@/contexts/AuthContext';
-import { formatDate } from '@/lib/utils';
+import { AccessEditModal } from '@/components/access/AccessEditModal';
+import { RemoveAccessDialog, TempPasswordDialog } from '@/components/access/accessShared';
+import { loginOf } from '@/components/access/accessRoles';
 
 interface Props {
     partnerType: PartnerType;
@@ -17,181 +19,128 @@ interface Props {
 }
 
 /**
- * Card "Acesso ao sistema" nas telas de posto e oficina.
- *
- * Só o admin gerencia acesso de parceiro — o servidor recusa qualquer outro
- * papel, então aqui o card fica em modo leitura para gestor/secretário em vez
- * de oferecer um botão que só daria 403.
+ * Card "Usuários do sistema" nas telas de posto e oficina. A empresa pode ter
+ * vários usuários; cada um abre a mesma edição da Gestão de acessos (nome,
+ * e-mail, nova senha, bloquear, remover). Só o administrador gerencia.
  */
 export function PartnerAccessCard({ partnerType, partnerId, partnerName, systemLabel }: Props) {
     const { user } = useAuth();
     const qc = useQueryClient();
-    const isAdmin = user?.accountRole === 'admin';
+    const canManage = user?.accountRole === 'admin' || user?.accountRole === 'superadmin';
 
-    const [creating, setCreating] = useState(false);
+    const [adding, setAdding] = useState(false);
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
-    const [tempPassword, setTempPassword] = useState<string | null>(null);
+    const [editing, setEditing] = useState<ManagedAccess | null>(null);
+    const [removing, setRemoving] = useState<ManagedAccess | null>(null);
+    const [credential, setCredential] = useState<{ name: string; login: string; password: string } | null>(null);
 
-    const queryKey = ['partnerAccess', partnerType, partnerId];
-    const { data, isLoading, error, refetch } = useQuery({
+    const queryKey = ['partner-users', partnerType, partnerId];
+    const users = useQuery({
         queryKey,
-        queryFn: () => partnersApi.get(partnerType, partnerId),
-        enabled: isAdmin && Boolean(partnerId),
+        queryFn: () => accessManagementApi.listPartnerUsers(partnerType, partnerId),
+        enabled: canManage && Boolean(partnerId),
     });
-    const access = data?.access ?? null;
+    const refresh = () => {
+        void qc.invalidateQueries({ queryKey });
+        void qc.invalidateQueries({ queryKey: ['managed-accesses'] });
+    };
 
-    const invalidate = () => qc.invalidateQueries({ queryKey });
-
-    const createMut = useMutation({
-        mutationFn: () => partnersApi.create({ partnerType, partnerId, name: name.trim(), email: email.trim() }),
-        onSuccess: (res) => {
-            setTempPassword(res.tempPassword);
-            setCreating(false);
+    const create = useMutation({
+        mutationFn: () => accessManagementApi.create({ role: partnerType, partnerId, name: name.trim(), email: email.trim() }),
+        onSuccess: (created) => {
+            setAdding(false);
             setName(''); setEmail('');
-            invalidate();
-            toast.success('Acesso criado. Entregue a senha provisória ao parceiro.');
+            refresh();
+            if (created.tempPassword) setCredential({ name: created.full_name, login: loginOf(created), password: created.tempPassword });
         },
-        onError: (err) => toast.error((err as { message?: string })?.message ?? 'Erro ao criar acesso.'),
+        onError: (error) => toast.error((error as Error).message),
     });
 
-    const resetMut = useMutation({
-        mutationFn: () => partnersApi.resetPassword(partnerType, partnerId),
-        onSuccess: (res) => {
-            setTempPassword(res.tempPassword);
-            invalidate();
-            toast.success('Senha redefinida.');
-        },
-        onError: (err) => toast.error((err as { message?: string })?.message ?? 'Erro ao redefinir senha.'),
-    });
-
-    const blockMut = useMutation({
-        mutationFn: (blocked: boolean) => partnersApi.setBlocked(partnerType, partnerId, blocked),
-        onSuccess: (res) => {
-            invalidate();
-            toast.success(res.blocked ? 'Acesso bloqueado.' : 'Acesso liberado.');
-        },
-        onError: (err) => toast.error((err as { message?: string })?.message ?? 'Erro ao alterar o acesso.'),
-    });
-
-    const busy = createMut.isPending || resetMut.isPending || blockMut.isPending;
+    const list = users.data ?? [];
+    const active = list.filter((item) => !item.access_blocked).length;
 
     return (
         <SGFCard>
             <div className="flex items-start justify-between gap-3">
                 <div>
-                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Acesso ao sistema</p>
-                    <p className="text-sm text-slate-500">{systemLabel} — login próprio do parceiro.</p>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Usuários do sistema</p>
+                    <p className="text-sm text-slate-500">{systemLabel} — cada pessoa com o próprio login.</p>
                 </div>
-                {error ? <SGFBadge variant="error">Consulta indisponível</SGFBadge> : access
-                    ? (access.access_blocked
-                        ? <SGFBadge variant="error">Bloqueado</SGFBadge>
-                        : <SGFBadge variant="success">Ativo</SGFBadge>)
-                    : <SGFBadge variant="default">Sem acesso</SGFBadge>}
+                {canManage && !users.isLoading && !users.isError && (
+                    <SGFBadge variant={active > 0 ? 'success' : 'default'}>{active > 0 ? `${active} ativo${active > 1 ? 's' : ''}` : 'Sem acesso'}</SGFBadge>
+                )}
             </div>
 
-            {!isAdmin ? (
+            {!canManage ? (
                 <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
-                    Somente o administrador pode criar ou alterar o acesso do parceiro.
+                    Somente o administrador pode criar ou alterar os acessos do parceiro.
                 </p>
-            ) : isLoading ? (
+            ) : users.isLoading ? (
                 <div className="mt-6 flex justify-center"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>
-            ) : error ? (
+            ) : users.isError ? (
                 <div className="mt-4" role="alert">
-                    <p className="text-sm text-red-700">{error.message}</p>
-                    <SGFButton variant="ghost" size="sm" onClick={() => void refetch()}>Tentar novamente</SGFButton>
-                </div>
-            ) : access ? (
-                <>
-                    <dl className="mt-4 space-y-2 text-sm">
-                        <div className="flex justify-between gap-3">
-                            <dt className="text-slate-500">Responsável</dt>
-                            <dd className="truncate font-semibold text-slate-800">{access.full_name || '—'}</dd>
-                        </div>
-                        <div className="flex justify-between gap-3">
-                            <dt className="text-slate-500">E-mail</dt>
-                            <dd className="truncate text-slate-700">{access.email || '—'}</dd>
-                        </div>
-                        <div className="flex justify-between gap-3">
-                            <dt className="text-slate-500">Último acesso</dt>
-                            <dd className="text-slate-700">
-                                {access.last_sign_in_at ? formatDate(access.last_sign_in_at) : 'Nunca entrou'}
-                            </dd>
-                        </div>
-                        {access.must_change_password && (
-                            <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                                Senha provisória — o parceiro precisa trocá-la no primeiro acesso.
-                            </p>
-                        )}
-                    </dl>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                        <SGFButton variant="secondary" size="sm" icon={Lock} disabled={busy}
-                            onClick={() => resetMut.mutate()}>
-                            Redefinir senha
-                        </SGFButton>
-                        <SGFButton
-                            variant={access.access_blocked ? 'primary' : 'ghost'}
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => blockMut.mutate(!access.access_blocked)}
-                        >
-                            {access.access_blocked ? 'Liberar acesso' : 'Bloquear acesso'}
-                        </SGFButton>
-                    </div>
-                </>
-            ) : creating ? (
-                <div className="mt-4 space-y-3">
-                    <SGFInput label="Nome do responsável" value={name} onChange={(e) => setName(e.target.value)}
-                        placeholder="Quem vai usar o sistema" fullWidth />
-                    <SGFInput label="E-mail de acesso" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                        placeholder="contato@empresa.com.br" fullWidth />
-                    <p className="text-xs text-slate-400">
-                        A senha provisória é gerada automaticamente e aparece uma única vez, para você entregar ao parceiro.
-                    </p>
-                    <div className="flex gap-2">
-                        <SGFButton size="sm" disabled={busy || !name.trim() || !email.trim()} onClick={() => createMut.mutate()}>
-                            {createMut.isPending ? 'Criando...' : 'Criar acesso'}
-                        </SGFButton>
-                        <SGFButton variant="ghost" size="sm" icon={X} disabled={busy} onClick={() => setCreating(false)}>
-                            Cancelar
-                        </SGFButton>
-                    </div>
+                    <p className="text-sm text-red-700">{(users.error as Error).message}</p>
+                    <SGFButton variant="ghost" size="sm" onClick={() => void users.refetch()}>Tentar novamente</SGFButton>
                 </div>
             ) : (
                 <>
-                    <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
-                        {partnerName} ainda não tem login. Crie o acesso para que a empresa registre pelo próprio sistema.
-                    </p>
-                    <SGFButton className="mt-3" size="sm" icon={Plus} onClick={() => setCreating(true)}>
-                        Criar acesso
-                    </SGFButton>
+                    {list.length === 0 && !adding && (
+                        <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
+                            {partnerName} ainda não tem usuários. Adicione quem vai usar o sistema.
+                        </p>
+                    )}
+                    {list.length > 0 && (
+                        <ul className="mt-4 divide-y divide-slate-100 rounded-2xl border border-slate-100">
+                            {list.map((item) => (
+                                <li key={item.id}>
+                                    <button type="button" onClick={() => setEditing(item)} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50">
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm font-semibold text-slate-800">{item.full_name}</span>
+                                            <span className="block truncate text-xs text-slate-500">{item.email}</span>
+                                        </span>
+                                        {item.must_change_password && !item.access_blocked && (
+                                            <span className="hidden rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 sm:inline">Senha provisória</span>
+                                        )}
+                                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${item.access_blocked ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                                            {item.access_blocked ? 'Bloqueado' : 'Ativo'}
+                                        </span>
+                                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+
+                    {adding ? (
+                        <div className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
+                            <SGFInput label="Nome do responsável" value={name} onChange={(event) => setName(event.target.value)} placeholder="Quem vai usar o sistema" fullWidth />
+                            <SGFInput label="E-mail de acesso" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="contato@empresa.com.br" fullWidth />
+                            <p className="text-xs text-slate-400">A senha provisória é gerada pelo sistema e aparece uma única vez, para você entregar à pessoa.</p>
+                            <div className="flex gap-2">
+                                <SGFButton size="sm" loading={create.isPending} disabled={name.trim().length < 3 || !email.includes('@')} onClick={() => create.mutate()}>
+                                    Criar usuário
+                                </SGFButton>
+                                <SGFButton variant="ghost" size="sm" icon={X} disabled={create.isPending} onClick={() => setAdding(false)}>Cancelar</SGFButton>
+                            </div>
+                        </div>
+                    ) : (
+                        <SGFButton className="mt-3" size="sm" variant={list.length ? 'outline' : 'primary'} icon={Plus} onClick={() => setAdding(true)}>
+                            Adicionar usuário
+                        </SGFButton>
+                    )}
                 </>
             )}
 
-            {tempPassword && (
-                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                            <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Senha provisória</p>
-                            <p className="mt-1 font-mono text-lg font-bold tracking-wider text-emerald-900">{tempPassword}</p>
-                            <p className="mt-1 text-xs text-emerald-700">
-                                Anote agora: ela não é exibida de novo. O parceiro troca no primeiro acesso.
-                            </p>
-                        </div>
-                        <button type="button" onClick={() => setTempPassword(null)} className="text-emerald-600 hover:text-emerald-800">
-                            <X className="h-4 w-4" />
-                        </button>
-                    </div>
-                    <SGFButton className="mt-3" variant="secondary" size="sm" icon={Mail}
-                        onClick={() => {
-                            void navigator.clipboard.writeText(tempPassword);
-                            toast.success('Senha copiada.');
-                        }}>
-                        Copiar senha
-                    </SGFButton>
-                </div>
-            )}
+            <AccessEditModal
+                access={editing}
+                onClose={() => setEditing(null)}
+                onSaved={refresh}
+                onRemove={(access) => { setEditing(null); setRemoving(access); }}
+                onTempPassword={setCredential}
+            />
+            <RemoveAccessDialog access={removing} onClose={() => setRemoving(null)} onRemoved={() => { setRemoving(null); refresh(); }} />
+            <TempPasswordDialog credential={credential} onClose={() => setCredential(null)} />
         </SGFCard>
     );
 }

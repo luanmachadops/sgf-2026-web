@@ -233,22 +233,30 @@ export const managerAccessApi = {
         }),
 };
 
-export type ManagedAccessRole = 'admin' | 'gestor' | 'secretario' | 'motorista';
+export type ManagedAccessRole = 'admin' | 'gestor' | 'secretario' | 'motorista' | 'posto' | 'oficina';
+export type PartnerType = 'posto' | 'oficina';
 
 export interface ManagedAccess {
     id: string;
     full_name: string;
     email: string | null;
     cpf: string | null;
+    phone?: string | null;
     role: ManagedAccessRole;
     tenant_id: string;
     department_id: string | null;
+    station_id?: string | null;
+    repair_shop_id?: string | null;
     access_blocked: boolean;
+    must_change_password?: boolean | null;
     allowed_modules: string[];
     driver_status: string | null;
     created_at: string;
     departments?: { id: string; name: string } | null;
     tenants?: { id: string; name: string } | null;
+    fuel_stations?: { id: string; name: string } | null;
+    repair_shops?: { id: string; name: string } | null;
+    /** Senha provisória — vem só na criação e na redefinição, uma única vez. */
     tempPassword?: string | null;
 }
 
@@ -258,62 +266,42 @@ export interface CreateManagedAccess {
     email?: string;
     cpf?: string;
     registrationNumber?: string;
-    password?: string;
     departmentId?: string;
     tenantId?: string;
-    allowedModules: string[];
+    partnerId?: string;
+    allowedModules?: string[];
 }
 
+export interface UpdateManagedAccess {
+    name?: string;
+    email?: string;
+    role?: ManagedAccessRole;
+    departmentId?: string | null;
+    allowedModules?: string[];
+    accessBlocked?: boolean;
+    resetPassword?: boolean;
+}
+
+export interface RemovalImpact {
+    history: number;
+    /** 'delete' = some de vez; 'archive' = tem histórico, então é arquivado. */
+    action: 'delete' | 'archive';
+}
+
+/** Gestão de acessos — só administrador e superadministrador (validado no servidor). */
 export const accessManagementApi = {
     list: () => request<ManagedAccess[]>('/access', { method: 'GET' }),
+    listPartnerUsers: (partnerType: PartnerType, partnerId: string) =>
+        request<ManagedAccess[]>(`/access?partnerType=${partnerType}&partnerId=${encodeURIComponent(partnerId)}`, { method: 'GET' }),
+    removalImpact: (id: string) =>
+        request<RemovalImpact>(`/access?impact=${encodeURIComponent(id)}`, { method: 'GET' }),
     create: (payload: CreateManagedAccess) =>
         request<ManagedAccess>('/access', { method: 'POST', body: JSON.stringify(payload) }),
-    update: (id: string, payload: { accessBlocked?: boolean; allowedModules?: string[] }) =>
-        request<ManagedAccess>('/access', {
-            method: 'PATCH',
-            body: JSON.stringify({ id, ...payload }),
-        }),
+    update: (id: string, payload: UpdateManagedAccess) =>
+        request<ManagedAccess>('/access', { method: 'PATCH', body: JSON.stringify({ id, ...payload }) }),
     remove: (id: string) =>
-        request<void>('/access', { method: 'DELETE', body: JSON.stringify({ id }) }),
+        request<{ result: 'deleted' | 'archived' }>('/access', { method: 'DELETE', body: JSON.stringify({ id }) }),
 };
 
 export { BackendApiError };
 
-export type PartnerType = 'posto' | 'oficina';
-
-export interface PartnerAccess {
-    id: string;
-    full_name: string | null;
-    email: string | null;
-    access_blocked: boolean | null;
-    must_change_password: boolean | null;
-    created_at?: string | null;
-    last_sign_in_at?: string | null;
-}
-
-/** Acesso ao portal do parceiro (posto/oficina). Só admin — validado no servidor. */
-export const partnersApi = {
-    get: (partnerType: PartnerType, partnerId: string) =>
-        request<{ access: PartnerAccess | null }>(
-            `/partners?partnerType=${partnerType}&partnerId=${encodeURIComponent(partnerId)}`,
-            { method: 'GET' },
-        ),
-
-    create: (input: { partnerType: PartnerType; partnerId: string; name: string; email: string; password?: string }) =>
-        request<{ access: PartnerAccess; tempPassword: string }>('/partners', {
-            method: 'POST',
-            body: JSON.stringify({ action: 'create', ...input }),
-        }),
-
-    resetPassword: (partnerType: PartnerType, partnerId: string) =>
-        request<{ success: boolean; tempPassword: string }>('/partners', {
-            method: 'POST',
-            body: JSON.stringify({ action: 'reset', partnerType, partnerId }),
-        }),
-
-    setBlocked: (partnerType: PartnerType, partnerId: string, blocked: boolean) =>
-        request<{ success: boolean; blocked: boolean }>('/partners', {
-            method: 'POST',
-            body: JSON.stringify({ action: blocked ? 'block' : 'unblock', partnerType, partnerId }),
-        }),
-};

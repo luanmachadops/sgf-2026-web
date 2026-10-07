@@ -104,8 +104,8 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
     const { branding } = useBranding();
     const departmentScoped = Boolean(user?.departmentScopeId);
     const procurement = procurementAccess(user);
+    // Gestão de acessos: só administrador e superadministrador.
     const canManageAccess = user?.accountRole === 'admin'
-        || user?.accountRole === 'gestor'
         || user?.accountRole === 'superadmin';
     const visibleSections = menuSections
         .map((section) => ({
