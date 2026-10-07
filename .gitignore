@@ -10,3 +10,6 @@ new.sh
 new2.sh
 .vercel
 .env*
+
+# Cache incremental do TypeScript (muda a cada build)
+*.tsbuildinfo
