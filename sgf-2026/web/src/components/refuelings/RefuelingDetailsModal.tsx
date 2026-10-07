@@ -25,6 +25,7 @@ import {
 import { refuelingsApi } from '@/lib/supabase-api';
 import { formatCurrency, formatDate, formatPlate, cn, NO_DRIVER_LABEL } from '@/lib/utils';
 import { useValidateRefueling, useCancelFuelAuthorization } from '@/hooks/useRefuelings';
+import { isAuthorizationExpired } from '@/lib/fuelingAuthorization';
 
 export type WorkflowStatus =
     | 'autorizado'
@@ -86,6 +87,8 @@ export interface RefuelingData {
     notes?: string | null;
     authorization_note?: string | null;
     cancellation_reason?: string | null;
+    expiresAt?: string | null;
+    expires_at?: string | null;
     vehicles?: {
         id?: string;
         plate?: string | null;
@@ -164,11 +167,18 @@ function getFuelBadge(rawFuel?: string | null) {
     return { label, bg: 'bg-slate-100 text-slate-700 border-slate-200' };
 }
 
-function getWorkflowMeta(status?: WorkflowStatus | null): {
+function getWorkflowMeta(status?: WorkflowStatus | null, expired = false): {
     label: string;
     variant: 'success' | 'warning' | 'error' | 'info' | 'default';
     description: string;
 } {
+    if (expired) {
+        return {
+            label: 'Autorização vencida',
+            variant: 'warning',
+            description: 'O prazo acabou e o posto não consegue mais lançar este abastecimento. Cancele a autorização para encerrá-la e liberar o saldo reservado do contrato.',
+        };
+    }
     switch (status) {
         case 'autorizado':
             return {
@@ -328,6 +338,7 @@ export function RefuelingDetailsModal({
             odometer,
             consumption,
             rawStatus,
+            expired: isAuthorizationExpired(rawStatus, activeRefueling.expiresAt ?? activeRefueling.expires_at ?? null),
             hasAnomaly,
             anomalyType,
             fuelType: activeRefueling.fuelType || activeRefueling.fuel_type || 'Diesel',
@@ -413,7 +424,7 @@ export function RefuelingDetailsModal({
     if (!isModalOpen) return null;
 
     const shortProtocol = details?.id ? `AB-${details.id.slice(0, 8).toUpperCase()}` : 'AB-000000';
-    const workflow = getWorkflowMeta(details?.rawStatus);
+    const workflow = getWorkflowMeta(details?.rawStatus, details?.expired);
     const fuelBadge = getFuelBadge(details?.fuelType);
 
     // Galeria de evidências

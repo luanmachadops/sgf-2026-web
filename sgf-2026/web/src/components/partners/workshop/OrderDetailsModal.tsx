@@ -96,8 +96,9 @@ export function OrderDetailsModal({
         ),
     });
 
-    const canQuote = ['at_shop', 'awaiting_quote_approval']
-        .includes(order.operationalStatus);
+    // Depois de aprovado (aguardando empenho/empenhado) o banco recusa novo orçamento.
+    const canQuote = ['at_shop', 'awaiting_quote_approval'].includes(order.operationalStatus)
+        && order.financialStatus === 'not_started';
     const canStart = order.operationalStatus === 'awaiting_quote_approval'
         && order.financialStatus === 'committed';
     const canFinish = order.operationalStatus === 'in_progress';
@@ -129,7 +130,7 @@ export function OrderDetailsModal({
                         <SGFButton variant="ghost" onClick={onClose}>Fechar</SGFButton>
                         {canQuote && (
                             <SGFButton variant="outline" icon={Receipt} onClick={() => setActionModal('quote')}>
-                                Enviar orçamento
+                                {order.operationalStatus === 'awaiting_quote_approval' ? 'Revisar orçamento' : 'Enviar orçamento'}
                             </SGFButton>
                         )}
                         {canStart && (

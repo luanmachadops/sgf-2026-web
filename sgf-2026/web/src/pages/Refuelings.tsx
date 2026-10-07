@@ -24,6 +24,7 @@ import { StationClosingsPanel } from '@/components/refuelings/StationClosingsPan
 import { RefuelingDetailsModal } from '@/components/refuelings/RefuelingDetailsModal';
 import { useRefuelings } from '@/hooks/useRefuelings';
 import type { Tables } from '@/types/database.types';
+import { isAuthorizationExpired } from '@/lib/fuelingAuthorization';
 
 type WorkflowStatus = 'autorizado' | 'concluido' | 'rejeitado_motorista' | 'validado' | 'rejeitado_admin' | 'lancado_direto';
 
@@ -38,7 +39,8 @@ const WORKFLOW_TABS: Array<{ value: WorkflowTab; label: string }> = [
     { value: 'lancado_direto', label: 'Lançamentos diretos' },
 ];
 
-function workflowBadge(status: WorkflowStatus | null | undefined): { label: string; variant: 'success' | 'warning' | 'error' | 'info' | 'default' } {
+function workflowBadge(status: WorkflowStatus | null | undefined, expired = false): { label: string; variant: 'success' | 'warning' | 'error' | 'info' | 'default' } {
+    if (expired) return { label: 'Autorização vencida', variant: 'warning' };
     switch (status) {
         case 'autorizado':            return { label: 'Autorizado',           variant: 'info' };
         case 'concluido':             return { label: 'Aguardando validação', variant: 'warning' };
@@ -84,6 +86,7 @@ type RefuelingRow = {
     photoPump: string | null;
     photoReceipt: string | null;
     receiptNumber: string | null;
+    expiresAt: string | null;
 };
 
 export default function Refuelings() {
@@ -155,6 +158,7 @@ export default function Refuelings() {
                 photoPump: row.photo_pump_url ?? null,
                 photoReceipt: row.photo_receipt_url ?? null,
                 receiptNumber: row.pump_receipt_number ?? null,
+                expiresAt: row.expires_at ?? null,
             };
         });
     }, [rawRefuelings]);
@@ -245,7 +249,7 @@ export default function Refuelings() {
         {
             header: 'Workflow',
             accessor: (row) => {
-                const b = workflowBadge(row.workflowStatus);
+                const b = workflowBadge(row.workflowStatus, isAuthorizationExpired(row.workflowStatus, row.expiresAt));
                 return <SGFBadge variant={b.variant}>{b.label}</SGFBadge>;
             },
         },
