@@ -53,7 +53,7 @@ export default function Settings() {
   const dirty = !!profile && (name.trim() !== (profile.full_name ?? '') || phone.replace(/\D/g, '') !== (profile.phone ?? '').replace(/\D/g, ''));
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="space-y-6">
       <PageHeader title="Configurações" subtitle="Seu perfil, avisos e integrações." />
 
       {/* Perfil em destaque */}
@@ -77,6 +77,8 @@ export default function Settings() {
         </div>
       </section>
 
+      <div className="grid items-start gap-6 xl:grid-cols-2">
+      <div className="space-y-6">
       <SGFCard padding="lg" title="Dados pessoais" icon={User}>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input label="Nome completo" value={name} onChange={(e) => setName(e.target.value)} className="sm:col-span-2" />
@@ -88,9 +90,6 @@ export default function Settings() {
         </div>
       </SGFCard>
 
-      <NotificationPrefsCard />
-
-      <IopgpsCredentialsCard />
 
       <SGFCard padding="lg">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -101,6 +100,12 @@ export default function Settings() {
           <Button variant="outline" onClick={logout}>Sair</Button>
         </div>
       </SGFCard>
+      </div>
+
+      <NotificationPrefsCard />
+      </div>
+
+      <IopgpsCredentialsCard />
     </div>
   );
 }
