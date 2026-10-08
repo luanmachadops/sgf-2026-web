@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, useWatch, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Loader2, Save, Sparkles, ChevronDown, Camera, X, Car, FileText } from '@/components/sgf/icons';
@@ -45,6 +45,9 @@ function withMask(
 function maskYear(val: string): string {
     return val.replace(/\D/g, '').slice(0, 4);
 }
+
+/** Placa no formato gravado no banco: só letras e números, maiúsculas. */
+const normalizePlate = (value: string) => value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
 const vehicleSchema = z.object({
     plate: z.string().min(7, 'Placa inválida').max(8, 'Placa inválida'),
@@ -119,7 +122,7 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
     );
 
     const {
-        register, handleSubmit, control, setValue,
+        register, handleSubmit, control, setValue, setError, clearErrors,
         formState: { errors, isSubmitting: isFormSubmitting },
     } = useForm<VehicleFormInput>({
         resolver: zodResolver(vehicleSchema),
@@ -130,6 +133,40 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
             departmentId: user?.departmentId ?? '',
         },
     });
+
+    // Verifica a placa enquanto digita: o banco não aceita duas iguais, então
+    // avisa antes do cadastro em vez de falhar no final.
+    const plateValue = useWatch({ control, name: 'plate' });
+    const [duplicatePlate, setDuplicatePlate] = useState<string | null>(null);
+    const [checkingPlate, setCheckingPlate] = useState(false);
+    useEffect(() => {
+        const plate = normalizePlate(plateValue ?? '');
+        if (plate.length < 7) { setDuplicatePlate(null); setCheckingPlate(false); return; }
+        let cancelled = false;
+        setCheckingPlate(true);
+        const timer = window.setTimeout(async () => {
+            const { data } = await supabase
+                .from('vehicles')
+                .select('plate, brand, model')
+                .or(`plate.eq.${plate},unit_code.eq.${plate},qr_code.eq.${plate}`)
+                .limit(1);
+            if (cancelled) return;
+            const found = data?.[0];
+            setDuplicatePlate(found ? `Placa já cadastrada (${[found.brand, found.model].filter(Boolean).join(' ') || found.plate}).` : null);
+            setCheckingPlate(false);
+        }, 400);
+        return () => { cancelled = true; window.clearTimeout(timer); };
+    }, [plateValue]);
+    const showedDuplicate = useRef(false);
+    useEffect(() => {
+        if (duplicatePlate) {
+            setError('plate', { type: 'duplicate', message: duplicatePlate });
+            showedDuplicate.current = true;
+        } else if (showedDuplicate.current) {
+            clearErrors('plate');
+            showedDuplicate.current = false;
+        }
+    }, [duplicatePlate, setError, clearErrors]);
 
     useEffect(() => {
         if (user?.departmentId) setValue('departmentId', user.departmentId);
@@ -197,8 +234,9 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
     const isSubmitting = isFormSubmitting || isUploading;
 
     const onSubmit = async (data: VehicleFormInput) => {
+        if (duplicatePlate) { toast.error(duplicatePlate); return; }
         try {
-            const normalizedPlate = data.plate.trim().toUpperCase();
+            const normalizedPlate = normalizePlate(data.plate);
             const payload: TablesInsert<'vehicles'> = {
                 unit_code: normalizedPlate,
                 plate: normalizedPlate,
@@ -270,7 +308,10 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
             onSuccess();
         } catch (error: unknown) {
             console.error('Error creating vehicle:', error);
-            const message = error instanceof Error ? error.message : 'Erro ao cadastrar veículo.';
+            const code = (error as { code?: string })?.code;
+            const message = code === '23505'
+                ? 'Já existe um veículo com esta placa ou código.'
+                : error instanceof Error ? error.message : 'Erro ao cadastrar veículo.';
             toast.error(message);
         }
     };
@@ -432,7 +473,7 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
             <div className="space-y-4">
                 {/* Linha 1: Placa, Marca, Modelo, Ano (4 colunas) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                    <SGFInput label="Placa" placeholder="ABC-1234" {...register('plate')} error={errors.plate?.message} fullWidth />
+                    <SGFInput label="Placa" placeholder="ABC-1234" {...register('plate')} error={errors.plate?.message} hint={checkingPlate ? 'Verificando placa…' : undefined} fullWidth />
                     
                     <div>
                         <SGFSelect
@@ -575,7 +616,7 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
                 <SGFButton type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting} className="!rounded-full">
                     Cancelar
                 </SGFButton>
-                <SGFButton type="submit" icon={isSubmitting ? Loader2 : Save} disabled={isSubmitting} className="!rounded-full">
+                <SGFButton type="submit" icon={isSubmitting ? Loader2 : Save} disabled={isSubmitting || Boolean(duplicatePlate) || checkingPlate} className="!rounded-full">
                     {isSubmitting ? 'Salvando...' : 'Cadastrar Veículo'}
                 </SGFButton>
             </div>
