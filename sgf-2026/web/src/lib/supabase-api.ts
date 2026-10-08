@@ -62,6 +62,29 @@ export type TripRecord = Omit<Tables<'trips'>, 'status'> & {
     drivers?: { id: string; name: string; photo_url: string | null } | null;
 };
 
+export type TripTimelineSeverity = 'info' | 'warning' | 'critical';
+export interface TripTimelineEvent {
+    at: string;
+    ended_at?: string | null;
+    duration_min?: number;
+    kind: string;
+    title: string;
+    detail?: string | null;
+    severity: TripTimelineSeverity;
+    source: 'driver' | 'tracker' | 'gps' | 'system';
+    engine?: 'on' | 'off' | null;
+    ongoing?: boolean;
+    lat?: number | null;
+    lng?: number | null;
+}
+export interface TripTimeline {
+    trip_id: string;
+    stopped_minutes: number;
+    idle_engine_minutes: number;
+    has_tracker_data: boolean;
+    events: TripTimelineEvent[];
+}
+
 // Fueling decorada pela camada de API: aliases date/supplier_name + relações.
 export type RefuelingRecord = Tables<'fuelings'> & {
     date: string;
@@ -650,6 +673,15 @@ export const tripsApi = withFotoUrls({
             .single();
         if (error) handleError(error);
         return decorateTrip(data as Record<string, unknown>);
+    },
+
+    // Linha do tempo: alarmes do rastreador, paradas pelo GPS, checklist,
+    // ocorrências, abastecimentos e lembretes — montada no banco.
+    getTimeline: async (tripId: string): Promise<TripTimeline> => {
+        const rpc = supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string; code?: string; details?: string } | null }>;
+        const { data, error } = await rpc('get_trip_timeline', { p_trip_id: tripId });
+        if (error) handleError(error);
+        return data as TripTimeline;
     },
 
     // Pontos GPS registrados ao longo da viagem (para desenhar o traçado/rota no mapa).

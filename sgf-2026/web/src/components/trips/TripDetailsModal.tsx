@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
+import { createPortal } from 'react-dom';
+import { MapContainer, TileLayer, Marker, Polyline, Popup, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Modal } from '@/components/ui/Modal';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
-import { MapPin, Navigation, Clock, Car, Users, AlertTriangle, Route, Gauge } from '@/components/sgf/icons';
+import { MapPin, Navigation, Clock, Car, Users, AlertTriangle, Route, Gauge, Maximize, Minimize } from '@/components/sgf/icons';
 import { formatDateTime, formatDistance, getStatusLabel, getStatusColor } from '@/lib/utils';
-import { useTrip, useTripLocations } from '@/hooks/useTrips';
+import { useTrip, useTripLocations, useTripTimeline } from '@/hooks/useTrips';
+import { TripTimeline } from '@/components/trips/TripTimeline';
+import { formatMinutes } from '@/lib/formatMinutes';
 import type { TripRecord } from '@/lib/supabase-api';
 import type { Tables } from '@/types/database.types';
 
@@ -45,6 +48,36 @@ function FitBounds({ points }: { points: [number, number][] }) {
         map.fitBounds(L.latLngBounds(points), { padding: [30, 30] });
     }, [map, points]);
     return null;
+}
+
+/** Botões do mapa: enquadrar a rota inteira e abrir/fechar a tela cheia. */
+function MapControls({ points, fullscreen, onToggleFullscreen }: { points: [number, number][]; fullscreen: boolean; onToggleFullscreen: () => void }) {
+    const map = useMap();
+    // O contêiner muda de tamanho na tela cheia; o Leaflet precisa recalcular.
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            map.invalidateSize();
+            if (points.length > 1) map.fitBounds(L.latLngBounds(points), { padding: [40, 40] });
+        }, 60);
+        return () => window.clearTimeout(timer);
+    }, [map, fullscreen, points]);
+    const fit = () => {
+        if (points.length === 1) map.setView(points[0], 16);
+        else if (points.length > 1) map.fitBounds(L.latLngBounds(points), { padding: [40, 40] });
+    };
+    const btn = 'grid h-10 w-10 place-items-center rounded-full bg-white text-slate-700 shadow-md ring-1 ring-black/5 transition hover:bg-slate-50';
+    return (
+        <div className="leaflet-top leaflet-right" style={{ pointerEvents: 'auto' }}>
+            <div className="leaflet-control m-3 flex flex-col gap-2">
+                <button type="button" className={btn} onClick={onToggleFullscreen} title={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'} aria-label={fullscreen ? 'Sair da tela cheia' : 'Tela cheia'}>
+                    {fullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+                </button>
+                <button type="button" className={btn} onClick={fit} title="Ver toda a rota" aria-label="Ver toda a rota">
+                    <Route className="h-5 w-5" />
+                </button>
+            </div>
+        </div>
+    );
 }
 
 function durationLabel(startAt?: string | null, endAt?: string | null): string {
@@ -92,7 +125,19 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
     const { data: tripRaw, isLoading: tripLoading } = useTrip(tripId ?? '');
     const { data: locations = [], isLoading: locLoading } = useTripLocations(tripId ?? undefined);
 
+    const timeline = useTripTimeline(tripId ?? undefined);
+    const [mapFullscreen, setMapFullscreen] = useState(false);
+    useEffect(() => {
+        if (!mapFullscreen) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setMapFullscreen(false); } };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    }, [mapFullscreen]);
     const trip = tripRaw as TripFull | undefined;
+    // Paradas e alertas com posição viram marcadores no mapa.
+    const mapEvents = (timeline.data?.events ?? []).filter(
+        (e) => e.lat != null && e.lng != null && (e.kind === 'stop' || e.severity !== 'info'),
+    );
 
     const points = useMemo<[number, number][]>(
         () => (locations as Tables<'trip_locations'>[]).map((l) => [Number(l.lat), Number(l.lng)] as [number, number]),
@@ -107,6 +152,65 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
     const endKm = trip?.end_odometer ?? startKm;
     const distance = trip?.distance_km ?? Math.max(endKm - startKm, 0);
     const hasAnomaly = trip?.status === 'CANCELLED' || Boolean(trip?.has_anomaly);
+
+    // Mesmo mapa no modal e na tela cheia (que vai para o body, fora do modal).
+    const mapBody = (
+        <>
+                            {!trip ? null : locLoading ? (
+                                <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                                    Carregando trajeto…
+                                </div>
+                            ) : points.length === 0 ? (
+                                <div className="flex h-full flex-col items-center justify-center gap-2 bg-slate-50 text-sm text-slate-400">
+                                    <Navigation className="h-6 w-6" />
+                                    Nenhum ponto de GPS registrado para esta viagem.
+                                </div>
+                            ) : (
+                                <MapContainer
+                                    center={points[0]}
+                                    zoom={14}
+                                    scrollWheelZoom
+                                    style={{ height: '100%', width: '100%' }}
+                                >
+                                    <TileLayer
+                                        attribution='&copy; OpenStreetMap'
+                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                    />
+                                    <Polyline positions={points} pathOptions={{ color: '#00A86B', weight: 4, opacity: 0.85 }} />
+                                    <Marker position={points[0]} icon={START_ICON}>
+                                        <Popup>Início da viagem</Popup>
+                                    </Marker>
+                                    {points.length > 1 && (
+                                        <Marker position={points[points.length - 1]} icon={END_ICON}>
+                                            <Popup>Fim da viagem</Popup>
+                                        </Marker>
+                                    )}
+                                    {mapEvents.map((e, i) => (
+                                        <CircleMarker
+                                            key={`${e.kind}-${e.at}-${i}`}
+                                            center={[Number(e.lat), Number(e.lng)]}
+                                            radius={e.kind === 'stop' ? 8 : 9}
+                                            pathOptions={{
+                                                color: '#fff',
+                                                weight: 2,
+                                                fillOpacity: 0.95,
+                                                fillColor: e.severity === 'critical' ? '#EF4444' : e.kind === 'stop' ? '#F59E0B' : '#F97316',
+                                            }}
+                                        >
+                                            <Popup>
+                                                <strong>{e.title}</strong>
+                                                <br />
+                                                {formatDateTime(e.at)}
+                                                {e.duration_min != null && ` · ${formatMinutes(e.duration_min)}`}
+                                            </Popup>
+                                        </CircleMarker>
+                                    ))}
+                                    <FitBounds points={points} />
+                                    <MapControls points={points} fullscreen={mapFullscreen} onToggleFullscreen={() => setMapFullscreen((v) => !v)} />
+                                </MapContainer>
+                            )}
+        </>
+    );
 
     return (
         <Modal
@@ -149,40 +253,23 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
                         <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                             <MapPin className="h-4 w-4 text-emerald-600" /> Trajeto registrado
                         </p>
-                        <div className="h-80 w-full overflow-hidden rounded-2xl border border-slate-200">
-                            {locLoading ? (
-                                <div className="flex h-full items-center justify-center text-sm text-slate-400">
-                                    Carregando trajeto…
-                                </div>
-                            ) : points.length === 0 ? (
-                                <div className="flex h-full flex-col items-center justify-center gap-2 bg-slate-50 text-sm text-slate-400">
-                                    <Navigation className="h-6 w-6" />
-                                    Nenhum ponto de GPS registrado para esta viagem.
-                                </div>
-                            ) : (
-                                <MapContainer
-                                    center={points[0]}
-                                    zoom={14}
-                                    scrollWheelZoom
-                                    style={{ height: '100%', width: '100%' }}
-                                >
-                                    <TileLayer
-                                        attribution='&copy; OpenStreetMap'
-                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                    />
-                                    <Polyline positions={points} pathOptions={{ color: '#00A86B', weight: 4, opacity: 0.85 }} />
-                                    <Marker position={points[0]} icon={START_ICON}>
-                                        <Popup>Início da viagem</Popup>
-                                    </Marker>
-                                    {points.length > 1 && (
-                                        <Marker position={points[points.length - 1]} icon={END_ICON}>
-                                            <Popup>Fim da viagem</Popup>
-                                        </Marker>
-                                    )}
-                                    <FitBounds points={points} />
-                                </MapContainer>
+                        <div className="h-96 w-full overflow-hidden rounded-2xl border border-slate-200">
+                            {mapFullscreen ? (
+                                <div className="flex h-full items-center justify-center bg-slate-50 text-sm text-slate-400">Mapa aberto em tela cheia</div>
+                            ) : mapBody}
+                            {mapFullscreen && createPortal(
+                                <div className="fixed inset-0 z-[4000] bg-white">{mapBody}</div>,
+                                document.body,
                             )}
                         </div>
+                    </div>
+
+                    {/* Acontecimentos */}
+                    <div>
+                        <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <Clock className="h-4 w-4 text-emerald-600" /> Acontecimentos da viagem
+                        </p>
+                        <TripTimeline data={timeline.data} loading={timeline.isLoading} error={timeline.error as Error | null} />
                     </div>
 
                     {/* Fotos do odômetro */}

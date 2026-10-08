@@ -33,3 +33,11 @@ export function useTripLocations(id: string | undefined, enabled = true) {
         enabled: !!id && enabled,
     });
 }
+
+export function useTripTimeline(id: string | undefined, enabled = true) {
+    return useQuery({
+        queryKey: ['trip-timeline', id],
+        queryFn: () => tripsApi.getTimeline(id as string),
+        enabled: !!id && enabled,
+    });
+}

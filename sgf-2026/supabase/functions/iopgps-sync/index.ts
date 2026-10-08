@@ -180,6 +180,9 @@ Deno.serve(async (req) => {
         await db.from('trip_locations').insert(liveRows.map((r) => ({
           trip_id: r.trip_id, driver_id: r.driver_id, tenant_id: r.tenant_id,
           lat: r.lat, lng: r.lng, speed: r.speed, heading: r.heading,
+          // Ignição por ponto: a linha do tempo diz se o motor ficou ligado
+          // em cada parada (coluna criada em 20261008170000_trip_timeline).
+          ignition: r.ignition,
         })));
       }
       totalPositions += statusRows.length;
