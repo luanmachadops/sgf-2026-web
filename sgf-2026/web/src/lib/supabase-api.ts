@@ -678,10 +678,9 @@ export const tripsApi = withFotoUrls({
     // Linha do tempo: alarmes do rastreador, paradas pelo GPS, checklist,
     // ocorrências, abastecimentos e lembretes — montada no banco.
     getTimeline: async (tripId: string): Promise<TripTimeline> => {
-        const rpc = supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string; code?: string; details?: string } | null }>;
-        const { data, error } = await rpc('get_trip_timeline', { p_trip_id: tripId });
+        const { data, error } = await supabase.rpc('get_trip_timeline', { p_trip_id: tripId });
         if (error) handleError(error);
-        return data as TripTimeline;
+        return data as unknown as TripTimeline;
     },
 
     // Pontos GPS registrados ao longo da viagem (para desenhar o traçado/rota no mapa).

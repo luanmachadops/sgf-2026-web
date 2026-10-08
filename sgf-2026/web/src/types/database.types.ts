@@ -1874,6 +1874,27 @@ export type Database = {
           },
         ]
       }
+      platform_settings: {
+        Row: {
+          ai_document_model: string | null
+          id: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ai_document_model?: string | null
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ai_document_model?: string | null
+          id?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       procurement_fuel_reservations: {
         Row: {
           allocation_id: string
@@ -2633,32 +2654,11 @@ export type Database = {
           },
         ]
       }
-      platform_settings: {
-        Row: {
-          ai_document_model: string | null
-          id: boolean
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          ai_document_model?: string | null
-          id?: boolean
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          ai_document_model?: string | null
-          id?: boolean
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
-          archived_at: string | null
           access_blocked: boolean
           allowed_modules: string[]
+          archived_at: string | null
           birth_date: string | null
           cnh_category: string | null
           cnh_ear: boolean
@@ -2691,9 +2691,9 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
-          archived_at?: string | null
           access_blocked?: boolean
           allowed_modules?: string[]
+          archived_at?: string | null
           birth_date?: string | null
           cnh_category?: string | null
           cnh_ear?: boolean
@@ -2726,9 +2726,9 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
-          archived_at?: string | null
           access_blocked?: boolean
           allowed_modules?: string[]
+          archived_at?: string | null
           birth_date?: string | null
           cnh_category?: string | null
           cnh_ear?: boolean
@@ -4694,6 +4694,7 @@ export type Database = {
           driver_id: string
           heading: number | null
           id: number
+          ignition: boolean | null
           lat: number
           lng: number
           recorded_at: string
@@ -4706,6 +4707,7 @@ export type Database = {
           driver_id: string
           heading?: number | null
           id?: never
+          ignition?: boolean | null
           lat: number
           lng: number
           recorded_at?: string
@@ -4718,6 +4720,7 @@ export type Database = {
           driver_id?: string
           heading?: number | null
           id?: never
+          ignition?: boolean | null
           lat?: number
           lng?: number
           recorded_at?: string
@@ -4795,7 +4798,22 @@ export type Database = {
           trip_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "trip_watch_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_watch_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: true
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trips: {
         Row: {
@@ -5044,6 +5062,10 @@ export type Database = {
       activity_log_purge: { Args: never; Returns: undefined }
       activity_log_retention_warn: { Args: never; Returns: undefined }
       api_rate_limits_cleanup: { Args: never; Returns: undefined }
+      approx_distance_m: {
+        Args: { lat1: number; lat2: number; lng1: number; lng2: number }
+        Returns: number
+      }
       assert_server_session: {
         Args: { p_session_id: string; p_user_id: string }
         Returns: undefined
@@ -5092,6 +5114,7 @@ export type Database = {
         }
         Returns: string
       }
+      expire_open_authorizations: { Args: never; Returns: number }
       fueling_escrita_direta_motorista: { Args: never; Returns: boolean }
       get_current_vehicle_people: {
         Args: never
@@ -5608,6 +5631,7 @@ export type Database = {
           status: string
         }[]
       }
+      get_trip_timeline: { Args: { p_trip_id: string }; Returns: Json }
       get_unregistered_movements: {
         Args: never
         Returns: {
@@ -6104,6 +6128,7 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
+      profile_history_count: { Args: { p_profile_id: string }; Returns: number }
       purge_old_notifications: {
         Args: { p_days_all?: number; p_days_read?: number }
         Returns: {
@@ -6316,7 +6341,10 @@ export type Database = {
         Returns: string
       }
       trip_stale_after_hours: { Args: never; Returns: number }
+      trip_tracking_mode: { Args: { p_vehicle_id: string }; Returns: string }
+      trip_watchdog: { Args: never; Returns: number }
       unregister_push_token: { Args: { p_token: string }; Returns: undefined }
+      vehicle_tracker_live: { Args: { p_vehicle_id: string }; Returns: boolean }
     }
     Enums: {
       checklist_state: "ok" | "atencao" | "pendente"
