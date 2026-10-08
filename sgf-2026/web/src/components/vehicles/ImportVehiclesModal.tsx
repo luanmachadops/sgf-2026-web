@@ -1314,7 +1314,7 @@ export function ImportVehiclesModal({ isOpen, onClose, existingVehicles = [] }: 
                         {/* Tabela de Preview */}
                         <div className="max-h-[420px] w-full overflow-x-scroll overflow-y-auto rounded-2xl border border-slate-200 bg-white custom-scrollbar">
                             <table className="w-full min-w-[1750px] text-left text-xs text-slate-700">
-                                <thead className="sticky top-0 bg-slate-100/95 text-slate-500 font-semibold uppercase backdrop-blur-sm border-b border-slate-200">
+                                <thead className="sticky top-0 bg-slate-100/95 text-xs font-medium text-slate-500 backdrop-blur-sm border-b border-slate-200">
                                     <tr>
                                         <th className="py-2.5 px-3 whitespace-nowrap">Linha</th>
                                         <th className="py-2.5 px-3 whitespace-nowrap">Status</th>

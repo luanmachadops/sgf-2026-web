@@ -223,7 +223,7 @@ function WorkshopDashboard({ usage }: { usage?: ProcurementContractUsage }) {
                     <p className="text-sm text-slate-400">Indicadores antes da tabela completa de ordens</p>
                 </div>
                 <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                    <thead className="border-b border-slate-100 text-left text-xs font-medium text-slate-500">
                         <tr><th className="px-5 py-3">Situação</th><th className="px-5 py-3 text-right">Ordens</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -301,7 +301,7 @@ function OrdersView({
                 <SGFCard padding="none" className="overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full min-w-[1000px] text-sm">
-                            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                            <thead className="border-b border-slate-100 text-left text-xs font-medium text-slate-500">
                                 <tr>
                                     <th className="px-5 py-3">Veículo / serviço</th>
                                     <th className="px-5 py-3">Prioridade</th>
@@ -565,7 +565,7 @@ function WorkshopClosing() {
                     <SGFCard padding="none">
                         <div className="overflow-x-auto">
                             <table className="w-full min-w-[720px] text-sm">
-                                <thead className="border-b border-slate-100 text-left text-xs font-bold uppercase tracking-wide text-slate-400">
+                                <thead className="border-b border-slate-100 text-left text-xs font-medium text-slate-500">
                                     <tr>
                                         <th className="px-5 py-3">Veículo</th>
                                         <th className="px-5 py-3">Entregue em</th>

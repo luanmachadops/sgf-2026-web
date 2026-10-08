@@ -128,7 +128,7 @@ export function StationOperationsPanel() {
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[950px] text-sm">
-                        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                        <thead className="border-b border-slate-100 text-left text-xs font-medium text-slate-500">
                             <tr>
                                 <th className="px-5 py-3">Protocolo</th>
                                 <th className="px-5 py-3">Veículo</th>

@@ -239,7 +239,7 @@ function StationDashboard({ usage }: { usage?: ProcurementContractUsage }) {
                     <p className="text-sm text-slate-400">Indicadores antes da consulta detalhada</p>
                 </div>
                 <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                    <thead className="border-b border-slate-100 text-left text-xs font-medium text-slate-500">
                         <tr><th className="px-5 py-3">Situação</th><th className="px-5 py-3 text-right">Registros</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -538,7 +538,7 @@ function PendingAuthorizations({
             <SGFCard padding="none" className="overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[900px] text-sm">
-                        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                        <thead className="border-b border-slate-100 text-left text-xs font-medium text-slate-500">
                             <tr>
                                 <th className="px-5 py-3">Veículo</th>
                                 <th className="px-5 py-3">Combustível</th>
@@ -1015,7 +1015,7 @@ function StationClosing({ context }: { context: StationContext }) {
                     <SGFCard variant="bordered" padding="none" className="overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full min-w-[680px] text-sm">
-                                <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                                <thead className="border-b border-slate-100 text-left text-xs font-medium text-slate-500">
                                     <tr>
                                         <th className="px-5 py-3">Combustível</th>
                                         <th className="px-5 py-3 text-right">Litros</th>

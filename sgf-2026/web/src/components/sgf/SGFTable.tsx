@@ -219,13 +219,11 @@ export function SGFTable<T>({
                     key={index}
                     className={`
                       px-[var(--sgf-table-cell-padding-x)]
-                      py-3
-                      text-[11px]
-                      font-semibold
-                      uppercase
-                      tracking-[0.04em]
-                      text-slate-400
-                      bg-slate-50/80
+                      pb-3
+                      pt-4
+                      text-xs
+                      font-medium
+                      text-slate-500
                       whitespace-nowrap
                       ${column.headerClassName || ''}
                     `}
@@ -234,7 +232,7 @@ export function SGFTable<T>({
                       <button
                         type="button"
                         onClick={() => toggleSort(index)}
-                        className={`inline-flex items-center uppercase tracking-[0.04em] transition-colors hover:text-slate-600 ${active ? 'text-slate-600' : ''}`}
+                        className={`inline-flex items-center transition-colors hover:text-slate-700 ${active ? 'text-slate-700' : ''}`}
                       >
                         {column.header}
                         <SortIcon state={active ? sortDir : null} />

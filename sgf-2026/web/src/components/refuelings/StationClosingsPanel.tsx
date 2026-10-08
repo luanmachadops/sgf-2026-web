@@ -107,7 +107,7 @@ export function StationClosingsPanel({
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[1000px] text-sm">
-                        <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                        <thead className="border-b border-slate-100 text-left text-xs font-medium text-slate-500">
                             <tr><th className="px-5 py-3">Protocolo</th><th className="px-5 py-3">Posto</th><th className="px-5 py-3">Competência</th><th className="px-5 py-3 text-right">Total</th><th className="px-5 py-3">Fechamento</th><th className="px-5 py-3">Fiscal</th><th className="px-5 py-3">Empenho/NF</th></tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">

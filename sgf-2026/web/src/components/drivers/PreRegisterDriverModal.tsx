@@ -197,7 +197,7 @@ export function PreRegisterDriverModal({ isOpen, onClose }: PreRegisterDriverMod
                     </div>
                     <div className="max-h-72 overflow-y-auto rounded-xl border border-slate-200">
                         <table className="w-full text-sm">
-                            <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+                            <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
                                 <tr>
                                     <th className="px-4 py-2">Motorista</th>
                                     <th className="px-4 py-2">CPF</th>
