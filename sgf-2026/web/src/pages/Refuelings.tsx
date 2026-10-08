@@ -323,13 +323,6 @@ export default function Refuelings() {
                 searchPlaceholder="Pesquisar por veículo ou motorista..."
                 filters={[
                     {
-                        key: 'department',
-                        value: departmentId,
-                        onChange: setDepartmentId,
-                        options: departmentOptions,
-                        placeholder: 'Secretaria',
-                    },
-                    {
                         key: 'workflow',
                         className: 'w-full sm:w-64',
                         value: workflowTab,
@@ -341,6 +334,13 @@ export default function Refuelings() {
                                 : (tabCounts[t.value as keyof typeof tabCounts] ?? 0);
                             return { value: t.value, label: `${t.value === '' ? 'Todos os status' : t.label} (${count})` };
                         }),
+                    },
+                    {
+                        key: 'department',
+                        value: departmentId,
+                        onChange: setDepartmentId,
+                        options: departmentOptions,
+                        placeholder: 'Secretaria',
                     },
                 ]}
             />

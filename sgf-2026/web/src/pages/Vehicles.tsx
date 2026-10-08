@@ -248,18 +248,18 @@ export default function Vehicles() {
                 searchPlaceholder="Buscar por placa, marca ou modelo..."
                 filters={[
                     {
-                        key: 'department',
-                        value: departmentFilter,
-                        onChange: setDepartmentFilter,
-                        options: departmentOptions,
-                        placeholder: 'Secretaria',
-                    },
-                    {
                         key: 'status',
                         value: statusFilter,
                         onChange: setStatusFilter,
                         options: statusOptions,
                         placeholder: 'Status',
+                    },
+                    {
+                        key: 'department',
+                        value: departmentFilter,
+                        onChange: setDepartmentFilter,
+                        options: departmentOptions,
+                        placeholder: 'Secretaria',
                     },
                 ]}
             />

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
@@ -29,7 +30,7 @@ import {
 import { useMaintenances } from '@/hooks/useMaintenances';
 import { useHeader } from '@/contexts/HeaderContext';
 import { formatCurrency, formatDate, matchesSearch, NO_DRIVER_LABEL } from '@/lib/utils';
-import type { FinStatus, OpStatus } from '@/lib/supabase-api';
+import { departmentsApi, type FinStatus, type OpStatus } from '@/lib/supabase-api';
 import { maintenanceManagerNextAction, maintenanceOperationalLabel } from '@/lib/maintenance-status';
 import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
@@ -197,6 +198,11 @@ export default function Maintenances() {
 
     const [search, setSearch] = useState('');
     const [priority, setPriority] = useState('');
+    const [department, setDepartment] = useState('');
+    const { data: departments = [] } = useQuery({
+        queryKey: ['departments'],
+        queryFn: () => departmentsApi.getAll(),
+    });
     const [viewMode, setViewMode] = useState<'flow' | 'list'>('flow');
     const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('6'));
     const [showCreate, setShowCreate] = useState(false);
@@ -271,9 +277,11 @@ export default function Maintenances() {
                 item.description,
                 item.repairShop,
             );
-            return matchesTerm && (!priority || item.priority === priority);
+            return matchesTerm
+                && (!priority || item.priority === priority)
+                && (!department || item.department === department);
         });
-    }, [maintenances, priority, search]);
+    }, [maintenances, priority, search, department]);
 
     const managerActionCount = maintenances.filter((item) =>
         item.operationalStatus === 'pending'
@@ -397,6 +405,15 @@ export default function Maintenances() {
                                 { value: 'baixa', label: 'Baixa' },
                                 { value: 'media', label: 'Média' },
                                 { value: 'alta', label: 'Alta' },
+                            ],
+                        },
+                        {
+                            key: 'department',
+                            value: department,
+                            onChange: setDepartment,
+                            options: [
+                                { value: '', label: 'Todas as secretarias' },
+                                ...departments.map((d) => ({ value: d.name, label: d.name })),
                             ],
                         },
                     ]}
