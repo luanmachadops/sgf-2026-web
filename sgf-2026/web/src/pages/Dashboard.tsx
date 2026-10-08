@@ -72,10 +72,6 @@ export default function Dashboard() {
             {/* Modal Popup Automático de Avisos (Licitações, CNH, Abastecimentos, Manutenções) */}
             <SystemAlertsModal isOpen={isAlertsModalOpen} onClose={() => setIsAlertsModalOpen(false)} />
 
-            {/* O que exige ação hoje — antes dos números, porque é o que se faz
-                com a tela aberta. */}
-            <AttentionPanel onOpenModal={() => setIsAlertsModalOpen(true)} />
-
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                 {/* KPIs */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
@@ -115,6 +111,11 @@ export default function Dashboard() {
                         chartColor="#f43f5e"
                         chartData={trends?.distanceKm ?? []}
                     />
+                </div>
+
+                {/* O que exige ação hoje: entre os números e os gráficos. */}
+                <div className="mb-10">
+                    <AttentionPanel onOpenModal={() => setIsAlertsModalOpen(true)} />
                 </div>
 
                 {/* Main Content Grid */}
