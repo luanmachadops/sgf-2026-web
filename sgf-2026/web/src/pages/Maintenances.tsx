@@ -400,10 +400,11 @@ export default function Maintenances() {
                     filters={[
                         {
                             key: 'priority',
+                            placeholder: 'Prioridade',
                             value: priority,
                             onChange: setPriority,
                             options: [
-                                { value: '', label: 'Todas as prioridades' },
+                                { value: '', label: 'Todas' },
                                 { value: 'baixa', label: 'Baixa' },
                                 { value: 'media', label: 'Média' },
                                 { value: 'alta', label: 'Alta' },
@@ -411,10 +412,11 @@ export default function Maintenances() {
                         },
                         {
                             key: 'department',
+                            placeholder: 'Secretaria',
                             value: department,
                             onChange: setDepartment,
                             options: [
-                                { value: '', label: 'Todas as secretarias' },
+                                { value: '', label: 'Todas' },
                                 ...departments.map((d) => ({ value: d.name, label: d.name })),
                             ],
                         },

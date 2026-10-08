@@ -192,26 +192,16 @@ export default function Infracoes() {
                 searchValue={searchTerm}
                 onSearchChange={setSearchTerm}
                 searchPlaceholder="Buscar por placa, AIT ou descrição..."
-            >
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                    {STATUS_TABS.map((t) => {
-                        const isActive = statusFilter === t.value;
-                        return (
-                            <button
-                                key={t.value || 'all'}
-                                type="button"
-                                onClick={() => setStatusFilter(t.value)}
-                                className={
-                                    'px-4 py-2.5 rounded-full text-sm font-semibold border transition whitespace-nowrap ' +
-                                    (isActive ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300')
-                                }
-                            >
-                                {t.label}
-                            </button>
-                        );
-                    })}
-                </div>
-            </SGFToolbar>
+                filters={[
+                    {
+                        key: 'status',
+                        value: statusFilter,
+                        onChange: setStatusFilter,
+                        options: STATUS_TABS,
+                        placeholder: 'Status',
+                    },
+                ]}
+            />
 
             <div className="-mx-6 md:mx-0">
                 <SGFTable

@@ -124,7 +124,7 @@ export default function Drivers() {
 
     const departmentOptions = useMemo(
         () => [
-            { value: '', label: 'Todas as secretarias' },
+            { value: '', label: 'Todas' },
             ...departments.map((department) => ({
                 value: department.id,
                 label: department.name,
@@ -368,6 +368,21 @@ export default function Drivers() {
                 searchPlaceholder="Buscar por nome, CPF, e-mail ou CNH..."
                 filters={[
                     {
+                        key: 'status',
+                        value: statusFilter,
+                        onChange: setStatusFilter,
+                        placeholder: 'Status',
+                        options: [
+                            { value: '', label: 'Todos' },
+                            { value: 'ACTIVE', label: 'Ativos' },
+                            { value: 'INACTIVE', label: 'Inativos' },
+                            { value: 'SUSPENDED', label: 'Suspensos' },
+                        ].map((t) => ({
+                            value: t.value,
+                            label: `${t.label} (${t.value === '' ? statusCounts.all : (statusCounts[t.value as keyof typeof statusCounts] ?? 0)})`,
+                        })),
+                    },
+                    {
                         key: 'department',
                         value: departmentFilter,
                         onChange: setDepartmentFilter,
@@ -375,36 +390,7 @@ export default function Drivers() {
                         placeholder: 'Secretaria',
                     },
                 ]}
-            >
-                {/* Tabs de status */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                    {[
-                        { value: '', label: 'Todos' },
-                        { value: 'ACTIVE', label: 'Ativos' },
-                        { value: 'INACTIVE', label: 'Inativos' },
-                        { value: 'SUSPENDED', label: 'Suspensos' },
-                    ].map((t) => {
-                        const isActive = statusFilter === t.value;
-                        const count = t.value === '' ? statusCounts.all
-                            : (statusCounts[t.value as keyof typeof statusCounts] ?? 0);
-                        return (
-                            <button
-                                key={t.value || 'all'}
-                                type="button"
-                                onClick={() => setStatusFilter(t.value)}
-                                className={
-                                    'px-4 py-2.5 rounded-full text-sm font-semibold border transition whitespace-nowrap ' +
-                                    (isActive
-                                        ? 'bg-emerald-500 text-white border-emerald-500'
-                                        : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300')
-                                }
-                            >
-                                {t.label} <span className="opacity-70 ml-1">{count}</span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </SGFToolbar>
+            />
 
             {/* Cards (mobile) — design dedicado de motoristas */}
             <div className="space-y-3 md:hidden">

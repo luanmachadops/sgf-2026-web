@@ -172,7 +172,7 @@ export default function Refuelings() {
         queryFn: () => departmentsApi.getAll(),
     });
     const departmentOptions = useMemo(() => [
-        { value: '', label: 'Todas as secretarias' },
+        { value: '', label: 'Todas' },
         ...departments.map((d) => ({ value: d.id, label: d.name })),
     ], [departments]);
     // Secretaria filtra primeiro, para os contadores de status acompanharem.
@@ -332,7 +332,7 @@ export default function Refuelings() {
                             const count = t.value === '' ? tabCounts.all
                                 : t.value === 'pending_validation' ? tabCounts.concluido
                                 : (tabCounts[t.value as keyof typeof tabCounts] ?? 0);
-                            return { value: t.value, label: `${t.value === '' ? 'Todos os status' : t.label} (${count})` };
+                            return { value: t.value, label: `${t.value === '' ? 'Todos' : t.label} (${count})` };
                         }),
                     },
                     {

@@ -82,7 +82,7 @@ export default function Checklists() {
 
     const departmentOptions = useMemo(
         () => [
-            { value: '', label: 'Todas as secretarias' },
+            { value: '', label: 'Todas' },
             ...departments.map((d) => ({ value: d.id, label: d.name })),
         ],
         [departments]

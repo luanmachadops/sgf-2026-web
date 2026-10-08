@@ -29,6 +29,8 @@ export interface SGFSelectProps {
   className?: string;
   /** sobrescreve estilos do gatilho (altura/padding/fonte) */
   triggerClassName?: string;
+  /** rótulo curto antes do valor no gatilho (ex.: "Secretaria" → "Secretaria: Todas") */
+  inlineLabel?: string;
   disabled?: boolean;
   name?: string;
   id?: string;
@@ -51,6 +53,7 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
       onChange,
       className = '',
       triggerClassName,
+      inlineLabel,
       id,
       disabled,
     },
@@ -171,7 +174,8 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
             ) : Icon ? (
               <Icon className="h-4 w-4 shrink-0 text-slate-400" />
             ) : null}
-            {selectedOption ? selectedOption.label : placeholder}
+            {inlineLabel && <span className="shrink-0 font-normal text-slate-400">{inlineLabel}:</span>}
+            <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
           </span>
           <CaretDown
             className={cn(

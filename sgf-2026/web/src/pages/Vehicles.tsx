@@ -24,7 +24,7 @@ type VehicleTableRow = VehicleRecord & {
 };
 
 const statusOptions = [
-    { value: '', label: 'Todos os status' },
+    { value: '', label: 'Todos' },
     { value: 'AVAILABLE', label: 'Disponível' },
     { value: 'IN_USE', label: 'Em uso' },
     { value: 'MAINTENANCE', label: 'Manutenção' },
@@ -120,7 +120,7 @@ export default function Vehicles() {
 
     const departmentOptions = useMemo(
         () => [
-            { value: '', label: 'Todas as secretarias' },
+            { value: '', label: 'Todas' },
             ...departments.map((department) => ({
                 value: department.id,
                 label: department.name,

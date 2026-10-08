@@ -39,8 +39,9 @@
   background: #F1F5F9;
 }
 
-/* O Safari no iPhone aplica zoom automático quando um campo tem fonte menor
-   que 16px. A regra vale para todo o painel, preservando apenas o foco visual. */
+/* Campos no celular: o zoom automático do Safari (fonte < 16px) é evitado
+   pelo maximum-scale do viewport em index.html, então os campos usam o mesmo
+   tamanho de texto do computador. */
 @media (max-width: 767px) {
   input:not([type="file"]):not([type="color"]),
   textarea,
@@ -48,8 +49,6 @@
   [contenteditable="true"] {
     min-width: 0;
     max-width: 100%;
-    font-size: 16px !important;
-    transform: none !important;
   }
 }
 
