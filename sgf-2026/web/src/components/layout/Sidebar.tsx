@@ -9,8 +9,11 @@ import {
     Droplet,
     Wrench,
     Receipt,
-    FileText,
-    Building2,
+    Route,
+    BuildingGovernment,
+    Toolbox,
+    Gavel,
+    BarChart3,
     Settings2,
     ShieldCheck,
     Clipboard,
@@ -52,7 +55,7 @@ type MenuItem = {
 type MenuSection = { title: string; items: MenuItem[] };
 const menuSections: MenuSection[] = [
     {
-        title: 'Inteligência',
+        title: 'Visão geral',
         items: [
             { icon: LayoutDashboard, label: 'Dashboard', path: '/', module: 'dashboard' },
             { icon: Map, label: 'Mapa', path: '/mapa', module: 'map' },
@@ -60,19 +63,40 @@ const menuSections: MenuSection[] = [
         ]
     },
     {
-        title: 'Gestão de Ativos',
+        title: 'Operação',
         items: [
-            { icon: Car, label: 'Gestão de Frotas', path: '/veiculos', module: 'fleet' },
-            { icon: Users, label: 'Motoristas', path: '/motoristas', module: 'drivers' },
-            { icon: Fuel, label: 'Abastecimentos', path: '/abastecimentos', module: 'refuelings' },
-            { icon: Droplet, label: 'Postos', path: '/postos', module: 'stations' },
-            { icon: Wrench, label: 'Manutenções', path: '/manutencoes', module: 'maintenances' },
-            { icon: Building2, label: 'Oficinas', path: '/oficinas', module: 'repair_shops' },
+            { icon: Route, label: 'Viagens', path: '/viagens', module: 'trips' },
             { icon: Clipboard, label: 'Checklists', path: '/checklists', module: 'checklists' },
             { icon: Receipt, label: 'Infrações', path: '/infracoes', module: 'infractions' },
-            { icon: Building2, label: 'Secretarias', path: '/secretarias', module: 'departments' },
-            { icon: FileText, label: 'Licitações e Contratos', path: '/licitacoes', procurement: true },
-            { icon: FileText, label: 'Relatórios & Auditoria', path: '/relatorios', module: 'reports' },
+        ]
+    },
+    {
+        title: 'Frota',
+        items: [
+            { icon: Car, label: 'Veículos', path: '/veiculos', module: 'fleet' },
+            { icon: Users, label: 'Motoristas', path: '/motoristas', module: 'drivers' },
+            { icon: BuildingGovernment, label: 'Secretarias', path: '/secretarias', module: 'departments' },
+        ]
+    },
+    {
+        title: 'Combustível',
+        items: [
+            { icon: Fuel, label: 'Abastecimentos', path: '/abastecimentos', module: 'refuelings' },
+            { icon: Droplet, label: 'Postos', path: '/postos', module: 'stations' },
+        ]
+    },
+    {
+        title: 'Manutenção',
+        items: [
+            { icon: Wrench, label: 'Manutenções', path: '/manutencoes', module: 'maintenances' },
+            { icon: Toolbox, label: 'Oficinas', path: '/oficinas', module: 'repair_shops' },
+        ]
+    },
+    {
+        title: 'Administração',
+        items: [
+            { icon: Gavel, label: 'Licitações e Contratos', path: '/licitacoes', procurement: true },
+            { icon: BarChart3, label: 'Relatórios & Auditoria', path: '/relatorios', module: 'reports' },
         ]
     },
     {
@@ -177,7 +201,7 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                 isCollapsed ? "px-2" : "px-3"
             )}>
                 {visibleSections.map((section, sectionIndex) => (
-                    <div key={sectionIndex} className="mb-4 last:mb-0">
+                    <div key={sectionIndex} className="mb-3 last:mb-0">
                         {/* Section header */}
                         {!isCollapsed && (
                             <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-white/30 select-none">

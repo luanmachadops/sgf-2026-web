@@ -1,71 +1,78 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { SGFCard } from '@/components/sgf/SGFCard';
-import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
+import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
+import { PeriodPresetSelect, PeriodRangeFields } from '@/components/sgf/PeriodSelect';
+import { makePeriod, type PeriodValue } from '@/components/sgf/period';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
-import {
-    Eye,
-    AlertTriangle,
-    MapPin,
-    Clock,
-    Car,
-    Users,
-    Route,
-} from '@/components/sgf/icons';
+import { AlertTriangle, Clock, MapPin, Route } from '@/components/sgf/icons';
 import { formatDate, formatDateTime, formatDistance, getStatusLabel, getStatusColor, matchesSearch } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useTrips } from '@/hooks/useTrips';
-import type { TripRecord } from '@/lib/supabase-api';
 import type { TripStatus } from '@/types';
 import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
 type TripStatusBadge = 'default' | 'success' | 'warning' | 'error' | 'info';
-
-type TripWithRelations = TripRecord;
+type TabValue = '' | TripStatus | 'ANOMALY';
 
 type TripRow = {
     id: string;
-    date: string;
-    vehicle: string;
+    startAt: string;
+    endAt: string | null;
+    plate: string;
+    vehicleName: string;
     driver: string;
-    startKm: number;
-    endKm: number;
-    distance: number;
-    duration: number;
-    purpose: string;
+    destination: string;
+    startKm: number | null;
+    endKm: number | null;
+    /** Km declarado no hodômetro (final − inicial); null enquanto a viagem está aberta. */
+    distance: number | null;
     status: TripStatus;
     hasAnomaly: boolean;
 };
 
-const statusOptions = [
-    { value: '', label: 'Todos os status' },
-    { value: 'IN_PROGRESS', label: 'Em Andamento' },
-    { value: 'COMPLETED', label: 'Concluída' },
-    { value: 'CANCELLED', label: 'Cancelada' },
+const TABS: { value: TabValue; label: string }[] = [
+    { value: '', label: 'Todas' },
+    { value: 'IN_PROGRESS', label: 'Em andamento' },
+    { value: 'COMPLETED', label: 'Concluídas' },
+    { value: 'ANOMALY', label: 'Com ocorrência' },
+    { value: 'CANCELLED', label: 'Canceladas' },
 ];
 
 function formatDuration(minutes: number): string {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     if (hours === 0) return `${mins}min`;
-    return `${hours}h ${mins}min`;
+    return `${hours}h ${String(mins).padStart(2, '0')}min`;
 }
 
-function getDurationInMinutes(startAt: string, endAt: string | null): number {
-    if (!endAt) return 0;
-    const diffMs = new Date(endAt).getTime() - new Date(startAt).getTime();
-    return Math.max(Math.round(diffMs / 60000), 0);
+/** Duração até o fim, ou até agora se a viagem ainda está aberta. */
+function durationMinutes(startAt: string, endAt: string | null, now: number): number {
+    const end = endAt ? new Date(endAt).getTime() : now;
+    return Math.max(Math.round((end - new Date(startAt).getTime()) / 60000), 0);
+}
+
+/** Primeiro dia do período escolhido, no formato aceito pelo filtro do banco. */
+function periodStart(period: PeriodValue): string | undefined {
+    if (period.preset === 'custom') return period.from ? `${period.from}T00:00:00` : undefined;
+    const from = new Date();
+    from.setMonth(from.getMonth() - (Number(period.preset) || 1));
+    return from.toISOString();
+}
+
+function periodEnd(period: PeriodValue): string | undefined {
+    return period.preset === 'custom' && period.to ? `${period.to}T23:59:59` : undefined;
 }
 
 export default function Trips() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('');
-    const [showAnomaliesOnly, setShowAnomaliesOnly] = useState(false);
+    const [tab, setTab] = useState<TabValue>('');
+    const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('1'));
     const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+    const [now, setNow] = useState(() => Date.now());
     const { setTitle, setDescription } = useHeader();
 
     const paramId = searchParams.get('id') || searchParams.get('tripId');
@@ -76,48 +83,70 @@ export default function Trips() {
         if (paramId) setSelectedTripId(paramId);
     });
 
-    const { data: rawTrips = [], isLoading, isError } = useTrips({
-        status: (statusFilter || undefined) as TripStatus | undefined,
-        hasAnomaly: showAnomaliesOnly || undefined,
-    });
-
     useEffect(() => {
         setTitle('Viagens');
-        setDescription('Histórico de viagens, quilometragem e ocorrências.');
+        setDescription('Deslocamentos da frota: quem saiu, para onde, quanto rodou e quanto tempo levou.');
     }, [setTitle, setDescription]);
 
-    const trips = useMemo(() => {
-        return (rawTrips as TripWithRelations[]).map((trip): TripRow => {
-            const endKm = trip.end_odometer ?? trip.start_odometer;
-            const computedDistance = Math.max(endKm - trip.start_odometer, 0);
+    // Duração das viagens em andamento anda sozinha na tela.
+    useEffect(() => {
+        const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+        return () => window.clearInterval(timer);
+    }, []);
 
-            return {
-                id: trip.id,
-                date: trip.start_time,
-                vehicle: trip.vehicles?.plate || 'Sem placa',
-                driver: trip.drivers?.name || 'Sem motorista',
-                startKm: trip.start_odometer,
-                endKm,
-                distance: trip.actual_distance_km ?? computedDistance,
-                duration: getDurationInMinutes(trip.start_time, trip.end_time),
-                purpose: trip.destination,
-                status: trip.status,
-                hasAnomaly: Boolean(trip.has_anomaly),
-            };
-        });
-    }, [rawTrips]);
+    // Memorizado: periodStart usa "agora", e um valor novo a cada render
+    // mudaria a chave da consulta e buscaria de novo sem parar.
+    const tripFilters = useMemo(() => ({ startDate: periodStart(period), endDate: periodEnd(period) }), [period]);
+    const { data: rawTrips = [], isLoading, isError } = useTrips(tripFilters);
 
-    const filteredTrips = useMemo(() => {
-        return trips.filter((trip) => {
-            return matchesSearch(searchTerm, trip.vehicle, trip.driver, trip.purpose);
-        });
-    }, [trips, searchTerm]);
+    const trips = useMemo(() => rawTrips.map((trip): TripRow => {
+        const startKm = trip.start_odometer ?? null;
+        const endKm = trip.end_odometer ?? null;
+        return {
+            id: trip.id,
+            startAt: trip.start_time,
+            endAt: trip.end_time,
+            plate: trip.vehicles?.plate || 'Sem placa',
+            vehicleName: [trip.vehicles?.brand, trip.vehicles?.model].filter(Boolean).join(' '),
+            driver: trip.drivers?.name || 'Sem motorista',
+            destination: trip.destination || '—',
+            startKm,
+            endKm,
+            distance: startKm != null && endKm != null ? Math.max(endKm - startKm, 0) : null,
+            status: trip.status,
+            hasAnomaly: Boolean(trip.has_anomaly),
+        };
+    }), [rawTrips]);
+
+    const searched = useMemo(
+        () => trips.filter((trip) => matchesSearch(searchTerm, trip.plate, trip.vehicleName, trip.driver, trip.destination)),
+        [trips, searchTerm],
+    );
+
+    const tabCounts = useMemo(() => ({
+        '': searched.length,
+        IN_PROGRESS: searched.filter((t) => t.status === 'IN_PROGRESS').length,
+        COMPLETED: searched.filter((t) => t.status === 'COMPLETED').length,
+        CANCELLED: searched.filter((t) => t.status === 'CANCELLED').length,
+        ANOMALY: searched.filter((t) => t.hasAnomaly).length,
+    }), [searched]);
+
+    const visible = useMemo(() => searched.filter((t) => {
+        if (tab === '') return true;
+        if (tab === 'ANOMALY') return t.hasAnomaly;
+        return t.status === tab;
+    }), [searched, tab]);
+
+    const totalKm = searched.reduce((sum, t) => sum + (t.distance ?? 0), 0);
+    const finished = searched.filter((t) => t.endAt);
+    const avgMinutes = finished.length
+        ? Math.round(finished.reduce((sum, t) => sum + durationMinutes(t.startAt, t.endAt, now), 0) / finished.length)
+        : 0;
+
     const requestedTripId = useMemo(() => {
         if (paramId) return paramId;
         if (!paramSearch) return null;
-        return trips.find((trip) =>
-            matchesSearch(paramSearch, trip.vehicle, trip.driver, trip.purpose)
-        )?.id ?? null;
+        return trips.find((trip) => matchesSearch(paramSearch, trip.plate, trip.driver, trip.destination))?.id ?? null;
     }, [paramId, paramSearch, trips]);
     const activeSelectedTripId = selectedTripId ?? requestedTripId;
 
@@ -130,155 +159,124 @@ export default function Trips() {
         setSearchParams(next, { replace: true });
     };
 
-    const totalDistance = filteredTrips.reduce((sum, trip) => sum + trip.distance, 0);
-    const anomalyCount = trips.filter((trip) => trip.hasAnomaly).length;
-    const inProgressCount = trips.filter((trip) => trip.status === 'IN_PROGRESS').length;
-
     const columns: SGFTableColumn<TripRow>[] = [
         {
-            header: 'Data/Hora',
+            header: 'Início',
             accessor: (row) => (
                 <div>
-                    <p className="font-medium">{formatDate(row.date)}</p>
-                    <p className="text-xs text-gray-500">{formatDateTime(row.date).split(' ')[1]}</p>
+                    <p className="font-medium text-slate-900">{formatDate(row.startAt)}</p>
+                    <p className="text-xs text-slate-500">{formatDateTime(row.startAt).split(' ')[1]}</p>
                 </div>
-            )
+            ),
         },
         {
-            header: 'Veículo / Motorista',
+            header: 'Veículo',
             accessor: (row) => (
-                <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                        <Car className="h-4 w-4 text-gray-400" />
-                        <span className="font-mono font-medium">{row.vehicle}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Users className="h-4 w-4 text-gray-400" />
-                        {row.driver}
-                    </div>
+                <div className="min-w-0">
+                    <p className="font-mono font-semibold text-slate-900">{row.plate}</p>
+                    {row.vehicleName && <p className="truncate text-xs text-slate-500">{row.vehicleName}</p>}
                 </div>
-            )
+            ),
         },
+        { header: 'Motorista', accessor: 'driver' },
+        { header: 'Destino', accessor: 'destination', className: 'max-w-[220px] truncate' },
         {
-            header: 'Distância',
-            accessor: (row) => formatDistance(row.distance)
+            header: 'Km (hodômetro)',
+            accessor: (row) => (
+                <div>
+                    <p className="font-semibold text-slate-900">{row.distance != null ? formatDistance(row.distance) : '—'}</p>
+                    {row.startKm != null && (
+                        <p className="text-xs text-slate-500">
+                            {row.startKm.toLocaleString('pt-BR')} → {row.endKm != null ? row.endKm.toLocaleString('pt-BR') : '…'}
+                        </p>
+                    )}
+                </div>
+            ),
         },
         {
             header: 'Duração',
-            accessor: (row) => formatDuration(row.duration)
-        },
-        {
-            header: 'Finalidade',
-            accessor: 'purpose',
-            className: 'max-w-[200px] truncate'
+            accessor: (row) => (
+                <span className={row.endAt ? 'text-slate-700' : 'font-semibold text-blue-600'}>
+                    {formatDuration(durationMinutes(row.startAt, row.endAt, now))}
+                </span>
+            ),
         },
         {
             header: 'Status',
             accessor: (row) => (
                 <div className="flex items-center gap-2">
-                    <SGFBadge variant={getStatusColor(row.status) as TripStatusBadge}>
-                        {getStatusLabel(row.status)}
-                    </SGFBadge>
-                    {row.hasAnomaly && (
-                        <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                    )}
+                    <SGFBadge variant={getStatusColor(row.status) as TripStatusBadge}>{getStatusLabel(row.status)}</SGFBadge>
+                    {row.hasAnomaly && <AlertTriangle className="h-4 w-4 text-amber-500" aria-label="Com ocorrência" />}
                 </div>
-            )
+            ),
         },
-        {
-            header: 'Ações',
-            sortable: false,
-            accessor: (row) => (
-                <SGFButton variant="ghost" size="sm" onClick={() => setSelectedTripId(row.id)} icon={Eye} />
-            )
-        }
     ];
 
     return (
         <div className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-4">
-                <SGFCard padding="sm">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-100 rounded-lg">
-                            <Route className="h-5 w-5 text-green-600" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold">{trips.length}</p>
-                            <p className="text-sm text-gray-500">Total de viagens</p>
-                        </div>
-                    </div>
-                </SGFCard>
-                <SGFCard padding="sm">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-lg">
-                            <Clock className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold">{inProgressCount}</p>
-                            <p className="text-sm text-gray-500">Em andamento</p>
-                        </div>
-                    </div>
-                </SGFCard>
-                <SGFCard padding="sm">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-[var(--sgf-primary)]/10 rounded-lg">
-                            <MapPin className="h-5 w-5 text-[var(--sgf-primary)]" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold">{formatDistance(totalDistance)}</p>
-                            <p className="text-sm text-gray-500">Km percorridos</p>
-                        </div>
-                    </div>
-                </SGFCard>
-                <SGFCard padding="sm">
-                    <button
-                        type="button"
-                        className="flex w-full items-center gap-3 text-left"
-                        onClick={() => setShowAnomaliesOnly((prev) => !prev)}
-                    >
-                        <div className="p-2 bg-yellow-100 rounded-lg">
-                            <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold">{anomalyCount}</p>
-                            <p className="text-sm text-gray-500">
-                                {showAnomaliesOnly ? 'Filtrando anomalias' : 'Anomalias detectadas'}
-                            </p>
-                        </div>
-                    </button>
-                </SGFCard>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <SGFKPICard title="Viagens no período" value={searched.length} icon={Route} iconColor="text-emerald-500" chartColor="#10b981" loading={isLoading} />
+                <SGFKPICard title="Em andamento agora" value={tabCounts.IN_PROGRESS} icon={Clock} iconColor="text-blue-500" chartColor="#3b82f6" loading={isLoading} onClick={() => setTab('IN_PROGRESS')} />
+                <SGFKPICard title="Km rodados (hodômetro)" value={formatDistance(totalKm)} icon={MapPin} iconColor="text-slate-500" chartColor="#64748b" loading={isLoading} />
+                <SGFKPICard title="Com ocorrência" value={tabCounts.ANOMALY} icon={AlertTriangle} iconColor="text-amber-500" chartColor="#f59e0b" loading={isLoading} onClick={() => setTab('ANOMALY')} />
             </div>
 
             <SGFToolbar
                 searchValue={searchTerm}
                 onSearchChange={setSearchTerm}
-                searchPlaceholder="Pesquisar por veículo ou motorista..."
-                filters={[
-                    {
-                        key: 'status',
-                        value: statusFilter,
-                        onChange: setStatusFilter,
-                        options: statusOptions,
-                        placeholder: 'Status',
-                    },
-                ]}
-            />
+                searchPlaceholder="Buscar placa, motorista ou destino..."
+            >
+                <div className="flex items-center gap-2">
+                    {period.preset === 'custom' && (
+                        <PeriodRangeFields
+                            value={period}
+                            onChange={setPeriod}
+                            className="!justify-start"
+                            fieldClassName="!w-[140px] !py-2.5 !text-sm"
+                            align="start"
+                        />
+                    )}
+                    <PeriodPresetSelect value={period} onChange={setPeriod} />
+                </div>
+            </SGFToolbar>
+
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {TABS.map((t) => {
+                        const active = tab === t.value;
+                        return (
+                            <button
+                                key={t.value || 'all'}
+                                type="button"
+                                onClick={() => setTab(t.value)}
+                                className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                                    active
+                                        ? 'border-[var(--sgf-accent)] bg-[var(--sgf-accent)] text-[var(--sgf-accent-contrast)]'
+                                        : 'border-slate-200 bg-white text-slate-600 hover:border-[var(--sgf-accent)]'
+                                }`}
+                            >
+                                {t.label} <span className="ml-1 opacity-70">{tabCounts[t.value]}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+                {avgMinutes > 0 && (
+                    <p className="hidden shrink-0 text-xs text-slate-500 md:block">Duração média: <strong className="text-slate-700">{formatDuration(avgMinutes)}</strong></p>
+                )}
+            </div>
 
             <div className="-mx-6 md:mx-0">
                 <SGFTable
                     columns={columns}
-                    data={filteredTrips}
+                    data={visible}
                     keyExtractor={(row) => row.id}
                     onRowClick={(row) => setSelectedTripId(row.id)}
                     loading={isLoading}
-                    emptyMessage={isError ? 'Não foi possível carregar as viagens. Tente novamente.' : 'Nenhuma viagem encontrada.'}
+                    emptyMessage={isError ? 'Não foi possível carregar as viagens. Tente novamente.' : 'Nenhuma viagem neste período.'}
                 />
             </div>
 
-            <TripDetailsModal
-                tripId={activeSelectedTripId}
-                onClose={closeSelectedTrip}
-            />
+            <TripDetailsModal tripId={activeSelectedTripId} onClose={closeSelectedTrip} />
         </div>
     );
 }
