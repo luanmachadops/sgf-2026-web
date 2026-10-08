@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { departmentsApi } from '@/lib/supabase-api';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
@@ -54,7 +56,7 @@ function workflowBadge(status: WorkflowStatus | null | undefined, expired = fals
 type RefuelingWithRelations = Tables<'fuelings'> & {
     // Alias adicionado por decorateFueling (created_at → date).
     date?: string | null;
-    vehicles?: { plate: string; brand?: string | null; model?: string | null; photo_url?: string | null } | null;
+    vehicles?: { plate: string; brand?: string | null; model?: string | null; photo_url?: string | null; department_id?: string | null } | null;
     drivers?: { name: string; photo_url?: string | null } | null;
     station_relation?: { id: string; name: string; code: string | null } | null;
     workflow_status?: WorkflowStatus;
@@ -66,6 +68,7 @@ type RefuelingRow = {
     vehicle: string;
     vehicleModel: string;
     vehiclePhoto: string | null;
+    departmentId: string | null;
     driver: string;
     driverPhoto: string | null;
     liters: number;
@@ -92,6 +95,7 @@ export default function Refuelings() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') ?? '');
     const [workflowTab, setWorkflowTab] = useState<WorkflowTab>('');
+    const [departmentId, setDepartmentId] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [showAuthorizeModal, setShowAuthorizeModal] = useState(false);
     const [commitmentStationId, setCommitmentStationId] = useState<string | null>(null);
@@ -138,6 +142,7 @@ export default function Refuelings() {
                 vehicle: row.vehicles?.plate || 'Sem placa',
                 vehicleModel: vehicleModel || 'Sem veículo',
                 vehiclePhoto: row.vehicles?.photo_url ?? null,
+                departmentId: row.vehicles?.department_id ?? null,
                 driver: row.drivers?.name || NO_DRIVER_LABEL,
                 driverPhoto: row.drivers?.photo_url ?? null,
                 liters,
@@ -162,8 +167,22 @@ export default function Refuelings() {
         });
     }, [rawRefuelings]);
 
+    const { data: departments = [] } = useQuery({
+        queryKey: ['departments'],
+        queryFn: () => departmentsApi.getAll(),
+    });
+    const departmentOptions = useMemo(() => [
+        { value: '', label: 'Todas as secretarias' },
+        ...departments.map((d) => ({ value: d.id, label: d.name })),
+    ], [departments]);
+    // Secretaria filtra primeiro, para os contadores de status acompanharem.
+    const byDepartment = useMemo(
+        () => (departmentId ? refuelings.filter((r) => r.departmentId === departmentId) : refuelings),
+        [refuelings, departmentId],
+    );
+
     const filteredRefuelings = useMemo(() => {
-        return refuelings.filter((refueling) => {
+        return byDepartment.filter((refueling) => {
             const matchesTerm = matchesSearch(
                 searchTerm,
                 refueling.vehicle,
@@ -177,7 +196,7 @@ export default function Refuelings() {
                 || refueling.workflowStatus === workflowTab;
             return matchesTerm && matchesWorkflow;
         });
-    }, [refuelings, searchTerm, workflowTab]);
+    }, [byDepartment, searchTerm, workflowTab]);
 
     const requestedRefueling = useMemo(() => {
         if (paramId) return refuelings.find((refueling) => refueling.id === paramId) ?? null;
@@ -251,15 +270,15 @@ export default function Refuelings() {
     };
 
     const tabCounts = useMemo(() => ({
-        all: refuelings.length,
-        autorizado: refuelings.filter(r => r.workflowStatus === 'autorizado').length,
-        concluido: refuelings.filter(r => r.workflowStatus === 'concluido').length,
-        validado: refuelings.filter(r => r.workflowStatus === 'validado').length,
-        rejeitado_admin: refuelings.filter(r =>
+        all: byDepartment.length,
+        autorizado: byDepartment.filter(r => r.workflowStatus === 'autorizado').length,
+        concluido: byDepartment.filter(r => r.workflowStatus === 'concluido').length,
+        validado: byDepartment.filter(r => r.workflowStatus === 'validado').length,
+        rejeitado_admin: byDepartment.filter(r =>
             ['rejeitado_admin', 'rejeitado_motorista'].includes(r.workflowStatus),
         ).length,
-        lancado_direto: refuelings.filter(r => r.workflowStatus === 'lancado_direto').length,
-    }), [refuelings]);
+        lancado_direto: byDepartment.filter(r => r.workflowStatus === 'lancado_direto').length,
+    }), [byDepartment]);
 
     return (
         <div className="space-y-6">
@@ -302,32 +321,29 @@ export default function Refuelings() {
                 searchValue={searchTerm}
                 onSearchChange={setSearchTerm}
                 searchPlaceholder="Pesquisar por veículo ou motorista..."
-            >
-                {/* Tabs de workflow */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                    {WORKFLOW_TABS.map((t) => {
-                        const isActive = workflowTab === t.value;
-                        const count = t.value === '' ? tabCounts.all
-                            : t.value === 'pending_validation' ? tabCounts.concluido
-                            : (tabCounts[t.value as keyof typeof tabCounts] ?? 0);
-                        return (
-                            <button
-                                key={t.value || 'all'}
-                                type="button"
-                                onClick={() => setWorkflowTab(t.value)}
-                                className={
-                                    'px-4 py-2.5 rounded-full text-sm font-semibold border transition whitespace-nowrap ' +
-                                    (isActive
-                                        ? 'bg-emerald-500 text-white border-emerald-500'
-                                        : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300')
-                                }
-                            >
-                                {t.label} <span className="opacity-70 ml-1">{count}</span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </SGFToolbar>
+                filters={[
+                    {
+                        key: 'department',
+                        value: departmentId,
+                        onChange: setDepartmentId,
+                        options: departmentOptions,
+                        placeholder: 'Secretaria',
+                    },
+                    {
+                        key: 'workflow',
+                        className: 'w-full sm:w-64',
+                        value: workflowTab,
+                        onChange: (v: string) => setWorkflowTab(v as WorkflowTab),
+                        placeholder: 'Status',
+                        options: WORKFLOW_TABS.map((t) => {
+                            const count = t.value === '' ? tabCounts.all
+                                : t.value === 'pending_validation' ? tabCounts.concluido
+                                : (tabCounts[t.value as keyof typeof tabCounts] ?? 0);
+                            return { value: t.value, label: `${t.value === '' ? 'Todos os status' : t.label} (${count})` };
+                        }),
+                    },
+                ]}
+            />
 
             <div className="-mx-6 md:mx-0">
                 <SGFTable

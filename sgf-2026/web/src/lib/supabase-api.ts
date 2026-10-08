@@ -1076,7 +1076,7 @@ export const refuelingsApi = withFotoUrls({
     }): Promise<RefuelingRecord[]> => {
         let query = supabase
             .from('fuelings')
-            .select('*, vehicles(id, plate, brand, model, photo_url), profiles!fuelings_driver_id_fkey(id, full_name, photo_url), fuel_stations(id, name, code)')
+            .select('*, vehicles(id, plate, brand, model, photo_url, department_id), profiles!fuelings_driver_id_fkey(id, full_name, photo_url), fuel_stations(id, name, code)')
             .order('created_at', { ascending: false });
 
         if (filters?.vehicleId) query = query.eq('vehicle_id', filters.vehicleId);

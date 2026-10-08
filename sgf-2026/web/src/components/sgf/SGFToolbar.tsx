@@ -11,7 +11,7 @@ export interface SGFToolbarFilter {
   options: SGFSelectOption[];
   placeholder?: string;
   icon?: React.ElementType;
-  /** controla a largura do filtro (default: w-full sm:w-44) */
+  /** controla a largura do filtro (default: w-full sm:w-60) */
   className?: string;
 }
 
@@ -67,7 +67,7 @@ export function SGFToolbar({
         <div className="flex flex-wrap items-center gap-2 md:flex-nowrap md:justify-end">
           {children}
           {filters.map((filter, index) => (
-            <div key={filter.key ?? index} className={cn('w-full sm:w-44', filter.className)}>
+            <div key={filter.key ?? index} className={cn('w-full sm:w-60', filter.className)}>
               <SGFSelect
                 value={filter.value}
                 onChange={filter.onChange}

@@ -26,7 +26,7 @@ export function PeriodPresetSelect({
     className?: string;
 }) {
     return (
-        <div className={['w-40', className].filter(Boolean).join(' ')}>
+        <div className={['w-48', className].filter(Boolean).join(' ')}>
             <SGFSelect
                 options={options ?? PERIOD_PRESETS}
                 value={value.preset}
