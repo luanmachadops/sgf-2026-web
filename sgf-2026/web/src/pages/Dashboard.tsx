@@ -74,7 +74,7 @@ export default function Dashboard() {
 
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
                 {/* KPIs */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
+                <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6 lg:grid-cols-4">
                     <SGFKPICard
                         title="Em uso agora"
                         value={`${resumo?.frota.emUso ?? 0} de ${resumo?.frota.total ?? 0}`}
@@ -114,15 +114,15 @@ export default function Dashboard() {
                 </div>
 
                 {/* O que exige ação hoje: entre os números e os gráficos. */}
-                <div className="mb-10">
+                <div className="mb-4 md:mb-6">
                     <AttentionPanel onOpenModal={() => setIsAlertsModalOpen(true)} />
                 </div>
 
                 {/* Main Content Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-3">
                     <div className="lg:col-span-2">
                         <SGFCard padding="lg">
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                                 <div>
                                     <h4 className="font-semibold text-base text-slate-800">
                                         Evolução de Gastos
@@ -219,7 +219,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <div className="mt-10">
+                <div className="mt-4 md:mt-6">
                     {/* Altura explícita: o ResponsiveContainer do recharts precisa de um
                         pai com altura definida — só min-h não resolve o h-full interno. */}
                     <SGFCard padding="lg" className="overflow-hidden h-[460px]">
