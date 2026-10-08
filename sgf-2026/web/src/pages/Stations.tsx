@@ -1,3 +1,4 @@
+import { useGoBack } from '@/hooks/useGoBack';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -213,6 +214,7 @@ function StationsListPage() {
 
 function StationDetailPage({ stationId }: { stationId: string }) {
     const navigate = useNavigate();
+    const goBack = useGoBack('/postos');
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const [editOpen, setEditOpen] = useState(false);
 
@@ -244,7 +246,7 @@ function StationDetailPage({ stationId }: { stationId: string }) {
     useEffect(() => {
         setHeaderAction(
             <div className="flex items-center gap-2">
-                <SGFButton variant="ghost" size="md" icon={ArrowLeft} onClick={() => navigate('/postos')}>
+                <SGFButton variant="ghost" size="md" icon={ArrowLeft} onClick={goBack}>
                     <span className="hidden md:inline">Voltar</span>
                 </SGFButton>
                 {detail && (
@@ -284,9 +286,7 @@ function StationDetailPage({ stationId }: { stationId: string }) {
     if (!detail) {
         return (
             <div className="space-y-4">
-                <Link to="/postos">
-                    <SGFButton variant="ghost" size="sm" icon={ArrowLeft}><span className="hidden md:inline">Voltar</span></SGFButton>
-                </Link>
+                <SGFButton variant="ghost" size="sm" icon={ArrowLeft} onClick={goBack}><span className="hidden md:inline">Voltar</span></SGFButton>
                 <SGFCard><p className="text-sm text-rose-600 font-medium">Posto não encontrado.</p></SGFCard>
             </div>
         );

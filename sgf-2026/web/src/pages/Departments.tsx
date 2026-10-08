@@ -1,6 +1,7 @@
+import { useGoBack } from '@/hooks/useGoBack';
 import { VehicleCell, DriverCell } from '@/components/sgf/EntityCells';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
     ArrowLeft,
@@ -414,6 +415,7 @@ function DetailKpis({ detail }: { detail: DepartmentDetail }) {
 
 function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
     const navigate = useNavigate();
+    const goBack = useGoBack('/secretarias');
     const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler, setHeaderAction } = useHeader();
     const [isEditOpen, setEditOpen] = useState(false);
     const [isSecretarioOpen, setSecretarioOpen] = useState(false);
@@ -614,9 +616,7 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
             {/* Header */}
             <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                    <Link to="/secretarias" className="shrink-0">
-                        <SGFButton variant="ghost" size="sm" icon={ArrowLeft}><span className="hidden md:inline">Voltar</span></SGFButton>
-                    </Link>
+                    <SGFButton variant="ghost" size="sm" icon={ArrowLeft} onClick={goBack} className="shrink-0"><span className="hidden md:inline">Voltar</span></SGFButton>
                     <div className="min-w-0">
                         <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate">
                             {detail.department.name}

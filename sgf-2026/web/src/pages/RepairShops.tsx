@@ -1,3 +1,4 @@
+import { useGoBack } from '@/hooks/useGoBack';
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -179,6 +180,7 @@ function RepairShopsListPage() {
 
 function RepairShopDetailPage({ shopId }: { shopId: string }) {
     const navigate = useNavigate();
+    const goBack = useGoBack('/oficinas');
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const { data: detail, isLoading } = useRepairShopDetail(shopId);
     const { data: contractUsage = [] } = useQuery({
@@ -206,7 +208,7 @@ function RepairShopDetailPage({ shopId }: { shopId: string }) {
     useEffect(() => {
         setHeaderAction(
             <div className="flex items-center gap-2">
-                <SGFButton variant="ghost" onClick={() => navigate('/oficinas')} className="!rounded-full !h-[37px]">
+                <SGFButton variant="ghost" onClick={goBack} className="!rounded-full !h-[37px]">
                     <ArrowLeft className="h-4 w-4" /> Voltar
                 </SGFButton>
                 {detail && (

@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFInput } from '@/components/sgf/SGFInput';
@@ -31,7 +31,14 @@ export default function Notificacoes() {
     const [search, setSearch] = useState('');
     const [activeTab, setActiveTab] = useState<FilterTab>('all');
     // Alertas primeiro: é o que exige ação hoje (os mesmos do Dashboard).
-    const [section, setSection] = useState<'alerts' | 'notifications'>('alerts');
+    // A aba fica na URL: ao voltar de um alerta/notificação, reabre a mesma aba.
+    const [searchParams, setSearchParams] = useSearchParams();
+    const section: 'alerts' | 'notifications' = searchParams.get('aba') === 'notificacoes' ? 'notifications' : 'alerts';
+    const setSection = (next: 'alerts' | 'notifications') => {
+        const params = new URLSearchParams(searchParams);
+        if (next === 'notifications') params.set('aba', 'notificacoes'); else params.delete('aba');
+        setSearchParams(params, { replace: true });
+    };
 
     useEffect(() => {
         setTitle('Central de Notificações');

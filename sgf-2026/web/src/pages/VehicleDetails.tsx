@@ -1,6 +1,7 @@
+import { useGoBack } from '@/hooks/useGoBack';
 import { DriverCell } from '@/components/sgf/EntityCells';
 import React, { useRef, useState, useMemo } from 'react';
-import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFButton } from '@/components/sgf/SGFButton';
@@ -75,6 +76,7 @@ export default function VehicleDetails() {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const backTo = (location.state as { backTo?: string } | null)?.backTo ?? '/veiculos';
+    const goBack = useGoBack(backTo);
     const queryClient = useQueryClient();
     const { user } = useAuth();
     const [isUploading, setIsUploading] = useState(false);
@@ -296,9 +298,7 @@ export default function VehicleDetails() {
     if (errorVehicle || !vehicle) {
         return (
             <div className="space-y-4">
-                <Link to={backTo}>
-                    <SGFButton variant="ghost" size="sm" icon={ArrowLeft}><span className="hidden md:inline">Voltar</span></SGFButton>
-                </Link>
+                <SGFButton variant="ghost" size="sm" icon={ArrowLeft} onClick={goBack}><span className="hidden md:inline">Voltar</span></SGFButton>
                 <SGFCard>
                     <p className="text-sm text-rose-600 font-medium">Veículo não encontrado.</p>
                 </SGFCard>
@@ -385,9 +385,7 @@ export default function VehicleDetails() {
             {/* Header */}
             <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                    <Link to={backTo} className="shrink-0">
-                        <SGFButton variant="ghost" size="sm" icon={ArrowLeft}><span className="hidden md:inline">Voltar</span></SGFButton>
-                    </Link>
+                    <SGFButton variant="ghost" size="sm" icon={ArrowLeft} onClick={goBack} className="shrink-0"><span className="hidden md:inline">Voltar</span></SGFButton>
                     <div className="min-w-0">
                         <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate">
                             {v.brand} {v.model}

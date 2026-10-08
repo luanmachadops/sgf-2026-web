@@ -203,7 +203,7 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                     <div key={sectionIndex} className="mb-3 last:mb-0">
                         {/* Section header */}
                         {!isCollapsed && (
-                            <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-white/30 select-none">
+                            <p className="mb-1 px-2 text-[9px] font-normal uppercase tracking-[0.06em] text-white/30 select-none">
                                 {section.title}
                             </p>
                         )}
