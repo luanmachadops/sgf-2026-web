@@ -51,7 +51,7 @@ function LayoutWithHeader() {
 
             <div className="flex flex-1 flex-col overflow-hidden p-0 relative min-h-0 min-w-0">
                 {/* Main Content Area - Single Container */}
-                <div className="flex-1 flex flex-col overflow-hidden min-h-0 lg:mt-[var(--sgf-space-4)] lg:ml-[var(--sgf-space-6)] mt-0 ml-0 lg:rounded-tl-[32px] rounded-none bg-[#E3E9E7] shadow-none lg:shadow-2xl relative isolate [clip-path:inset(0_round_32px_0_0_0)] max-lg:[clip-path:none]">
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0 lg:m-2 lg:ml-1 m-0 lg:rounded-[28px] rounded-none bg-[#E3E9E7] shadow-none lg:shadow-2xl relative isolate lg:[clip-path:inset(0_round_28px)]">
                     <Header onMenuClick={toggleSidebar} />
 
                     <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] p-[var(--sgf-space-4)] md:p-[var(--sgf-space-8)] scroll-smooth custom-scrollbar">
