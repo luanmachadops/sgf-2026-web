@@ -24,11 +24,9 @@ import {
     Activity,
     Fuel,
     Wrench,
-    Building2,
 } from '@/components/sgf/icons';
 import { SystemAlertsModal } from '@/components/dashboard/SystemAlertsModal';
 import { useHeader } from '@/contexts/HeaderContext';
-import { useBranding } from '@/contexts/BrandingContext';
 import {
     useDashboardSummary,
     useDashboardKpiTrends,
@@ -40,7 +38,6 @@ import { formatCurrency } from '@/lib/utils';
 export default function Dashboard() {
     const navigate = useNavigate();
     const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler } = useHeader();
-    const { branding } = useBranding();
     // Um período só para todos os gráficos da página: mudar em um muda em todos.
     const [expensePeriod, setExpensePeriod] = useState<PeriodValue>(() => makePeriod('1'));
     const [isAlertsModalOpen, setIsAlertsModalOpen] = useState<boolean | undefined>(undefined);
@@ -74,31 +71,6 @@ export default function Dashboard() {
         <div className="space-y-6">
             {/* Modal Popup Automático de Avisos (Licitações, CNH, Abastecimentos, Manutenções) */}
             <SystemAlertsModal isOpen={isAlertsModalOpen} onClose={() => setIsAlertsModalOpen(false)} />
-
-            {/* Cabeçalho da Prefeitura (brasão + nome) */}
-            <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center ${branding.sealUrl || branding.logoUrl || branding.photoUrl ? '' : 'overflow-hidden rounded-xl bg-[var(--sgf-dark)]'}`}>
-                    {branding.sealUrl || branding.logoUrl || branding.photoUrl ? (
-                        <img
-                            src={branding.sealUrl || branding.logoUrl || branding.photoUrl}
-                            alt={branding.name}
-                            className="h-full w-full object-contain"
-                            onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).style.display = 'none';
-                            }}
-                        />
-                    ) : (
-                        <Building2 className="h-6 w-6 text-white" />
-                    )}
-                </div>
-                <div className="min-w-0">
-                    <h2 className="truncate text-lg font-bold text-slate-900">{branding.name}</h2>
-                    <p className="text-xs font-medium text-slate-500">
-                        {[branding.city ? `${branding.city}${branding.state ? '/' + branding.state : ''}` : '', branding.mayorName ? `Prefeito(a): ${branding.mayorName}` : '']
-                            .filter(Boolean).join('  •  ') || 'Gestão Pública de Frota'}
-                    </p>
-                </div>
-            </div>
 
             {/* O que exige ação hoje — antes dos números, porque é o que se faz
                 com a tela aberta. */}
