@@ -16,12 +16,15 @@ import { AccessEditModal } from '@/components/access/AccessEditModal';
 import { ModuleChecks, RemoveAccessDialog, TempPasswordDialog } from '@/components/access/accessShared';
 import { ROLE_LABEL, STAFF_ROLES, loginOf } from '@/components/access/accessRoles';
 
-type Tab = 'equipe' | 'motoristas' | 'parceiros';
-
-const TABS: Array<{ value: Tab; label: string; roles: ManagedAccessRole[] }> = [
-    { value: 'equipe', label: 'Equipe', roles: ['admin', 'gestor', 'secretario'] },
-    { value: 'motoristas', label: 'Motoristas', roles: ['motorista'] },
-    { value: 'parceiros', label: 'Postos e oficinas', roles: ['posto', 'oficina'] },
+// Uma aba por tipo de usuário. Os acessos continuam também nas telas de
+// origem (Motoristas, Secretarias, cadastro do posto e da oficina).
+const TABS: Array<{ role: ManagedAccessRole; label: string; singular: string; hint: string }> = [
+    { role: 'secretario', label: 'Secretários', singular: 'secretário', hint: 'Acesso restrito à própria secretaria.' },
+    { role: 'motorista', label: 'Motoristas', singular: 'motorista', hint: 'Entram no app pelo CPF.' },
+    { role: 'oficina', label: 'Oficinas', singular: 'usuário de oficina', hint: 'Acessam só o portal da própria oficina.' },
+    { role: 'posto', label: 'Postos', singular: 'usuário de posto', hint: 'Acessam só o portal do próprio posto.' },
+    { role: 'gestor', label: 'Gestão', singular: 'gestor', hint: 'Gestores da frota, com as abas permitidas.' },
+    { role: 'admin', label: 'Administração', singular: 'administrador', hint: 'Acesso total, inclusive a esta tela.' },
 ];
 
 const ROLE_OPTIONS: Array<{ value: ManagedAccessRole; label: string }> = [
@@ -52,7 +55,8 @@ export default function AccessManagement() {
     const queryClient = useQueryClient();
     const isSuperadmin = user?.accountRole === 'superadmin';
 
-    const [tab, setTab] = useState<Tab>('equipe');
+    const [tab, setTab] = useState<ManagedAccessRole>('secretario');
+    const current = TABS.find((item) => item.role === tab)!;
     const [search, setSearch] = useState('');
     const [showBlocked, setShowBlocked] = useState(true);
     const [editing, setEditing] = useState<ManagedAccess | null>(null);
@@ -88,19 +92,18 @@ export default function AccessManagement() {
     };
 
     const rows = useMemo(() => accesses.data ?? [], [accesses.data]);
-    const counts = useMemo(() => Object.fromEntries(TABS.map((item) => [item.value, rows.filter((row) => item.roles.includes(row.role)).length])) as Record<Tab, number>, [rows]);
+    const counts = useMemo(() => Object.fromEntries(TABS.map((item) => [item.role, rows.filter((row) => row.role === item.role).length])) as Record<ManagedAccessRole, number>, [rows]);
     const visible = useMemo(() => {
-        const roles = TABS.find((item) => item.value === tab)!.roles;
         const term = search.trim().toLocaleLowerCase('pt-BR');
         return rows
-            .filter((row) => roles.includes(row.role))
+            .filter((row) => row.role === tab)
             .filter((row) => showBlocked || !row.access_blocked)
             .filter((row) => !term || [row.full_name, row.email, row.cpf, row.departments?.name, row.fuel_stations?.name, row.repair_shops?.name]
                 .some((value) => value?.toLocaleLowerCase('pt-BR').includes(term)));
     }, [rows, tab, search, showBlocked]);
 
     const resetCreate = () => {
-        setRole(tab === 'motoristas' ? 'motorista' : tab === 'parceiros' ? 'posto' : 'secretario');
+        setRole(tab);
         setName(''); setEmail(''); setCpf(''); setRegistrationNumber('');
         setDepartmentId(''); setPartnerId(''); setTenantId('');
         setAllowedModules([...ALL_ACCESS_MODULES]);
@@ -166,15 +169,15 @@ export default function AccessManagement() {
                 <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {TABS.map((item) => (
                         <button
-                            key={item.value}
+                            key={item.role}
                             type="button"
-                            onClick={() => setTab(item.value)}
+                            onClick={() => setTab(item.role)}
                             className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ${
-                                tab === item.value ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 shadow-sm hover:bg-slate-50'
+                                tab === item.role ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 shadow-sm hover:bg-slate-50'
                             }`}
                         >
                             {item.label}
-                            <span className={`rounded-full px-2 py-0.5 text-xs ${tab === item.value ? 'bg-white/15' : 'bg-slate-100 text-slate-500'}`}>{counts[item.value] ?? 0}</span>
+                            <span className={`rounded-full px-2 py-0.5 text-xs ${tab === item.role ? 'bg-white/15' : 'bg-slate-100 text-slate-500'}`}>{counts[item.role] ?? 0}</span>
                         </button>
                     ))}
                 </div>
@@ -182,15 +185,18 @@ export default function AccessManagement() {
                     <div className="min-w-0 flex-1 lg:w-72 lg:flex-none">
                         <SGFInput icon={Search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar nome, e-mail, CPF…" fullWidth />
                     </div>
-                    <SGFButton icon={Plus} onClick={openCreate}>Novo acesso</SGFButton>
+                    <SGFButton icon={Plus} onClick={openCreate} className="shrink-0">
+                        <span className="hidden sm:inline">Novo {current.singular}</span>
+                        <span className="sm:hidden">Novo</span>
+                    </SGFButton>
                 </div>
             </div>
 
             <SGFCard padding="none" className="overflow-hidden">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
                     <div>
-                        <h2 className="font-bold text-slate-900">{TABS.find((item) => item.value === tab)!.label}</h2>
-                        <p className="text-sm text-slate-500">Clique em um acesso para editar, gerar nova senha, bloquear ou remover.</p>
+                        <h2 className="font-bold text-slate-900">{current.label}</h2>
+                        <p className="text-sm text-slate-500">{current.hint} Clique em um acesso para editar, gerar nova senha, bloquear ou remover.</p>
                     </div>
                     <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
                         <input type="checkbox" checked={showBlocked} onChange={(event) => setShowBlocked(event.target.checked)} className="h-4 w-4 accent-emerald-600" />
@@ -206,7 +212,7 @@ export default function AccessManagement() {
                         <SGFButton className="mt-4" variant="ghost" size="sm" onClick={() => accesses.refetch()}>Tentar novamente</SGFButton>
                     </div>
                 ) : visible.length === 0 ? (
-                    <div className="p-8 text-center text-sm text-slate-500">{search ? 'Nenhum acesso encontrado para a busca.' : 'Nenhum acesso nesta aba.'}</div>
+                    <div className="p-8 text-center text-sm text-slate-500">{search ? 'Nenhum acesso encontrado para a busca.' : `Nenhum ${current.singular} cadastrado.`}</div>
                 ) : (
                     <ul className="divide-y divide-slate-100">
                         {visible.map((access) => (
@@ -241,7 +247,7 @@ export default function AccessManagement() {
             <Modal
                 isOpen={createOpen}
                 onClose={() => setCreateOpen(false)}
-                title="Novo acesso"
+                title={`Novo ${current.singular}`}
                 description="A senha provisória é gerada pelo sistema e mostrada uma única vez. A pessoa troca no primeiro acesso."
                 size="lg"
                 footer={(
@@ -262,13 +268,15 @@ export default function AccessManagement() {
                             fullWidth
                         />
                     )}
-                    <SGFSelect
-                        label="Tipo de acesso"
-                        value={role}
-                        onChange={(value) => { setRole(value as ManagedAccessRole); setPartnerId(''); }}
-                        options={ROLE_OPTIONS}
-                        fullWidth
-                    />
+                    {isStaffRole && (
+                        <SGFSelect
+                            label="Cargo"
+                            value={role}
+                            onChange={(value) => setRole(value as ManagedAccessRole)}
+                            options={ROLE_OPTIONS.filter((item) => STAFF_ROLES.includes(item.value))}
+                            fullWidth
+                        />
+                    )}
                     {isPartnerRole && (
                         <SGFSelect
                             label={role === 'posto' ? 'Posto' : 'Oficina'}

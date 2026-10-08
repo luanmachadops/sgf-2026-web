@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
-import { KeyRound, Lock, LockOpen, Trash2 } from '@/components/sgf/icons';
+import { ExternalLink, KeyRound, Lock, LockOpen, Trash2 } from '@/components/sgf/icons';
 import { accessManagementApi, type ManagedAccess, type ManagedAccessRole, type UpdateManagedAccess } from '@/lib/backend-api';
 import { departmentsApi } from '@/lib/supabase-api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,6 +27,7 @@ export function AccessEditModal({ access, onClose, onSaved, onRemove, onTempPass
     onTempPassword: (credential: { name: string; login: string; password: string }) => void;
 }) {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [role, setRole] = useState<ManagedAccessRole>('secretario');
@@ -95,6 +97,14 @@ export function AccessEditModal({ access, onClose, onSaved, onRemove, onTempPass
         .map((item) => ({ value: item.id, label: item.name }));
     const busy = save.isPending || action.isPending;
 
+    // Atalho para o cadastro de origem — os acessos também são geridos lá.
+    const origin = !access ? null
+        : access.role === 'motorista' ? { label: 'Abrir ficha do motorista', path: `/motoristas/${access.id}` }
+        : access.role === 'posto' && access.station_id ? { label: 'Abrir cadastro do posto', path: `/postos/${access.station_id}` }
+        : access.role === 'oficina' && access.repair_shop_id ? { label: 'Abrir cadastro da oficina', path: `/oficinas/${access.repair_shop_id}` }
+        : access.role === 'secretario' && access.department_id ? { label: 'Abrir secretaria', path: `/secretarias/${access.department_id}` }
+        : null;
+
     return (
         <Modal
             isOpen={Boolean(access)}
@@ -104,6 +114,11 @@ export function AccessEditModal({ access, onClose, onSaved, onRemove, onTempPass
             size="lg"
             footer={(
                 <ModalFooter>
+                    {origin && (
+                        <SGFButton variant="ghost" icon={ExternalLink} className="mr-auto" onClick={() => { onClose(); navigate(origin.path); }}>
+                            {origin.label}
+                        </SGFButton>
+                    )}
                     <SGFButton variant="ghost" onClick={onClose}>Cancelar</SGFButton>
                     <SGFButton loading={save.isPending} disabled={busy || name.trim().length < 3} onClick={() => save.mutate()}>Salvar alterações</SGFButton>
                 </ModalFooter>
