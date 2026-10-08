@@ -23,13 +23,6 @@ interface TenantBrandingPreviewModalProps {
     branding: TenantBrandingPreview;
 }
 
-const SCREENS = [
-    { path: '/', label: 'Dashboard' },
-    { path: '/mapa', label: 'Mapa' },
-    { path: '/veiculos', label: 'Veículos' },
-    { path: '/abastecimentos', label: 'Abastecimentos' },
-    { path: '/manutencoes', label: 'Manutenções' },
-] as const;
 
 const VIEWPORTS = [
     { label: 'Celular', width: 390, height: 780 },
@@ -43,7 +36,6 @@ const VIEWPORTS = [
  * cores, o nome e as imagens do formulário — antes de salvar. Nada é gravado.
  */
 export function TenantBrandingPreviewModal({ open, onClose, branding }: TenantBrandingPreviewModalProps) {
-    const [screen, setScreen] = useState<string>('/');
     const [viewport, setViewport] = useState<(typeof VIEWPORTS)[number]>(VIEWPORTS[2]);
     const [loading, setLoading] = useState(true);
     const [scale, setScale] = useState(1);
@@ -104,7 +96,6 @@ export function TenantBrandingPreviewModal({ open, onClose, branding }: TenantBr
 
     if (!open) return null;
 
-    const src = `${screen}${screen.includes('?') ? '&' : '?'}brandPreview=1`;
 
     return createPortal(
         <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm sm:p-6" onMouseDown={(event) => {
@@ -127,20 +118,7 @@ export function TenantBrandingPreviewModal({ open, onClose, branding }: TenantBr
                 </header>
 
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 sm:px-6">
-                    <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        {SCREENS.map((item) => (
-                            <button
-                                key={item.path}
-                                type="button"
-                                onClick={() => { if (item.path !== screen) { setLoading(true); setScreen(item.path); } }}
-                                className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold transition-colors ${
-                                    screen === item.path ? 'bg-[var(--sgf-accent)] text-[var(--sgf-accent-contrast)]' : 'bg-white text-slate-600 shadow-sm hover:bg-[var(--sgf-primary-soft)]'
-                                }`}
-                            >
-                                {item.label}
-                            </button>
-                        ))}
-                    </div>
+                    <p className="text-xs text-slate-500">Painel completo e navegável — use o menu da prévia para abrir qualquer tela.</p>
                     <div className="flex gap-1.5">
                         {VIEWPORTS.map((item) => (
                             <button
@@ -164,8 +142,7 @@ export function TenantBrandingPreviewModal({ open, onClose, branding }: TenantBr
                     >
                         <iframe
                             ref={frameRef}
-                            key={screen}
-                            src={src}
+                            src="/?brandPreview=1"
                             title="Prévia do painel"
                             className="h-full w-full border-0"
                             onLoad={() => { send(); window.setTimeout(() => setLoading(false), 1500); }}
