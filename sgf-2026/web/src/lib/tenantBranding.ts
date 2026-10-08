@@ -35,6 +35,12 @@ function contrastColor(hex: string): '#111827' | '#FFFFFF' {
     return (red * 299 + green * 587 + blue * 114) / 1000 > 150 ? '#111827' : '#FFFFFF';
 }
 
+/** O painel está rodando dentro da prévia de identidade visual (iframe)? */
+export function isBrandPreviewFrame(): boolean {
+    if (typeof window === 'undefined' || window.parent === window) return false;
+    return new URLSearchParams(window.location.search).has('brandPreview');
+}
+
 /** Aplica as cores do tenant nas CSS vars do design system (sobrescreve por prefeitura). */
 export function applyBrandingColors(b?: TenantBranding | null) {
     const root = document.documentElement;

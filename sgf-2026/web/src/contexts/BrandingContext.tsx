@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { TenantBranding } from '@/types';
-import { DEFAULT_BRANDING, applyBrandingColors, fetchPublicBranding, getSlugFromHost } from '@/lib/tenantBranding';
+import { DEFAULT_BRANDING, applyBrandingColors, fetchPublicBranding, getSlugFromHost, isBrandPreviewFrame } from '@/lib/tenantBranding';
 
 interface BrandingContextType {
     branding: TenantBranding;
@@ -26,10 +26,26 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     const publicBranding = fetched?.slug === slug ? fetched.branding : null;
     const isLoading = !!slug && fetched?.slug !== slug;
 
-    const branding = useMemo<TenantBranding>(
-        () => user?.tenant ?? publicBranding ?? DEFAULT_BRANDING,
-        [user?.tenant, publicBranding],
-    );
+    // Prévia da identidade (Configurações → Prévia): o painel real roda num
+    // iframe com ?brandPreview=1 e recebe do formulário as cores/imagens ainda
+    // não salvas. Fora desse iframe nada muda.
+    const [previewOverride, setPreviewOverride] = useState<Partial<TenantBranding> | null>(null);
+    useEffect(() => {
+        if (!isBrandPreviewFrame()) return;
+        const onMessage = (event: MessageEvent) => {
+            if (event.origin !== window.location.origin) return;
+            const data = event.data as { type?: string; branding?: Partial<TenantBranding> } | null;
+            if (data?.type === 'sgf-brand-preview' && data.branding) setPreviewOverride(data.branding);
+        };
+        window.addEventListener('message', onMessage);
+        window.parent.postMessage({ type: 'sgf-brand-preview-ready' }, window.location.origin);
+        return () => window.removeEventListener('message', onMessage);
+    }, []);
+
+    const branding = useMemo<TenantBranding>(() => {
+        const base = user?.tenant ?? publicBranding ?? DEFAULT_BRANDING;
+        return previewOverride ? { ...base, ...previewOverride } : base;
+    }, [user?.tenant, publicBranding, previewOverride]);
 
     useEffect(() => { applyBrandingColors(branding); }, [branding]);
 

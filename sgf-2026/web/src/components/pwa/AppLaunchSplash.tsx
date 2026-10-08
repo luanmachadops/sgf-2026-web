@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { INICIO_LAYERS, INICIO_VIEWBOX } from './inicioLogo';
+import { isBrandPreviewFrame } from '@/lib/tenantBranding';
 
 function isStandaloneMode(): boolean {
     const standaloneNavigator = navigator as Navigator & { standalone?: boolean };
@@ -7,7 +8,7 @@ function isStandaloneMode(): boolean {
 }
 
 export function AppLaunchSplash() {
-    const [visible, setVisible] = useState(() => (
+    const [visible, setVisible] = useState(() => !isBrandPreviewFrame() && (
         isStandaloneMode()
         || import.meta.env.DEV
         || new URLSearchParams(window.location.search).get('pwa-splash') === '1'

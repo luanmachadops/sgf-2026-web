@@ -1,6 +1,6 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, Building2, Car, Eye, LayoutDashboard, Settings2, Users, X } from '@/components/sgf/icons';
+import { Eye, Loader2, X } from '@/components/sgf/icons';
 
 export interface TenantBrandingPreview {
     name: string;
@@ -23,136 +23,60 @@ interface TenantBrandingPreviewModalProps {
     branding: TenantBrandingPreview;
 }
 
-type PreviewScreen = 'dashboard' | 'login';
-
-const VIEWPORTS = [
-    { label: 'Celular', width: 360 },
-    { label: 'Tablet', width: 720 },
-    { label: 'Desktop', width: 1040 },
+const SCREENS = [
+    { path: '/', label: 'Dashboard' },
+    { path: '/mapa', label: 'Mapa' },
+    { path: '/veiculos', label: 'Veículos' },
+    { path: '/abastecimentos', label: 'Abastecimentos' },
+    { path: '/manutencoes', label: 'Manutenções' },
 ] as const;
 
-function BrandImage({ branding, size = 'md' }: { branding: TenantBrandingPreview; size?: 'sm' | 'md' | 'lg' }) {
-    const source = branding.sealUrl || branding.logoUrl;
-    const dimension = size === 'lg' ? 'h-20 w-20' : size === 'sm' ? 'h-8 w-8' : 'h-11 w-11';
-    return (
-        <div className={`flex ${dimension} shrink-0 items-center justify-center`}>
-            {source
-                ? <img src={source} alt={branding.name || 'Logo da prefeitura'} className="h-full w-full object-contain" />
-                : <Building2 className="h-1/2 w-1/2 text-current" />}
-        </div>
-    );
-}
+const VIEWPORTS = [
+    { label: 'Celular', width: 390, height: 780 },
+    { label: 'Tablet', width: 820, height: 1000 },
+    { label: 'Computador', width: 1440, height: 860 },
+] as const;
 
-function DashboardPreview({ branding }: { branding: TenantBrandingPreview }) {
-    const primary = branding.primaryColor || '#00A86B';
-    const dark = branding.darkColor || '#0F2B2F';
-    const accent = branding.accentColor || '#70C4A8';
-    const location = [branding.city, branding.state].filter(Boolean).join('/');
-    const cards = [
-        { label: 'Veículos', value: '94', icon: Car },
-        { label: 'Motoristas', value: '38', icon: Users },
-        { label: 'Alertas', value: '3', icon: Bell },
-    ];
-
-    return (
-        <div className="flex min-h-[430px] overflow-hidden rounded-2xl bg-slate-100 text-slate-900 shadow-inner">
-            <aside className="hidden w-[27%] min-w-[150px] flex-col p-4 sm:flex" style={{ backgroundColor: dark, color: '#fff' }}>
-                <div className="flex items-center gap-2">
-                    <BrandImage branding={branding} size="sm" />
-                    <div className="min-w-0">
-                        <p className="truncate text-xs font-bold">{branding.name || 'Prefeitura'}</p>
-                        <p className="truncate text-[9px] opacity-65">{location || 'Gestão Pública'}</p>
-                    </div>
-                </div>
-                <div className="mt-6 space-y-2 text-[11px]">
-                    <div className="flex items-center gap-2 rounded-lg px-3 py-2 font-semibold" style={{ backgroundColor: primary }}>
-                        <LayoutDashboard className="h-4 w-4" /> Dashboard
-                    </div>
-                    <div className="flex items-center gap-2 rounded-lg px-3 py-2 opacity-65"><Car className="h-4 w-4" /> Gestão de Frotas</div>
-                    <div className="flex items-center gap-2 rounded-lg px-3 py-2 opacity-65"><Users className="h-4 w-4" /> Motoristas</div>
-                    <div className="flex items-center gap-2 rounded-lg px-3 py-2 opacity-65"><Settings2 className="h-4 w-4" /> Configurações</div>
-                </div>
-                <div className="mt-auto rounded-xl p-3 text-[10px]" style={{ backgroundColor: `${accent}26` }}>
-                    <p className="font-bold" style={{ color: accent }}>Identidade própria</p>
-                    <p className="mt-1 opacity-60">{branding.slug ? `${branding.slug}.exattusrotta.com.br` : 'Painel da prefeitura'}</p>
-                </div>
-            </aside>
-            <main className="min-w-0 flex-1 p-4 sm:p-6">
-                <header className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                        <p className="truncate text-base font-bold">{branding.appName || branding.name || 'Exattus Rotta'}</p>
-                        <p className="truncate text-[10px] text-slate-500">{branding.name || 'Prefeitura'} {location ? `• ${location}` : ''}</p>
-                    </div>
-                    <button type="button" className="rounded-full px-4 py-2 text-[10px] font-bold text-white" style={{ backgroundColor: primary }}>
-                        Nova ação
-                    </button>
-                </header>
-                <div className="mt-6 grid grid-cols-1 gap-3 min-[520px]:grid-cols-3">
-                    {cards.map(({ label, value, icon: Icon }) => (
-                        <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                            <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg" style={{ backgroundColor: `${primary}18`, color: primary }}>
-                                <Icon className="h-4 w-4" />
-                            </div>
-                            <p className="text-xl font-black">{value}</p>
-                            <p className="text-[10px] text-slate-500">{label}</p>
-                        </div>
-                    ))}
-                </div>
-                <div className="mt-4 grid gap-4 min-[620px]:grid-cols-[1.5fr_1fr]">
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                        <div className="flex items-center justify-between">
-                            <p className="text-xs font-bold">Atividade da frota</p>
-                            <span className="rounded-full px-2 py-1 text-[9px] font-bold" style={{ backgroundColor: `${accent}2e`, color: dark }}>Este mês</span>
-                        </div>
-                        <div className="mt-8 flex h-24 items-end gap-2">
-                            {[42, 68, 54, 84, 62, 94, 74].map((height, index) => (
-                                <div key={index} className="min-w-0 flex-1 rounded-t-md" style={{ height: `${height}%`, backgroundColor: index === 5 ? primary : `${accent}88` }} />
-                            ))}
-                        </div>
-                    </div>
-                    <div className="rounded-xl p-4 text-white" style={{ backgroundColor: dark }}>
-                        <p className="text-xs font-bold">Destaques</p>
-                        <p className="mt-2 text-[10px] opacity-65">Botões, abas, gráficos e focos seguem as cores configuradas.</p>
-                        <button type="button" className="mt-5 w-full rounded-full px-3 py-2 text-[10px] font-bold" style={{ backgroundColor: accent, color: dark }}>
-                            Ver relatório
-                        </button>
-                    </div>
-                </div>
-            </main>
-        </div>
-    );
-}
-
-function LoginPreview({ branding }: { branding: TenantBrandingPreview }) {
-    const primary = branding.primaryColor || '#00A86B';
-    const dark = branding.darkColor || '#0F2B2F';
-    const location = [branding.city, branding.state].filter(Boolean).join(' - ');
-
-    return (
-        <div className="flex min-h-[430px] items-center justify-center rounded-2xl p-5" style={{ background: `linear-gradient(135deg, ${dark}, ${primary})` }}>
-            <div className="w-full max-w-[330px] rounded-[28px] bg-white p-7 text-center shadow-2xl">
-                <div className="mx-auto text-slate-300"><BrandImage branding={branding} size="lg" /></div>
-                <h3 className="mt-4 truncate text-xl font-black text-slate-900">{branding.appName || branding.name || 'Exattus Rotta'}</h3>
-                <p className="mt-2 truncate text-[10px] text-slate-500">{branding.name}{location ? ` • ${location}` : ''}</p>
-                <div className="mt-6 space-y-3 text-left">
-                    <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] text-slate-400">E-mail institucional</div>
-                    <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] text-slate-400">Senha</div>
-                    <button type="button" className="w-full rounded-full py-3 text-xs font-bold text-white shadow-lg" style={{ backgroundColor: primary }}>Entrar</button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
+/**
+ * Prévia da identidade visual com as TELAS REAIS do painel: o próprio sistema
+ * roda num iframe (mesma sessão, dados reais) e recebe por postMessage as
+ * cores, o nome e as imagens do formulário — antes de salvar. Nada é gravado.
+ */
 export function TenantBrandingPreviewModal({ open, onClose, branding }: TenantBrandingPreviewModalProps) {
-    const [width, setWidth] = useState<number>(1040);
-    const [screen, setScreen] = useState<PreviewScreen>('dashboard');
+    const [screen, setScreen] = useState<string>('/');
+    const [viewport, setViewport] = useState<(typeof VIEWPORTS)[number]>(VIEWPORTS[2]);
+    const [loading, setLoading] = useState(true);
+    const [scale, setScale] = useState(1);
+    const frameRef = useRef<HTMLIFrameElement>(null);
+    const stageRef = useRef<HTMLDivElement>(null);
+
+    const send = useCallback(() => {
+        const target = frameRef.current?.contentWindow;
+        if (!target) return;
+        const clean = Object.fromEntries(Object.entries(branding).filter(([, value]) => value !== undefined && value !== ''));
+        target.postMessage({ type: 'sgf-brand-preview', branding: clean }, window.location.origin);
+    }, [branding]);
+
+    // O app dentro do iframe avisa quando está pronto para receber a marca.
+    useEffect(() => {
+        if (!open) return;
+        const onMessage = (event: MessageEvent) => {
+            if (event.origin !== window.location.origin || event.source !== frameRef.current?.contentWindow) return;
+            if ((event.data as { type?: string } | null)?.type === 'sgf-brand-preview-ready') {
+                send();
+                setLoading(false);
+            }
+        };
+        window.addEventListener('message', onMessage);
+        return () => window.removeEventListener('message', onMessage);
+    }, [open, send]);
+
+    // Mudou algo no formulário com a prévia aberta: reenvia na hora.
+    useEffect(() => { if (open) send(); }, [open, send]);
 
     useEffect(() => {
         if (!open) return;
-        const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') onClose();
-        };
+        const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
         document.addEventListener('keydown', onKeyDown);
         const previousOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
@@ -162,56 +86,96 @@ export function TenantBrandingPreviewModal({ open, onClose, branding }: TenantBr
         };
     }, [open, onClose]);
 
+    // Encaixa o aparelho escolhido no espaço disponível (reduz em vez de cortar).
+    useLayoutEffect(() => {
+        if (!open) return;
+        const stage = stageRef.current;
+        if (!stage) return;
+        const fit = () => {
+            const availableW = stage.clientWidth - 32;
+            const availableH = stage.clientHeight - 32;
+            setScale(Math.min(1, availableW / viewport.width, availableH / viewport.height));
+        };
+        fit();
+        const observer = new ResizeObserver(fit);
+        observer.observe(stage);
+        return () => observer.disconnect();
+    }, [open, viewport]);
+
     if (!open) return null;
 
-    const previewStyle: CSSProperties = {
-        width,
-        maxWidth: '100%',
-        minWidth: 300,
-        resize: 'horizontal',
-        overflow: 'auto',
-    };
+    const src = `${screen}${screen.includes('?') ? '&' : '?'}brandPreview=1`;
 
     return createPortal(
-        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6" onMouseDown={(event) => {
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/60 p-3 backdrop-blur-sm sm:p-6" onMouseDown={(event) => {
             if (event.currentTarget === event.target) onClose();
         }}>
-            <section role="dialog" aria-modal="true" aria-label="Prévia da identidade visual" className="flex max-h-[94vh] w-full max-w-[1180px] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
-                <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-6">
+            <section role="dialog" aria-modal="true" aria-label="Prévia da identidade visual" className="flex h-[94vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+                <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 sm:px-6">
                     <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ backgroundColor: branding.primaryColor || '#00A86B' }}>
+                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[var(--sgf-primary-contrast)]" style={{ backgroundColor: branding.primaryColor || 'var(--sgf-primary)' }}>
                             <Eye className="h-5 w-5" />
                         </div>
                         <div className="min-w-0">
                             <h2 className="truncate text-base font-bold text-slate-900">Prévia da identidade visual</h2>
-                            <p className="text-xs text-slate-500">As alterações do formulário aparecem aqui antes de salvar.</p>
+                            <p className="truncate text-xs text-slate-500">Telas reais do painel com as cores e imagens do formulário — nada é salvo aqui.</p>
                         </div>
                     </div>
                     <button type="button" aria-label="Fechar prévia" onClick={onClose} className="rounded-full p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900">
                         <X className="h-5 w-5" />
                     </button>
                 </header>
+
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 sm:px-6">
-                    <div className="flex rounded-full bg-white p-1 shadow-sm ring-1 ring-slate-200">
-                        {([['dashboard', 'Painel do gestor'], ['login', 'Tela de login']] as const).map(([value, label]) => (
-                            <button key={value} type="button" onClick={() => setScreen(value)} className={`rounded-full px-4 py-2 text-xs font-bold transition-colors ${screen === value ? 'text-white' : 'text-slate-500 hover:text-slate-900'}`} style={screen === value ? { backgroundColor: branding.primaryColor || '#00A86B' } : undefined}>
-                                {label}
+                    <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {SCREENS.map((item) => (
+                            <button
+                                key={item.path}
+                                type="button"
+                                onClick={() => { if (item.path !== screen) { setLoading(true); setScreen(item.path); } }}
+                                className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold transition-colors ${
+                                    screen === item.path ? 'bg-[var(--sgf-accent)] text-[var(--sgf-accent-contrast)]' : 'bg-white text-slate-600 shadow-sm hover:bg-[var(--sgf-primary-soft)]'
+                                }`}
+                            >
+                                {item.label}
                             </button>
                         ))}
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                        {VIEWPORTS.map((viewport) => (
-                            <button key={viewport.width} type="button" onClick={() => setWidth(viewport.width)} className={`rounded-full border px-3 py-2 text-[11px] font-bold transition-colors ${width === viewport.width ? 'border-transparent text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`} style={width === viewport.width ? { backgroundColor: branding.darkColor || '#0F2B2F' } : undefined}>
-                                {viewport.label}
+                    <div className="flex gap-1.5">
+                        {VIEWPORTS.map((item) => (
+                            <button
+                                key={item.label}
+                                type="button"
+                                onClick={() => setViewport(item)}
+                                className={`rounded-full px-3 py-2 text-[11px] font-bold transition-colors ${
+                                    viewport.label === item.label ? 'bg-[var(--sgf-dark)] text-[var(--sgf-dark-contrast)]' : 'bg-white text-slate-600 shadow-sm hover:bg-slate-100'
+                                }`}
+                            >
+                                {item.label}
                             </button>
                         ))}
                     </div>
                 </div>
-                <div className="min-h-0 flex-1 overflow-auto bg-slate-200/70 p-3 sm:p-6">
-                    <div className="mx-auto transition-[width] duration-300" style={previewStyle}>
-                        {screen === 'dashboard' ? <DashboardPreview branding={branding} /> : <LoginPreview branding={branding} />}
+
+                <div ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden bg-slate-200/70">
+                    <div
+                        className="absolute left-1/2 top-4 origin-top overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-black/10"
+                        style={{ width: viewport.width, height: viewport.height, transform: `translateX(-50%) scale(${scale})` }}
+                    >
+                        <iframe
+                            ref={frameRef}
+                            key={screen}
+                            src={src}
+                            title="Prévia do painel"
+                            className="h-full w-full border-0"
+                            onLoad={() => { send(); window.setTimeout(() => setLoading(false), 1500); }}
+                        />
+                        {loading && (
+                            <div className="absolute inset-0 grid place-items-center bg-white/80">
+                                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                            </div>
+                        )}
                     </div>
-                    <p className="mt-3 text-center text-[11px] text-slate-500">Arraste a borda direita da prévia para ajustar livremente o tamanho.</p>
                 </div>
             </section>
         </div>,
