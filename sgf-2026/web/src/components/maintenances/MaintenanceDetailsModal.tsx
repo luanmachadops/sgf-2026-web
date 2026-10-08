@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { EntityAvatar } from '@/components/sgf/EntityAvatar';
+import { maintenanceManagerNextAction } from '@/lib/maintenance-status';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
@@ -10,12 +12,10 @@ import {
     Calendar,
     Car,
     Edit,
-    FileText,
     Gauge,
     Printer,
     ShieldCheck,
     User,
-    Wrench,
     X,
 } from '@/components/sgf/icons';
 import { maintenancesApi } from '@/lib/supabase-api';
@@ -229,136 +229,104 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
             {isLoading || !m ? (
                 <p className="py-8 text-center text-sm text-slate-400">Carregando…</p>
             ) : (
-                <div className="space-y-6">
-                    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-                        <div className="flex items-center gap-3">
-                            <div className="rounded-xl bg-amber-50 p-2.5 text-amber-600">
-                                <Wrench className="h-5 w-5" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                    {ORIGIN_LABEL[m.origin] ?? 'Ordem de serviço'}
-                                </p>
-                                <p className="font-bold text-slate-800">{m.category ?? 'Sem categoria'}</p>
-                                <p className="text-xs text-slate-500">OS {m.id.slice(0, 8).toUpperCase()}</p>
-                            </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            <SGFBadge variant={op === 'cancelled' ? 'error' : op === 'received' ? 'success' : 'info'}>
-                                {OP_LABEL[op]}
-                            </SGFBadge>
-                            <SGFBadge variant={fin === 'paid' ? 'success' : fin === 'not_started' ? 'default' : 'warning'}>
-                                {FIN_LABEL[fin]}
-                            </SGFBadge>
-                        </div>
-                    </div>
-
-                    {m.description && (
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
-                            <p className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                <FileText className="h-3.5 w-3.5" /> Relato da avaria
-                            </p>
-                            <p className="text-sm text-slate-700">{m.description}</p>
-                        </div>
-                    )}
-
-                    {/* Bloco 1: Veículo e Oficina */}
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        {/* Veículo com foto */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
-                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                                {m.vehicles?.photo_url ? (
-                                    <img src={m.vehicles.photo_url} alt="Veículo" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                                ) : (
-                                    <div className="flex h-full w-full items-center justify-center text-slate-400">
-                                        <Car className="h-5 w-5" />
-                                    </div>
-                                )}
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Veículo</p>
-                                <p className="truncate font-bold text-slate-800">
-                                    {m.vehicles ? `${m.vehicles.brand ?? ''} ${m.vehicles.model ?? ''} · ${m.vehicles.plate}`.trim() : '—'}
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Oficina */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
-                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                                {shopPhotoUrl ? (
-                                    <img src={shopPhotoUrl} alt="Oficina" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                                ) : (
-                                    <div className="flex h-full w-full items-center justify-center text-slate-400">
-                                        <Building2 className="h-5 w-5" />
-                                    </div>
-                                )}
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Oficina</p>
-                                <p className="truncate font-bold text-slate-800">{m.repair_shops?.name ?? m.repair_shop ?? 'Aguardando triagem'}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Bloco 2: Aberta em, Hodômetro, Motorista e Prioridade */}
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                        {/* Aberta em */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
-                                <Calendar className="h-5 w-5" />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Aberta em</p>
-                                <p className="truncate font-bold text-slate-800">{formatDate(m.created_at)}</p>
-                            </div>
-                        </div>
-
-                        {/* Odômetro / Hodômetro */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600">
-                                <Gauge className="h-5 w-5" />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Hodômetro</p>
-                                <p className="truncate font-bold text-slate-800">{m.odometer != null ? `${Number(m.odometer).toLocaleString('pt-BR')} km` : 'Não informado'}</p>
-                            </div>
-                        </div>
-
-                        {/* Motorista com foto */}
-                        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs">
-                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
-                                {m.profiles?.photo_url ? (
-                                    <img src={m.profiles.photo_url} alt="Motorista" className="h-full w-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                                ) : (
-                                    <div className="flex h-full w-full items-center justify-center text-slate-400">
-                                        <User className="h-5 w-5" />
-                                    </div>
-                                )}
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Motorista</p>
-                                {m.profiles?.full_name
-                                    ? <p className="truncate font-bold text-slate-800">{m.profiles.full_name}</p>
-                                    : <p className="truncate text-sm font-medium italic text-slate-400">{NO_DRIVER_LABEL}</p>}
-                            </div>
-                        </div>
-
-                        {/* Prioridade com cor específica do nível */}
-                        {(() => {
-                            const pStyle = getPriorityStyles(m.priority);
-                            return (
-                                <div className={`flex items-center gap-3 rounded-2xl border p-3.5 shadow-xs transition-colors ${pStyle.bg} ${pStyle.border}`}>
-                                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-bold ${pStyle.iconBg}`}>
-                                        <Wrench className="h-5 w-5" />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Prioridade</p>
-                                        <p className={`truncate font-bold ${pStyle.text}`}>{PRIORITY_LABEL[m.priority] ?? m.priority}</p>
-                                    </div>
+                <div className="space-y-5">
+                    {/* Próxima etapa: o que precisa acontecer agora */}
+                    {(() => {
+                        const next = maintenanceManagerNextAction(op, fin);
+                        const mine = ['pending', 'authorized', 'ready'].includes(op)
+                            || (op === 'awaiting_quote_approval' && ['not_started', 'awaiting_commitment'].includes(fin))
+                            || (op === 'received' && ['invoiced', 'attested'].includes(fin));
+                        return (
+                            <div className={`flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+                                op === 'cancelled' ? 'border-red-200 bg-red-50/60'
+                                    : mine ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-slate-50/70'
+                            }`}>
+                                <div className="min-w-0">
+                                    <p className="text-xs font-medium text-slate-500">{mine ? 'Próxima etapa · sua ação' : 'Próxima etapa'}</p>
+                                    <p className={`text-base font-bold ${op === 'cancelled' ? 'text-red-700' : mine ? 'text-amber-800' : 'text-slate-800'}`}>{next}</p>
                                 </div>
-                            );
-                        })()}
+                                <div className="flex flex-wrap gap-2">
+                                    <SGFBadge variant={op === 'cancelled' ? 'error' : op === 'received' ? 'success' : 'info'}>{OP_LABEL[op]}</SGFBadge>
+                                    <SGFBadge variant={fin === 'paid' ? 'success' : fin === 'not_started' ? 'default' : 'warning'}>{FIN_LABEL[fin]}</SGFBadge>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Etapas do processo */}
+                    {op !== 'cancelled' && (() => {
+                        const steps = ['Solicitação', 'Na oficina', 'Em conserto', 'Concluída', 'Pago'];
+                        const current = op === 'pending' ? 0
+                            : ['authorized', 'at_shop', 'awaiting_quote_approval'].includes(op) ? 1
+                            : ['in_progress', 'ready'].includes(op) ? 2
+                            : fin === 'paid' ? 4 : 3;
+                        return (
+                            <ol className="flex items-center gap-1.5">
+                                {steps.map((label, i) => (
+                                    <li key={label} className="flex min-w-0 flex-1 flex-col gap-1.5">
+                                        <span className={`h-1.5 rounded-full ${i < current ? 'bg-[var(--sgf-primary)]' : i === current ? 'bg-[var(--sgf-accent)]' : 'bg-slate-200'}`} />
+                                        <span className={`truncate text-[11px] ${i === current ? 'font-bold text-slate-800' : i < current ? 'font-medium text-slate-600' : 'text-slate-400'}`}>{label}</span>
+                                    </li>
+                                ))}
+                            </ol>
+                        );
+                    })()}
+
+                    {/* Dados da OS num card só */}
+                    <div className="rounded-2xl border border-slate-200 bg-white">
+                        <div className="border-b border-slate-100 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="text-xs font-medium text-slate-500">
+                                        {ORIGIN_LABEL[m.origin] ?? 'Ordem de serviço'} · OS {m.id.slice(0, 8).toUpperCase()}
+                                    </p>
+                                    <p className="text-base font-bold text-slate-900">{m.category ?? 'Sem categoria'}</p>
+                                </div>
+                                {(() => {
+                                    const pStyle = getPriorityStyles(m.priority);
+                                    return (
+                                        <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold ${pStyle.bg} ${pStyle.border} ${pStyle.text}`}>
+                                            Prioridade {(PRIORITY_LABEL[m.priority] ?? m.priority).toLowerCase()}
+                                        </span>
+                                    );
+                                })()}
+                            </div>
+                            {m.description && (
+                                <p className="mt-2 whitespace-pre-line text-sm text-slate-600">{m.description}</p>
+                            )}
+                        </div>
+                        <dl className="grid grid-cols-1 gap-x-6 gap-y-4 p-4 sm:grid-cols-2">
+                            <div className="flex items-center gap-3">
+                                <EntityAvatar url={shopPhotoUrl} icon={Building2} alt="Oficina" square size="sm" />
+                                <div className="min-w-0">
+                                    <dt className="text-xs text-slate-500">Oficina</dt>
+                                    <dd className="truncate font-semibold text-slate-800">{m.repair_shops?.name ?? m.repair_shop ?? 'A definir na análise'}</dd>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <EntityAvatar url={m.profiles?.photo_url} icon={User} alt="Motorista" size="sm" />
+                                <div className="min-w-0">
+                                    <dt className="text-xs text-slate-500">Motorista</dt>
+                                    <dd className={`truncate font-semibold ${m.profiles?.full_name ? 'text-slate-800' : 'italic text-slate-400'}`}>{m.profiles?.full_name ?? NO_DRIVER_LABEL}</dd>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="grid h-9 w-12 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-400"><Gauge className="h-4 w-4" /></span>
+                                <div className="min-w-0">
+                                    <dt className="text-xs text-slate-500">Hodômetro na abertura</dt>
+                                    <dd className="font-semibold text-slate-800">{m.odometer ? `${Number(m.odometer).toLocaleString('pt-BR')} km` : 'Não informado'}</dd>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="grid h-9 w-12 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-400"><Calendar className="h-4 w-4" /></span>
+                                <div className="min-w-0">
+                                    <dt className="text-xs text-slate-500">Em aberto há</dt>
+                                    <dd className="font-semibold text-slate-800">
+                                        {openSinceLabel(m.created_at)}
+                                    </dd>
+                                </div>
+                            </div>
+                        </dl>
                     </div>
 
                     {op === 'pending' && (
@@ -455,4 +423,10 @@ function VehicleHeaderPhoto({ url }: { url?: string | null }) {
         );
     }
     return <img src={url} alt="Veículo" onError={() => setFailed(true)} className="h-16 w-20 shrink-0 rounded-2xl object-cover ring-1 ring-slate-200" />;
+}
+
+/** "Aberta hoje" / "12 dias" desde a abertura da OS. */
+function openSinceLabel(iso: string): string {
+    const d = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
+    return d === 0 ? 'Aberta hoje' : `${d} dia${d > 1 ? 's' : ''}`;
 }
