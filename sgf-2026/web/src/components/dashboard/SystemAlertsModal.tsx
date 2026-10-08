@@ -61,9 +61,11 @@ const SESSION_STORAGE_KEY = 'sgf_system_alerts_dismissed';
 interface SystemAlertsModalProps {
     isOpen?: boolean;
     onClose?: () => void;
+    /** Renderiza só a lista, sem modal (aba Alertas da Central de Notificações). */
+    inline?: boolean;
 }
 
-export function SystemAlertsModal({ isOpen: externalIsOpen, onClose: externalOnClose }: SystemAlertsModalProps) {
+export function SystemAlertsModal({ isOpen: externalIsOpen, onClose: externalOnClose, inline = false }: SystemAlertsModalProps) {
     const navigate = useNavigate();
     const [dismissed, setDismissed] = useState(
         () => typeof window !== 'undefined' && sessionStorage.getItem(SESSION_STORAGE_KEY) === 'true',
@@ -159,67 +161,19 @@ export function SystemAlertsModal({ isOpen: externalIsOpen, onClose: externalOnC
     };
 
     const handleNavigate = (link: string) => {
-        handleClose();
+        if (!inline) handleClose();
         navigate(link);
     };
 
-    if (!isVisible) return null;
+    if (!inline && !isVisible) return null;
 
     const criticalCount =
         procurementAlerts.filter((a) => a.severity === 'error').length +
         driverAlerts.filter((d) => d.isExpired).length +
         otherOperationalAlerts.filter((a) => a.severity === 'critical').length;
 
-    return (
-        <Modal
-            isOpen={isVisible}
-            onClose={handleClose}
-            size="lg"
-            surfaceBg={false}
-            title={undefined}
-            showCloseButton={false}
-            footer={
-                <div className="flex w-full items-center justify-between gap-3">
-                    <span className="text-xs font-semibold text-slate-500">
-                        {totalAlerts} {totalAlerts === 1 ? 'aviso pendente' : 'avisos pendentes'}
-                        {criticalCount > 0 ? ` · ${criticalCount} crítico(s)` : ''}
-                    </span>
-                    <SGFButton
-                        onClick={handleClose}
-                        variant="primary"
-                        icon={Check}
-                        className="!rounded-xl !px-6 shadow-sm"
-                    >
-                        Entendido e Fechar
-                    </SGFButton>
-                </div>
-            }
-        >
-            {/* Header Customizado */}
-            <div className="flex items-start justify-between border-b border-slate-100 pb-4 mb-5">
-                <div className="flex items-center gap-3">
-                    <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${
-                        criticalCount > 0 ? 'bg-red-100 text-red-600 ring-4 ring-red-50' : 'bg-amber-100 text-amber-600 ring-4 ring-amber-50'
-                    }`}>
-                        <AlertCircle className="h-6 w-6" />
-                    </div>
-                    <div>
-                        <h2 className="text-lg font-bold text-slate-900">Avisos Importantes do Sistema</h2>
-                        <p className="text-xs text-slate-500">
-                            Licitações, CNHs de motoristas e pendências operacionais da frota.
-                        </p>
-                    </div>
-                </div>
-                <button
-                    type="button"
-                    onClick={handleClose}
-                    className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-                >
-                    <span className="text-sm font-bold">✕</span>
-                </button>
-            </div>
-
-            <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
+    const body = (
+            <div className={inline ? "space-y-6" : "space-y-6 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar"}>
                 {totalAlerts === 0 ? (
                     <div className="py-8 text-center text-slate-500">
                         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-2">
@@ -406,6 +360,65 @@ export function SystemAlertsModal({ isOpen: externalIsOpen, onClose: externalOnC
                     </>
                 )}
             </div>
+    );
+
+    if (inline) {
+        if (procurementQuery.isLoading || dashboardAlertsQuery.isLoading) {
+            return <div className="h-24 animate-pulse rounded-2xl border border-slate-200 bg-white" />;
+        }
+        return body;
+    }
+
+    return (
+        <Modal
+            isOpen={isVisible}
+            onClose={handleClose}
+            size="lg"
+            surfaceBg={false}
+            title={undefined}
+            showCloseButton={false}
+            footer={
+                <div className="flex w-full items-center justify-between gap-3">
+                    <span className="text-xs font-semibold text-slate-500">
+                        {totalAlerts} {totalAlerts === 1 ? 'aviso pendente' : 'avisos pendentes'}
+                        {criticalCount > 0 ? ` · ${criticalCount} crítico(s)` : ''}
+                    </span>
+                    <SGFButton
+                        onClick={handleClose}
+                        variant="primary"
+                        icon={Check}
+                        className="!rounded-xl !px-6 shadow-sm"
+                    >
+                        Entendido e Fechar
+                    </SGFButton>
+                </div>
+            }
+        >
+            {/* Header Customizado */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4 mb-5">
+                <div className="flex items-center gap-3">
+                    <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${
+                        criticalCount > 0 ? 'bg-red-100 text-red-600 ring-4 ring-red-50' : 'bg-amber-100 text-amber-600 ring-4 ring-amber-50'
+                    }`}>
+                        <AlertCircle className="h-6 w-6" />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-bold text-slate-900">Avisos Importantes do Sistema</h2>
+                        <p className="text-xs text-slate-500">
+                            Licitações, CNHs de motoristas e pendências operacionais da frota.
+                        </p>
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    onClick={handleClose}
+                    className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                >
+                    <span className="text-sm font-bold">✕</span>
+                </button>
+            </div>
+
+            {body}
         </Modal>
     );
 }

@@ -6,6 +6,7 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { Bell, Search, Check, Loader2, ArrowRight } from '@/components/sgf/icons';
 import { useHeader } from '@/contexts/HeaderContext';
+import { SystemAlertsModal } from '@/components/dashboard/SystemAlertsModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { notificationsApi, type NotificationRecord } from '@/lib/supabase-api';
 import { getNotificationIcon, groupNotificationsByDate, resolveNotificationRoute } from '@/lib/notificationUtils';
@@ -29,10 +30,12 @@ export default function Notificacoes() {
     const [hasMore, setHasMore] = useState(false);
     const [search, setSearch] = useState('');
     const [activeTab, setActiveTab] = useState<FilterTab>('all');
+    // Alertas primeiro: é o que exige ação hoje (os mesmos do Dashboard).
+    const [section, setSection] = useState<'alerts' | 'notifications'>('alerts');
 
     useEffect(() => {
         setTitle('Central de Notificações');
-        setDescription('Histórico completo e auditoria de alertas e avisos do sistema.');
+        setDescription('Alertas que pedem ação e o histórico de avisos do sistema.');
     }, [setTitle, setDescription]);
 
     // Carrega primeira página (recarrega ao trocar o tamanho do lote)
@@ -128,8 +131,37 @@ export default function Notificacoes() {
 
     const unreadCount = items.filter((n) => !n.read).length;
 
+    const sectionTabs = (
+        <div className="inline-flex rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+            {([['alerts', 'Alertas'], ['notifications', 'Notificações']] as const).map(([key, label]) => (
+                <button
+                    key={key}
+                    type="button"
+                    onClick={() => setSection(key)}
+                    className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
+                        section === key
+                            ? 'bg-[var(--sgf-accent)] text-[var(--sgf-accent-contrast)]'
+                            : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                >
+                    {label}
+                </button>
+            ))}
+        </div>
+    );
+
+    if (section === 'alerts') {
+        return (
+            <div className="space-y-6 pb-16">
+                {sectionTabs}
+                <SystemAlertsModal inline />
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6 pb-16">
+            {sectionTabs}
             {/* Top Bar de Filtros e Busca */}
             <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
