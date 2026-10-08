@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { EntityAvatar } from '@/components/sgf/EntityAvatar';
 import { MapContainer, TileLayer, Marker, Polyline, Popup, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -227,16 +228,19 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
                 <div className="space-y-6">
                     {/* Cabeçalho resumido */}
                     <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2">
-                            <Car className="h-4 w-4 text-slate-500" />
-                            <span className="font-semibold text-slate-900">{vehicleLabel}</span>
-                            {trip.vehicles?.plate && (
-                                <span className="font-mono text-xs text-slate-500">{trip.vehicles.plate}</span>
-                            )}
+                        <div className="flex items-center gap-3 rounded-2xl bg-slate-100 py-2 pl-2 pr-4">
+                            <EntityAvatar url={trip.vehicles?.photo_url} icon={Car} alt={vehicleLabel} square />
+                            <div className="min-w-0">
+                                <p className="truncate font-semibold text-slate-900">{vehicleLabel}</p>
+                                {trip.vehicles?.plate && <p className="font-mono text-xs text-slate-500">{trip.vehicles.plate}</p>}
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-2">
-                            <Users className="h-4 w-4 text-slate-500" />
-                            <span className="text-sm text-slate-700">{trip.drivers?.name || 'Sem motorista'}</span>
+                        <div className="flex items-center gap-3 rounded-2xl bg-slate-100 py-2 pl-2 pr-4">
+                            <EntityAvatar url={trip.drivers?.photo_url} icon={Users} alt={trip.drivers?.name || 'Motorista'} />
+                            <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-slate-900">{trip.drivers?.name || 'Sem motorista'}</p>
+                                <p className="text-xs text-slate-500">Motorista</p>
+                            </div>
                         </div>
                         <SGFBadge variant={getStatusColor(trip.status) as 'default' | 'success' | 'warning' | 'error' | 'info'}>
                             {getStatusLabel(trip.status)}

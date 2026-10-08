@@ -58,7 +58,7 @@ export type TripRecord = Omit<Tables<'trips'>, 'status'> & {
     end_time: string | null;
     actual_distance_km: number | null;
     has_anomaly: boolean;
-    vehicles?: { id: string; plate: string; brand: string; model: string; photo_url: string | null } | null;
+    vehicles?: { id: string; plate: string; brand: string; model: string; photo_url: string | null; department_id?: string | null } | null;
     drivers?: { id: string; name: string; photo_url: string | null } | null;
 };
 
@@ -644,7 +644,7 @@ export const tripsApi = withFotoUrls({
     }): Promise<TripRecord[]> => {
         let query = supabase
             .from('trips')
-            .select('*, vehicles(id, plate, brand, model, photo_url), profiles!trips_driver_id_fkey(id, full_name, photo_url)')
+            .select('*, vehicles(id, plate, brand, model, photo_url, department_id), profiles!trips_driver_id_fkey(id, full_name, photo_url)')
             .order('start_at', { ascending: false });
 
         if (filters?.vehicleId) query = query.eq('vehicle_id', filters.vehicleId);
@@ -668,7 +668,7 @@ export const tripsApi = withFotoUrls({
     getById: async (id: string): Promise<TripRecord> => {
         const { data, error } = await supabase
             .from('trips')
-            .select('*, vehicles(id, plate, brand, model, photo_url), profiles!trips_driver_id_fkey(id, full_name, photo_url)')
+            .select('*, vehicles(id, plate, brand, model, photo_url, department_id), profiles!trips_driver_id_fkey(id, full_name, photo_url)')
             .eq('id', id)
             .single();
         if (error) handleError(error);

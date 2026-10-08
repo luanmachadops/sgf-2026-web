@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { departmentsApi } from '@/lib/supabase-api';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
@@ -7,7 +9,8 @@ import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { PeriodPresetSelect, PeriodRangeFields } from '@/components/sgf/PeriodSelect';
 import { makePeriod, type PeriodValue } from '@/components/sgf/period';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
-import { AlertTriangle, Clock, MapPin, Route } from '@/components/sgf/icons';
+import { AlertTriangle, Car, Clock, MapPin, Route, Users } from '@/components/sgf/icons';
+import { EntityAvatar } from '@/components/sgf/EntityAvatar';
 import { formatDate, formatDateTime, formatDistance, getStatusLabel, getStatusColor, matchesSearch } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useTrips } from '@/hooks/useTrips';
@@ -23,7 +26,10 @@ type TripRow = {
     endAt: string | null;
     plate: string;
     vehicleName: string;
+    vehiclePhoto: string | null;
+    driverPhoto: string | null;
     driver: string;
+    departmentId: string | null;
     destination: string;
     startKm: number | null;
     endKm: number | null;
@@ -70,6 +76,7 @@ export default function Trips() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [searchTerm, setSearchTerm] = useState('');
     const [tab, setTab] = useState<TabValue>('');
+    const [departmentId, setDepartmentId] = useState('');
     const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('1'));
     const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
     const [now, setNow] = useState(() => Date.now());
@@ -108,7 +115,10 @@ export default function Trips() {
             endAt: trip.end_time,
             plate: trip.vehicles?.plate || 'Sem placa',
             vehicleName: [trip.vehicles?.brand, trip.vehicles?.model].filter(Boolean).join(' '),
+            vehiclePhoto: trip.vehicles?.photo_url ?? null,
+            driverPhoto: trip.drivers?.photo_url ?? null,
             driver: trip.drivers?.name || 'Sem motorista',
+            departmentId: trip.vehicles?.department_id ?? null,
             destination: trip.destination || '—',
             startKm,
             endKm,
@@ -118,9 +128,20 @@ export default function Trips() {
         };
     }), [rawTrips]);
 
+    const { data: departments = [] } = useQuery({
+        queryKey: ['departments'],
+        queryFn: () => departmentsApi.getAll(),
+    });
+    const departmentOptions = useMemo(() => [
+        { value: '', label: 'Todas as secretarias' },
+        ...departments.map((d) => ({ value: d.id, label: d.name })),
+    ], [departments]);
+
     const searched = useMemo(
-        () => trips.filter((trip) => matchesSearch(searchTerm, trip.plate, trip.vehicleName, trip.driver, trip.destination)),
-        [trips, searchTerm],
+        () => trips.filter((trip) =>
+            (!departmentId || trip.departmentId === departmentId)
+            && matchesSearch(searchTerm, trip.plate, trip.vehicleName, trip.driver, trip.destination)),
+        [trips, searchTerm, departmentId],
     );
 
     const tabCounts = useMemo(() => ({
@@ -172,19 +193,30 @@ export default function Trips() {
         {
             header: 'Veículo',
             accessor: (row) => (
-                <div className="min-w-0">
-                    <p className="font-mono font-semibold text-slate-900">{row.plate}</p>
-                    {row.vehicleName && <p className="truncate text-xs text-slate-500">{row.vehicleName}</p>}
+                <div className="flex min-w-0 items-center gap-3">
+                    <EntityAvatar url={row.vehiclePhoto} icon={Car} alt={row.plate} square size="sm" />
+                    <div className="min-w-0">
+                        <p className="font-mono font-semibold text-slate-900">{row.plate}</p>
+                        {row.vehicleName && <p className="truncate text-xs text-slate-500">{row.vehicleName}</p>}
+                    </div>
                 </div>
             ),
         },
-        { header: 'Motorista', accessor: 'driver' },
+        {
+            header: 'Motorista',
+            accessor: (row) => (
+                <div className="flex min-w-0 items-center gap-3">
+                    <EntityAvatar url={row.driverPhoto} icon={Users} alt={row.driver} size="sm" />
+                    <span className="truncate">{row.driver}</span>
+                </div>
+            ),
+        },
         { header: 'Destino', accessor: 'destination', className: 'max-w-[220px] truncate' },
         {
             header: 'Km (hodômetro)',
             accessor: (row) => (
                 <div>
-                    <p className="font-semibold text-slate-900">{row.distance != null ? formatDistance(row.distance) : '—'}</p>
+                    <p className="font-semibold text-slate-900">{row.distance != null ? `${row.distance.toLocaleString('pt-BR')} km` : '—'}</p>
                     {row.startKm != null && (
                         <p className="text-xs text-slate-500">
                             {row.startKm.toLocaleString('pt-BR')} → {row.endKm != null ? row.endKm.toLocaleString('pt-BR') : '…'}
@@ -225,6 +257,15 @@ export default function Trips() {
                 searchValue={searchTerm}
                 onSearchChange={setSearchTerm}
                 searchPlaceholder="Buscar placa, motorista ou destino..."
+                filters={[
+                    {
+                        key: 'department',
+                        value: departmentId,
+                        onChange: setDepartmentId,
+                        options: departmentOptions,
+                        placeholder: 'Secretaria',
+                    },
+                ]}
             >
                 <div className="flex items-center gap-2">
                     {period.preset === 'custom' && (
