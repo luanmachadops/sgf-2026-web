@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { SGFCard } from '@/components/sgf/SGFCard';
+import { Modal, ModalFooter } from '@/components/ui/Modal';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { DollarSign, Receipt, CheckCircle, AlertTriangle, Loader2, Edit, Save } from '@/components/sgf/icons';
+import { DollarSign, Receipt, CheckCircle, AlertTriangle, Loader2, Save, Building2, ChevronRight } from '@/components/sgf/icons';
+import { useBranding } from '@/contexts/BrandingContext';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAppSettings, useUpdateSettings } from '@/hooks/useSettings';
 import { TenantIdentityCard } from '@/components/settings/TenantIdentityCard';
@@ -60,6 +61,7 @@ export default function Configuracoes() {
     const { setTitle, setDescription } = useHeader();
     const { data: settings } = useAppSettings();
     const update = useUpdateSettings();
+    const { branding } = useBranding();
 
     // Estados dos formulários
     const [fuelPriceMode, setFuelPriceMode] = useState<'contract' | 'free'>('free');
@@ -68,10 +70,9 @@ export default function Configuracoes() {
     const [requireFuelValidation, setRequireFuelValidation] = useState(false);
     const [tankOverflowAlert, setTankOverflowAlert] = useState(true);
 
-    // Estados de edição independente por card
-    const [editingFuelPrice, setEditingFuelPrice] = useState(false);
-    const [editingFuelRules, setEditingFuelRules] = useState(false);
-    const [editingAlerts, setEditingAlerts] = useState(false);
+    type Section = 'identity' | 'fuelRules' | 'alerts' | 'pricing';
+    const [openSection, setOpenSection] = useState<Section | null>(null);
+
 
     useEffect(() => {
         setTitle('Configurações');
@@ -94,7 +95,7 @@ export default function Configuracoes() {
             {
                 onSuccess: () => {
                     toast.success('Precificação de combustível salva.');
-                    setEditingFuelPrice(false);
+                    setOpenSection(null);
                 },
                 onError: () => toast.error('Erro ao salvar a precificação.'),
             },
@@ -108,7 +109,7 @@ export default function Configuracoes() {
             {
                 onSuccess: () => {
                     toast.success('Regras de abastecimento salvas.');
-                    setEditingFuelRules(false);
+                    setOpenSection(null);
                 },
                 onError: () => toast.error('Erro ao salvar as regras.'),
             },
@@ -125,205 +126,175 @@ export default function Configuracoes() {
             {
                 onSuccess: () => {
                     toast.success('Alertas e prazos salvos.');
-                    setEditingAlerts(false);
+                    setOpenSection(null);
                 },
                 onError: () => toast.error('Erro ao salvar os alertas.'),
             },
         );
     };
 
-    const readonlyInputClasses = (isEditing: boolean) => !isEditing
-        ? '!opacity-100 !bg-slate-50/70 !text-slate-800 font-medium cursor-default focus:ring-0 focus:border-slate-200'
-        : 'bg-white text-slate-900';
+
+    // Abre já em edição; fechar sem salvar volta aos valores gravados.
+    const openModal = (section: Section) => {
+        setOpenSection(section);
+    };
+    const closeModal = () => {
+        if (settings) {
+            setFuelPriceMode(settings.fuelPriceMode);
+            setCnhAlertDays(String(settings.cnhAlertDays));
+            setContractAlertDays(String(settings.contractAlertDays));
+            setRequireFuelValidation(settings.requireFuelValidation);
+            setTankOverflowAlert(settings.tankOverflowAlert);
+        }
+        setOpenSection(null);
+    };
+
+    const saveFooter = (onSave: () => void) => (
+        <ModalFooter>
+            <SGFButton variant="ghost" onClick={closeModal} disabled={update.isPending}>Cancelar</SGFButton>
+            <SGFButton onClick={onSave} disabled={update.isPending} icon={update.isPending ? Loader2 : Save}>
+                {update.isPending ? 'Salvando...' : 'Salvar'}
+            </SGFButton>
+        </ModalFooter>
+    );
+
+    const fuelModeLabel = FUEL_MODE_OPTIONS.find((o) => o.value === (settings?.fuelPriceMode ?? fuelPriceMode))?.title ?? '—';
+    const cards: { key: Section; icon: typeof Receipt; title: string; description: string; summary: string[] }[] = [
+        {
+            key: 'identity', icon: Building2, title: 'Identidade da Prefeitura',
+            description: 'Logo, brasão, cores e dados que aparecem no painel e no app.',
+            summary: [branding.name, [branding.city, branding.state].filter(Boolean).join('/')].filter(Boolean),
+        },
+        {
+            key: 'fuelRules', icon: Receipt, title: 'Regras de Abastecimento',
+            description: 'Validações e travas automáticas do combustível.',
+            summary: [
+                `Validação do gestor: ${settings?.requireFuelValidation ? 'exigida' : 'não exigida'}`,
+                `Alerta acima do tanque: ${settings?.tankOverflowAlert ? 'ligado' : 'desligado'}`,
+            ],
+        },
+        {
+            key: 'alerts', icon: AlertTriangle, title: 'Alertas e prazos',
+            description: 'Antecedência dos avisos de vencimento.',
+            summary: [
+                `CNH: ${settings?.cnhAlertDays ?? '—'} dias antes`,
+                `Licitação: ${settings?.contractAlertDays ?? '—'} dias antes`,
+            ],
+        },
+        {
+            key: 'pricing', icon: DollarSign, title: 'Precificação de combustível',
+            description: 'Como o valor do litro é definido no abastecimento.',
+            summary: [fuelModeLabel],
+        },
+    ];
 
     return (
         <div className="space-y-6 pb-12">
-            {/* Grid Principal de 2 Colunas */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 items-start">
-                
-                {/* COLUNA ESQUERDA */}
-                <div className="space-y-6">
-                    {/* 1. Identidade da Prefeitura */}
-                    <TenantIdentityCard />
-
-                </div>
-
-                {/* COLUNA DIREITA */}
-                <div className="space-y-6">
-                    {/* 1. Regras de Abastecimento */}
-                    <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md">
-                        <div className="mb-4 flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                                <Receipt className="h-5 w-5 text-slate-400" />
-                                <div>
-                                    <h3 className="text-lg font-semibold text-slate-900">Regras de Abastecimento</h3>
-                                    <p className="text-sm text-slate-500">Validações e travas automáticas para controle de combustível.</p>
-                                </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {cards.map((card) => {
+                    const Icon = card.icon;
+                    return (
+                        <button
+                            key={card.key}
+                            type="button"
+                            onClick={() => openModal(card.key)}
+                            className="group flex flex-col gap-4 rounded-[var(--sgf-card-radius)] border border-slate-200/80 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--sgf-primary)] hover:shadow-md focus:outline-none focus:ring-4 focus:ring-[var(--sgf-focus-ring)]"
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <span className="grid h-11 w-11 place-items-center rounded-xl bg-[var(--sgf-primary-soft)] text-[var(--sgf-primary)]">
+                                    <Icon className="h-5 w-5" />
+                                </span>
+                                <ChevronRight className="h-5 w-5 text-slate-300 transition-colors group-hover:text-[var(--sgf-primary)]" />
                             </div>
                             <div>
-                                {!editingFuelRules ? (
-                                    <SGFButton size="sm" onClick={() => setEditingFuelRules(true)} icon={Edit}>
-                                        Editar
-                                    </SGFButton>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <SGFButton variant="ghost" size="sm" onClick={() => {
-                                            if (settings) {
-                                                setRequireFuelValidation(settings.requireFuelValidation);
-                                                setTankOverflowAlert(settings.tankOverflowAlert);
-                                            }
-                                            setEditingFuelRules(false);
-                                        }}>
-                                            Cancelar
-                                        </SGFButton>
-                                        <SGFButton size="sm" onClick={handleSaveFuelRules} disabled={update.isPending} icon={update.isPending ? Loader2 : Save}>
-                                            {update.isPending ? 'Salvando...' : 'Salvar'}
-                                        </SGFButton>
-                                    </div>
-                                )}
+                                <p className="font-semibold text-slate-900">{card.title}</p>
+                                <p className="mt-1 text-sm text-slate-500">{card.description}</p>
                             </div>
-                        </div>
-                        <div className="space-y-3">
-                            <ToggleRow
-                                title="Exigir validação do gestor"
-                                desc="Abastecimentos lançados pelo motorista precisam ser validados antes de contabilizar."
-                                checked={requireFuelValidation}
-                                onChange={setRequireFuelValidation}
-                                disabled={!editingFuelRules}
-                            />
-                            <ToggleRow
-                                title="Alertar litros acima da capacidade"
-                                desc="Marca anomalia quando os litros abastecidos ultrapassam a capacidade do tanque do veículo."
-                                checked={tankOverflowAlert}
-                                onChange={setTankOverflowAlert}
-                                disabled={!editingFuelRules}
-                            />
-                        </div>
-                    </SGFCard>
-
-                    {/* 2. Alertas e prazos do sistema */}
-                    <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md">
-                        <div className="mb-4 flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                                <AlertTriangle className="h-5 w-5 text-slate-400" />
-                                <div>
-                                    <h3 className="text-lg font-semibold text-slate-900">Alertas e prazos</h3>
-                                    <p className="text-sm text-slate-500">Defina o limite de dias para notificação de vencimentos.</p>
-                                </div>
+                            <div className="mt-auto space-y-1 border-t border-slate-100 pt-3">
+                                {card.summary.map((line) => (
+                                    <p key={line} className="truncate text-xs font-medium text-slate-600">{line}</p>
+                                ))}
                             </div>
-                            <div>
-                                {!editingAlerts ? (
-                                    <SGFButton size="sm" onClick={() => setEditingAlerts(true)} icon={Edit}>
-                                        Editar
-                                    </SGFButton>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <SGFButton variant="ghost" size="sm" onClick={() => {
-                                            if (settings) {
-                                                setCnhAlertDays(String(settings.cnhAlertDays));
-                                                setContractAlertDays(String(settings.contractAlertDays));
-                                            }
-                                            setEditingAlerts(false);
-                                        }}>
-                                            Cancelar
-                                        </SGFButton>
-                                        <SGFButton size="sm" onClick={handleSaveAlerts} disabled={update.isPending} icon={update.isPending ? Loader2 : Save}>
-                                            {update.isPending ? 'Salvando...' : 'Salvar'}
-                                        </SGFButton>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <SGFInput
-                                label="Alertar CNH a vencer (dias)"
-                                type="number"
-                                value={cnhAlertDays}
-                                readOnly={!editingAlerts}
-                                inputClassName={readonlyInputClasses(editingAlerts)}
-                                onChange={(e) => setCnhAlertDays(e.target.value)}
-                                hint="Motoristas com CNH vencendo neste prazo entram em alerta."
-                                fullWidth
-                            />
-                            <SGFInput
-                                label="Alertar licitação a vencer (dias)"
-                                type="number"
-                                value={contractAlertDays}
-                                readOnly={!editingAlerts}
-                                inputClassName={readonlyInputClasses(editingAlerts)}
-                                onChange={(e) => setContractAlertDays(e.target.value)}
-                                hint="Postos com contrato vencendo neste prazo entram em alerta."
-                                fullWidth
-                            />
-                        </div>
-                    </SGFCard>
-
-                    {/* 3. Precificação de combustível */}
-                    <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md">
-                        <div className="mb-5 flex items-center justify-between gap-2">
-                            <div>
-                                <h3 className="text-lg font-semibold text-slate-900">Precificação de combustível</h3>
-                                <p className="text-sm text-slate-500">Como o valor do litro é determinado nos abastecimentos.</p>
-                            </div>
-                            <div>
-                                {!editingFuelPrice ? (
-                                    <SGFButton size="sm" onClick={() => setEditingFuelPrice(true)} icon={Edit}>
-                                        Editar
-                                    </SGFButton>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <SGFButton variant="ghost" size="sm" onClick={() => {
-                                            if (settings) setFuelPriceMode(settings.fuelPriceMode);
-                                            setEditingFuelPrice(false);
-                                        }}>
-                                            Cancelar
-                                        </SGFButton>
-                                        <SGFButton size="sm" onClick={handleSaveFuelPrice} disabled={update.isPending} icon={update.isPending ? Loader2 : Save}>
-                                            {update.isPending ? 'Salvando...' : 'Salvar'}
-                                        </SGFButton>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            {FUEL_MODE_OPTIONS.map((opt) => {
-                                const Icon = opt.icon;
-                                const active = fuelPriceMode === opt.value;
-                                return (
-                                    <button
-                                        key={opt.value}
-                                        type="button"
-                                        disabled={!editingFuelPrice}
-                                        onClick={() => setFuelPriceMode(opt.value)}
-                                        className={cn(
-                                            'relative flex flex-col gap-3 rounded-2xl border-2 p-5 text-left transition-all',
-                                            active ? 'border-[var(--sgf-primary)] bg-[var(--sgf-primary-soft)]' : 'border-slate-200 hover:border-[var(--sgf-primary)]',
-                                            !editingFuelPrice && 'cursor-default hover:border-slate-200',
-                                        )}
-                                    >
-                                        {active && <span className="absolute right-4 top-4 text-[var(--sgf-primary)]"><CheckCircle className="h-5 w-5" /></span>}
-                                        <div className={cn('flex h-11 w-11 items-center justify-center rounded-xl', active ? 'bg-[var(--sgf-primary-soft)] text-[var(--sgf-primary)]' : 'bg-slate-100 text-slate-500')}>
-                                            <Icon className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <p className="font-semibold text-slate-900 text-sm">{opt.title}</p>
-                                            <p className="mt-1 text-sm text-slate-500 leading-relaxed">{opt.description}</p>
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        {fuelPriceMode === 'contract' && (
-                            <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 leading-relaxed">
-                                Cadastre o preço de cada combustível em <b>Postos → Editar</b> para aplicar automaticamente.
-                            </p>
-                        )}
-                    </SGFCard>
-                </div>
-
+                        </button>
+                    );
+                })}
             </div>
 
+            <Modal isOpen={openSection === 'identity'} onClose={closeModal} title="Identidade da Prefeitura" description="Logo, brasão, cores e dados que aparecem no painel e no app." size="xl">
+                <TenantIdentityCard embedded />
+            </Modal>
+
+            <Modal isOpen={openSection === 'fuelRules'} onClose={closeModal} title="Regras de Abastecimento" description="Validações e travas automáticas para controle de combustível." size="md" footer={saveFooter(handleSaveFuelRules)}>
+                <div className="space-y-3">
+                    <ToggleRow
+                        title="Exigir validação do gestor"
+                        desc="Abastecimentos lançados pelo motorista precisam ser validados antes de contabilizar."
+                        checked={requireFuelValidation}
+                        onChange={setRequireFuelValidation}
+                    />
+                    <ToggleRow
+                        title="Alertar litros acima da capacidade"
+                        desc="Marca anomalia quando os litros abastecidos ultrapassam a capacidade do tanque do veículo."
+                        checked={tankOverflowAlert}
+                        onChange={setTankOverflowAlert}
+                    />
+                </div>
+            </Modal>
+
+            <Modal isOpen={openSection === 'alerts'} onClose={closeModal} title="Alertas e prazos" description="Defina com quantos dias de antecedência o sistema avisa os vencimentos." size="md" footer={saveFooter(handleSaveAlerts)}>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <SGFInput
+                        label="Alertar CNH a vencer (dias)"
+                        type="number"
+                        value={cnhAlertDays}
+                        onChange={(e) => setCnhAlertDays(e.target.value)}
+                        hint="Motoristas com CNH vencendo neste prazo entram em alerta."
+                        fullWidth
+                    />
+                    <SGFInput
+                        label="Alertar licitação a vencer (dias)"
+                        type="number"
+                        value={contractAlertDays}
+                        onChange={(e) => setContractAlertDays(e.target.value)}
+                        hint="Postos com contrato vencendo neste prazo entram em alerta."
+                        fullWidth
+                    />
+                </div>
+            </Modal>
+
+            <Modal isOpen={openSection === 'pricing'} onClose={closeModal} title="Precificação de combustível" description="Como o valor do litro é determinado nos abastecimentos." size="lg" footer={saveFooter(handleSaveFuelPrice)}>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {FUEL_MODE_OPTIONS.map((opt) => {
+                        const Icon = opt.icon;
+                        const active = fuelPriceMode === opt.value;
+                        return (
+                            <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => setFuelPriceMode(opt.value)}
+                                className={cn(
+                                    'relative flex flex-col gap-3 rounded-2xl border-2 p-5 text-left transition-all',
+                                    active ? 'border-[var(--sgf-primary)] bg-[var(--sgf-primary-soft)]' : 'border-slate-200 hover:border-[var(--sgf-primary)]',
+                                )}
+                            >
+                                {active && <span className="absolute right-4 top-4 text-[var(--sgf-primary)]"><CheckCircle className="h-5 w-5" /></span>}
+                                <div className={cn('flex h-11 w-11 items-center justify-center rounded-xl', active ? 'bg-[var(--sgf-primary-soft)] text-[var(--sgf-primary)]' : 'bg-slate-100 text-slate-500')}>
+                                    <Icon className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-slate-900">{opt.title}</p>
+                                    <p className="mt-1 text-sm leading-relaxed text-slate-500">{opt.description}</p>
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+                {fuelPriceMode === 'contract' && (
+                    <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-700">
+                        Cadastre o preço de cada combustível em <b>Postos → Editar</b> para aplicar automaticamente.
+                    </p>
+                )}
+            </Modal>
         </div>
     );
 }

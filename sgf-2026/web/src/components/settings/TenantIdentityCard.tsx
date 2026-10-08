@@ -30,7 +30,8 @@ function ImageField({ label, url, onUpload, uploading, disabled }: { label: stri
     );
 }
 
-export function TenantIdentityCard() {
+/** `embedded`: dentro de um modal (sem moldura de card nem título próprio). */
+export function TenantIdentityCard({ embedded = false }: { embedded?: boolean } = {}) {
     const { refreshUser } = useAuth();
     const [tenant, setTenant] = useState<TenantData | null>(null);
     const [initialTenant, setInitialTenant] = useState<TenantData | null>(null);
@@ -114,9 +115,9 @@ export function TenantIdentityCard() {
 
     return (
         <>
-        <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
+        <Frame embedded={embedded}>
+            <div className={`mb-4 flex flex-wrap items-center gap-2 ${embedded ? 'justify-end' : 'justify-between'}`}>
+                <div className={`items-center gap-2 min-w-0 ${embedded ? 'hidden' : 'flex'}`}>
                     <Building2 className="h-5 w-5 text-slate-400 shrink-0" />
                     <div>
                         <h3 className="text-lg font-semibold text-slate-900 truncate">Identidade da Prefeitura</h3>
@@ -178,7 +179,7 @@ export function TenantIdentityCard() {
                     ))}
                 </div>
             </div>
-        </SGFCard>
+        </Frame>
         <TenantBrandingPreviewModal
             open={showPreview}
             onClose={() => setShowPreview(false)}
@@ -186,6 +187,11 @@ export function TenantIdentityCard() {
         />
         </>
     );
+}
+
+function Frame({ embedded, children }: { embedded: boolean; children: React.ReactNode }) {
+    if (embedded) return <div>{children}</div>;
+    return <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md">{children}</SGFCard>;
 }
 
 export default TenantIdentityCard;
