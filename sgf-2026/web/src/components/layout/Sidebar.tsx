@@ -22,7 +22,6 @@ import {
     User,
     Menu,
     Bell,
-    MapPin,
 } from '@/components/sgf/icons';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -260,14 +259,6 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                     </div>
                 ))}
             </nav>
-
-            {/* Local da prefeitura, no rodapé do menu */}
-            {!isCollapsed && (
-                <div className="flex shrink-0 items-center gap-2 px-5 pb-3 pt-2 text-[12px] font-medium text-[var(--sgf-light)]">
-                    <MapPin className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{branding.city ? `${branding.city}${branding.state ? '/' + branding.state : ''}` : 'Gestão Pública'}</span>
-                </div>
-            )}
 
             {/* Divider */}
             <div className="shrink-0 mx-4 h-px bg-white/[0.06]" />
