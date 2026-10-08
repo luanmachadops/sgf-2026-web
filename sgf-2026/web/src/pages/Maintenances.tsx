@@ -4,9 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
-import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { VehicleCell } from '@/components/sgf/EntityCells';
+import { EntityAvatar } from '@/components/sgf/EntityAvatar';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { PeriodPresetSelect, PeriodRangeFields } from '@/components/sgf/PeriodSelect';
 import { makePeriod, type PeriodValue } from '@/components/sgf/period';
@@ -71,46 +71,62 @@ interface WorkflowColumn {
 
 const WORKFLOW_COLUMNS: WorkflowColumn[] = [
     {
-        id: 'triage',
-        title: 'Triagem',
-        description: 'Solicitações a revisar',
+        id: 'new',
+        title: 'Novas solicitações',
+        description: 'Esperando sua análise',
         statuses: ['pending'],
         color: 'text-amber-600',
         icon: Clock,
     },
     {
         id: 'shop',
-        title: 'Oficina e orçamento',
-        description: 'Autorização, entrega e cotação',
+        title: 'Na oficina',
+        description: 'Entrega e orçamento',
         statuses: ['authorized', 'at_shop', 'awaiting_quote_approval'],
         color: 'text-blue-600',
         icon: Building2,
     },
     {
-        id: 'execution',
-        title: 'Execução',
+        id: 'repair',
+        title: 'Em conserto',
         description: 'Serviço e retirada',
         statuses: ['in_progress', 'ready'],
         color: 'text-orange-600',
         icon: Wrench,
     },
     {
-        id: 'received',
-        title: 'Recebida',
-        description: 'Nota, ateste e pagamento',
+        id: 'done',
+        title: 'Concluídas',
+        description: 'Nota fiscal e pagamento',
         statuses: ['received'],
         color: 'text-emerald-600',
         icon: CheckCircle,
     },
-    {
-        id: 'cancelled',
-        title: 'Cancelada',
-        description: 'Processos encerrados',
-        statuses: ['cancelled'],
-        color: 'text-red-500',
-        icon: FileText,
-    },
 ];
+
+const CANCELLED_COLUMN: WorkflowColumn = {
+    id: 'cancelled',
+    title: 'Canceladas',
+    description: 'Processos encerrados sem conserto',
+    statuses: ['cancelled'],
+    color: 'text-red-500',
+    icon: FileText,
+};
+
+/** A próxima ação é do gestor (e não da oficina ou do motorista)? */
+function needsManager(item: { operationalStatus: OpStatus; financialStatus: FinStatus }): boolean {
+    return item.operationalStatus === 'pending'
+        || item.operationalStatus === 'authorized'
+        || item.operationalStatus === 'ready'
+        || (item.operationalStatus === 'awaiting_quote_approval' && ['not_started', 'awaiting_commitment'].includes(item.financialStatus))
+        || (item.operationalStatus === 'received' && ['invoiced', 'attested'].includes(item.financialStatus));
+}
+
+const PRIORITY_RANK: Record<string, number> = { alta: 0, media: 1, baixa: 2 };
+
+function daysOpen(iso: string): number {
+    return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
+}
 
 const FIN_LABEL: Record<FinStatus, string> = {
     not_started: 'Não iniciado',
@@ -131,18 +147,6 @@ const PRIORITY_LABEL: Record<MaintenanceItem['priority'], string> = {
     baixa: 'Baixa',
     media: 'Média',
     alta: 'Alta',
-};
-
-const PRIORITY_VARIANT: Record<MaintenanceItem['priority'], BadgeVariant> = {
-    baixa: 'success',
-    media: 'warning',
-    alta: 'warning',
-};
-
-const PRIORITY_BORDER: Record<MaintenanceItem['priority'], string> = {
-    baixa: 'border-l-emerald-500',
-    media: 'border-l-amber-500',
-    alta: 'border-l-orange-500',
 };
 
 function operationalVariant(status: OpStatus): BadgeVariant {
@@ -204,6 +208,7 @@ export default function Maintenances() {
         queryFn: () => departmentsApi.getAll(),
     });
     const [viewMode, setViewMode] = useState<'flow' | 'list'>('flow');
+    const [showCancelled, setShowCancelled] = useState(false);
     const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('6'));
     const [showCreate, setShowCreate] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -283,13 +288,7 @@ export default function Maintenances() {
         });
     }, [maintenances, priority, search, department]);
 
-    const managerActionCount = maintenances.filter((item) =>
-        item.operationalStatus === 'pending'
-        || item.operationalStatus === 'awaiting_quote_approval'
-        || item.operationalStatus === 'ready'
-        || (item.operationalStatus === 'received'
-            && ['invoiced', 'attested'].includes(item.financialStatus)),
-    ).length;
+    const managerActionCount = maintenances.filter(needsManager).length;
     const atShopCount = maintenances.filter((item) =>
         ['at_shop', 'awaiting_quote_approval', 'in_progress', 'ready'].includes(item.operationalStatus),
     ).length;
@@ -463,71 +462,66 @@ export default function Maintenances() {
                     emptyMessage="Nenhuma ordem de serviço encontrada."
                 />
             ) : (
-                <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-5">
-                    {WORKFLOW_COLUMNS.map((column) => {
-                        const items = filtered.filter((item) => column.statuses.includes(item.operationalStatus));
-                        const Icon = column.icon;
-                        return (
-                            <section key={column.id} className="min-w-0 rounded-3xl border border-slate-200 bg-slate-50/70 p-3">
-                                <header className="mb-3 flex items-start justify-between gap-2 px-1">
-                                    <div>
-                                        <h2 className={`flex items-center gap-2 text-sm font-bold ${column.color}`}>
-                                            <Icon className="h-4 w-4" />
-                                            {column.title}
-                                        </h2>
-                                        <p className="mt-0.5 text-[11px] text-slate-400">{column.description}</p>
-                                    </div>
-                                    <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-500 shadow-sm">
-                                        {items.length}
-                                    </span>
-                                </header>
-                                <div className="space-y-3">
-                                    {items.map((item) => (
-                                        <SGFCard
-                                            key={item.id}
-                                            variant="bordered"
-                                            padding="sm"
-                                            hover
-                                            className={`border-l-4 ${PRIORITY_BORDER[item.priority]}`}
-                                            onClick={() => setSelectedId(item.id)}
-                                        >
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="min-w-0">
-                                                    <p className="truncate text-sm font-bold text-slate-900">{item.vehicleLabel}</p>
-                                                    <p className="text-xs font-semibold text-slate-500">{item.plate}</p>
-                                                </div>
-                                                <SGFBadge variant={PRIORITY_VARIANT[item.priority]} size="sm">
-                                                    {PRIORITY_LABEL[item.priority]}
-                                                </SGFBadge>
-                                            </div>
-                                            <p className="mt-3 line-clamp-2 text-xs text-slate-600">{item.description}</p>
-                                            <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-                                                <SGFBadge variant={operationalVariant(item.operationalStatus)} size="sm">
-                                                    {maintenanceOperationalLabel(item.operationalStatus, item.financialStatus)}
-                                                </SGFBadge>
-                                                <p className="text-[11px] font-semibold text-slate-700">{managerNextAction(item)}</p>
-                                                {item.repairShop && (
-                                                    <p className="truncate text-[11px] text-slate-500">{item.repairShop}</p>
-                                                )}
-                                                <div className="flex items-center justify-between text-[10px] text-slate-400">
-                                                    <span className="flex items-center gap-1">
-                                                        <Calendar className="h-3 w-3" />
-                                                        {formatDate(item.openedAt)}
-                                                    </span>
-                                                    {item.budget != null && <span>{formatCurrency(item.budget)}</span>}
-                                                </div>
-                                            </div>
-                                        </SGFCard>
-                                    ))}
-                                    {!isLoading && items.length === 0 && (
-                                        <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 py-8 text-center text-xs text-slate-400">
-                                            Nenhuma OS
+                <div className="space-y-3">
+                    <div className={`grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 ${showCancelled ? 'xl:grid-cols-5' : 'xl:grid-cols-4'}`}>
+                        {(showCancelled ? [...WORKFLOW_COLUMNS, CANCELLED_COLUMN] : WORKFLOW_COLUMNS).map((column) => {
+                            // Primeiro o que depende do gestor, depois a prioridade, depois a mais antiga.
+                            const items = filtered
+                                .filter((item) => column.statuses.includes(item.operationalStatus))
+                                .sort((x, y) =>
+                                    Number(needsManager(y)) - Number(needsManager(x))
+                                    || PRIORITY_RANK[x.priority] - PRIORITY_RANK[y.priority]
+                                    || new Date(x.openedAt).getTime() - new Date(y.openedAt).getTime());
+                            const actionCount = items.filter(needsManager).length;
+                            const Icon = column.icon;
+                            return (
+                                <section key={column.id} className="flex min-w-0 flex-col rounded-3xl border border-slate-200 bg-slate-50/70 p-2.5">
+                                    <header className="mb-2.5 flex items-start justify-between gap-2 px-1.5 pt-1">
+                                        <div className="min-w-0">
+                                            <h2 className={`flex items-center gap-2 text-sm font-bold ${column.color}`}>
+                                                <Icon className="h-4 w-4 shrink-0" />
+                                                {column.title}
+                                            </h2>
+                                            <p className="mt-0.5 truncate text-[11px] text-slate-400">{column.description}</p>
                                         </div>
-                                    )}
-                                </div>
-                            </section>
+                                        <div className="flex shrink-0 items-center gap-1">
+                                            {actionCount > 0 && column.id !== 'cancelled' && (
+                                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700" title="Dependem de você">
+                                                    {actionCount} sua{actionCount > 1 ? 's' : ''}
+                                                </span>
+                                            )}
+                                            <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-500 shadow-sm">{items.length}</span>
+                                        </div>
+                                    </header>
+                                    <div className="custom-scrollbar max-h-[64vh] space-y-2 overflow-y-auto pr-0.5">
+                                        {items.map((item) => (
+                                            <MaintenanceCard key={item.id} item={item} onOpen={() => setSelectedId(item.id)} />
+                                        ))}
+                                        {!isLoading && items.length === 0 && (
+                                            <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 py-6 text-center text-xs text-slate-400">
+                                                Nada aqui
+                                            </div>
+                                        )}
+                                    </div>
+                                </section>
+                            );
+                        })}
+                    </div>
+                    {(() => {
+                        const cancelled = filtered.filter((item) => item.operationalStatus === 'cancelled').length;
+                        if (cancelled === 0 && !showCancelled) return null;
+                        return (
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCancelled((v) => !v)}
+                                    className="text-xs font-semibold text-slate-500 hover:text-slate-800"
+                                >
+                                    {showCancelled ? 'Ocultar canceladas' : `Ver canceladas (${cancelled})`}
+                                </button>
+                            </div>
                         );
-                    })}
+                    })()}
                 </div>
             )}
 
@@ -566,5 +560,51 @@ export default function Maintenances() {
                 onEdit={handleEdit}
             />
         </div>
+    );
+}
+
+const PRIORITY_DOT: Record<MaintenanceItem['priority'], string> = {
+    alta: 'bg-red-500',
+    media: 'bg-amber-500',
+    baixa: 'bg-emerald-500',
+};
+
+/** Card compacto do quadro: o essencial para achar e agir sem abrir a OS. */
+function MaintenanceCard({ item, onOpen }: { item: MaintenanceItem; onOpen: () => void }) {
+    const mine = needsManager(item);
+    const days = daysOpen(item.openedAt);
+    const closed = item.operationalStatus === 'cancelled' || item.financialStatus === 'paid';
+    return (
+        <button
+            type="button"
+            onClick={onOpen}
+            className="block w-full rounded-2xl border border-slate-200 bg-white p-2.5 text-left shadow-sm transition hover:border-[var(--sgf-primary)] hover:shadow-md focus:outline-none focus:ring-4 focus:ring-[var(--sgf-focus-ring)]"
+        >
+            <div className="flex items-center gap-2.5">
+                <EntityAvatar url={item.photoUrl} icon={Car} alt={item.plate} square size="sm" />
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-sm font-bold text-slate-900">{item.plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase()}</span>
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[item.priority]}`} title={`Prioridade ${PRIORITY_LABEL[item.priority].toLowerCase()}`} />
+                        <span className="text-[10px] font-semibold uppercase text-slate-400">{PRIORITY_LABEL[item.priority]}</span>
+                    </div>
+                    <p className="truncate text-xs text-slate-500">{item.vehicleLabel}</p>
+                </div>
+            </div>
+            <p className="mt-2 truncate text-xs font-semibold text-slate-700" title={item.description}>{item.category}</p>
+            <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-slate-400">
+                <span className="truncate">{item.repairShop ?? 'Sem oficina'}</span>
+                <span className="shrink-0">{item.budget != null ? formatCurrency(item.budget) : ''}</span>
+            </div>
+            <div className={`mt-2 flex items-center justify-between gap-2 rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                mine ? 'bg-amber-50 text-amber-700' : 'bg-slate-50 text-slate-500'
+            }`}>
+                <span className="truncate">{mine ? '● ' : ''}{managerNextAction(item)}</span>
+                <span className="flex shrink-0 items-center gap-1 font-medium" title={`Aberta em ${formatDate(item.openedAt)}`}>
+                    <Calendar className="h-3 w-3" />
+                    {closed ? formatDate(item.openedAt, 'dd/MM') : days === 0 ? 'hoje' : `${days}d`}
+                </span>
+            </div>
+        </button>
     );
 }
