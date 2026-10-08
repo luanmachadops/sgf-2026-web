@@ -1,3 +1,4 @@
+import { openNotification } from '@/lib/notificationGuard';
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -43,7 +44,7 @@ export default function NotificationBell() {
         }
         const targetRoute = resolveNotificationRoute(n);
         setOpen(false);
-        navigate(targetRoute);
+        void openNotification(n, targetRoute, navigate);
     };
 
     const handleMarkAllRead = (e: React.MouseEvent) => {

@@ -1,3 +1,4 @@
+import { openNotification as openGuarded } from '@/lib/notificationGuard';
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -61,7 +62,8 @@ export function PartnerNotificationBell({ userId, fallbackPath, variant = 'dark'
             }
         } finally {
             setOpen(false);
-            navigate(resolvePartnerNotificationRoute(notification, fallbackPath));
+            // Autorização já usada/vencida ou OS cancelada: avisa e vai para o início do portal.
+            await openGuarded(notification, resolvePartnerNotificationRoute(notification, fallbackPath), navigate, fallbackPath);
         }
     };
 

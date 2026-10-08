@@ -1,3 +1,4 @@
+import { openNotification } from '@/lib/notificationGuard';
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -98,7 +99,7 @@ export default function Notificacoes() {
             setItems((prev) => prev.map((item) => (item.id === n.id ? { ...item, read: true } : item)));
         }
         const route = resolveNotificationRoute(n);
-        navigate(route);
+        await openNotification(n, route, navigate);
     };
 
     // Filtragem por busca e por abas

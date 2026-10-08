@@ -1,3 +1,4 @@
+import { openNotification } from '@/lib/notificationGuard';
 import React from 'react';
 import { toast } from 'sonner';
 import { notificationsApi, type NotificationRecord } from '@/lib/supabase-api';
@@ -137,7 +138,7 @@ export function showClickableNotification(
         } else if (n.id) {
             notificationsApi.markRead(n.id).catch(() => {});
         }
-        navigate(route);
+        void openNotification(n, route, navigate);
     };
 
     toast.custom((t) => {
