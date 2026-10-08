@@ -268,14 +268,6 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
                         </div>
                     </div>
 
-                    {/* Acontecimentos */}
-                    <div>
-                        <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                            <Clock className="h-4 w-4 text-emerald-600" /> Acontecimentos da viagem
-                        </p>
-                        <TripTimeline data={timeline.data} loading={timeline.isLoading} error={timeline.error as Error | null} />
-                    </div>
-
                     {/* Fotos do odômetro */}
                     <div className="grid gap-4 sm:grid-cols-2">
                         <PhotoBlock label="Odômetro — início" url={trip.start_odometer_photo_url} />
@@ -298,6 +290,14 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
                                 <Info icon={AlertTriangle} label="Observações" value={trip.notes} />
                             </div>
                         )}
+                    </div>
+
+                    {/* Acontecimentos */}
+                    <div>
+                        <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <Clock className="h-4 w-4 text-emerald-600" /> Acontecimentos da viagem
+                        </p>
+                        <TripTimeline data={timeline.data} loading={timeline.isLoading} error={timeline.error as Error | null} />
                     </div>
                 </div>
             )}
