@@ -158,58 +158,12 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
             zIndexClass="z-50"
             media={m?.vehicles ? <VehicleHeaderPhoto url={m.vehicles.photo_url} /> : undefined}
             footer={
-                showCancelInput ? (
-                        <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:items-center">
-                            <div className="flex-1">
-                                <SGFInput
-                                    placeholder="Justificativa do cancelamento (obrigatório)..."
-                                    value={cancelReason}
-                                    onChange={(event) => setCancelReason(event.target.value)}
-                                    fullWidth
-                                    autoFocus
-                                />
-                            </div>
-                            <div className="flex items-center justify-end gap-2 shrink-0">
-                                <SGFButton
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => {
-                                        setShowCancelInput(false);
-                                        setCancelReason('');
-                                    }}
-                                >
-                                    Voltar
-                                </SGFButton>
-                                <SGFButton
-                                    size="sm"
-                                    variant="ghost"
-                                    icon={X}
-                                    disabled={busy || !cancelReason.trim()}
-                                    className="!text-red-600 hover:!bg-red-50 focus:!ring-red-500/20 font-semibold"
-                                    onClick={handleCancel}
-                                >
-                                    Confirmar cancelamento
-                                </SGFButton>
-                            </div>
-                        </div>
-                    ) : (
+                (
                         <div className="flex w-full flex-wrap items-center justify-end gap-2">
                                 <SGFButton variant="ghost" onClick={onClose}>Fechar</SGFButton>
                                 {onEdit && m && op === 'pending' && (
                                     <SGFButton size="sm" variant="outline" icon={Edit} onClick={() => onEdit(m)}>
                                         Editar solicitação
-                                    </SGFButton>
-                                )}
-                                {canCancel && (
-                                    <SGFButton
-                                        size="sm"
-                                        variant="ghost"
-                                        icon={X}
-                                        disabled={busy}
-                                        className="!text-red-600 hover:!bg-red-50 focus:!ring-red-500/20 font-semibold"
-                                        onClick={() => setShowCancelInput(true)}
-                                    >
-                                        Cancelar OS
                                     </SGFButton>
                                 )}
                                 {op === 'pending' && (
@@ -399,6 +353,48 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                             Imprimir Dossiê OS
                         </SGFButton>
                     </div>
+
+                    {canCancel && (
+                        showCancelInput ? (
+                            <div className="flex flex-col gap-2.5 rounded-2xl border border-red-100 bg-red-50/50 p-4 sm:flex-row sm:items-center">
+                                <div className="flex-1">
+                                    <SGFInput
+                                        placeholder="Justificativa do cancelamento (obrigatório)..."
+                                        value={cancelReason}
+                                        onChange={(event) => setCancelReason(event.target.value)}
+                                        fullWidth
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="flex shrink-0 items-center justify-end gap-2">
+                                    <SGFButton size="sm" variant="ghost" onClick={() => { setShowCancelInput(false); setCancelReason(''); }}>
+                                        Voltar
+                                    </SGFButton>
+                                    <SGFButton
+                                        size="sm"
+                                        variant="ghost"
+                                        icon={X}
+                                        disabled={busy || !cancelReason.trim()}
+                                        className="!text-red-600 hover:!bg-red-50 focus:!ring-red-500/20 font-semibold"
+                                        onClick={handleCancel}
+                                    >
+                                        Confirmar cancelamento
+                                    </SGFButton>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex justify-center pt-1">
+                                <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => setShowCancelInput(true)}
+                                    className="text-sm font-semibold text-red-600 hover:underline disabled:opacity-50"
+                                >
+                                    Cancelar OS
+                                </button>
+                            </div>
+                        )
+                    )}
                 </div>
             )}
 

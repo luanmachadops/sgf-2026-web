@@ -154,7 +154,9 @@ export default function Notificacoes() {
         return (
             <div className="space-y-6 pb-16">
                 {sectionTabs}
-                <SystemAlertsModal inline />
+                <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm">
+                    <SystemAlertsModal inline />
+                </SGFCard>
             </div>
         );
     }
