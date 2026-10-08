@@ -146,7 +146,119 @@ export default function Configuracoes() {
                     {/* 1. Identidade da Prefeitura */}
                     <TenantIdentityCard />
 
-                    {/* 2. Precificação de combustível */}
+                </div>
+
+                {/* COLUNA DIREITA */}
+                <div className="space-y-6">
+                    {/* 1. Regras de Abastecimento */}
+                    <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md">
+                        <div className="mb-4 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                                <Receipt className="h-5 w-5 text-slate-400" />
+                                <div>
+                                    <h3 className="text-lg font-semibold text-slate-900">Regras de Abastecimento</h3>
+                                    <p className="text-sm text-slate-500">Validações e travas automáticas para controle de combustível.</p>
+                                </div>
+                            </div>
+                            <div>
+                                {!editingFuelRules ? (
+                                    <SGFButton size="sm" onClick={() => setEditingFuelRules(true)} icon={Edit}>
+                                        Editar
+                                    </SGFButton>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <SGFButton variant="ghost" size="sm" onClick={() => {
+                                            if (settings) {
+                                                setRequireFuelValidation(settings.requireFuelValidation);
+                                                setTankOverflowAlert(settings.tankOverflowAlert);
+                                            }
+                                            setEditingFuelRules(false);
+                                        }}>
+                                            Cancelar
+                                        </SGFButton>
+                                        <SGFButton size="sm" onClick={handleSaveFuelRules} disabled={update.isPending} icon={update.isPending ? Loader2 : Save}>
+                                            {update.isPending ? 'Salvando...' : 'Salvar'}
+                                        </SGFButton>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="space-y-3">
+                            <ToggleRow
+                                title="Exigir validação do gestor"
+                                desc="Abastecimentos lançados pelo motorista precisam ser validados antes de contabilizar."
+                                checked={requireFuelValidation}
+                                onChange={setRequireFuelValidation}
+                                disabled={!editingFuelRules}
+                            />
+                            <ToggleRow
+                                title="Alertar litros acima da capacidade"
+                                desc="Marca anomalia quando os litros abastecidos ultrapassam a capacidade do tanque do veículo."
+                                checked={tankOverflowAlert}
+                                onChange={setTankOverflowAlert}
+                                disabled={!editingFuelRules}
+                            />
+                        </div>
+                    </SGFCard>
+
+                    {/* 2. Alertas e prazos do sistema */}
+                    <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md">
+                        <div className="mb-4 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle className="h-5 w-5 text-slate-400" />
+                                <div>
+                                    <h3 className="text-lg font-semibold text-slate-900">Alertas e prazos</h3>
+                                    <p className="text-sm text-slate-500">Defina o limite de dias para notificação de vencimentos.</p>
+                                </div>
+                            </div>
+                            <div>
+                                {!editingAlerts ? (
+                                    <SGFButton size="sm" onClick={() => setEditingAlerts(true)} icon={Edit}>
+                                        Editar
+                                    </SGFButton>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <SGFButton variant="ghost" size="sm" onClick={() => {
+                                            if (settings) {
+                                                setCnhAlertDays(String(settings.cnhAlertDays));
+                                                setContractAlertDays(String(settings.contractAlertDays));
+                                            }
+                                            setEditingAlerts(false);
+                                        }}>
+                                            Cancelar
+                                        </SGFButton>
+                                        <SGFButton size="sm" onClick={handleSaveAlerts} disabled={update.isPending} icon={update.isPending ? Loader2 : Save}>
+                                            {update.isPending ? 'Salvando...' : 'Salvar'}
+                                        </SGFButton>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <SGFInput
+                                label="Alertar CNH a vencer (dias)"
+                                type="number"
+                                value={cnhAlertDays}
+                                readOnly={!editingAlerts}
+                                inputClassName={readonlyInputClasses(editingAlerts)}
+                                onChange={(e) => setCnhAlertDays(e.target.value)}
+                                hint="Motoristas com CNH vencendo neste prazo entram em alerta."
+                                fullWidth
+                            />
+                            <SGFInput
+                                label="Alertar licitação a vencer (dias)"
+                                type="number"
+                                value={contractAlertDays}
+                                readOnly={!editingAlerts}
+                                inputClassName={readonlyInputClasses(editingAlerts)}
+                                onChange={(e) => setContractAlertDays(e.target.value)}
+                                hint="Postos com contrato vencendo neste prazo entram em alerta."
+                                fullWidth
+                            />
+                        </div>
+                    </SGFCard>
+
+                    {/* 3. Precificação de combustível */}
                     <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md">
                         <div className="mb-5 flex items-center justify-between gap-2">
                             <div>
@@ -207,117 +319,6 @@ export default function Configuracoes() {
                                 Cadastre o preço de cada combustível em <b>Postos → Editar</b> para aplicar automaticamente.
                             </p>
                         )}
-                    </SGFCard>
-                </div>
-
-                {/* COLUNA DIREITA */}
-                <div className="space-y-6">
-                    {/* 2. Regras de Abastecimento */}
-                    <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md">
-                        <div className="mb-4 flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                                <Receipt className="h-5 w-5 text-slate-400" />
-                                <div>
-                                    <h3 className="text-lg font-semibold text-slate-900">Regras de Abastecimento</h3>
-                                    <p className="text-sm text-slate-500">Validações e travas automáticas para controle de combustível.</p>
-                                </div>
-                            </div>
-                            <div>
-                                {!editingFuelRules ? (
-                                    <SGFButton size="sm" onClick={() => setEditingFuelRules(true)} icon={Edit}>
-                                        Editar
-                                    </SGFButton>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <SGFButton variant="ghost" size="sm" onClick={() => {
-                                            if (settings) {
-                                                setRequireFuelValidation(settings.requireFuelValidation);
-                                                setTankOverflowAlert(settings.tankOverflowAlert);
-                                            }
-                                            setEditingFuelRules(false);
-                                        }}>
-                                            Cancelar
-                                        </SGFButton>
-                                        <SGFButton size="sm" onClick={handleSaveFuelRules} disabled={update.isPending} icon={update.isPending ? Loader2 : Save}>
-                                            {update.isPending ? 'Salvando...' : 'Salvar'}
-                                        </SGFButton>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <div className="space-y-3">
-                            <ToggleRow
-                                title="Exigir validação do gestor"
-                                desc="Abastecimentos lançados pelo motorista precisam ser validados antes de contabilizar."
-                                checked={requireFuelValidation}
-                                onChange={setRequireFuelValidation}
-                                disabled={!editingFuelRules}
-                            />
-                            <ToggleRow
-                                title="Alertar litros acima da capacidade"
-                                desc="Marca anomalia quando os litros abastecidos ultrapassam a capacidade do tanque do veículo."
-                                checked={tankOverflowAlert}
-                                onChange={setTankOverflowAlert}
-                                disabled={!editingFuelRules}
-                            />
-                        </div>
-                    </SGFCard>
-
-                    {/* 3. Alertas e prazos do sistema */}
-                    <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md">
-                        <div className="mb-4 flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                                <AlertTriangle className="h-5 w-5 text-slate-400" />
-                                <div>
-                                    <h3 className="text-lg font-semibold text-slate-900">Alertas e prazos</h3>
-                                    <p className="text-sm text-slate-500">Defina o limite de dias para notificação de vencimentos.</p>
-                                </div>
-                            </div>
-                            <div>
-                                {!editingAlerts ? (
-                                    <SGFButton size="sm" onClick={() => setEditingAlerts(true)} icon={Edit}>
-                                        Editar
-                                    </SGFButton>
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <SGFButton variant="ghost" size="sm" onClick={() => {
-                                            if (settings) {
-                                                setCnhAlertDays(String(settings.cnhAlertDays));
-                                                setContractAlertDays(String(settings.contractAlertDays));
-                                            }
-                                            setEditingAlerts(false);
-                                        }}>
-                                            Cancelar
-                                        </SGFButton>
-                                        <SGFButton size="sm" onClick={handleSaveAlerts} disabled={update.isPending} icon={update.isPending ? Loader2 : Save}>
-                                            {update.isPending ? 'Salvando...' : 'Salvar'}
-                                        </SGFButton>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <SGFInput
-                                label="Alertar CNH a vencer (dias)"
-                                type="number"
-                                value={cnhAlertDays}
-                                readOnly={!editingAlerts}
-                                inputClassName={readonlyInputClasses(editingAlerts)}
-                                onChange={(e) => setCnhAlertDays(e.target.value)}
-                                hint="Motoristas com CNH vencendo neste prazo entram em alerta."
-                                fullWidth
-                            />
-                            <SGFInput
-                                label="Alertar licitação a vencer (dias)"
-                                type="number"
-                                value={contractAlertDays}
-                                readOnly={!editingAlerts}
-                                inputClassName={readonlyInputClasses(editingAlerts)}
-                                onChange={(e) => setContractAlertDays(e.target.value)}
-                                hint="Postos com contrato vencendo neste prazo entram em alerta."
-                                fullWidth
-                            />
-                        </div>
                     </SGFCard>
                 </div>
 
