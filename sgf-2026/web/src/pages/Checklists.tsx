@@ -6,7 +6,9 @@ import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
-import { SGFInput } from '@/components/sgf/SGFInput';
+import { PeriodPresetSelect, PeriodRangeFields } from '@/components/sgf/PeriodSelect';
+import { makePeriod, type PeriodValue } from '@/components/sgf/period';
+import { EntityAvatar } from '@/components/sgf/EntityAvatar';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { Modal } from '@/components/ui/Modal';
 import { ChecklistItemsList } from '@/components/checklists/ChecklistItemsList';
@@ -27,6 +29,14 @@ import type { ChecklistListRecord } from '@/lib/supabase-api';
 import { formatDateTime, formatPlate, matchesSearch } from '@/lib/utils';
 import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
+/** Início do período escolhido (ISO), no mesmo critério da tela de Viagens. */
+function periodFrom(period: PeriodValue): string | undefined {
+    if (period.preset === 'custom') return period.from ? new Date(`${period.from}T00:00:00`).toISOString() : undefined;
+    const from = new Date();
+    from.setMonth(from.getMonth() - (Number(period.preset) || 1));
+    return from.toISOString();
+}
+
 export default function Checklists() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { setTitle, setDescription, setHeaderAction } = useHeader();
@@ -34,8 +44,7 @@ export default function Checklists() {
 
     const [searchTerm, setSearchTerm] = useState('');
     const [departmentFilter, setDepartmentFilter] = useState('');
-    const [dateFrom, setDateFrom] = useState('');
-    const [dateTo, setDateTo] = useState('');
+    const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('1'));
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [openOsFor, setOpenOsFor] = useState<ChecklistListRecord | null>(null);
 
@@ -61,12 +70,12 @@ export default function Checklists() {
 
     const filters = useMemo(
         () => ({
-            from: dateFrom ? new Date(`${dateFrom}T00:00:00`).toISOString() : undefined,
-            to: dateTo ? new Date(`${dateTo}T23:59:59`).toISOString() : undefined,
+            from: periodFrom(period),
+            to: period.preset === 'custom' && period.to ? new Date(`${period.to}T23:59:59`).toISOString() : undefined,
             departmentId: departmentFilter || undefined,
             limit: 200,
         }),
-        [dateFrom, dateTo, departmentFilter]
+        [period, departmentFilter]
     );
 
     const { data: checklists = [], isLoading } = useQuery({
@@ -133,38 +142,19 @@ export default function Checklists() {
         {
             header: 'Veículo',
             sortType: 'text',
-            sortValue: (c) => [c.vehicles?.brand, c.vehicles?.model].filter(Boolean).join(' ') || c.vehicles?.plate || '',
+            sortValue: (c) => c.vehicles?.plate ?? '',
             accessor: (c) => {
-                const vehicleLabel = [c.vehicles?.brand, c.vehicles?.model].filter(Boolean).join(' ') || c.vehicles?.plate || 'Veículo';
+                const vehicleLabel = [c.vehicles?.brand, c.vehicles?.model].filter(Boolean).join(' ');
                 return (
-                    <div className="flex items-center gap-2.5">
-                        {c.vehicles?.photo_url ? (
-                            <img
-                                src={c.vehicles.photo_url}
-                                alt={c.vehicles?.plate ?? 'Veículo'}
-                                className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
-                                loading="lazy"
-                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                            />
-                        ) : (
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--sgf-primary)]/10">
-                                <Car className="h-4 w-4 text-[var(--sgf-primary)]" />
-                            </div>
-                        )}
-                        <span className="font-semibold text-slate-800 text-sm">{vehicleLabel}</span>
+                    <div className="flex min-w-0 items-center gap-3">
+                        <EntityAvatar url={c.vehicles?.photo_url} icon={Car} alt={c.vehicles?.plate ?? 'Veículo'} square size="sm" />
+                        <div className="min-w-0 max-w-[220px]">
+                            <p className="font-mono text-sm font-semibold text-slate-900">{formatPlate(c.vehicles?.plate)}</p>
+                            {vehicleLabel && <p className="truncate text-xs text-slate-500">{vehicleLabel}</p>}
+                        </div>
                     </div>
                 );
             },
-        },
-        {
-            header: 'Placa',
-            sortType: 'text',
-            sortValue: (c) => c.vehicles?.plate ?? '',
-            accessor: (c) => (
-                <span className="font-mono font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs whitespace-nowrap">
-                    {formatPlate(c.vehicles?.plate)}
-                </span>
-            ),
         },
         {
             header: 'Secretaria',
@@ -181,9 +171,9 @@ export default function Checklists() {
             sortType: 'text',
             sortValue: (c) => c.profiles?.full_name ?? '',
             accessor: (c) => (
-                <div className="flex items-center gap-1.5 text-sm text-slate-700 font-medium whitespace-nowrap">
-                    <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                    <span>{c.profiles?.full_name ?? '—'}</span>
+                <div className="flex min-w-0 items-center gap-3 whitespace-nowrap text-sm font-medium text-slate-700">
+                    <EntityAvatar url={c.profiles?.photo_url} icon={User} alt={c.profiles?.full_name ?? 'Motorista'} size="sm" />
+                    <span className="max-w-[200px] truncate">{c.profiles?.full_name ?? '—'}</span>
                 </div>
             ),
         },
@@ -300,21 +290,16 @@ export default function Checklists() {
                 ]}
             >
                 <div className="flex items-center gap-2">
-                    <SGFInput
-                        type="date"
-                        value={dateFrom}
-                        onChange={(e) => setDateFrom(e.target.value)}
-                        className="!w-[150px] !py-2.5 !text-sm"
-                        aria-label="Data inicial"
-                    />
-                    <span className="text-sm text-slate-400">até</span>
-                    <SGFInput
-                        type="date"
-                        value={dateTo}
-                        onChange={(e) => setDateTo(e.target.value)}
-                        className="!w-[150px] !py-2.5 !text-sm"
-                        aria-label="Data final"
-                    />
+                    {period.preset === 'custom' && (
+                        <PeriodRangeFields
+                            value={period}
+                            onChange={setPeriod}
+                            className="!justify-start"
+                            fieldClassName="!w-[140px] !py-2.5 !text-sm"
+                            align="start"
+                        />
+                    )}
+                    <PeriodPresetSelect value={period} onChange={setPeriod} />
                 </div>
             </SGFToolbar>
 
