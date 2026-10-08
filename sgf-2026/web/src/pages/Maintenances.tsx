@@ -13,6 +13,7 @@ import { makePeriod, type PeriodValue } from '@/components/sgf/period';
 import { Modal } from '@/components/ui/Modal';
 import {
     Building2,
+    ChevronDown,
     Calendar,
     Car,
     CheckCircle,
@@ -209,6 +210,8 @@ export default function Maintenances() {
     });
     const [viewMode, setViewMode] = useState<'flow' | 'list'>('flow');
     const [showCancelled, setShowCancelled] = useState(false);
+    // Celular: cada etapa vira sanfona. Sem escolha do usuário, etapa vazia começa fechada.
+    const [openColumns, setOpenColumns] = useState<Record<string, boolean>>({});
     const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('6'));
     const [showCreate, setShowCreate] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -474,9 +477,14 @@ export default function Maintenances() {
                                     || new Date(x.openedAt).getTime() - new Date(y.openedAt).getTime());
                             const actionCount = items.filter(needsManager).length;
                             const Icon = column.icon;
+                            const open = openColumns[column.id] ?? items.length > 0;
                             return (
                                 <section key={column.id} className="flex min-w-0 flex-col rounded-3xl border border-slate-200 bg-slate-50/70 p-2.5">
-                                    <header className="mb-2.5 flex items-start justify-between gap-2 px-1.5 pt-1">
+                                    <header
+                                        className="flex cursor-pointer items-start justify-between gap-2 px-1.5 pt-1 md:mb-2.5 md:cursor-default"
+                                        onClick={() => setOpenColumns((prev) => ({ ...prev, [column.id]: !open }))}
+                                        aria-expanded={open}
+                                    >
                                         <div className="min-w-0">
                                             <h2 className={`flex items-center gap-2 text-sm font-bold ${column.color}`}>
                                                 <Icon className="h-4 w-4 shrink-0" />
@@ -491,9 +499,10 @@ export default function Maintenances() {
                                                 </span>
                                             )}
                                             <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-500 shadow-sm">{items.length}</span>
+                                            <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform md:hidden ${open ? 'rotate-180' : ''}`} />
                                         </div>
                                     </header>
-                                    <div className="custom-scrollbar max-h-[64vh] space-y-2 overflow-y-auto pr-0.5">
+                                    <div className={`custom-scrollbar mt-2.5 max-h-[64vh] space-y-2 overflow-y-auto pr-0.5 md:mt-0 md:block ${open ? '' : 'hidden'}`}>
                                         {items.map((item) => (
                                             <MaintenanceCard key={item.id} item={item} onOpen={() => setSelectedId(item.id)} />
                                         ))}
