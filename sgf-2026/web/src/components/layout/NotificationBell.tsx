@@ -9,6 +9,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Bell, Check, ChevronRight } from '@/components/sgf/icons';
 import { useNotifications } from '@/hooks/useNotifications';
+import { useNotificationPhotos } from '@/hooks/useNotificationPhotos';
+import { useDashboardAlerts } from '@/hooks/useDashboard';
 import type { NotificationRecord } from '@/lib/supabase-api';
 import { resolveNotificationRoute, getNotificationIcon, groupNotificationsByDate } from '@/lib/notificationUtils';
 
@@ -33,6 +35,12 @@ export default function NotificationBell() {
     const recentNotifications = useMemo(() => {
         return notifications.slice(0, 15);
     }, [notifications]);
+
+    const [tab, setTab] = useState<'notifications' | 'alerts'>('notifications');
+    const { data: photos } = useNotificationPhotos(recentNotifications);
+    const { data: alerts = [] } = useDashboardAlerts();
+    const ALERT_ORDER: Record<string, number> = { critical: 0, warning: 1, info: 2 };
+    const sortedAlerts = [...alerts].sort((a, b) => (ALERT_ORDER[a.severity] ?? 3) - (ALERT_ORDER[b.severity] ?? 3));
 
     const groupedNotifications = useMemo(() => {
         return groupNotificationsByDate(recentNotifications);
@@ -72,7 +80,7 @@ export default function NotificationBell() {
 
             <DropdownMenuContent align="end" sideOffset={8} className="w-[375px] max-w-[calc(100vw-2rem)] p-0 z-[1050] overflow-hidden rounded-[20px] border border-slate-200/90 bg-white shadow-[0_20px_50px_rgba(15,43,47,0.2)]">
                 {/* Top Header */}
-                <div className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3.5">
+                <div className="flex items-center justify-between bg-white px-4 pb-2 pt-3.5">
                     <div>
                         <p className="text-sm font-bold text-slate-900">Notificações</p>
                         <p className="text-xs text-slate-400">
@@ -91,7 +99,56 @@ export default function NotificationBell() {
                     )}
                 </div>
 
-                {/* Lista Agrupada por Data (Recentes) */}
+                {/* Abas: Notificações primeiro, Alertas ao lado */}
+                <div className="flex gap-1 border-b border-slate-100 bg-white px-3 pb-2.5">
+                    {([['notifications', 'Notificações', unreadCount], ['alerts', 'Alertas', alerts.length]] as const).map(([key, label, count]) => (
+                        <button
+                            key={key}
+                            type="button"
+                            onClick={() => setTab(key)}
+                            className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                                tab === key ? 'bg-[var(--sgf-accent)] text-[var(--sgf-accent-contrast)]' : 'text-slate-500 hover:bg-slate-100'
+                            }`}
+                        >
+                            {label}
+                            {count > 0 && (
+                                <span className={`rounded-full px-1.5 text-[10px] font-bold ${tab === key ? 'bg-white/40' : key === 'alerts' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                    {count}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+
+                {tab === 'alerts' ? (
+                    <div className="max-h-[380px] space-y-1 overflow-y-auto p-1">
+                        {sortedAlerts.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                                    <Check className="h-6 w-6" />
+                                </div>
+                                <p className="text-sm font-medium text-slate-500">Nenhum alerta pendente</p>
+                            </div>
+                        ) : sortedAlerts.map((a) => (
+                            <DropdownMenuItem
+                                key={a.kind}
+                                onSelect={(e) => { e.preventDefault(); setOpen(false); navigate(a.link); }}
+                                className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left focus:bg-slate-100"
+                            >
+                                <span className={`flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full px-2 text-xs font-bold text-white ${
+                                    a.severity === 'critical' ? 'bg-red-600' : a.severity === 'warning' ? 'bg-amber-500' : 'bg-blue-600'
+                                }`}>
+                                    {a.count}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-xs font-bold text-slate-800">{a.title}</span>
+                                    <span className="block truncate text-[11px] text-slate-500">{a.detail}</span>
+                                </span>
+                                <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" />
+                            </DropdownMenuItem>
+                        ))}
+                    </div>
+                ) : (
                 <div className="max-h-[380px] overflow-y-auto">
                     {notifications.length === 0 ? (
                         <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
@@ -123,10 +180,18 @@ export default function NotificationBell() {
                                                 }}
                                                 className={`flex w-full cursor-pointer items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors focus:bg-slate-100 ${n.read ? 'bg-white' : 'bg-emerald-50/50 font-medium'}`}
                                             >
-                                                {/* Ícone Contextualizado */}
-                                                <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${bg}`}>
-                                                    <Icon className="h-4.5 w-4.5" />
-                                                </div>
+                                                {/* Foto do veículo/motorista do assunto; sem foto, o ícone */}
+                                                {photos?.get(n.id) ? (
+                                                    <img
+                                                        src={photos.get(n.id)!.url}
+                                                        alt=""
+                                                        className={`mt-0.5 h-9 shrink-0 object-cover ring-1 ring-slate-200 ${photos.get(n.id)!.kind === 'driver' ? 'w-9 rounded-full' : 'w-12 rounded-lg'}`}
+                                                    />
+                                                ) : (
+                                                    <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${bg}`}>
+                                                        <Icon className="h-4.5 w-4.5" />
+                                                    </div>
+                                                )}
 
                                                 <div className="min-w-0 flex-1">
                                                     <div className="flex items-start justify-between gap-2">
@@ -145,6 +210,7 @@ export default function NotificationBell() {
                         ))
                     )}
                 </div>
+                )}
 
                 {/* Rodapé com Link para a Central de Notificações */}
                 <div className="border-t border-slate-100 bg-slate-50/80 p-2.5 text-center">
@@ -152,11 +218,11 @@ export default function NotificationBell() {
                         type="button"
                         onClick={() => {
                             setOpen(false);
-                            navigate('/notificacoes');
+                            navigate(tab === 'alerts' ? '/notificacoes' : '/notificacoes?aba=notificacoes');
                         }}
                         className="inline-flex items-center justify-center gap-1.5 w-full rounded-xl bg-white border border-slate-200/80 py-2 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors shadow-2xs"
                     >
-                        <span>Ver histórico na Central de Notificações</span>
+                        <span>{tab === 'alerts' ? 'Ver todos os alertas' : 'Ver histórico na Central de Notificações'}</span>
                         <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
                     </button>
                 </div>

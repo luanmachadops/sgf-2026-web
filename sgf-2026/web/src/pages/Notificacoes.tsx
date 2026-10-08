@@ -1,3 +1,4 @@
+import { useNotificationPhotos } from '@/hooks/useNotificationPhotos';
 import { openNotification } from '@/lib/notificationGuard';
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -31,6 +32,7 @@ export default function Notificacoes() {
     const [hasMore, setHasMore] = useState(false);
     const [search, setSearch] = useState('');
     const [activeTab, setActiveTab] = useState<FilterTab>('all');
+    const { data: photos } = useNotificationPhotos(items);
     // Alertas primeiro: é o que exige ação hoje (os mesmos do Dashboard).
     // A aba fica na URL: ao voltar de um alerta/notificação, reabre a mesma aba.
     const [searchParams, setSearchParams] = useSearchParams();
@@ -289,10 +291,18 @@ export default function Notificacoes() {
                                                     : 'border-emerald-200 bg-emerald-50/40 hover:border-emerald-300'
                                             }`}
                                         >
-                                            {/* Ícone Contextualizado */}
-                                            <div className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${bg}`}>
-                                                <Icon className="h-5 w-5" />
-                                            </div>
+                                            {/* Foto do veículo/motorista do assunto; sem foto, o ícone */}
+                                            {photos?.get(n.id) ? (
+                                                <img
+                                                    src={photos.get(n.id)!.url}
+                                                    alt=""
+                                                    className={`mt-0.5 h-11 shrink-0 object-cover ring-1 ring-slate-200 ${photos.get(n.id)!.kind === 'driver' ? 'w-11 rounded-full' : 'w-14 rounded-xl'}`}
+                                                />
+                                            ) : (
+                                                <div className={`mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${bg}`}>
+                                                    <Icon className="h-5 w-5" />
+                                                </div>
+                                            )}
 
                                             {/* Informações da Notificação */}
                                             <div className="min-w-0 flex-1">
