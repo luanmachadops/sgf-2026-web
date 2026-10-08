@@ -156,6 +156,7 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
             busy={busy}
             maxWidthClass="sm:max-w-4xl"
             zIndexClass="z-50"
+            media={m?.vehicles ? <VehicleHeaderPhoto url={m.vehicles.photo_url} /> : undefined}
             footer={
                 showCancelInput ? (
                         <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:items-center">
@@ -442,3 +443,16 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
 }
 
 export default MaintenanceDetailsModal;
+
+/** Foto do veículo no cabeçalho da OS; sem foto, ícone do carro. */
+function VehicleHeaderPhoto({ url }: { url?: string | null }) {
+    const [failed, setFailed] = useState(false);
+    if (!url || failed) {
+        return (
+            <div className="grid h-16 w-20 shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-400">
+                <Car className="h-7 w-7" />
+            </div>
+        );
+    }
+    return <img src={url} alt="Veículo" onError={() => setFailed(true)} className="h-16 w-20 shrink-0 rounded-2xl object-cover ring-1 ring-slate-200" />;
+}

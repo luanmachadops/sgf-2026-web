@@ -11,6 +11,8 @@ interface WorkshopModalShellProps {
     footer?: ReactNode;
     maxWidthClass?: string;
     zIndexClass?: string;
+    /** Imagem à esquerda do título (ex.: foto do veículo). */
+    media?: ReactNode;
 }
 
 export function WorkshopModalShell({
@@ -23,6 +25,7 @@ export function WorkshopModalShell({
     footer,
     maxWidthClass = 'sm:max-w-2xl',
     zIndexClass = 'z-[60]',
+    media,
 }: WorkshopModalShellProps) {
     useEffect(() => {
         const closeOnEscape = (event: KeyboardEvent) => {
@@ -41,10 +44,13 @@ export function WorkshopModalShell({
                 className={`max-h-[95vh] w-full overflow-y-auto rounded-t-[2rem] bg-white shadow-2xl sm:rounded-[2rem] ${maxWidthClass}`}
             >
                 <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-100 bg-white/95 px-6 py-5 backdrop-blur">
-                    <div>
+                    <div className="flex min-w-0 items-center gap-4">
+                    {media}
+                    <div className="min-w-0">
                         <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-700">{eyebrow}</p>
                         <h2 id="workshop-modal-title" className="mt-1 text-xl font-black text-slate-950">{title}</h2>
                         {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+                    </div>
                     </div>
                     <button
                         type="button"
