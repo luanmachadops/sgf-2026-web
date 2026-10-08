@@ -7,7 +7,6 @@ import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { Modal } from '@/components/ui/Modal';
 import {
     Fuel,
-    Eye,
     AlertTriangle,
     XCircle,
     Car,
@@ -253,21 +252,6 @@ export default function Refuelings() {
                 return <SGFBadge variant={b.variant}>{b.label}</SGFBadge>;
             },
         },
-        {
-            header: 'Ações',
-            sortable: false,
-            accessor: (row) => (
-                <SGFButton
-                    variant="ghost"
-                    size="sm"
-                    icon={Eye}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        setSelectedRefueling(row);
-                    }}
-                />
-            )
-        }
     ];
 
     const closeSelectedRefueling = () => {

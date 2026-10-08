@@ -196,16 +196,6 @@ export default function Infracoes() {
                 return <SGFBadge variant={meta.variant}>{meta.label}</SGFBadge>;
             },
         },
-        {
-            header: 'Ações',
-            sortable: false,
-            headerClassName: 'text-right',
-            accessor: (r) => (
-                <div className="flex justify-end">
-                    <SGFButton size="sm" variant="ghost" onClick={() => setSelected(r)}>Gerenciar</SGFButton>
-                </div>
-            ),
-        },
     ];
 
     return (

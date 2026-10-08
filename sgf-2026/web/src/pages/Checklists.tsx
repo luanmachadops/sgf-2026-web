@@ -21,7 +21,6 @@ import {
     CheckCircle,
     AlertTriangle,
     Wrench,
-    Eye,
 } from '@/components/sgf/icons';
 import { useHeader } from '@/contexts/HeaderContext';
 import { checklistsApi, departmentsApi } from '@/lib/supabase-api';
@@ -225,23 +224,6 @@ export default function Checklists() {
                     <SGFBadge variant="success" icon={CheckCircle}>OK</SGFBadge>
                 );
             },
-        },
-        {
-            header: 'Ações',
-            sortable: false,
-            accessor: (c) => (
-                <SGFButton
-                    variant="ghost"
-                    size="sm"
-                    icon={Eye}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedId(c.id);
-                    }}
-                >
-                    Ver detalhes
-                </SGFButton>
-            ),
         },
     ];
 
