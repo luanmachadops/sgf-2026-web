@@ -3,11 +3,9 @@ import { toast } from 'sonner';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { DollarSign, Receipt, CheckCircle, AlertTriangle, Loader2, Users, Edit, Save } from '@/components/sgf/icons';
+import { DollarSign, Receipt, CheckCircle, AlertTriangle, Loader2, Edit, Save } from '@/components/sgf/icons';
 import { useHeader } from '@/contexts/HeaderContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { useAppSettings, useUpdateSettings } from '@/hooks/useSettings';
-import { NewSecretarioModal } from '@/components/settings/NewSecretarioModal';
 import { TenantIdentityCard } from '@/components/settings/TenantIdentityCard';
 import { cn } from '@/lib/utils';
 import { useSyncOnChange } from '@/hooks/useSyncOnChange';
@@ -60,10 +58,8 @@ function ToggleRow({ title, desc, checked, onChange, disabled }: { title: string
 
 export default function Configuracoes() {
     const { setTitle, setDescription } = useHeader();
-    const { user } = useAuth();
     const { data: settings } = useAppSettings();
     const update = useUpdateSettings();
-    const [showSecretario, setShowSecretario] = useState(false);
 
     // Estados dos formulários
     const [fuelPriceMode, setFuelPriceMode] = useState<'contract' | 'free'>('free');
@@ -216,26 +212,6 @@ export default function Configuracoes() {
 
                 {/* COLUNA DIREITA */}
                 <div className="space-y-6">
-                    {/* 1. Secretários (Gestão de Acessos ao Painel) — apenas administrador */}
-                    {user?.role === 'ADMIN' && (
-                        <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md bg-white text-slate-900">
-                            <div className="flex flex-wrap items-center justify-between gap-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
-                                        <Users className="h-5.5 w-5.5" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-slate-900">Secretários (acesso ao painel)</h3>
-                                        <p className="text-sm text-slate-500">Gerencie os secretários e acessos restritos de cada secretaria.</p>
-                                    </div>
-                                </div>
-                                <SGFButton onClick={() => setShowSecretario(true)} className="!rounded-full">
-                                    Novo secretário
-                                </SGFButton>
-                            </div>
-                        </SGFCard>
-                    )}
-
                     {/* 2. Regras de Abastecimento */}
                     <SGFCard padding="lg" className="border border-slate-200/80 shadow-sm transition-all hover:shadow-md">
                         <div className="mb-4 flex items-center justify-between gap-2">
@@ -347,7 +323,6 @@ export default function Configuracoes() {
 
             </div>
 
-            <NewSecretarioModal isOpen={showSecretario} onClose={() => setShowSecretario(false)} />
         </div>
     );
 }
