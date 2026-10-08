@@ -19,7 +19,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
     const { title, description, headerAction } = useHeader();
 
     return (
-        <header className="sticky top-0 z-30 w-full px-[var(--sgf-space-4)] md:px-[var(--sgf-space-8)] pt-[var(--sgf-space-6)] pb-[var(--sgf-space-2)] bg-[#E3E9E7]/80 backdrop-blur-md border-b-0">
+        <header className="sticky top-0 z-30 w-full lg:rounded-tl-[32px] px-[var(--sgf-space-4)] md:px-[var(--sgf-space-8)] pt-[var(--sgf-space-6)] pb-[var(--sgf-space-2)] bg-[#E3E9E7]/80 backdrop-blur-md border-b-0">
           <div className="flex flex-wrap items-center gap-x-[var(--sgf-space-4)] gap-y-3 min-h-[5rem] max-w-[1400px] mx-auto w-full py-3 md:py-0">
             <div className="flex items-center gap-[var(--sgf-space-4)] min-w-0 flex-1">
                 <button
