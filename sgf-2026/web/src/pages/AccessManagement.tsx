@@ -8,7 +8,8 @@ import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
-import { ChevronRight, Fuel, KeyRound, Plus, Search, ShieldCheck, Users, Wrench } from '@/components/sgf/icons';
+import { ChevronRight, Fuel, KeyRound, Plus, ShieldCheck, Users, Wrench } from '@/components/sgf/icons';
+import { ExpandableSearch } from '@/components/sgf/ExpandableSearch';
 import { ALL_ACCESS_MODULES } from '@/lib/accessModules';
 import { accessManagementApi, type CreateManagedAccess, type ManagedAccess, type ManagedAccessRole } from '@/lib/backend-api';
 import { departmentsApi, repairShopsApi, stationsApi, tenantApi } from '@/lib/supabase-api';
@@ -39,7 +40,7 @@ const ROLE_OPTIONS: Array<{ value: ManagedAccessRole; label: string }> = [
 function RoleIcon({ role }: { role: ManagedAccessRole }) {
     const Icon = role === 'motorista' ? Users : role === 'posto' ? Fuel : role === 'oficina' ? Wrench : ShieldCheck;
     return (
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--sgf-primary-soft)] text-[var(--sgf-primary)]">
             <Icon className="h-5 w-5" />
         </span>
     );
@@ -173,18 +174,18 @@ export default function AccessManagement() {
                             type="button"
                             onClick={() => setTab(item.role)}
                             className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ${
-                                tab === item.role ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 shadow-sm hover:bg-slate-50'
+                                tab === item.role
+                                    ? 'bg-[var(--sgf-accent)] text-[var(--sgf-accent-contrast)] shadow-sm'
+                                    : 'bg-white text-slate-600 shadow-sm hover:bg-[var(--sgf-primary-soft)]'
                             }`}
                         >
                             {item.label}
-                            <span className={`rounded-full px-2 py-0.5 text-xs ${tab === item.role ? 'bg-white/15' : 'bg-slate-100 text-slate-500'}`}>{counts[item.role] ?? 0}</span>
+                            <span className={`rounded-full px-2 py-0.5 text-xs ${tab === item.role ? 'bg-white/40' : 'bg-slate-100 text-slate-500'}`}>{counts[item.role] ?? 0}</span>
                         </button>
                     ))}
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="min-w-0 flex-1 lg:w-72 lg:flex-none">
-                        <SGFInput icon={Search} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar nome, e-mail, CPF…" fullWidth />
-                    </div>
+                    <ExpandableSearch value={search} onChange={setSearch} placeholder="Buscar nome, e-mail, CPF…" />
                     <SGFButton icon={Plus} onClick={openCreate} className="shrink-0">
                         <span className="hidden sm:inline">Novo {current.singular}</span>
                         <span className="sm:hidden">Novo</span>
@@ -199,7 +200,7 @@ export default function AccessManagement() {
                         <p className="text-sm text-slate-500">{current.hint} Clique em um acesso para editar, gerar nova senha, bloquear ou remover.</p>
                     </div>
                     <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
-                        <input type="checkbox" checked={showBlocked} onChange={(event) => setShowBlocked(event.target.checked)} className="h-4 w-4 accent-emerald-600" />
+                        <input type="checkbox" checked={showBlocked} onChange={(event) => setShowBlocked(event.target.checked)} className="h-4 w-4 accent-[var(--sgf-primary)]" />
                         Mostrar bloqueados
                     </label>
                 </div>

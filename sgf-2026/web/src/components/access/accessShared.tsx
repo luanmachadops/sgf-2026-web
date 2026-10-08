@@ -32,7 +32,7 @@ export function ModuleChecks({ value, onChange }: { value: string[]; onChange: (
                         <label
                             key={module.id}
                             className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition ${
-                                checked ? 'border-emerald-300 bg-emerald-50 text-emerald-900' : 'border-slate-200 bg-white text-slate-600'
+                                checked ? 'border-[var(--sgf-primary)] bg-[var(--sgf-primary-soft)] text-slate-900' : 'border-slate-200 bg-white text-slate-600'
                             }`}
                         >
                             <input
@@ -41,7 +41,7 @@ export function ModuleChecks({ value, onChange }: { value: string[]; onChange: (
                                 onChange={() => onChange(checked ? value.filter((item) => item !== module.id) : [...value, module.id])}
                                 className="sr-only"
                             />
-                            <span className={`grid h-5 w-5 place-items-center rounded-md ${checked ? 'bg-emerald-600 text-white' : 'border border-slate-300'}`}>
+                            <span className={`grid h-5 w-5 place-items-center rounded-md ${checked ? 'bg-[var(--sgf-primary)] text-[var(--sgf-primary-contrast)]' : 'border border-slate-300'}`}>
                                 {checked && <Check className="h-3.5 w-3.5" />}
                             </span>
                             {module.label}
@@ -67,10 +67,10 @@ export function TempPasswordDialog({ credential, onClose }: {
             size="sm"
         >
             {credential && (
-                <div className="space-y-3 rounded-2xl bg-slate-900 p-5 text-white">
+                <div className="space-y-3 rounded-2xl bg-[var(--sgf-dark)] p-5 text-[var(--sgf-dark-contrast)]">
                     <p className="font-bold">{credential.name}</p>
-                    <p className="text-sm text-slate-300">Login: {credential.login}</p>
-                    <p className="select-all font-mono text-xl font-bold tracking-wider text-emerald-300">{credential.password}</p>
+                    <p className="text-sm opacity-75">Login: {credential.login}</p>
+                    <p className="select-all font-mono text-xl font-bold tracking-wider text-[var(--sgf-accent)]">{credential.password}</p>
                     <SGFButton
                         fullWidth
                         icon={Copy}
