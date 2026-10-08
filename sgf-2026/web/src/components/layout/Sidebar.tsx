@@ -132,7 +132,7 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                 "flex shrink-0 items-center relative",
                 isCollapsed
                     ? "flex-col pt-4 pb-2 gap-4 h-[120px] justify-start"
-                    : "h-[72px] px-5 gap-3"
+                    : "flex-col justify-center px-5 pt-5 pb-4 gap-2.5 text-center"
             )}>
                 {/* Hamburger Toggle (collapsed) */}
                 {showToggle && isCollapsed && (
@@ -145,15 +145,15 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                 )}
 
                 {/* Logo icon — brasão sem fundo/cantos; só o fallback usa o box estilizado */}
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                <div className={cn("flex shrink-0 items-center justify-center", isCollapsed ? "h-9 w-9" : "h-14 w-14")}>
                     <img src={branding.sealUrl || branding.logoUrl || '/exattus-rotta.svg'} alt={branding.name} className="h-full w-full object-contain" />
                 </div>
 
                 {/* Brand text */}
                 {!isCollapsed && (
-                    <div className="flex flex-col leading-none">
-                        <span className="text-[13px] font-semibold text-white tracking-tight truncate max-w-[150px]">{branding.name}</span>
-                        <span className="mt-0.5 text-[11px] font-medium tracking-normal text-[var(--sgf-light)]">{branding.city ? `${branding.city}${branding.state ? '/' + branding.state : ''}` : 'Gestão Pública'}</span>
+                    <div className="flex flex-col items-center leading-tight">
+                        <span className="line-clamp-2 max-w-[200px] text-[13px] font-semibold tracking-tight text-white">{branding.name}</span>
+                        <span className="mt-1 text-[11px] font-medium tracking-normal text-[var(--sgf-light)]">{branding.city ? `${branding.city}${branding.state ? '/' + branding.state : ''}` : 'Gestão Pública'}</span>
                     </div>
                 )}
 
@@ -161,7 +161,7 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                 {showToggle && !isCollapsed && (
                     <button
                         onClick={onToggle}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/5"
+                        className="absolute right-3 top-3 text-white/30 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/5"
                     >
                         <X className="h-4 w-4" />
                     </button>
