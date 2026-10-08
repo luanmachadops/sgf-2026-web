@@ -101,7 +101,9 @@ export const stationPortalApi = withFotoUrls({
     getPending: async (): Promise<StationAuthorization[]> => {
         const { data, error } = await supabase.rpc('get_station_authorizations_with_contracts');
         throwIfError(error);
-        const rows=z.array(z.object({fueling_id:z.string(),plate:z.string(),brand:z.string(),model:z.string(),fuel_type:z.string(),max_liters:z.number().nullable(),authorized_at:z.string(),expires_at:z.string().nullable(),note:z.string().nullable(),price_per_liter:z.number().nullable(),contract_managed:z.boolean()})).parse(data);
+        // Autorizações antigas podem ter campos vazios (ex.: sem combustível); uma
+        // linha assim não pode derrubar a lista inteira do posto.
+        const rows=z.array(z.object({fueling_id:z.string(),plate:z.string().nullable().transform((v)=>v??''),brand:z.string().nullable().transform((v)=>v??''),model:z.string().nullable().transform((v)=>v??''),fuel_type:z.string().nullable().transform((v)=>v??'Não informado'),max_liters:z.number().nullable(),authorized_at:z.string(),expires_at:z.string().nullable(),note:z.string().nullable(),price_per_liter:z.number().nullable(),contract_managed:z.boolean()})).parse(data);
         return rows.map((row) => ({
             contractManaged: row.contract_managed,
             fuelingId: row.fueling_id,
