@@ -1,3 +1,4 @@
+import { VehicleCell, DriverCell } from '@/components/sgf/EntityCells';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -442,24 +443,9 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
     const vehicleColumns = [
         {
             header: 'Veículo',
-            accessor: (row: DepartmentDetail['vehicles'][number]) => {
-                const name = `${row.brand} ${row.model}`;
-                return (
-                    <div className="flex items-center gap-2.5">
-                        {row.photo_url ? (
-                            <img src={row.photo_url} alt={name} className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200 bg-white" />
-                        ) : (
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
-                                <Car className="h-4 w-4" />
-                            </div>
-                        )}
-                        <div>
-                            <p className="font-semibold text-slate-800">{row.plate}</p>
-                            <p className="text-xs text-slate-500">{name}</p>
-                        </div>
-                    </div>
-                );
-            },
+            accessor: (row: DepartmentDetail['vehicles'][number]) => (
+                <VehicleCell plate={row.plate} name={[row.brand, row.model].filter(Boolean).join(' ') || null} photoUrl={row.photo_url} />
+            ),
         },
         {
             header: 'Status',
@@ -482,24 +468,9 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
     const driverColumns = [
         {
             header: 'Motorista',
-            accessor: (row: DepartmentDetail['drivers'][number]) => {
-                const name = row.name || '—';
-                return (
-                    <div className="flex items-center gap-2.5">
-                        {row.photo_url ? (
-                            <img src={row.photo_url} alt={name} className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-slate-200 bg-white" />
-                        ) : (
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-xs font-bold text-white shadow-sm">
-                                {getInitials(name)}
-                            </div>
-                        )}
-                        <div>
-                            <p className="font-semibold text-slate-800">{name}</p>
-                            <p className="text-xs text-slate-500">{row.registration_number}</p>
-                        </div>
-                    </div>
-                );
-            },
+            accessor: (row: DepartmentDetail['drivers'][number]) => (
+                <DriverCell name={row.name} photoUrl={row.photo_url} subtitle={row.registration_number} />
+            ),
         },
         {
             header: 'Status',
@@ -532,46 +503,15 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
         },
         {
             header: 'Veículo',
-            accessor: (row: DepartmentDetail['recentTrips'][number]) => {
-                const brand = row.vehicles?.brand || '';
-                const model = row.vehicles?.model || '';
-                const name = [brand, model].filter(Boolean).join(' ') || '—';
-                const photo = row.vehicles?.photo_url;
-                return (
-                    <div className="flex items-center gap-2.5">
-                        {photo ? (
-                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200 bg-white" />
-                        ) : (
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
-                                <Car className="h-4 w-4" />
-                            </div>
-                        )}
-                        <div>
-                            <span className="font-semibold text-slate-800 text-sm block">{name}</span>
-                            <span className="font-mono text-xs text-slate-500">{row.vehicles?.plate ? formatPlate(row.vehicles.plate) : '—'}</span>
-                        </div>
-                    </div>
-                );
-            },
+            accessor: (row: DepartmentDetail['recentTrips'][number]) => (
+                <VehicleCell plate={row.vehicles?.plate} name={[row.vehicles?.brand, row.vehicles?.model].filter(Boolean).join(' ') || null} photoUrl={row.vehicles?.photo_url} />
+            ),
         },
         {
             header: 'Motorista',
-            accessor: (row: DepartmentDetail['recentTrips'][number]) => {
-                const name = row.drivers?.name || '—';
-                const photo = row.drivers?.photo_url;
-                return (
-                    <div className="flex items-center gap-2.5">
-                        {photo ? (
-                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-slate-200 bg-white" />
-                        ) : (
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-xs font-bold text-white shadow-sm">
-                                {getInitials(name)}
-                            </div>
-                        )}
-                        <span className="font-semibold text-slate-800 text-sm">{name}</span>
-                    </div>
-                );
-            },
+            accessor: (row: DepartmentDetail['recentTrips'][number]) => (
+                <DriverCell name={row.drivers?.name} photoUrl={row.drivers?.photo_url} fallback={NO_DRIVER_LABEL} />
+            ),
         },
         {
             header: 'Distância',
@@ -594,47 +534,15 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
         },
         {
             header: 'Veículo',
-            accessor: (row: DepartmentDetail['recentRefuelings'][number]) => {
-                const brand = row.vehicles?.brand || '';
-                const model = row.vehicles?.model || '';
-                const name = [brand, model].filter(Boolean).join(' ') || '—';
-                const photo = row.vehicles?.photo_url;
-                return (
-                    <div className="flex items-center gap-2.5">
-                        {photo ? (
-                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200 bg-white" />
-                        ) : (
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
-                                <Car className="h-4 w-4" />
-                            </div>
-                        )}
-                        <div>
-                            <span className="font-semibold text-slate-800 text-sm block">{name}</span>
-                            <span className="font-mono text-xs text-slate-500">{row.vehicles?.plate ? formatPlate(row.vehicles.plate) : '—'}</span>
-                        </div>
-                    </div>
-                );
-            },
+            accessor: (row: DepartmentDetail['recentRefuelings'][number]) => (
+                <VehicleCell plate={row.vehicles?.plate} name={[row.vehicles?.brand, row.vehicles?.model].filter(Boolean).join(' ') || null} photoUrl={row.vehicles?.photo_url} />
+            ),
         },
         {
             header: 'Motorista',
-            accessor: (row: DepartmentDetail['recentRefuelings'][number]) => {
-                if (!row.drivers?.name) return <span className="text-sm italic text-slate-400">{NO_DRIVER_LABEL}</span>;
-                const name = row.drivers.name;
-                const photo = row.drivers.photo_url;
-                return (
-                    <div className="flex items-center gap-2.5">
-                        {photo ? (
-                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-slate-200 bg-white" />
-                        ) : (
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-xs font-bold text-white shadow-sm">
-                                {getInitials(name)}
-                            </div>
-                        )}
-                        <span className="font-semibold text-slate-800 text-sm">{name}</span>
-                    </div>
-                );
-            },
+            accessor: (row: DepartmentDetail['recentRefuelings'][number]) => (
+                <DriverCell name={row.drivers?.name} photoUrl={row.drivers?.photo_url} fallback={NO_DRIVER_LABEL} />
+            ),
         },
         {
             header: 'Combustível',
@@ -661,27 +569,9 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
         },
         {
             header: 'Veículo',
-            accessor: (row: DepartmentDetail['recentMaintenances'][number]) => {
-                const brand = row.vehicles?.brand || '';
-                const model = row.vehicles?.model || '';
-                const name = [brand, model].filter(Boolean).join(' ') || '—';
-                const photo = row.vehicles?.photo_url;
-                return (
-                    <div className="flex items-center gap-2.5">
-                        {photo ? (
-                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200 bg-white" />
-                        ) : (
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
-                                <Car className="h-4 w-4" />
-                            </div>
-                        )}
-                        <div>
-                            <span className="font-semibold text-slate-800 text-sm block">{name}</span>
-                            <span className="font-mono text-xs text-slate-500">{row.vehicles?.plate ? formatPlate(row.vehicles.plate) : '—'}</span>
-                        </div>
-                    </div>
-                );
-            },
+            accessor: (row: DepartmentDetail['recentMaintenances'][number]) => (
+                <VehicleCell plate={row.vehicles?.plate} name={[row.vehicles?.brand, row.vehicles?.model].filter(Boolean).join(' ') || null} photoUrl={row.vehicles?.photo_url} />
+            ),
         },
         {
             header: 'Tipo',

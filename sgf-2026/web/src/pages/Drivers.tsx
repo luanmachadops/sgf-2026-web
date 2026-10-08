@@ -13,6 +13,7 @@ import {
 import { differenceInDays, parseISO } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { SGFButton } from '@/components/sgf/SGFButton';
+import { DriverCell } from '@/components/sgf/EntityCells';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
@@ -169,23 +170,7 @@ export default function Drivers() {
         {
             header: 'Motorista',
             accessor: (row) => (
-                <div className="flex items-center gap-3">
-                    {(row as { photo_url?: string | null }).photo_url ? (
-                        <img
-                            src={(row as { photo_url?: string | null }).photo_url as string}
-                            alt={row.name}
-                            className="h-10 w-10 shrink-0 rounded-full object-cover shadow-sm"
-                        />
-                    ) : (
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 text-sm font-bold text-white shadow-sm">
-                            {getInitials(row.name)}
-                        </div>
-                    )}
-                    <div className="min-w-0">
-                        <p className="font-semibold text-slate-900 truncate">{row.name}</p>
-                        <p className="font-mono text-xs text-slate-400">{formatCPF(row.cpf)}</p>
-                    </div>
-                </div>
+                <DriverCell name={row.name} photoUrl={(row as { photo_url?: string | null }).photo_url} subtitle={formatCPF(row.cpf)} />
             ),
         },
         {

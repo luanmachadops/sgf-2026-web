@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
+import { VehicleCell, DriverCell } from '@/components/sgf/EntityCells';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
@@ -144,25 +145,13 @@ export default function Infracoes() {
         },
         {
             header: 'Veículo',
-            accessor: (r) => {
-                const name = [r.vehicles?.brand, r.vehicles?.model].filter(Boolean).join(' ') || '—';
-                const photo = r.vehicles?.photo_url;
-                return (
-                    <div className="flex items-center gap-2.5">
-                        {photo ? (
-                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200" />
-                        ) : (
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
-                                <Car className="h-4 w-4" />
-                            </div>
-                        )}
-                        <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-800 truncate">{name}</p>
-                            <p className="font-mono text-xs text-slate-400">{r.plate ? formatPlate(r.plate) : '—'}</p>
-                        </div>
-                    </div>
-                );
-            },
+            accessor: (r) => (
+                <VehicleCell
+                    plate={r.plate}
+                    name={[r.vehicles?.brand, r.vehicles?.model].filter(Boolean).join(' ') || null}
+                    photoUrl={r.vehicles?.photo_url}
+                />
+            ),
         },
         { header: 'Local', accessor: (r) => <span className="text-sm text-slate-600">{r.location || '—'}</span> },
         { header: 'Valor', accessor: (r) => <span className="font-semibold text-slate-800">{formatCurrency(Number(r.amount ?? 0))}</span>, className: 'text-right', headerClassName: 'text-right' },
@@ -170,22 +159,14 @@ export default function Infracoes() {
             header: 'Condutor',
             accessor: (r) => {
                 const cond = r.indicated || r.suggested;
-                const isSuggested = !r.indicated && r.suggested;
-                if (!cond) return <span className="text-sm text-slate-400">—</span>;
-                const photo = cond.photo_url;
+                const isSuggested = !r.indicated && !!r.suggested;
                 return (
-                    <div className="flex items-center gap-2.5">
-                        {photo ? (
-                            <img src={photo} alt={cond.full_name} className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-slate-200" />
-                        ) : (
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                                <User className="h-4 w-4" />
-                            </div>
-                        )}
-                        <span className={`text-sm font-semibold ${isSuggested ? 'text-emerald-600' : 'text-slate-800'}`}>
-                            {isSuggested ? `sugestão: ${cond.full_name}` : cond.full_name}
-                        </span>
-                    </div>
+                    <DriverCell
+                        name={cond?.full_name}
+                        photoUrl={cond?.photo_url}
+                        subtitle={isSuggested ? 'Sugestão do sistema' : null}
+                        fallback="—"
+                    />
                 );
             },
         },

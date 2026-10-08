@@ -5,6 +5,7 @@ import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
+import { VehicleCell } from '@/components/sgf/EntityCells';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { PeriodPresetSelect, PeriodRangeFields } from '@/components/sgf/PeriodSelect';
 import { makePeriod, type PeriodValue } from '@/components/sgf/period';
@@ -292,19 +293,7 @@ export default function Maintenances() {
             header: 'Veículo',
             sortValue: (item) => item.plate,
             accessor: (item) => (
-                <div className="flex items-center gap-3">
-                    {item.photoUrl ? (
-                        <img className="h-10 w-10 rounded-xl object-cover" src={item.photoUrl} alt={item.plate} />
-                    ) : (
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                            <Car className="h-5 w-5" />
-                        </div>
-                    )}
-                    <div>
-                        <p className="font-semibold text-slate-900">{item.vehicleLabel}</p>
-                        <p className="text-xs text-slate-500">{item.plate} · {item.department}</p>
-                    </div>
-                </div>
+                <VehicleCell plate={item.plate} name={item.vehicleLabel} photoUrl={item.photoUrl} />
             ),
         },
         {

@@ -1,3 +1,4 @@
+import { VehicleCell } from '@/components/sgf/EntityCells';
 import React, { useMemo, useRef, useState } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -20,7 +21,6 @@ import {
     User,
     CalendarClock,
     LockKeyhole,
-    Car,
 } from '@/components/sgf/icons';
 import { EditDriverModal } from '@/components/drivers/EditDriverModal';
 import { DriverAccessForm } from '@/components/drivers/DriverAccessForm';
@@ -101,28 +101,9 @@ export default function DriverDetails() {
         { header: 'Duração', accessor: (r) => getDuration(r.start_at, r.end_at) },
         {
             header: 'Veículo',
-            accessor: (r) => {
-                const brand = r.vehicles?.brand || '';
-                const model = r.vehicles?.model || '';
-                const name = [brand, model].filter(Boolean).join(' ') || '—';
-                const photo = r.vehicles?.photo_url;
-                return (
-                    <div className="flex items-center gap-2.5">
-                        {photo ? (
-                            <img src={photo} alt={name} className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-slate-200" />
-                        ) : (
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--sgf-primary)]/10 text-[var(--sgf-primary)]">
-                                <Car className="h-4 w-4" />
-                            </div>
-                        )}
-                        <span className="font-semibold text-slate-800 text-sm">{name}</span>
-                    </div>
-                );
-            },
-        },
-        {
-            header: 'Placa',
-            accessor: (r) => <span className="font-mono">{r.vehicles?.plate ? formatPlate(r.vehicles.plate) : '—'}</span>,
+            accessor: (r) => (
+                <VehicleCell plate={r.vehicles?.plate} name={[r.vehicles?.brand, r.vehicles?.model].filter(Boolean).join(' ') || null} photoUrl={r.vehicles?.photo_url} />
+            ),
         },
         { header: 'Km Inicial', accessor: (r) => r.start_odometer != null ? r.start_odometer.toLocaleString('pt-BR') : '—' },
         { header: 'Km Final', accessor: (r) => r.end_odometer != null ? r.end_odometer.toLocaleString('pt-BR') : '—' },

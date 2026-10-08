@@ -9,8 +9,8 @@ import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { PeriodPresetSelect, PeriodRangeFields } from '@/components/sgf/PeriodSelect';
 import { makePeriod, type PeriodValue } from '@/components/sgf/period';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
-import { AlertTriangle, Car, Clock, MapPin, Route, Users } from '@/components/sgf/icons';
-import { EntityAvatar } from '@/components/sgf/EntityAvatar';
+import { AlertTriangle, Clock, MapPin, Route } from '@/components/sgf/icons';
+import { VehicleCell, DriverCell } from '@/components/sgf/EntityCells';
 import { formatDate, formatDateTime, formatDistance, getStatusLabel, getStatusColor, matchesSearch } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useTrips } from '@/hooks/useTrips';
@@ -192,24 +192,11 @@ export default function Trips() {
         },
         {
             header: 'Veículo',
-            accessor: (row) => (
-                <div className="flex min-w-0 items-center gap-3">
-                    <EntityAvatar url={row.vehiclePhoto} icon={Car} alt={row.plate} square size="sm" />
-                    <div className="min-w-0">
-                        <p className="font-mono font-semibold text-slate-900">{row.plate}</p>
-                        {row.vehicleName && <p className="truncate text-xs text-slate-500">{row.vehicleName}</p>}
-                    </div>
-                </div>
-            ),
+            accessor: (row) => <VehicleCell plate={row.plate} name={row.vehicleName || null} photoUrl={row.vehiclePhoto} />,
         },
         {
             header: 'Motorista',
-            accessor: (row) => (
-                <div className="flex min-w-0 items-center gap-3">
-                    <EntityAvatar url={row.driverPhoto} icon={Users} alt={row.driver} size="sm" />
-                    <span className="truncate">{row.driver}</span>
-                </div>
-            ),
+            accessor: (row) => <DriverCell name={row.driver} photoUrl={row.driverPhoto} />,
         },
         { header: 'Destino', accessor: 'destination', className: 'max-w-[220px] truncate' },
         {

@@ -8,15 +8,13 @@ import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { PeriodPresetSelect, PeriodRangeFields } from '@/components/sgf/PeriodSelect';
 import { makePeriod, type PeriodValue } from '@/components/sgf/period';
-import { EntityAvatar } from '@/components/sgf/EntityAvatar';
+import { VehicleCell, DriverCell } from '@/components/sgf/EntityCells';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { Modal } from '@/components/ui/Modal';
 import { ChecklistItemsList } from '@/components/checklists/ChecklistItemsList';
 import { OpenServiceOrderFromChecklist } from '@/components/checklists/OpenServiceOrderFromChecklist';
 import {
     Clipboard,
-    Car,
-    User,
     Calendar,
     CheckCircle,
     AlertTriangle,
@@ -25,7 +23,7 @@ import {
 import { useHeader } from '@/contexts/HeaderContext';
 import { checklistsApi, departmentsApi } from '@/lib/supabase-api';
 import type { ChecklistListRecord } from '@/lib/supabase-api';
-import { formatDateTime, formatPlate, matchesSearch } from '@/lib/utils';
+import { formatDateTime, matchesSearch } from '@/lib/utils';
 import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
 /** Início do período escolhido (ISO), no mesmo critério da tela de Viagens. */
@@ -142,18 +140,9 @@ export default function Checklists() {
             header: 'Veículo',
             sortType: 'text',
             sortValue: (c) => c.vehicles?.plate ?? '',
-            accessor: (c) => {
-                const vehicleLabel = [c.vehicles?.brand, c.vehicles?.model].filter(Boolean).join(' ');
-                return (
-                    <div className="flex min-w-0 items-center gap-3">
-                        <EntityAvatar url={c.vehicles?.photo_url} icon={Car} alt={c.vehicles?.plate ?? 'Veículo'} square size="sm" />
-                        <div className="min-w-0 max-w-[220px]">
-                            <p className="font-mono text-sm font-semibold text-slate-900">{formatPlate(c.vehicles?.plate)}</p>
-                            {vehicleLabel && <p className="truncate text-xs text-slate-500">{vehicleLabel}</p>}
-                        </div>
-                    </div>
-                );
-            },
+            accessor: (c) => (
+                <VehicleCell plate={c.vehicles?.plate} name={[c.vehicles?.brand, c.vehicles?.model].filter(Boolean).join(' ') || null} photoUrl={c.vehicles?.photo_url} />
+            ),
         },
         {
             header: 'Secretaria',
@@ -169,12 +158,7 @@ export default function Checklists() {
             header: 'Motorista',
             sortType: 'text',
             sortValue: (c) => c.profiles?.full_name ?? '',
-            accessor: (c) => (
-                <div className="flex min-w-0 items-center gap-3 whitespace-nowrap text-sm font-medium text-slate-700">
-                    <EntityAvatar url={c.profiles?.photo_url} icon={User} alt={c.profiles?.full_name ?? 'Motorista'} size="sm" />
-                    <span className="max-w-[200px] truncate">{c.profiles?.full_name ?? '—'}</span>
-                </div>
-            ),
+            accessor: (c) => <DriverCell name={c.profiles?.full_name} photoUrl={c.profiles?.photo_url} />,
         },
         {
             header: 'Data / Hora',

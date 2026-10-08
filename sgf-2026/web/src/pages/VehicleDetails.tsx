@@ -1,3 +1,4 @@
+import { DriverCell } from '@/components/sgf/EntityCells';
 import React, { useRef, useState, useMemo } from 'react';
 import { useParams, Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -21,7 +22,6 @@ import {
     Qr,
     ChevronLeft,
     ChevronRight,
-    User,
     Trash2,
 } from '@/components/sgf/icons';
 import { EditVehicleModal } from '@/components/vehicles/EditVehicleModal';
@@ -321,22 +321,7 @@ export default function VehicleDetails() {
         { header: 'Data', accessor: (r) => formatDate(r.start_at) },
         {
             header: 'Motorista',
-            accessor: (r) => {
-                const name = r.drivers?.name ?? '—';
-                const photo = r.drivers?.photo_url;
-                return (
-                    <div className="flex items-center gap-2.5">
-                        {photo ? (
-                            <img src={photo} alt={name} className="h-6 w-6 shrink-0 rounded-full object-cover ring-1 ring-slate-200" />
-                        ) : (
-                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                                <User className="h-3 w-3" />
-                            </div>
-                        )}
-                        <span className="text-sm font-semibold text-slate-800">{name}</span>
-                    </div>
-                );
-            },
+            accessor: (r) => <DriverCell name={r.drivers?.name} photoUrl={r.drivers?.photo_url} />,
         },
         { header: 'Km Inicial', accessor: (r) => r.start_odometer != null ? r.start_odometer.toLocaleString('pt-BR') : '—' },
         { header: 'Km Final', accessor: (r) => r.end_odometer != null ? r.end_odometer.toLocaleString('pt-BR') : '—' },

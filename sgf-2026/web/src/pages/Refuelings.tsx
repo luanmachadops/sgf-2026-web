@@ -9,12 +9,12 @@ import {
     Fuel,
     AlertTriangle,
     XCircle,
-    Car,
     Receipt,
     Plus,
 } from '@/components/sgf/icons';
-import { formatDate, formatCurrency, formatPlate, matchesSearch, NO_DRIVER_LABEL } from '@/lib/utils';
+import { formatDate, formatCurrency, matchesSearch, NO_DRIVER_LABEL } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
+import { VehicleCell, DriverCell } from '@/components/sgf/EntityCells';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { NewRefuelingForm } from '@/components/refuelings/NewRefuelingForm';
 import { AuthorizeFuelingModal } from '@/components/refuelings/AuthorizeFuelingModal';
@@ -205,30 +205,17 @@ export default function Refuelings() {
         {
             header: 'Veículo',
             accessor: (row) => (
-                <div className="flex items-center gap-2.5">
-                    {row.vehiclePhoto ? (
-                        <img src={row.vehiclePhoto} alt={row.vehicleModel} className="h-8 w-8 shrink-0 rounded-lg object-cover" />
-                    ) : (
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                            <Car className="h-4 w-4 text-slate-400" />
-                        </div>
-                    )}
-                    <span className="font-semibold text-slate-800 text-sm">{row.vehicleModel}</span>
-                </div>
-            )
-        },
-        {
-            header: 'Placa',
-            accessor: (row) => (
-                <span className="font-mono font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-xs whitespace-nowrap">
-                    {formatPlate(row.vehicle)}
-                </span>
+                <VehicleCell
+                    plate={row.vehicle === 'Sem placa' ? null : row.vehicle}
+                    name={row.vehicleModel === 'Sem veículo' ? null : row.vehicleModel}
+                    photoUrl={row.vehiclePhoto}
+                />
             )
         },
         {
             header: 'Motorista',
             accessor: (row) => (
-                <span className={row.driver === NO_DRIVER_LABEL ? 'text-sm italic text-slate-400' : 'text-sm text-slate-600 font-medium'}>{row.driver}</span>
+                <DriverCell name={row.driver === NO_DRIVER_LABEL ? null : row.driver} photoUrl={row.driverPhoto} fallback={NO_DRIVER_LABEL} />
             )
         },
         { header: 'Litros', accessor: (row) => `${row.liters.toFixed(1)} L` },

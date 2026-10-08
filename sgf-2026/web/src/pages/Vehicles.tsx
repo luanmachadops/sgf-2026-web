@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Car, FileSpreadsheet, Fuel, Plus, Wrench } from '@/components/sgf/icons';
 import { Modal } from '@/components/ui/Modal';
+import { VehicleCell } from '@/components/sgf/EntityCells';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFKPICard } from '@/components/sgf/SGFKPICard';
@@ -153,36 +154,10 @@ export default function Vehicles() {
 
     const columns: SGFTableColumn<VehicleTableRow>[] = [
         {
-            header: 'Modelo do Veículo',
+            header: 'Veículo',
             accessor: (row) => (
-                <div className="flex items-center gap-3">
-                    {row.photo_url ? (
-                        <img
-                            src={row.photo_url}
-                            alt={row.plate ?? 'Veículo'}
-                            className="h-10 w-10 rounded-lg object-cover ring-1 ring-slate-200"
-                            loading="lazy"
-                            onError={(e) => {
-                                // Se a imagem falhar, esconde o <img> e mostra o fallback.
-                                (e.currentTarget as HTMLImageElement).style.display = 'none';
-                            }}
-                        />
-                    ) : (
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--sgf-primary)]/10">
-                            <Car className="h-5 w-5 text-[var(--sgf-primary)]" />
-                        </div>
-                    )}
-                    <div>
-                        <p className="font-semibold text-slate-900 truncate">
-                            {row.brand} {row.model}
-                        </p>
-                    </div>
-                </div>
+                <VehicleCell plate={row.plate} name={[row.brand, row.model].filter(Boolean).join(' ')} photoUrl={row.photo_url} />
             ),
-        },
-        {
-            header: 'Placa',
-            accessor: (row) => <span className="font-mono text-sm text-slate-700">{formatPlate(row.plate)}</span>,
         },
         {
             header: 'Ano',
