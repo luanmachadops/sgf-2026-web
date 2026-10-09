@@ -930,7 +930,7 @@ function InfoItem({ icon: Icon, label, value, strong }: { icon: typeof Calendar;
             <Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
             <div className="min-w-0">
                 <dt className="text-xs text-slate-500">{label}</dt>
-                <dd className={`truncate ${strong ? 'font-bold text-slate-900' : 'font-semibold text-slate-800'}`}>{value}</dd>
+                <dd className={`break-words leading-snug ${strong ? 'font-bold text-slate-900' : 'font-semibold text-slate-800'}`}>{value}</dd>
             </div>
         </div>
     );
