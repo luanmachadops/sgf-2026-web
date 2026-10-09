@@ -13,6 +13,25 @@ export interface SGFSelectOption {
   disabled?: boolean;
   /** Motivo exibido ao tentar selecionar uma opção desabilitada. */
   disabledReason?: string;
+  /** Texto extra só para a busca (ex.: CPF, CNH, matrícula). */
+  keywords?: string;
+  /** Segunda linha na lista (ex.: "CPF 000.000.000-00 · CNH 123"). */
+  description?: string;
+}
+
+/** Minúsculas e sem acento, para a busca casar "joao" com "João". */
+function normalizeSearch(v: string): string {
+  return v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function optionMatches(option: SGFSelectOption, query: string): boolean {
+  const q = normalizeSearch(query.trim());
+  if (!q) return true;
+  const text = normalizeSearch(`${option.label} ${option.description ?? ''} ${option.keywords ?? ''}`);
+  if (text.includes(q)) return true;
+  // CPF/CNH digitados com ou sem pontuação.
+  const digits = q.replace(/\D/g, '');
+  return digits.length >= 3 && text.replace(/\D/g, '').includes(digits);
 }
 
 export interface SGFSelectProps {
@@ -31,6 +50,9 @@ export interface SGFSelectProps {
   triggerClassName?: string;
   /** rótulo curto antes do valor no gatilho (ex.: "Secretaria" → "Secretaria: Todas") */
   inlineLabel?: string;
+  /** Mostra um campo de busca no topo da lista. */
+  searchable?: boolean;
+  searchPlaceholder?: string;
   disabled?: boolean;
   name?: string;
   id?: string;
@@ -54,12 +76,19 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
       className = '',
       triggerClassName,
       inlineLabel,
+      searchable = false,
+      searchPlaceholder = 'Buscar...',
       id,
       disabled,
     },
     ref
   ) => {
-    const [isOpen, setIsOpen] = useState(false);
+    const [isOpen, setIsOpenState] = useState(false);
+    const [query, setQuery] = useState('');
+    const setIsOpen = (open: boolean) => {
+      setIsOpenState(open);
+      if (!open) setQuery('');
+    };
     const [internalValue, setInternalValue] = useState(defaultValue || '');
     const [coords, setCoords] = useState<{ left: number; width: number; top?: number; bottom?: number; maxHeight: number }>({ left: 0, width: 0, maxHeight: MENU_MAX_HEIGHT });
     const containerRef = useRef<HTMLDivElement>(null);
@@ -197,8 +226,26 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
               ...(coords.bottom !== undefined ? { bottom: coords.bottom } : {}),
             }}
           >
+            {searchable && (
+              <div className="border-b border-slate-100 p-2">
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setIsOpen(false);
+                    if (e.key === 'Enter') {
+                      const first = options.find((o) => !o.disabled && optionMatches(o, query));
+                      if (first) handleSelect(first);
+                    }
+                  }}
+                  placeholder={searchPlaceholder}
+                  className="w-full rounded-full border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-[var(--sgf-primary)] focus:bg-white"
+                />
+              </div>
+            )}
             <div className="overflow-y-auto p-1.5 space-y-0.5 custom-scrollbar" style={{ maxHeight: coords.maxHeight }}>
-              {options.map((option) => (
+              {(searchable ? options.filter((o) => optionMatches(o, query)) : options).map((option) => (
                 <div
                   key={option.value}
                   onClick={() => handleSelect(option)}
@@ -241,7 +288,12 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
                         <Icon className="h-3.5 w-3.5" />
                       </div>
                     ) : null}
-                    {option.label}
+                    {option.description ? (
+                      <span className="min-w-0">
+                        <span className="block truncate">{option.label}</span>
+                        <span className="block truncate text-[11px] font-normal text-slate-400">{option.description}</span>
+                      </span>
+                    ) : option.label}
                   </span>
                   {currentValue === option.value && (
                     <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--sgf-primary)] text-[var(--sgf-primary-contrast)] shadow-sm animate-in zoom-in-50 duration-300">
@@ -250,9 +302,9 @@ export const SGFSelect = React.forwardRef<HTMLDivElement, SGFSelectProps>(
                   )}
                 </div>
               ))}
-              {options.length === 0 && (
+              {(searchable ? options.filter((o) => optionMatches(o, query)) : options).length === 0 && (
                 <div className="py-[var(--sgf-space-8)] px-[var(--sgf-space-4)] text-center">
-                  <p className="text-[var(--sgf-text-sm)] font-medium text-slate-400 italic">Nenhuma opção disponível</p>
+                  <p className="text-[var(--sgf-text-sm)] font-medium text-slate-400 italic">{query ? 'Nenhum resultado' : 'Nenhuma opção disponível'}</p>
                 </div>
               )}
             </div>

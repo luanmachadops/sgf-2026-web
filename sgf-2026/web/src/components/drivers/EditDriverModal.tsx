@@ -17,6 +17,9 @@ import type { Tables, TablesUpdate } from '@/types/database.types';
 
 type Profile = Tables<'profiles'>;
 
+/** UFs emissoras de CNH (exigida no formulário de indicação de condutor). */
+const BR_UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
+
 export interface EditDriverModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -44,6 +47,7 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
     const [birthDate, setBirthDate] = useState('');
     const [cnhNumber, setCnhNumber] = useState('');
     const [cnhCategory, setCnhCategory] = useState('');
+    const [cnhUf, setCnhUf] = useState('');
     const [cnhExpiry, setCnhExpiry] = useState('');
     const [cnhEar, setCnhEar] = useState(false);
     const [departmentId, setDepartmentId] = useState('');
@@ -108,6 +112,7 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
         setBirthDate(driver.birth_date ?? '');
         setCnhNumber(driver.cnh_number ?? '');
         setCnhCategory(driver.cnh_category ?? '');
+        setCnhUf((driver as { cnh_uf?: string | null }).cnh_uf ?? '');
         setCnhExpiry(driver.cnh_expiry ?? '');
         setCnhEar(driver.cnh_ear ?? false);
         setDepartmentId(driver.department_id ?? '');
@@ -176,6 +181,7 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
             birth_date: birthDate || null,
             cnh_number: cnhNumber.trim() || null,
             cnh_category: cnhCategory || null,
+            cnh_uf: cnhUf || null,
             cnh_expiry: cnhExpiry || null,
             cnh_ear: cnhEar,
             department_id: departmentId || null,
@@ -347,12 +353,22 @@ export function EditDriverModal({ isOpen, onClose, driver }: EditDriverModalProp
                     fullWidth
                 />
 
-                {/* Linha 5: Nº CNH, Categoria e Validade CNH (3 colunas) */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Linha 5: Nº CNH, UF, Categoria e Validade CNH */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <SGFInput
                         label="Nº CNH"
                         value={cnhNumber}
                         onChange={(e) => setCnhNumber(e.target.value)}
+                        fullWidth
+                    />
+                    <SGFSelect
+                        label="UF da CNH"
+                        options={BR_UFS.map((uf) => ({ value: uf, label: uf }))}
+                        value={cnhUf}
+                        onChange={(val) => setCnhUf(val)}
+                        placeholder="—"
+                        searchable
+                        searchPlaceholder="Buscar UF"
                         fullWidth
                     />
                     <SGFSelect

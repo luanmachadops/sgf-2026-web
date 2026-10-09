@@ -8,7 +8,7 @@ import {
     Fuel,
     Droplet,
     Wrench,
-    Receipt,
+    Camera,
     Route,
     BuildingGovernment,
     Toolbox,
@@ -66,7 +66,7 @@ const menuSections: MenuSection[] = [
         items: [
             { icon: Route, label: 'Viagens', path: '/viagens', module: 'trips' },
             { icon: Clipboard, label: 'Checklists', path: '/checklists', module: 'checklists' },
-            { icon: Receipt, label: 'Infrações', path: '/infracoes', module: 'infractions' },
+            { icon: Camera, label: 'Infrações', path: '/infracoes', module: 'infractions' },
         ]
     },
     {

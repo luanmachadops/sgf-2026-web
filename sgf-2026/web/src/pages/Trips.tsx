@@ -22,6 +22,7 @@ type TabValue = '' | TripStatus | 'ANOMALY';
 
 type TripRow = {
     id: string;
+    number: number | null;
     startAt: string;
     endAt: string | null;
     plate: string;
@@ -111,6 +112,7 @@ export default function Trips() {
         const endKm = trip.end_odometer ?? null;
         return {
             id: trip.id,
+            number: (trip as { trip_number?: number | null }).trip_number ?? null,
             startAt: trip.start_time,
             endAt: trip.end_time,
             plate: trip.vehicles?.plate || 'Sem placa',
@@ -140,7 +142,8 @@ export default function Trips() {
     const searched = useMemo(
         () => trips.filter((trip) =>
             (!departmentId || trip.departmentId === departmentId)
-            && matchesSearch(searchTerm, trip.plate, trip.vehicleName, trip.driver, trip.destination)),
+            && (String(trip.number ?? '') === searchTerm.trim().replace(/^#/, '')
+                || matchesSearch(searchTerm, trip.plate, trip.vehicleName, trip.driver, trip.destination))),
         [trips, searchTerm, departmentId],
     );
 
@@ -181,6 +184,11 @@ export default function Trips() {
     };
 
     const columns: SGFTableColumn<TripRow>[] = [
+        {
+            header: 'Nº',
+            sortValue: (row) => row.number ?? 0,
+            accessor: (row) => <span className="font-mono text-sm font-semibold text-slate-500">#{row.number ?? '—'}</span>,
+        },
         {
             header: 'Início',
             accessor: (row) => (
@@ -243,7 +251,7 @@ export default function Trips() {
             <SGFToolbar
                 searchValue={searchTerm}
                 onSearchChange={setSearchTerm}
-                searchPlaceholder="Buscar placa, motorista ou destino..."
+                searchPlaceholder="Buscar nº, placa, motorista ou destino..."
                 filters={[
                     {
                         key: 'department',

@@ -908,9 +908,24 @@ export const mapApi = withFotoUrls({
 
 export interface InfractionCandidate {
     tripId: string;
+    tripNumber?: number | null;
     driverId: string;
     driverName: string;
     driverPhoto: string | null;
+    startAt: string;
+    endAt: string | null;
+    destination: string | null;
+}
+
+export interface TripSearchItem {
+    tripId: string;
+    tripNumber: number | null;
+    driverId: string;
+    driverName: string;
+    driverPhoto: string | null;
+    plate: string | null;
+    vehicleName: string | null;
+    vehiclePhoto: string | null;
     startAt: string;
     endAt: string | null;
     destination: string | null;
@@ -958,7 +973,7 @@ export const infractionsApi = withFotoUrls({
     findCandidates: async (vehicleId: string, occurredAt: string): Promise<InfractionCandidate[]> => {
         const { data, error } = await supabase
             .from('trips')
-            .select('id, driver_id, start_at, end_at, destination, profiles!trips_driver_id_fkey(full_name, photo_url)')
+            .select('id, trip_number, driver_id, start_at, end_at, destination, profiles!trips_driver_id_fkey(full_name, photo_url)')
             .eq('vehicle_id', vehicleId)
             .lte('start_at', occurredAt)
             .order('start_at', { ascending: false });
@@ -972,6 +987,7 @@ export const infractionsApi = withFotoUrls({
             })
             .map((t) => ({
                 tripId: t.id,
+                tripNumber: t.trip_number,
                 driverId: t.driver_id,
                 driverName: (t.profiles as { full_name?: string } | null)?.full_name ?? 'Motorista',
                 driverPhoto: (t.profiles as { photo_url?: string | null } | null)?.photo_url ?? null,
@@ -1014,6 +1030,64 @@ export const infractionsApi = withFotoUrls({
         const { data, error } = await supabase
             .from('infractions')
             .update({ indicated_driver_id: driverId, indicated_trip_id: tripId ?? null, status: 'indicada' })
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) handleError(error);
+        return data as Tables<'infractions'>;
+    },
+
+    /** Data em que a prefeitura recebeu a notificação de autuação (inicia o prazo de indicação). */
+    updateNotifiedAt: async (id: string, notifiedAt: string | null) => {
+        const { error } = await supabase.from('infractions').update({ notified_at: notifiedAt }).eq('id', id);
+        if (error) handleError(error);
+    },
+
+    /** RENAVAM/chassi do veículo (exigidos no formulário de indicação). */
+    vehicleRegistration: async (vehicleId: string) => {
+        const { data, error } = await supabase.from('vehicles').select('renavam, chassis').eq('id', vehicleId).maybeSingle();
+        if (error) handleError(error);
+        return data as { renavam: string | null; chassis: string | null } | null;
+    },
+
+    /** Local da infração: texto e, se marcado no mapa, o ponto exato. */
+    updateLocation: async (id: string, location: string, lat: number | null, lng: number | null) => {
+        const { error } = await supabase.from('infractions').update({ location: location.trim() || null, lat, lng }).eq('id', id);
+        if (error) handleError(error);
+    },
+
+    /** Viagens recentes da prefeitura para a busca no modal (nº, placa, motorista, destino, data). */
+    recentTripsForSearch: async (): Promise<TripSearchItem[]> => {
+        const { data, error } = await supabase
+            .from('trips')
+            .select('id, trip_number, driver_id, start_at, end_at, destination, vehicles(plate, brand, model, photo_url), profiles!trips_driver_id_fkey(full_name, photo_url)')
+            .order('start_at', { ascending: false })
+            .limit(500);
+        if (error) handleError(error);
+        return (data ?? []).map((t) => {
+            const v = t.vehicles as { plate?: string | null; brand?: string | null; model?: string | null; photo_url?: string | null } | null;
+            const p = t.profiles as { full_name?: string | null; photo_url?: string | null } | null;
+            return {
+                tripId: t.id,
+                tripNumber: t.trip_number,
+                driverId: t.driver_id,
+                driverName: p?.full_name ?? 'Motorista',
+                driverPhoto: p?.photo_url ?? null,
+                plate: v?.plate ?? null,
+                vehicleName: [v?.brand, v?.model].filter(Boolean).join(' ') || null,
+                vehiclePhoto: v?.photo_url ?? null,
+                startAt: t.start_at,
+                endAt: t.end_at,
+                destination: t.destination ?? null,
+            };
+        });
+    },
+
+    /** Desfaz a indicação (e a aprovação, se houver): a infração volta a pendente. */
+    removeIndication: async (id: string) => {
+        const { data, error } = await supabase
+            .from('infractions')
+            .update({ indicated_driver_id: null, indicated_trip_id: null, approved_by: null, approved_at: null, status: 'pendente' })
             .eq('id', id)
             .select()
             .single();

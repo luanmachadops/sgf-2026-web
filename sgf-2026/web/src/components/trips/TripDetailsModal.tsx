@@ -217,7 +217,7 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
         <Modal
             isOpen={!!tripId}
             onClose={onClose}
-            title="Detalhes da viagem"
+            title={(trip as { trip_number?: number | null } | undefined)?.trip_number ? `Viagem #${(trip as { trip_number?: number | null }).trip_number}` : 'Detalhes da viagem'}
             size="xl"
         >
             {tripLoading ? (

@@ -21,6 +21,7 @@ import Maintenances from '@/pages/Maintenances';
 import Checklists from '@/pages/Checklists';
 import Reports from '@/pages/Reports';
 import Infracoes from '@/pages/Infracoes';
+import InfractionDetails from '@/pages/InfractionDetails';
 import Configuracoes from '@/pages/Configuracoes';
 import Perfil from '@/pages/Perfil';
 import Departments from '@/pages/Departments';
@@ -116,6 +117,7 @@ function App() {
                 <Route path="/manutencoes" element={<ModuleRoute module="maintenances"><Maintenances /></ModuleRoute>} />
                 <Route path="/checklists" element={<ModuleRoute module="checklists"><Checklists /></ModuleRoute>} />
                 <Route path="/infracoes" element={<ModuleRoute module="infractions"><Infracoes /></ModuleRoute>} />
+                <Route path="/infracoes/:id" element={<ModuleRoute module="infractions"><InfractionDetails /></ModuleRoute>} />
                 <Route path="/relatorios" element={<ModuleRoute module="reports"><GlobalManagementRoute><Reports /></GlobalManagementRoute></ModuleRoute>} />
                 <Route path="/secretarias" element={<ModuleRoute module="departments"><GlobalManagementRoute><Departments /></GlobalManagementRoute></ModuleRoute>} />
                 <Route path="/secretarias/:id" element={<ModuleRoute module="departments"><GlobalManagementRoute><Departments /></GlobalManagementRoute></ModuleRoute>} />

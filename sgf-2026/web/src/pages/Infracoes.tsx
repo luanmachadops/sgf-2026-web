@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { SGFButton } from '@/components/sgf/SGFButton';
@@ -11,7 +11,7 @@ import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
-import { WorkshopModalShell } from '@/components/partners/workshop/WorkshopModalShell';
+import { LocationPicker } from '@/components/sgf/LocationPicker';
 import {
     AlertTriangle,
     Receipt,
@@ -19,9 +19,6 @@ import {
     Plus,
     Download,
     Car,
-    MapPin,
-    Calendar,
-    CheckCircle,
     Route,
     Loader2,
     FileText,
@@ -29,27 +26,14 @@ import {
     Eye,
 } from '@/components/sgf/icons';
 import { useHeader } from '@/contexts/HeaderContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { infractionsApi, driversApi, vehiclesApi, tripsApi, type InfractionCandidate, type VehicleRecord, type TripRecord } from '@/lib/supabase-api';
-import { formatCurrency, formatPlate, formatDriverLabel, matchesSearch } from '@/lib/utils';
+import { useBranding } from '@/contexts/BrandingContext';
+import { infractionsApi, driversApi, vehiclesApi, tripsApi, type VehicleRecord, type TripRecord } from '@/lib/supabase-api';
+import { formatCurrency, formatPlate, formatDriverLabel, formatCPF, matchesSearch } from '@/lib/utils';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { prepareUpload, uploadFileId } from '@/lib/imageUtils';
-import type { Tables } from '@/types/database.types';
+import { ManageInfractionModal } from '@/components/infractions/InfractionManager';
+import { STATUS_META, cityFromAddress, fmtDateTime, type InfractionRow } from '@/lib/infractionFormat';
 import { useSyncOnChange } from '@/hooks/useSyncOnChange';
-
-type InfractionRow = Tables<'infractions'> & {
-    vehicles?: { plate?: string; brand?: string; model?: string; photo_url?: string | null; departments?: { name?: string } | null } | null;
-    suggested?: { id: string; full_name: string; photo_url?: string | null } | null;
-    indicated?: { id: string; full_name: string; photo_url?: string | null } | null;
-};
-
-const STATUS_META: Record<string, { label: string; variant: 'default' | 'success' | 'warning' | 'error' | 'info' }> = {
-    pendente: { label: 'Pendente', variant: 'warning' },
-    indicada: { label: 'Indicada', variant: 'info' },
-    aprovada: { label: 'Aprovada', variant: 'success' },
-    rejeitada: { label: 'Rejeitada', variant: 'error' },
-    paga: { label: 'Paga', variant: 'default' },
-};
 
 const STATUS_TABS = [
     { value: '', label: 'Todas' },
@@ -59,16 +43,9 @@ const STATUS_TABS = [
     { value: 'rejeitada', label: 'Rejeitadas' },
 ];
 
-function fmtDateTime(iso?: string | null) {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '—';
-    const dateStr = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    const timeStr = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    return `${dateStr} - ${timeStr}`;
-}
-
 export default function Infracoes() {
+    const navigate = useNavigate();
+    const { branding } = useBranding();
     const [searchParams, setSearchParams] = useSearchParams();
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const [searchTerm, setSearchTerm] = useState('');
@@ -153,7 +130,15 @@ export default function Infracoes() {
                 />
             ),
         },
-        { header: 'Local', accessor: (r) => <span className="text-sm text-slate-600">{r.location || '—'}</span> },
+        {
+            header: 'Local',
+            // Só a cidade na tabela; o endereço completo aparece ao passar o mouse.
+            accessor: (r) => (
+                <span className="block max-w-[160px] truncate whitespace-nowrap text-sm text-slate-600" title={r.location ?? undefined}>
+                    {cityFromAddress(r.location, branding.city)}
+                </span>
+            ),
+        },
         { header: 'Valor', accessor: (r) => <span className="font-semibold text-slate-800">{formatCurrency(Number(r.amount ?? 0))}</span>, className: 'text-right', headerClassName: 'text-right' },
         {
             header: 'Condutor',
@@ -208,7 +193,7 @@ export default function Infracoes() {
                     columns={columns}
                     data={list}
                     keyExtractor={(r) => r.id}
-                    onRowClick={(row) => setSelected(row)}
+                    onRowClick={(row) => navigate(`/infracoes/${row.id}`)}
                     loading={isLoading}
                     emptyMessage="Nenhuma infração registrada."
                 />
@@ -232,6 +217,8 @@ function NewInfractionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
     const [ait, setAit] = useState('');
     const [description, setDescription] = useState('');
     const [location, setLocation] = useState('');
+    const [locationPin, setLocationPin] = useState<{ lat: number; lng: number } | null>(null);
+    const { branding: newBranding } = useBranding();
     const [date, setDate] = useState('');
     const [time, setTime] = useState('');
     const [amount, setAmount] = useState('');
@@ -293,7 +280,7 @@ function NewInfractionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
 
     useEffect(() => {
         if (isOpen) {
-            setPlate(''); setAit(''); setDescription(''); setLocation('');
+            setPlate(''); setAit(''); setDescription(''); setLocation(''); setLocationPin(null);
             setDate(''); setTime(''); setAmount(''); setPoints(''); setDueDate(''); setError(null);
             setShowSuggestions(false);
             setSelectedTrip(null); setTripSearch(''); setSelectedDriverId('');
@@ -351,6 +338,8 @@ function NewInfractionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                 ait: ait.trim() || null,
                 description: description.trim() || null,
                 location: location.trim() || null,
+                lat: locationPin?.lat ?? null,
+                lng: locationPin?.lng ?? null,
                 occurred_at: occurredAt,
                 amount: amount ? Number(amount) : 0,
                 points: points ? Number(points) : 0,
@@ -494,7 +483,16 @@ function NewInfractionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">2. Dados da Infração</h4>
                     <div className="grid grid-cols-1 gap-4">
                         <SGFInput label="Descrição da infração" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex: Transitar em velocidade superior à máxima permitida" fullWidth />
-                        <SGFInput label="Local" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ex: Av. Brasil, nº 1500" fullWidth />
+                        <div>
+                            <p className="mb-2 text-[var(--sgf-text-sm)] font-[var(--sgf-font-semibold)] text-[var(--sgf-text-primary)]">Local</p>
+                            <LocationPicker
+                                value={locationPin}
+                                onChange={setLocationPin}
+                                address={location}
+                                onAddressChange={setLocation}
+                                cityHint={[newBranding.city, newBranding.state].filter(Boolean).join(', ') || undefined}
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -603,10 +601,14 @@ function NewInfractionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                                         value: d.id,
                                         label: formatDriverLabel(d),
                                         photoUrl: d.photo_url,
+                                        description: [d.cpf ? `CPF ${formatCPF(d.cpf)}` : null, d.cnh_number ? `CNH ${d.cnh_number}` : null].filter(Boolean).join(' · ') || undefined,
+                                        keywords: [d.cpf, d.cnh_number, (d as { registration_number?: string | null }).registration_number, (d as { email?: string | null }).email].filter(Boolean).join(' '),
                                     }))}
                                     value={selectedDriverId}
                                     onChange={(val) => setSelectedDriverId(val)}
                                     placeholder="Selecione o motorista"
+                                    searchable
+                                    searchPlaceholder="Buscar por nome, CPF ou CNH"
                                     fullWidth
                                 />
                             </div>
@@ -683,264 +685,3 @@ function NewInfractionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
 }
 
 // ── Modal: gerenciar/indicar condutor ──────────────────────────────────────
-const INFRACTION_STEPS = ['Registrada', 'Condutor indicado', 'Aprovada'];
-
-function infractionNextStep(status: string, hasDriver: boolean): { text: string; mine: boolean } {
-    if (status === 'rejeitada') return { text: 'Infração rejeitada', mine: false };
-    if (status === 'aprovada' || status === 'paga') return { text: 'Indicação aprovada', mine: false };
-    if (status === 'indicada') return { text: 'Conferir e aprovar a indicação do condutor', mine: true };
-    return { text: hasDriver ? 'Confirmar o condutor sugerido' : 'Indicar o condutor responsável', mine: true };
-}
-
-function ManageInfractionModal({ infraction, onClose }: { infraction: InfractionRow | null; onClose: () => void }) {
-    const queryClient = useQueryClient();
-    const { user } = useAuth();
-    const [driverId, setDriverId] = useState('');
-    const [tripId, setTripId] = useState<string | null>(null);
-    const [confirmReject, setConfirmReject] = useState(false);
-
-    const { data: candidates = [] } = useQuery({
-        queryKey: ['infraction-candidates', infraction?.id],
-        queryFn: () => infractionsApi.findCandidates(infraction!.vehicle_id!, infraction!.occurred_at),
-        enabled: Boolean(infraction?.vehicle_id && infraction?.occurred_at),
-    });
-
-    const { data: drivers = [] } = useQuery({
-        queryKey: ['drivers', 'all-for-infraction'],
-        queryFn: () => driversApi.getAll(),
-        enabled: Boolean(infraction),
-    });
-
-    useSyncOnChange(infraction, () => {
-        if (infraction) {
-            setDriverId(infraction.indicated_driver_id ?? infraction.suggested_driver_id ?? '');
-            setTripId(infraction.indicated_trip_id ?? null);
-            setConfirmReject(false);
-        }
-    });
-
-    const invalidate = () => queryClient.invalidateQueries({ queryKey: ['infractions'] });
-
-    const indicateMutation = useMutation({
-        mutationFn: () => infractionsApi.indicate(infraction!.id, driverId, tripId),
-        onSuccess: () => { invalidate(); toast.success('Condutor indicado com sucesso.'); onClose(); },
-        onError: () => toast.error('Erro ao indicar condutor.'),
-    });
-
-    const approveMutation = useMutation({
-        mutationFn: async () => {
-            if (driverId && driverId !== infraction!.indicated_driver_id) {
-                await infractionsApi.indicate(infraction!.id, driverId, tripId);
-            }
-            return infractionsApi.approve(infraction!.id, user!.id);
-        },
-        onSuccess: () => { invalidate(); toast.success('Indicação aprovada.'); onClose(); },
-        onError: () => toast.error('Erro ao aprovar.'),
-    });
-
-    const rejectMutation = useMutation({
-        mutationFn: () => infractionsApi.reject(infraction!.id, 'Rejeitada pelo gestor'),
-        onSuccess: () => { invalidate(); toast.success('Infração rejeitada.'); onClose(); },
-        onError: () => toast.error('Erro ao rejeitar.'),
-    });
-
-    if (!infraction) return null;
-    const meta = STATUS_META[infraction.status] ?? STATUS_META.pendente;
-    const closed = ['aprovada', 'rejeitada', 'paga'].includes(infraction.status);
-    const driverOptions = drivers.map((d) => ({ value: d.id, label: formatDriverLabel(d), photoUrl: d.photo_url }));
-    const selectedDriverObj = drivers.find((d) => d.id === driverId);
-    const next = infractionNextStep(infraction.status, Boolean(driverId));
-    const stepIndex = infraction.status === 'aprovada' || infraction.status === 'paga' ? 2 : infraction.status === 'indicada' ? 1 : 0;
-
-    const rawData = infraction.raw as { attachment_url?: string; attachment_name?: string } | null;
-    const attachmentUrl = rawData?.attachment_url;
-    const attachmentName = rawData?.attachment_name;
-
-    const plate = infraction.plate ? infraction.plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase() : null;
-    const vehicleName = [infraction.vehicles?.brand, infraction.vehicles?.model].filter(Boolean).join(' ');
-    const busy = indicateMutation.isPending || approveMutation.isPending || rejectMutation.isPending;
-
-    return (
-        <WorkshopModalShell
-            onClose={onClose}
-            eyebrow="Infração de trânsito"
-            title={[plate, vehicleName].filter(Boolean).join(' · ') || 'Veículo não identificado'}
-            subtitle={[infraction.ait ? `AIT ${infraction.ait}` : null, fmtDateTime(infraction.occurred_at)].filter(Boolean).join(' · ')}
-            busy={busy}
-            maxWidthClass="sm:max-w-3xl"
-            zIndexClass="z-50"
-            media={<EntityAvatarLarge url={infraction.vehicles?.photo_url} />}
-            footer={(
-                <div className="flex w-full flex-wrap items-center justify-end gap-2">
-                    <SGFButton variant="ghost" onClick={onClose}>Fechar</SGFButton>
-                    {!closed && (
-                        <>
-                            <SGFButton variant="outline" onClick={() => indicateMutation.mutate()} loading={indicateMutation.isPending} disabled={!driverId || busy}>
-                                Salvar indicação
-                            </SGFButton>
-                            <SGFButton icon={CheckCircle} onClick={() => approveMutation.mutate()} loading={approveMutation.isPending} disabled={!driverId || busy}>
-                                Aprovar indicação
-                            </SGFButton>
-                        </>
-                    )}
-                </div>
-            )}
-        >
-            <div className="space-y-5">
-                {/* Próxima etapa */}
-                <div className={`flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
-                    infraction.status === 'rejeitada' ? 'border-red-200 bg-red-50/60'
-                        : next.mine ? 'border-amber-200 bg-amber-50/70' : 'border-emerald-200 bg-emerald-50/60'
-                }`}>
-                    <div className="min-w-0">
-                        <p className="text-xs font-medium text-slate-500">{next.mine ? 'Próxima etapa · sua ação' : 'Situação'}</p>
-                        <p className={`text-base font-bold ${infraction.status === 'rejeitada' ? 'text-red-700' : next.mine ? 'text-amber-800' : 'text-emerald-800'}`}>{next.text}</p>
-                    </div>
-                    <SGFBadge variant={meta.variant}>{meta.label}</SGFBadge>
-                </div>
-
-                {infraction.status !== 'rejeitada' && (
-                    <ol className="flex items-center gap-1.5">
-                        {INFRACTION_STEPS.map((label, i) => (
-                            <li key={label} className="flex min-w-0 flex-1 flex-col gap-1.5">
-                                <span className={`h-1.5 rounded-full ${i < stepIndex ? 'bg-[var(--sgf-primary)]' : i === stepIndex ? 'bg-[var(--sgf-accent)]' : 'bg-slate-200'}`} />
-                                <span className={`truncate text-[11px] ${i === stepIndex ? 'font-bold text-slate-800' : i < stepIndex ? 'font-medium text-slate-600' : 'text-slate-400'}`}>{label}</span>
-                            </li>
-                        ))}
-                    </ol>
-                )}
-
-                {/* Dados da multa */}
-                <div className="rounded-2xl border border-slate-200 bg-white">
-                    <div className="border-b border-slate-100 p-4">
-                        <p className="text-xs font-medium text-slate-500">{infraction.code ? `Código ${infraction.code}` : 'Infração'}</p>
-                        <p className="text-base font-bold text-slate-900">{infraction.description || 'Infração de trânsito'}</p>
-                    </div>
-                    <dl className="grid grid-cols-2 gap-x-6 gap-y-4 p-4 sm:grid-cols-4">
-                        <InfoItem icon={Calendar} label="Data e hora" value={fmtDateTime(infraction.occurred_at)} />
-                        <InfoItem icon={MapPin} label="Local" value={infraction.location || '—'} />
-                        <InfoItem icon={DollarSign} label="Valor" value={formatCurrency(Number(infraction.amount ?? 0))} strong />
-                        <InfoItem icon={AlertTriangle} label="Pontos na CNH" value={infraction.points != null ? `${infraction.points} pts` : '—'} />
-                    </dl>
-                    {attachmentUrl && (
-                        <div className="flex items-center gap-3 border-t border-slate-100 p-4">
-                            <span className="grid h-9 w-12 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-500"><FileText className="h-4 w-4" /></span>
-                            <div className="min-w-0 flex-1">
-                                <p className="text-xs text-slate-500">Auto de infração</p>
-                                <p className="truncate text-sm font-semibold text-slate-800">{attachmentName || 'Documento da multa'}</p>
-                            </div>
-                            <a href={attachmentUrl} target="_blank" rel="noopener noreferrer"
-                                className="flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-[var(--sgf-primary)] hover:text-[var(--sgf-primary)]">
-                                <Eye className="h-3.5 w-3.5" /> Ver documento
-                            </a>
-                        </div>
-                    )}
-                </div>
-
-                {/* Condutor responsável */}
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <p className="text-base font-bold text-slate-900">Condutor responsável</p>
-                    <p className="mb-3 text-xs text-slate-500">
-                        {closed ? 'Condutor registrado nesta infração.' : 'Use a sugestão do GPS (quem estava em viagem no horário) ou escolha outro motorista.'}
-                    </p>
-
-                    {!closed && candidates.length > 0 && (
-                        <div className="mb-3 space-y-2">
-                            {candidates.map((c: InfractionCandidate) => {
-                                const active = driverId === c.driverId && tripId === c.tripId;
-                                return (
-                                    <button
-                                        key={c.tripId}
-                                        type="button"
-                                        onClick={() => { setDriverId(c.driverId); setTripId(c.tripId); }}
-                                        className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition ${
-                                            active ? 'border-[var(--sgf-primary)] bg-[var(--sgf-primary-soft)]' : 'border-slate-200 hover:border-[var(--sgf-primary)]'
-                                        }`}
-                                    >
-                                        <DriverCell name={c.driverName} photoUrl={c.driverPhoto} subtitle={`Em viagem: ${fmtDateTime(c.startAt)}${c.destination ? ` · ${c.destination}` : ''}`} />
-                                        <span className="ml-auto shrink-0">
-                                            {active
-                                                ? <CheckCircle className="h-5 w-5 text-[var(--sgf-primary)]" />
-                                                : <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Sugerido pelo GPS</span>}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
-                    {!closed && candidates.length === 0 && (
-                        <p className="mb-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-3 py-2.5 text-xs text-slate-500">
-                            Nenhuma viagem deste veículo no horário da infração. Escolha o motorista abaixo.
-                        </p>
-                    )}
-
-                    {!closed && (
-                        <SGFSelect
-                            options={driverOptions}
-                            value={driverId}
-                            onChange={(v) => { setDriverId(v); setTripId(null); }}
-                            placeholder="Escolher outro motorista"
-                            fullWidth
-                        />
-                    )}
-
-                    {selectedDriverObj && (
-                        <div className="mt-3 flex items-center gap-3 rounded-xl bg-slate-50 p-3">
-                            <DriverCell
-                                name={selectedDriverObj.name || selectedDriverObj.full_name}
-                                photoUrl={selectedDriverObj.photo_url}
-                                subtitle={[selectedDriverObj.cnh_number ? `CNH ${selectedDriverObj.cnh_number}` : null, selectedDriverObj.cnh_category ? `cat. ${selectedDriverObj.cnh_category}` : null].filter(Boolean).join(' · ') || null}
-                            />
-                            <span className="ml-auto shrink-0 rounded-full bg-[var(--sgf-primary)] px-2.5 py-1 text-[10px] font-bold text-white">
-                                {closed ? 'Responsável' : 'Selecionado'}
-                            </span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Rejeitar: ação rara, discreta no fim */}
-                {!closed && (
-                    confirmReject ? (
-                        <div className="flex flex-col gap-2 rounded-2xl border border-red-100 bg-red-50/50 p-4 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="text-sm text-red-800">Rejeitar esta infração? Ela sai da fila de indicação.</p>
-                            <div className="flex shrink-0 gap-2">
-                                <SGFButton size="sm" variant="ghost" onClick={() => setConfirmReject(false)}>Voltar</SGFButton>
-                                <SGFButton size="sm" variant="ghost" icon={X} loading={rejectMutation.isPending}
-                                    className="!text-red-600 hover:!bg-red-50" onClick={() => rejectMutation.mutate()}>
-                                    Confirmar rejeição
-                                </SGFButton>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex justify-center pt-1">
-                            <button type="button" disabled={busy} onClick={() => setConfirmReject(true)} className="text-sm font-semibold text-red-600 hover:underline disabled:opacity-50">
-                                Rejeitar infração
-                            </button>
-                        </div>
-                    )
-                )}
-            </div>
-        </WorkshopModalShell>
-    );
-}
-
-function InfoItem({ icon: Icon, label, value, strong }: { icon: typeof Calendar; label: string; value: string; strong?: boolean }) {
-    return (
-        <div className="flex min-w-0 items-start gap-2.5">
-            <Icon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-            <div className="min-w-0">
-                <dt className="text-xs text-slate-500">{label}</dt>
-                <dd className={`break-words leading-snug ${strong ? 'font-bold text-slate-900' : 'font-semibold text-slate-800'}`}>{value}</dd>
-            </div>
-        </div>
-    );
-}
-
-/** Foto do veículo no cabeçalho do modal; sem foto, o ícone. */
-function EntityAvatarLarge({ url }: { url?: string | null }) {
-    const [failed, setFailed] = useState(false);
-    if (!url || failed) {
-        return <div className="grid h-16 w-20 shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-400"><Car className="h-7 w-7" /></div>;
-    }
-    return <img src={url} alt="Veículo" onError={() => setFailed(true)} className="h-16 w-20 shrink-0 rounded-2xl object-cover ring-1 ring-slate-200" />;
-}
