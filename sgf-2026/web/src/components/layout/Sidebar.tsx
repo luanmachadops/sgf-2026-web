@@ -49,6 +49,7 @@ type MenuItem = {
     badge?: string;
     module?: AccessModule;
     accessManagersOnly?: boolean;
+    auditOnly?: boolean;
     procurement?: boolean;
 };
 type MenuSection = { title: string; items: MenuItem[] };
@@ -102,6 +103,7 @@ const menuSections: MenuSection[] = [
         title: 'Sistema',
         items: [
             { icon: ShieldCheck, label: 'Gerenciar acessos', path: '/acessos', accessManagersOnly: true },
+            { icon: ShieldCheck, label: 'Trilha de auditoria', path: '/auditoria', auditOnly: true },
             { icon: Settings2, label: 'Configurações', path: '/configuracoes', module: 'settings' },
         ]
     }
@@ -131,6 +133,9 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
     // Gestão de acessos: só administrador e superadministrador.
     const canManageAccess = user?.accountRole === 'admin'
         || user?.accountRole === 'superadmin';
+    const canSeeAudit = user?.accountRole === 'admin'
+        || user?.accountRole === 'superadmin'
+        || (user?.accountRole === 'gestor' && !departmentScoped);
     const visibleSections = menuSections
         .map((section) => ({
             ...section,
@@ -138,6 +143,7 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                 .filter((item) => !item.procurement || Boolean(procurement.entry))
                 .map((item) => item.procurement ? { ...item, path: procurement.entry ?? item.path } : item)
                 .filter((item) => !item.accessManagersOnly || canManageAccess)
+                .filter((item) => !item.auditOnly || canSeeAudit)
                 .filter((item) => !item.module || canAccessModule(user?.allowedModules, item.module))
                 .filter((item) => !departmentScoped || !GLOBAL_ONLY_PATHS.has(item.path)),
         }))

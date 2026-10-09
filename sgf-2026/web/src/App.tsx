@@ -23,6 +23,7 @@ import Reports from '@/pages/Reports';
 import Infracoes from '@/pages/Infracoes';
 import InfractionDetails from '@/pages/InfractionDetails';
 import Configuracoes from '@/pages/Configuracoes';
+import Auditoria from '@/pages/Auditoria';
 import Perfil from '@/pages/Perfil';
 import Departments from '@/pages/Departments';
 import Stations from '@/pages/Stations';
@@ -58,6 +59,15 @@ function GlobalManagementRoute({ children }: { children: ReactNode }) {
 function ModuleRoute({ module, children }: { module: AccessModule; children: ReactNode }) {
   const { user } = useAuth();
   return canAccessModule(user?.allowedModules, module) ? children : <Navigate to="/perfil" replace />;
+}
+
+function AuditRoute({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  // Trilha de auditoria: administrador e superadministrador sempre; gestor só com escopo global.
+  const role = user?.accountRole;
+  const allowed = role === 'admin' || role === 'superadmin'
+    || (role === 'gestor' && !user?.departmentScopeId);
+  return allowed ? children : <Navigate to="/" replace />;
 }
 
 function AccessManagersRoute({ children }: { children: ReactNode }) {
@@ -125,6 +135,7 @@ function App() {
                 <Route path="/postos/:id" element={<ModuleRoute module="stations"><GlobalManagementRoute><Stations /></GlobalManagementRoute></ModuleRoute>} />
                 <Route path="/oficinas" element={<ModuleRoute module="repair_shops"><GlobalManagementRoute><RepairShops /></GlobalManagementRoute></ModuleRoute>} />
                 <Route path="/oficinas/:id" element={<ModuleRoute module="repair_shops"><GlobalManagementRoute><RepairShops /></GlobalManagementRoute></ModuleRoute>} />
+                <Route path="/auditoria" element={<AuditRoute><Auditoria /></AuditRoute>} />
                 <Route path="/configuracoes" element={<ModuleRoute module="settings"><GlobalManagementRoute><Configuracoes /></GlobalManagementRoute></ModuleRoute>} />
                 <Route path="/licitacoes/processos" element={<ProcurementRegistry />} />
                 <Route path="/licitacoes" element={<Procurement />} />
