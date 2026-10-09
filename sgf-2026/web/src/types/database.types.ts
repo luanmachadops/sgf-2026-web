@@ -24,6 +24,7 @@ export type Database = {
           actor_incomplete: boolean
           actor_name: string | null
           actor_role: string | null
+          chain_seq: number
           changes: Json | null
           created_at: string
           entity_cpf: string | null
@@ -33,10 +34,14 @@ export type Database = {
           entity_label: string | null
           entity_type: string
           id: string
+          ip: unknown
+          prev_hash: string | null
+          row_hash: string
           sensitivity: string
           snapshot: Json | null
           source: string
           tenant_id: string
+          user_agent: string | null
         }
         Insert: {
           action: string
@@ -47,6 +52,7 @@ export type Database = {
           actor_incomplete?: boolean
           actor_name?: string | null
           actor_role?: string | null
+          chain_seq: number
           changes?: Json | null
           created_at?: string
           entity_cpf?: string | null
@@ -56,10 +62,14 @@ export type Database = {
           entity_label?: string | null
           entity_type: string
           id?: string
+          ip?: unknown
+          prev_hash?: string | null
+          row_hash: string
           sensitivity?: string
           snapshot?: Json | null
           source?: string
           tenant_id: string
+          user_agent?: string | null
         }
         Update: {
           action?: string
@@ -70,6 +80,7 @@ export type Database = {
           actor_incomplete?: boolean
           actor_name?: string | null
           actor_role?: string | null
+          chain_seq?: number
           changes?: Json | null
           created_at?: string
           entity_cpf?: string | null
@@ -79,10 +90,14 @@ export type Database = {
           entity_label?: string | null
           entity_type?: string
           id?: string
+          ip?: unknown
+          prev_hash?: string | null
+          row_hash?: string
           sensitivity?: string
           snapshot?: Json | null
           source?: string
           tenant_id?: string
+          user_agent?: string | null
         }
         Relationships: []
       }
@@ -528,25 +543,31 @@ export type Database = {
       checklist_items: {
         Row: {
           checklist_id: string
+          damage_description: string | null
           id: string
           item_key: string
           label: string
+          photo_urls: string[]
           state: Database["public"]["Enums"]["checklist_state"]
           tenant_id: string
         }
         Insert: {
           checklist_id: string
+          damage_description?: string | null
           id?: string
           item_key: string
           label: string
+          photo_urls?: string[]
           state?: Database["public"]["Enums"]["checklist_state"]
           tenant_id?: string
         }
         Update: {
           checklist_id?: string
+          damage_description?: string | null
           id?: string
           item_key?: string
           label?: string
+          photo_urls?: string[]
           state?: Database["public"]["Enums"]["checklist_state"]
           tenant_id?: string
         }
@@ -571,9 +592,12 @@ export type Database = {
         Row: {
           created_at: string
           driver_id: string
+          fuel_level: Database["public"]["Enums"]["checklist_fuel_level"] | null
           id: string
           notes: string | null
           quick_confirm: boolean
+          safety_items: Json | null
+          spare_tire_ok: boolean | null
           tenant_id: string
           trip_id: string | null
           vehicle_id: string | null
@@ -581,9 +605,14 @@ export type Database = {
         Insert: {
           created_at?: string
           driver_id: string
+          fuel_level?:
+            | Database["public"]["Enums"]["checklist_fuel_level"]
+            | null
           id?: string
           notes?: string | null
           quick_confirm?: boolean
+          safety_items?: Json | null
+          spare_tire_ok?: boolean | null
           tenant_id?: string
           trip_id?: string | null
           vehicle_id?: string | null
@@ -591,9 +620,14 @@ export type Database = {
         Update: {
           created_at?: string
           driver_id?: string
+          fuel_level?:
+            | Database["public"]["Enums"]["checklist_fuel_level"]
+            | null
           id?: string
           notes?: string | null
           quick_confirm?: boolean
+          safety_items?: Json | null
+          spare_tire_ok?: boolean | null
           tenant_id?: string
           trip_id?: string | null
           vehicle_id?: string | null
@@ -1183,9 +1217,11 @@ export type Database = {
           full_tank: boolean
           has_anomaly: boolean | null
           id: string
+          invoice_number: string | null
           km_per_liter: number | null
           liters: number
           max_liters: number | null
+          nfce_access_key: string | null
           odometer: number | null
           photo_dashboard_url: string | null
           photo_pump_url: string | null
@@ -1221,9 +1257,11 @@ export type Database = {
           full_tank?: boolean
           has_anomaly?: boolean | null
           id?: string
+          invoice_number?: string | null
           km_per_liter?: number | null
           liters: number
           max_liters?: number | null
+          nfce_access_key?: string | null
           odometer?: number | null
           photo_dashboard_url?: string | null
           photo_pump_url?: string | null
@@ -1259,9 +1297,11 @@ export type Database = {
           full_tank?: boolean
           has_anomaly?: boolean | null
           id?: string
+          invoice_number?: string | null
           km_per_liter?: number | null
           liters?: number
           max_liters?: number | null
+          nfce_access_key?: string | null
           odometer?: number | null
           photo_dashboard_url?: string | null
           photo_pump_url?: string | null
@@ -1359,8 +1399,12 @@ export type Database = {
           id: string
           indicated_driver_id: string | null
           indicated_trip_id: string | null
+          indication_deadline: string | null
+          lat: number | null
+          lng: number | null
           location: string | null
           notes: string | null
+          notified_at: string | null
           occurred_at: string
           plate: string | null
           points: number | null
@@ -1383,8 +1427,12 @@ export type Database = {
           id?: string
           indicated_driver_id?: string | null
           indicated_trip_id?: string | null
+          indication_deadline?: string | null
+          lat?: number | null
+          lng?: number | null
           location?: string | null
           notes?: string | null
+          notified_at?: string | null
           occurred_at?: string
           plate?: string | null
           points?: number | null
@@ -1407,8 +1455,12 @@ export type Database = {
           id?: string
           indicated_driver_id?: string | null
           indicated_trip_id?: string | null
+          indication_deadline?: string | null
+          lat?: number | null
+          lng?: number | null
           location?: string | null
           notes?: string | null
+          notified_at?: string | null
           occurred_at?: string
           plate?: string | null
           points?: number | null
@@ -2661,9 +2713,11 @@ export type Database = {
           archived_at: string | null
           birth_date: string | null
           cnh_category: string | null
+          cnh_document_url: string | null
           cnh_ear: boolean
           cnh_expiry: string | null
           cnh_number: string | null
+          cnh_uf: string | null
           cpf: string | null
           created_at: string
           created_by: string | null
@@ -2696,9 +2750,11 @@ export type Database = {
           archived_at?: string | null
           birth_date?: string | null
           cnh_category?: string | null
+          cnh_document_url?: string | null
           cnh_ear?: boolean
           cnh_expiry?: string | null
           cnh_number?: string | null
+          cnh_uf?: string | null
           cpf?: string | null
           created_at?: string
           created_by?: string | null
@@ -2731,9 +2787,11 @@ export type Database = {
           archived_at?: string | null
           birth_date?: string | null
           cnh_category?: string | null
+          cnh_document_url?: string | null
           cnh_ear?: boolean
           cnh_expiry?: string | null
           cnh_number?: string | null
+          cnh_uf?: string | null
           cpf?: string | null
           created_at?: string
           created_by?: string | null
@@ -4558,6 +4616,7 @@ export type Database = {
           photo_url: string | null
           primary_color: string | null
           report_footer: string | null
+          require_trip_purpose: boolean
           seal_url: string | null
           sessions_revoked_at: string | null
           slug: string
@@ -4587,6 +4646,7 @@ export type Database = {
           photo_url?: string | null
           primary_color?: string | null
           report_footer?: string | null
+          require_trip_purpose?: boolean
           seal_url?: string | null
           sessions_revoked_at?: string | null
           slug: string
@@ -4616,6 +4676,7 @@ export type Database = {
           photo_url?: string | null
           primary_color?: string | null
           report_footer?: string | null
+          require_trip_purpose?: boolean
           seal_url?: string | null
           sessions_revoked_at?: string | null
           slug?: string
@@ -4688,6 +4749,64 @@ export type Database = {
           },
         ]
       }
+      trip_corrections: {
+        Row: {
+          corrected_at: string
+          corrected_by: string | null
+          field: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          reason: string
+          tenant_id: string
+          trip_id: string
+        }
+        Insert: {
+          corrected_at?: string
+          corrected_by?: string | null
+          field: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          reason: string
+          tenant_id?: string
+          trip_id: string
+        }
+        Update: {
+          corrected_at?: string
+          corrected_by?: string | null
+          field?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          reason?: string
+          tenant_id?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_corrections_corrected_by_fkey"
+            columns: ["corrected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_corrections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_corrections_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_locations: {
         Row: {
           accuracy: number | null
@@ -4745,6 +4864,66 @@ export type Database = {
           },
           {
             foreignKeyName: "trip_locations_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_stops: {
+        Row: {
+          arrived_at: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          lat: number | null
+          left_at: string | null
+          lng: number | null
+          seq: number
+          source: string
+          tenant_id: string
+          trip_id: string
+        }
+        Insert: {
+          arrived_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          lat?: number | null
+          left_at?: string | null
+          lng?: number | null
+          seq: number
+          source?: string
+          tenant_id?: string
+          trip_id: string
+        }
+        Update: {
+          arrived_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          lat?: number | null
+          left_at?: string | null
+          lng?: number | null
+          seq?: number
+          source?: string
+          tenant_id?: string
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_stops_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_stops_trip_id_fkey"
             columns: ["trip_id"]
             isOneToOne: false
             referencedRelation: "trips"
@@ -4817,6 +4996,10 @@ export type Database = {
       }
       trips: {
         Row: {
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          cargo_description: string | null
           created_at: string
           destination: string
           distance_km: number | null
@@ -4829,14 +5012,26 @@ export type Database = {
           is_retroactive: boolean
           justification: string | null
           notes: string | null
+          origin: string | null
+          passenger_count: number | null
+          passengers: Json
+          purpose: string | null
+          purpose_category:
+            | Database["public"]["Enums"]["trip_purpose_category"]
+            | null
           start_at: string
           start_odometer: number | null
           start_odometer_photo_url: string | null
           status: Database["public"]["Enums"]["trip_status"]
           tenant_id: string
+          trip_number: number
           vehicle_id: string | null
         }
         Insert: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cargo_description?: string | null
           created_at?: string
           destination: string
           distance_km?: number | null
@@ -4849,14 +5044,26 @@ export type Database = {
           is_retroactive?: boolean
           justification?: string | null
           notes?: string | null
+          origin?: string | null
+          passenger_count?: number | null
+          passengers?: Json
+          purpose?: string | null
+          purpose_category?:
+            | Database["public"]["Enums"]["trip_purpose_category"]
+            | null
           start_at?: string
           start_odometer?: number | null
           start_odometer_photo_url?: string | null
           status?: Database["public"]["Enums"]["trip_status"]
           tenant_id?: string
+          trip_number?: number
           vehicle_id?: string | null
         }
         Update: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cargo_description?: string | null
           created_at?: string
           destination?: string
           distance_km?: number | null
@@ -4869,14 +5076,29 @@ export type Database = {
           is_retroactive?: boolean
           justification?: string | null
           notes?: string | null
+          origin?: string | null
+          passenger_count?: number | null
+          passengers?: Json
+          purpose?: string | null
+          purpose_category?:
+            | Database["public"]["Enums"]["trip_purpose_category"]
+            | null
           start_at?: string
           start_odometer?: number | null
           start_odometer_photo_url?: string | null
           status?: Database["public"]["Enums"]["trip_status"]
           tenant_id?: string
+          trip_number?: number
           vehicle_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "trips_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "trips_driver_id_fkey"
             columns: ["driver_id"]
@@ -5058,6 +5280,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activity_log_compute_hash: {
+        Args: {
+          p_action: string
+          p_actor_id: string
+          p_changes: Json
+          p_created_at: string
+          p_entity_id: string
+          p_entity_type: string
+          p_id: string
+          p_prev_hash: string
+          p_snapshot: Json
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       activity_log_ignored_cols: { Args: never; Returns: string[] }
       activity_log_purge: { Args: never; Returns: undefined }
       activity_log_retention_warn: { Args: never; Returns: undefined }
@@ -5666,6 +5903,7 @@ export type Database = {
         Args: { p_operation: string }
         Returns: boolean
       }
+      infraction_deadline_alerts: { Args: never; Returns: number }
       is_admin: { Args: never; Returns: boolean }
       is_admin_or_manager: { Args: never; Returns: boolean }
       is_manager: { Args: never; Returns: boolean }
@@ -5725,6 +5963,10 @@ export type Database = {
         Args: { p_order_id: string; p_reason: string }
         Returns: undefined
       }
+      manager_cancel_trip: {
+        Args: { p_reason: string; p_trip_id: string }
+        Returns: undefined
+      }
       manager_confirm_shop_delivery: {
         Args: { p_order_id: string }
         Returns: undefined
@@ -5736,6 +5978,10 @@ export type Database = {
           p_receipt_path?: string
           p_reference: string
         }
+        Returns: undefined
+      }
+      manager_correct_trip: {
+        Args: { p_patch: Json; p_reason: string; p_trip_id: string }
         Returns: undefined
       }
       manager_create_direct_fueling: {
@@ -6345,8 +6591,23 @@ export type Database = {
       trip_watchdog: { Args: never; Returns: number }
       unregister_push_token: { Args: { p_token: string }; Returns: undefined }
       vehicle_tracker_live: { Args: { p_vehicle_id: string }; Returns: boolean }
+      verify_activity_chain: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: {
+          checked: number
+          first_broken_id: string
+          first_broken_seq: number
+          ok: boolean
+        }[]
+      }
     }
     Enums: {
+      checklist_fuel_level:
+        | "vazio"
+        | "um_quarto"
+        | "meio"
+        | "tres_quartos"
+        | "cheio"
       checklist_state: "ok" | "atencao" | "pendente"
       driver_lifecycle: "ativo" | "inativo" | "suspenso"
       fuel_type_enum: "diesel" | "gasolina" | "etanol" | "flex"
@@ -6381,7 +6642,17 @@ export type Database = {
         | "rejeitada"
         | "em_execucao"
         | "concluida"
-      trip_status: "andamento" | "concluida" | "problema"
+      trip_purpose_category:
+        | "saude"
+        | "educacao"
+        | "transporte_escolar"
+        | "obras_servicos"
+        | "administrativo"
+        | "assistencia_social"
+        | "seguranca"
+        | "agricultura"
+        | "outro"
+      trip_status: "andamento" | "concluida" | "problema" | "cancelada"
       vehicle_status: "liberado" | "manutencao" | "bloqueado"
     }
     CompositeTypes: {
@@ -6510,6 +6781,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      checklist_fuel_level: [
+        "vazio",
+        "um_quarto",
+        "meio",
+        "tres_quartos",
+        "cheio",
+      ],
       checklist_state: ["ok", "atencao", "pendente"],
       driver_lifecycle: ["ativo", "inativo", "suspenso"],
       fuel_type_enum: ["diesel", "gasolina", "etanol", "flex"],
@@ -6548,7 +6826,18 @@ export const Constants = {
         "em_execucao",
         "concluida",
       ],
-      trip_status: ["andamento", "concluida", "problema"],
+      trip_purpose_category: [
+        "saude",
+        "educacao",
+        "transporte_escolar",
+        "obras_servicos",
+        "administrativo",
+        "assistencia_social",
+        "seguranca",
+        "agricultura",
+        "outro",
+      ],
+      trip_status: ["andamento", "concluida", "problema", "cancelada"],
       vehicle_status: ["liberado", "manutencao", "bloqueado"],
     },
   },
