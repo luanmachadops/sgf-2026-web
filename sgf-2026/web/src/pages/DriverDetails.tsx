@@ -83,9 +83,11 @@ export default function DriverDetails() {
         enabled: Boolean(id),
     });
 
+    // Viagens canceladas não contam como realizadas nem somam km.
+    const doneTrips = useMemo(() => trips.filter((t) => t.status !== 'CANCELLED'), [trips]);
     const totalKm = useMemo(
-        () => trips.reduce((s, t) => s + (Number((t as { distance_km: number | null }).distance_km) || 0), 0),
-        [trips],
+        () => doneTrips.reduce((s, t) => s + (Number((t as { distance_km: number | null }).distance_km) || 0), 0),
+        [doneTrips],
     );
 
     type TripRow = (typeof trips)[number] & {
@@ -155,7 +157,7 @@ export default function DriverDetails() {
 
     const licenseStatus = getLicenseStatus(d.cnh_expiry);
     const departmentName = d.departments?.name ?? '—';
-    const totalTrips = trips.length;
+    const totalTrips = doneTrips.length;
 
     return (
         <div className="space-y-6">

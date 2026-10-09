@@ -230,7 +230,8 @@ export function getStatusColor(status: string): 'default' | 'success' | 'warning
         // Trip status
         IN_PROGRESS: 'info',
         COMPLETED: 'success',
-        CANCELLED: 'error',
+        PROBLEM: 'warning',
+        CANCELLED: 'default',
 
         // Maintenance status
         PENDING: 'warning',
@@ -262,6 +263,7 @@ export function getStatusLabel(status: string): string {
         // Trip
         IN_PROGRESS: 'Em Andamento',
         COMPLETED: 'Concluída',
+        PROBLEM: 'Com problema',
         CANCELLED: 'Cancelada',
 
         // Maintenance

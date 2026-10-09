@@ -105,7 +105,7 @@ export interface Driver {
 }
 
 // Trip types
-export type TripStatus = 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type TripStatus = 'IN_PROGRESS' | 'COMPLETED' | 'PROBLEM' | 'CANCELLED';
 
 export interface Trip {
     id: string;

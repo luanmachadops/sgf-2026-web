@@ -1,9 +1,12 @@
+import { useState } from 'react';
+import { PhotoViewer } from '@/components/ui/PhotoViewer';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { AlertTriangle, Loader2 } from '@/components/sgf/icons';
 import type { Tables } from '@/types/database.types';
 import { CHECKLIST_STATE_LABEL, CHECKLIST_STATE_BADGE, isCriticalItem } from './checklistItems';
 
-type ChecklistItemRow = Pick<Tables<'checklist_items'>, 'id' | 'item_key' | 'label' | 'state'>;
+type ChecklistItemRow = Pick<Tables<'checklist_items'>, 'id' | 'item_key' | 'label' | 'state'>
+    & Partial<Pick<Tables<'checklist_items'>, 'damage_description' | 'photo_urls'>>;
 
 interface ChecklistItemsListProps {
     items: ChecklistItemRow[];
@@ -19,6 +22,7 @@ interface ChecklistItemsListProps {
  */
 export function ChecklistItemsList({ items, loading, showSummary = true }: ChecklistItemsListProps) {
     const problemItems = items.filter((i) => i.state !== 'ok');
+    const [viewer, setViewer] = useState<{ images: string[]; index: number } | null>(null);
 
     if (loading) {
         return (
@@ -43,23 +47,45 @@ export function ChecklistItemsList({ items, loading, showSummary = true }: Check
                 </div>
             )}
             <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
-                {items.map((item) => (
-                    <div
-                        key={item.id}
-                        className={`flex items-center justify-between gap-3 px-4 py-3 ${item.state !== 'ok' ? 'bg-rose-50/40' : ''}`}
-                    >
-                        <span className="text-sm font-medium text-slate-700">
-                            {item.label}
-                            {isCriticalItem(item.item_key) && (
-                                <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide text-rose-400">crítico</span>
+                {items.map((item) => {
+                    const photos = (item.photo_urls ?? []).filter(Boolean);
+                    return (
+                        <div key={item.id} className={`px-4 py-3 ${item.state !== 'ok' ? 'bg-rose-50/40' : ''}`}>
+                            <div className="flex items-center justify-between gap-3">
+                                <span className="text-sm font-medium text-slate-700">
+                                    {item.label}
+                                    {isCriticalItem(item.item_key) && (
+                                        <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wide text-rose-400">crítico</span>
+                                    )}
+                                </span>
+                                <SGFBadge variant={CHECKLIST_STATE_BADGE[item.state] ?? 'default'}>
+                                    {CHECKLIST_STATE_LABEL[item.state] ?? item.state}
+                                </SGFBadge>
+                            </div>
+                            {item.damage_description && (
+                                <p className="mt-1.5 text-xs text-slate-600">
+                                    <span className="font-semibold text-slate-500">Avaria: </span>{item.damage_description}
+                                </p>
                             )}
-                        </span>
-                        <SGFBadge variant={CHECKLIST_STATE_BADGE[item.state] ?? 'default'}>
-                            {CHECKLIST_STATE_LABEL[item.state] ?? item.state}
-                        </SGFBadge>
-                    </div>
-                ))}
+                            {photos.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {photos.map((url, index) => (
+                                        <button
+                                            key={`${url}-${index}`}
+                                            type="button"
+                                            onClick={() => setViewer({ images: photos, index })}
+                                            className="h-16 w-16 overflow-hidden rounded-lg border border-slate-200"
+                                        >
+                                            <img src={url} alt={`Foto de ${item.label}`} className="h-full w-full object-cover" />
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
+            <PhotoViewer images={viewer?.images} startIndex={viewer?.index ?? 0} onClose={() => setViewer(null)} />
         </div>
     );
 }

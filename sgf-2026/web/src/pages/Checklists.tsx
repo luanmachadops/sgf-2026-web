@@ -12,6 +12,7 @@ import { VehicleCell, DriverCell } from '@/components/sgf/EntityCells';
 import { SGFTable, type SGFTableColumn } from '@/components/sgf/SGFTable';
 import { Modal } from '@/components/ui/Modal';
 import { ChecklistItemsList } from '@/components/checklists/ChecklistItemsList';
+import { ChecklistExtras } from '@/components/checklists/ChecklistExtras';
 import { OpenServiceOrderFromChecklist } from '@/components/checklists/OpenServiceOrderFromChecklist';
 import {
     Clipboard,
@@ -299,7 +300,12 @@ export default function Checklists() {
                     ) : undefined
                 }
             >
-                {selected && <ChecklistItemsList items={selected.checklist_items ?? []} />}
+                {selected && (
+                    <div className="space-y-4">
+                        <ChecklistExtras checklist={selected} />
+                        <ChecklistItemsList items={selected.checklist_items ?? []} />
+                    </div>
+                )}
             </Modal>
 
             {/* Abertura de O.S. a partir do checklist */}

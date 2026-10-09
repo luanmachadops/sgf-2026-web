@@ -82,6 +82,8 @@ export interface RefuelingData {
     photo_pump_url?: string | null;
     photoReceipt?: string | null;
     photo_receipt_url?: string | null;
+    invoice_number?: string | null;
+    nfce_access_key?: string | null;
     receiptNumber?: string | null;
     pump_receipt_number?: string | null;
     notes?: string | null;
@@ -311,6 +313,8 @@ export function RefuelingDetailsModal({
         const photoReceipt = activeRefueling.photoReceipt || activeRefueling.photo_receipt_url || null;
         const photoRequisition = activeRefueling.photoRequisition || activeRefueling.photo_requisition_url || null;
         const receiptNumber = activeRefueling.receiptNumber || activeRefueling.pump_receipt_number || null;
+        const invoiceNumber = activeRefueling.invoice_number || null;
+        const nfceAccessKey = (activeRefueling.nfce_access_key || '').replace(/\D/g, '') || null;
 
         const maxLiters = activeRefueling.maxLiters ?? null;
         const fullTank = activeRefueling.fullTank ?? null;
@@ -347,6 +351,8 @@ export function RefuelingDetailsModal({
             photoReceipt,
             photoRequisition,
             receiptNumber,
+            invoiceNumber,
+            nfceAccessKey,
             maxLiters,
             fullTank,
             notes,
@@ -786,6 +792,20 @@ export function RefuelingDetailsModal({
                                         {details.receiptNumber || 'Não informado'}
                                     </span>
                                 </div>
+                                {details.invoiceNumber && (
+                                    <div className="text-[11px] text-slate-500 font-medium flex items-center justify-between">
+                                        <span>Nº da nota fiscal:</span>
+                                        <span className="font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800">{details.invoiceNumber}</span>
+                                    </div>
+                                )}
+                                {details.nfceAccessKey && (
+                                    <div className="text-[11px] text-slate-500 font-medium">
+                                        <span>Chave de acesso NFC-e:</span>
+                                        <p className="mt-1 break-words rounded bg-slate-100 px-1.5 py-1 font-mono text-[11px] font-bold leading-relaxed text-slate-800">
+                                            {details.nfceAccessKey.replace(/(.{4})/g, '$1 ').trim()}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

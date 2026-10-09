@@ -160,7 +160,7 @@ export default function VehicleDetails() {
     const tripsThisMonth = useMemo(() => {
         const now = new Date();
         const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        return trips.filter((t) => (t as { start_at: string }).start_at?.startsWith(monthKey)).length;
+        return trips.filter((t) => t.status !== 'CANCELLED' && (t as { start_at: string }).start_at?.startsWith(monthKey)).length;
     }, [trips]);
 
     // Fotos do veículo (carrossel): foto principal + documentos do tipo 'foto'.

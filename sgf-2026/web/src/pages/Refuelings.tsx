@@ -64,6 +64,8 @@ type RefuelingWithRelations = Tables<'fuelings'> & {
 
 type RefuelingRow = {
     id: string;
+    invoice_number?: string | null;
+    nfce_access_key?: string | null;
     date: string | null;
     vehicle: string;
     vehicleModel: string;
@@ -162,6 +164,8 @@ export default function Refuelings() {
                 photoPump: row.photo_pump_url ?? null,
                 photoReceipt: row.photo_receipt_url ?? null,
                 receiptNumber: row.pump_receipt_number ?? null,
+                invoice_number: row.invoice_number ?? null,
+                nfce_access_key: row.nfce_access_key ?? null,
                 expiresAt: row.expires_at ?? null,
             };
         });

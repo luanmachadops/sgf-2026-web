@@ -96,13 +96,14 @@ export function webToDbDriverStatus(w: DriverStatus): Database['public']['Enums'
 }
 
 // ─────────────────────────────────────────────────────────────────
-// TRIP STATUS: andamento|concluida|problema (DB)  ↔  IN_PROGRESS|COMPLETED|CANCELLED (Web)
+// TRIP STATUS: andamento|concluida|problema|cancelada (DB)  ↔  IN_PROGRESS|COMPLETED|PROBLEM|CANCELLED (Web)
 // ─────────────────────────────────────────────────────────────────
 export function dbToWebTripStatus(db: Database['public']['Enums']['trip_status'] | null | undefined): TripStatus {
     switch (db) {
         case 'andamento': return 'IN_PROGRESS';
         case 'concluida': return 'COMPLETED';
-        case 'problema': return 'CANCELLED';
+        case 'problema': return 'PROBLEM';
+        case 'cancelada': return 'CANCELLED';
         default: return 'IN_PROGRESS';
     }
 }
@@ -110,7 +111,8 @@ export function webToDbTripStatus(w: TripStatus): Database['public']['Enums']['t
     switch (w) {
         case 'IN_PROGRESS': return 'andamento';
         case 'COMPLETED': return 'concluida';
-        case 'CANCELLED': return 'problema';
+        case 'PROBLEM': return 'problema';
+        case 'CANCELLED': return 'cancelada';
     }
 }
 

@@ -419,10 +419,11 @@ async function tripAnalysis(f?: ReportFilterInput): Promise<ReportDataset> {
     }));
     return {
         kpis: [
-            { label: 'Viagens', value: NUM(list.length) },
+            { label: 'Viagens realizadas', value: NUM(list.filter((r) => r.status !== 'cancelada').length) },
             { label: 'Km percorridos', value: `${NUM(totalKm, 0)} km` },
             { label: 'Distância média', value: `${NUM(avgKm, 0)} km` },
             { label: 'Anomalias', value: NUM(list.filter((r) => r.status === 'problema').length) },
+            { label: 'Canceladas', value: NUM(list.filter((r) => r.status === 'cancelada').length) },
         ],
         columns: [
             { key: 'date', label: 'Data', format: 'date', minWidth: 90 },
@@ -442,7 +443,7 @@ async function tripAnalysis(f?: ReportFilterInput): Promise<ReportDataset> {
             valueFormat: 'integer',
             data: tripStatusCounts,
         }],
-        notes: ['Quilometragem total e distância média consideram viagens encerradas, inclusive as encerradas com anomalia.'],
+        notes: ['Quilometragem total e distância média consideram viagens encerradas, inclusive as encerradas com anomalia. Viagens canceladas aparecem na listagem, mas não entram nas contagens de viagens realizadas nem na quilometragem.'],
     };
 }
 

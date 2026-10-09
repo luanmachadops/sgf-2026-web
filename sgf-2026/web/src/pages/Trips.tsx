@@ -161,8 +161,10 @@ export default function Trips() {
         return t.status === tab;
     }), [searched, tab]);
 
-    const totalKm = searched.reduce((sum, t) => sum + (t.distance ?? 0), 0);
-    const finished = searched.filter((t) => t.endAt);
+    // Viagens canceladas não contam como realizadas: ficam fora de km e duração média.
+    const realized = searched.filter((t) => t.status !== 'CANCELLED');
+    const totalKm = realized.reduce((sum, t) => sum + (t.distance ?? 0), 0);
+    const finished = realized.filter((t) => t.endAt);
     const avgMinutes = finished.length
         ? Math.round(finished.reduce((sum, t) => sum + durationMinutes(t.startAt, t.endAt, now), 0) / finished.length)
         : 0;
@@ -242,7 +244,7 @@ export default function Trips() {
     return (
         <div className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <SGFKPICard title="Viagens no período" value={searched.length} icon={Route} iconColor="text-emerald-500" chartColor="#10b981" loading={isLoading} />
+                <SGFKPICard title="Viagens no período" value={realized.length} icon={Route} iconColor="text-emerald-500" chartColor="#10b981" loading={isLoading} />
                 <SGFKPICard title="Em andamento agora" value={tabCounts.IN_PROGRESS} icon={Clock} iconColor="text-blue-500" chartColor="#3b82f6" loading={isLoading} onClick={() => setTab('IN_PROGRESS')} />
                 <SGFKPICard title="Km rodados (hodômetro)" value={formatDistance(totalKm)} icon={MapPin} iconColor="text-slate-500" chartColor="#64748b" loading={isLoading} />
                 <SGFKPICard title="Com ocorrência" value={tabCounts.ANOMALY} icon={AlertTriangle} iconColor="text-amber-500" chartColor="#f59e0b" loading={isLoading} onClick={() => setTab('ANOMALY')} />

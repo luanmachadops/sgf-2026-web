@@ -6,9 +6,13 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Modal } from '@/components/ui/Modal';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
-import { MapPin, Navigation, Clock, Car, Users, AlertTriangle, Route, Gauge, Maximize, Minimize } from '@/components/sgf/icons';
+import { SGFButton } from '@/components/sgf/SGFButton';
+import { MapPin, Navigation, Clock, Car, Users, AlertTriangle, Route, Gauge, Maximize, Minimize, Pencil, XCircle } from '@/components/sgf/icons';
 import { formatDateTime, formatDistance, getStatusLabel, getStatusColor } from '@/lib/utils';
-import { useTrip, useTripLocations, useTripTimeline } from '@/hooks/useTrips';
+import { useTrip, useTripLocations, useTripTimeline, useTripCorrections, useTripStops, useTripChecklist } from '@/hooks/useTrips';
+import { useAuth } from '@/contexts/AuthContext';
+import { CancelTripModal, CorrectTripModal } from '@/components/trips/TripActionModals';
+import { TripPurposeSection, TripCorrectionsSection, TripChecklistSection } from '@/components/trips/TripExtraSections';
 import { TripTimeline } from '@/components/trips/TripTimeline';
 import { formatMinutes } from '@/lib/formatMinutes';
 import type { TripRecord } from '@/lib/supabase-api';
@@ -23,6 +27,7 @@ type TripFull = TripRecord & {
     start_odometer_photo_url?: string | null;
     end_odometer_photo_url?: string | null;
     notes?: string | null;
+    canceller?: { full_name: string | null } | null;
 };
 
 // Marcador colorido simples (início = verde, fim = vermelho)
@@ -127,6 +132,13 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
     const { data: locations = [], isLoading: locLoading } = useTripLocations(tripId ?? undefined);
 
     const timeline = useTripTimeline(tripId ?? undefined);
+    const corrections = useTripCorrections(tripId ?? undefined);
+    const stops = useTripStops(tripId ?? undefined);
+    const checklist = useTripChecklist(tripId ?? undefined);
+    const { user } = useAuth();
+    const canManageTrip = user?.accountRole === 'admin' || user?.accountRole === 'gestor';
+    const [correctOpen, setCorrectOpen] = useState(false);
+    const [cancelOpen, setCancelOpen] = useState(false);
     const [mapFullscreen, setMapFullscreen] = useState(false);
     useEffect(() => {
         if (!mapFullscreen) return;
@@ -152,7 +164,8 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
     const startKm = trip?.start_odometer ?? 0;
     const endKm = trip?.end_odometer ?? startKm;
     const distance = trip?.distance_km ?? Math.max(endKm - startKm, 0);
-    const hasAnomaly = trip?.status === 'CANCELLED' || Boolean(trip?.has_anomaly);
+    const isCancelled = trip?.status === 'CANCELLED';
+    const hasAnomaly = trip?.status === 'PROBLEM' || Boolean(trip?.has_anomaly);
 
     // Mesmo mapa no modal e na tela cheia (que vai para o body, fora do modal).
     const mapBody = (
@@ -252,6 +265,28 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
                         )}
                     </div>
 
+                    {isCancelled && (
+                        <div className="flex gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-800">
+                            <XCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                            <div className="min-w-0 text-sm">
+                                <p className="font-bold">Viagem cancelada</p>
+                                <p className="mt-0.5 break-words"><span className="font-semibold">Motivo:</span> {trip.cancel_reason || 'Não informado'}</p>
+                                <p className="mt-0.5 text-xs text-rose-700">
+                                    {trip.canceller?.full_name ? `Por ${trip.canceller.full_name}` : 'Por usuário não identificado'}
+                                    {trip.cancelled_at && ` em ${formatDateTime(trip.cancelled_at)}`}
+                                </p>
+                                <p className="mt-1 text-xs text-rose-700">Esta viagem não entra nos totais de km nem na contagem de viagens realizadas.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {canManageTrip && !isCancelled && (
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                            <SGFButton variant="outline" size="sm" icon={Pencil} onClick={() => setCorrectOpen(true)}>Retificar</SGFButton>
+                            <SGFButton variant="danger" size="sm" icon={XCircle} onClick={() => setCancelOpen(true)}>Cancelar viagem</SGFButton>
+                        </div>
+                    )}
+
                     {/* Mapa com a rota */}
                     <div>
                         <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -292,6 +327,10 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
                         )}
                     </div>
 
+                    <TripPurposeSection trip={trip} stops={stops.data ?? []} />
+
+                    {checklist.data && <TripChecklistSection checklist={checklist.data} />}
+
                     {/* Acontecimentos */}
                     <div>
                         <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
@@ -299,6 +338,32 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
                         </p>
                         <TripTimeline data={timeline.data} loading={timeline.isLoading} error={timeline.error as Error | null} />
                     </div>
+
+                    <TripCorrectionsSection corrections={corrections.data ?? []} loading={corrections.isLoading} />
+
+                    {correctOpen && (
+                        <CorrectTripModal
+                            trip={{
+                                id: trip.id,
+                                start_odometer: trip.start_odometer ?? null,
+                                end_odometer: trip.end_odometer ?? null,
+                                destination: trip.destination,
+                                start_at: trip.start_at,
+                                end_at: trip.end_at ?? null,
+                                notes: trip.notes ?? null,
+                            }}
+                            isOpen
+                            onClose={() => setCorrectOpen(false)}
+                        />
+                    )}
+                    {cancelOpen && (
+                        <CancelTripModal
+                            tripId={trip.id}
+                            inProgress={trip.status === 'IN_PROGRESS'}
+                            isOpen
+                            onClose={() => setCancelOpen(false)}
+                        />
+                    )}
                 </div>
             )}
         </Modal>

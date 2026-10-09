@@ -7,6 +7,7 @@ import { Clipboard, User, Calendar, CheckCircle, Loader2 } from '@/components/sg
 import { checklistsApi } from '@/lib/supabase-api';
 import { formatDateTime } from '@/lib/utils';
 import { ChecklistItemsList } from '@/components/checklists/ChecklistItemsList';
+import { ChecklistExtras } from '@/components/checklists/ChecklistExtras';
 import type { Tables } from '@/types/database.types';
 
 interface Props {
@@ -101,7 +102,10 @@ export function VehicleChecklistsTab({ vehicleId }: Props) {
                 description={selected ? `${formatDateTime(selected.created_at)} — ${selected.profiles?.full_name ?? '—'}` : undefined}
                 size="md"
             >
-                <ChecklistItemsList items={itemRows} loading={itemsLoading} />
+                <div className="space-y-4">
+                    {selected && <ChecklistExtras checklist={selected} />}
+                    <ChecklistItemsList items={itemRows} loading={itemsLoading} />
+                </div>
             </Modal>
         </div>
     );

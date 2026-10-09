@@ -10,7 +10,7 @@ import { uploadBranding } from './brandingStorage';
 import { optimizeImage, IMAGE_PRESETS, uploadFileId } from './imageUtils';
 import { uploadPrivateDoc } from './docStorage';
 import { normalizeSearchIdentifier } from './utils';
-import type { Enums, Tables, TablesInsert, TablesUpdate } from '@/types/database.types';
+import type { Enums, Json, Tables, TablesInsert, TablesUpdate } from '@/types/database.types';
 import type { VehicleStatus, DriverStatus, TripStatus, MaintenanceStatus } from '@/types';
 import {
     webToDbVehicleStatus,
@@ -631,6 +631,35 @@ function decorateTrip(row: Record<string, unknown>): TripRecord {
     } as unknown as TripRecord;
 }
 
+export interface TripCorrectionPatch {
+    start_odometer?: number | null;
+    end_odometer?: number | null;
+    destination?: string;
+    start_at?: string;
+    end_at?: string | null;
+    notes?: string | null;
+}
+
+export type TripCorrectionRecord = Tables<'trip_corrections'> & { corrected_by_name: string | null };
+
+export type TripChecklistRecord = Tables<'checklists'> & { checklist_items: Tables<'checklist_items'>[] };
+
+// Traduz as mensagens do banco para as ações de cancelar/retificar viagem.
+function handleTripMutationError(error: { message: string; code?: string; details?: string }): never {
+    const raw = error.message || '';
+    let message = raw;
+    if (raw.includes('TRIP_IMMUTABLE')) {
+        message = 'Esta viagem já foi encerrada e não pode ser alterada diretamente. Use "Retificar" para corrigir os dados com justificativa.';
+    } else if (/cancelad/i.test(raw) && /retific|correct/i.test(raw)) {
+        message = 'Viagem cancelada não pode ser retificada.';
+    } else if (/reason|motivo/i.test(raw)) {
+        message = 'Informe um motivo com pelo menos 10 caracteres.';
+    } else if (/permission|not allowed|forbidden|autoriz|permiss/i.test(raw)) {
+        message = 'Você não tem permissão para esta ação. Somente administradores e gestores podem cancelar ou retificar viagens.';
+    }
+    throw new SupabaseApiError(message, error.code, error.details);
+}
+
 export const tripsApi = withFotoUrls({
     getAll: async (filters?: {
         vehicleId?: string;
@@ -668,7 +697,7 @@ export const tripsApi = withFotoUrls({
     getById: async (id: string): Promise<TripRecord> => {
         const { data, error } = await supabase
             .from('trips')
-            .select('*, vehicles(id, plate, brand, model, photo_url, department_id), profiles!trips_driver_id_fkey(id, full_name, photo_url)')
+            .select('*, vehicles(id, plate, brand, model, photo_url, department_id), profiles!trips_driver_id_fkey(id, full_name, photo_url), canceller:profiles!trips_cancelled_by_fkey(full_name)')
             .eq('id', id)
             .single();
         if (error) handleError(error);
@@ -693,7 +722,69 @@ export const tripsApi = withFotoUrls({
         if (error) handleError(error);
         return (data ?? []) as Tables<'trip_locations'>[];
     },
+
+    // Cancela a viagem (somente admin/gestor). O banco encerra o rastreio e avisa o motorista.
+    cancel: async (tripId: string, reason: string): Promise<void> => {
+        const { error } = await supabase.rpc('manager_cancel_trip', {
+            p_trip_id: tripId,
+            p_reason: reason.trim(),
+        });
+        if (error) handleTripMutationError(error);
+    },
+
+    // Retifica campos da viagem. Só os campos informados em `patch` são alterados;
+    // cada alteração fica registrada em trip_corrections.
+    correct: async (tripId: string, patch: TripCorrectionPatch, reason: string): Promise<void> => {
+        const { error } = await supabase.rpc('manager_correct_trip', {
+            p_trip_id: tripId,
+            p_patch: patch as unknown as Json,
+            p_reason: reason.trim(),
+        });
+        if (error) handleTripMutationError(error);
+    },
+
+    // Histórico de retificações, da mais recente para a mais antiga, com o nome de quem corrigiu.
+    getCorrections: async (tripId: string): Promise<TripCorrectionRecord[]> => {
+        const { data, error } = await supabase
+            .from('trip_corrections')
+            .select('*, profiles!trip_corrections_corrected_by_fkey(full_name)')
+            .eq('trip_id', tripId)
+            .order('corrected_at', { ascending: false });
+        if (error) handleError(error);
+        return ((data ?? []) as unknown as Array<Tables<'trip_corrections'> & { profiles?: { full_name: string | null } | null }>)
+            .map((row) => ({ ...row, corrected_by_name: row.profiles?.full_name ?? null }));
+    },
+
+    // Paradas declaradas (ou detectadas por GPS) ao longo do deslocamento.
+    getStops: async (tripId: string): Promise<Tables<'trip_stops'>[]> => {
+        const { data, error } = await supabase
+            .from('trip_stops')
+            .select('*')
+            .eq('trip_id', tripId)
+            .order('seq', { ascending: true });
+        if (error) handleError(error);
+        return (data ?? []) as Tables<'trip_stops'>[];
+    },
+
+    // Checklist pré-viagem vinculado à viagem (se houver), com itens, fotos e extras.
+    getChecklist: async (tripId: string): Promise<TripChecklistRecord | null> => {
+        const { data, error } = await supabase
+            .from('checklists')
+            .select('*, checklist_items(*)')
+            .eq('trip_id', tripId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (error) handleError(error);
+        return (data as unknown as TripChecklistRecord | null) ?? null;
+    },
 });
+
+// Atalhos nomeados (mesma lógica de tripsApi.*).
+export const cancelTrip = (tripId: string, reason: string) => tripsApi.cancel(tripId, reason);
+export const correctTrip = (tripId: string, patch: TripCorrectionPatch, reason: string) => tripsApi.correct(tripId, patch, reason);
+export const getTripCorrections = (tripId: string) => tripsApi.getCorrections(tripId);
+export const getTripStops = (tripId: string) => tripsApi.getStops(tripId);
 
 // ========================================
 // MAPA (Centro de Comando) — posições reais
@@ -1393,7 +1484,7 @@ export type ChecklistListRecord = Tables<'checklists'> & {
         departments?: { id: string; name: string } | null;
     } | null;
     profiles?: { id: string; full_name: string; photo_url?: string | null } | null;
-    checklist_items?: { id: string; item_key: string; label: string; state: Enums<'checklist_state'> }[];
+    checklist_items?: { id: string; item_key: string; label: string; state: Enums<'checklist_state'>; damage_description?: string | null; photo_urls?: string[] }[];
     /** service_orders.id já aberta a partir deste checklist (se houver). */
     service_orders?: { id: string; status: Enums<'service_order_status'> }[] | null;
 };
@@ -1446,7 +1537,7 @@ export const checklistsApi = withFotoUrls({
                 `*,
                 ${vehiclesJoin}(id, plate, brand, model, photo_url, department_id, departments(id, name)),
                 profiles!checklists_driver_id_fkey(id, full_name, photo_url),
-                checklist_items(id, item_key, label, state),
+                checklist_items(id, item_key, label, state, damage_description, photo_urls),
                 service_orders(id, status)`
             )
             .order('created_at', { ascending: false });
@@ -1677,7 +1768,8 @@ export const departmentsApi = withFotoUrls({
         const startISO = hasPeriod ? startDate.toISOString() : null;
         const endISO = hasPeriod ? endDate.toISOString() : null;
 
-        const tripsQuery = supabase.from('trips').select('vehicle_id, start_at, status, distance_km');
+        // Viagens canceladas ficam fora das contagens e somas de km.
+        const tripsQuery = supabase.from('trips').select('vehicle_id, start_at, status, distance_km').neq('status', 'cancelada');
         const fuelingsQuery = supabase.from('fuelings').select('vehicle_id, created_at, total_cost, liters, km_per_liter, has_anomaly');
         const maintenancesQuery = supabase.from('service_orders').select('vehicle_id, created_at, status');
         if (startISO && endISO) {
@@ -1852,6 +1944,7 @@ export const departmentsApi = withFotoUrls({
                 .from('trips')
                 .select('id, destination, start_at, status, distance_km, vehicles(id, plate, brand, model, photo_url), profiles!trips_driver_id_fkey(id, full_name, photo_url)')
                 .in('vehicle_id', vehicleIds)
+                .neq('status', 'cancelada')
                 .order('start_at', { ascending: false })
                 .limit(12),
             supabase
@@ -2009,6 +2102,7 @@ export const dashboardApi = withFotoUrls({
             supabase.from('vehicles').select('id, status'),
             supabase.from('profiles').select('id, driver_status, cnh_expiry, score').eq('role', 'motorista').is('archived_at', null),
             supabase.from('trips').select('id, distance_km, start_at, end_at, status')
+                .neq('status', 'cancelada')
                 .gte('start_at', monthStart).lte('start_at', monthEnd),
             supabase.from('fuelings').select('id, liters, total_cost, km_per_liter, has_anomaly')
                 .gte('created_at', monthStart).lte('created_at', monthEnd),
@@ -2112,7 +2206,7 @@ export const dashboardApi = withFotoUrls({
 
         const [fuelingsRes, tripsRes, ordersRes] = await Promise.all([
             supabase.from('fuelings').select('liters, created_at').gte('created_at', startIso),
-            supabase.from('trips').select('vehicle_id, distance_km, status, start_at, created_at').gte('created_at', startIso),
+            supabase.from('trips').select('vehicle_id, distance_km, status, start_at, created_at').neq('status', 'cancelada').gte('created_at', startIso),
             supabase.from('service_orders').select('created_at').gte('created_at', startIso),
         ]);
         if (fuelingsRes.error) handleError(fuelingsRes.error);
