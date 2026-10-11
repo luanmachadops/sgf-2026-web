@@ -21223,10 +21223,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // admin/dist/index.html
-var dist_default = '<!doctype html>\n<html lang="pt-BR">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n    <link rel="preconnect" href="https://fonts.googleapis.com" />\n    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />\n    <meta name="description" content="Painel superadministrativo da Exattus Rotta." />\n    <title>Exattus Rotta \u2014 Superadmin</title>\n    <script type="module" crossorigin src="/assets/index-CtqnCprY.js"></script>\n    <link rel="stylesheet" crossorigin href="/assets/index-C7T4eenF.css">\n  </head>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>\n';
+var dist_default = '<!doctype html>\n<html lang="pt-BR">\n  <head>\n    <meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n    <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n    <link rel="preconnect" href="https://fonts.googleapis.com" />\n    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />\n    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />\n    <meta name="description" content="Painel superadministrativo da Exattus Rotta." />\n    <title>Exattus Rotta \u2014 Superadmin</title>\n    <script type="module" crossorigin src="/assets/index-DGbO6d1S.js"></script>\n    <link rel="stylesheet" crossorigin href="/assets/index-IxPa9hjs.css">\n  </head>\n  <body>\n    <div id="root"></div>\n  </body>\n</html>\n';
 
 // web/dist/index.html
-var dist_default2 = '<!doctype html>\n<html lang="pt-BR">\n\n<head>\n  <meta charset="UTF-8" />\n  <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n  <link rel="manifest" href="/manifest.webmanifest" />\n  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />\n  <meta name="description" content="Exattus Rotta \u2014 gest\xE3o inteligente de frotas p\xFAblicas." />\n  <meta name="theme-color" content="#0F2B2F" />\n  <meta name="mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />\n  <meta name="apple-mobile-web-app-title" content="Exattus Rotta" />\n  <title>Exattus Rotta \u2014 Gest\xE3o de Frotas</title>\n\n  <!-- Google Fonts - Inter -->\n  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\n\n  <!-- Leaflet CSS -->\n  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"\n    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />\n  <script type="module" crossorigin src="/assets/index-BKtyf3xk.js"></script>\n  <link rel="stylesheet" crossorigin href="/assets/index-Bul55QEe.css">\n</head>\n\n<body>\n  <div id="root"></div>\n</body>\n\n</html>\n';
+var dist_default2 = '<!doctype html>\n<html lang="pt-BR">\n\n<head>\n  <meta charset="UTF-8" />\n  <link rel="icon" type="image/svg+xml" href="/exattus-rotta.svg" />\n  <link rel="manifest" href="/manifest.webmanifest" />\n  <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png" />\n  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />\n  <meta name="description" content="Exattus Rotta \u2014 gest\xE3o inteligente de frotas p\xFAblicas." />\n  <meta name="theme-color" content="#0F2B2F" />\n  <meta name="mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-capable" content="yes" />\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />\n  <meta name="apple-mobile-web-app-title" content="Exattus Rotta" />\n  <title>Exattus Rotta \u2014 Gest\xE3o de Frotas</title>\n\n  <!-- Google Fonts - Inter -->\n  <link rel="preconnect" href="https://fonts.googleapis.com">\n  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\n\n  <!-- Leaflet CSS -->\n  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"\n    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />\n  <script type="module" crossorigin src="/assets/index-DtFCciAO.js"></script>\n  <link rel="stylesheet" crossorigin href="/assets/index-CN1SnNJf.css">\n</head>\n\n<body>\n  <div id="root"></div>\n</body>\n\n</html>\n';
 
 // web/node_modules/@supabase/supabase-js/dist/index.mjs
 var dist_exports = {};
@@ -26817,6 +26817,82 @@ async function handler6(req, res) {
     return res.status(status).json({
       message: error instanceof Error ? error.message : "N\xE3o foi poss\xEDvel gerenciar o acesso."
     });
+  }
+}
+
+// web/api/verify/[code].ts
+var CODE_PATTERN = /^[A-HJ-KM-NP-Z2-9]{12}$/;
+var WINDOW_MS = 6e4;
+var MAX_REQUESTS = 30;
+var MAX_TRACKED_IPS = 5e3;
+var UPSTREAM_TIMEOUT_MS = 8e3;
+var hits = /* @__PURE__ */ new Map();
+function clientKey(req) {
+  if (req.ip) return req.ip;
+  const forwarded = req.headers?.["x-forwarded-for"];
+  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  if (typeof first === "string" && first) return first.split(",").pop()?.trim() || "unknown";
+  return req.socket?.remoteAddress || "unknown";
+}
+function rateLimit(key, now = Date.now()) {
+  if (hits.size > MAX_TRACKED_IPS) {
+    for (const [ip, entry] of hits) {
+      if (entry.resetAt <= now) hits.delete(ip);
+    }
+    if (hits.size > MAX_TRACKED_IPS) hits.clear();
+  }
+  const current = hits.get(key);
+  if (!current || current.resetAt <= now) {
+    hits.set(key, { count: 1, resetAt: now + WINDOW_MS });
+    return 0;
+  }
+  current.count += 1;
+  return current.count > MAX_REQUESTS ? Math.max(1, Math.ceil((current.resetAt - now) / 1e3)) : 0;
+}
+function supabaseConfig() {
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  return url && key ? { url: url.replace(/\/+$/, ""), key } : null;
+}
+async function handler7(req, res) {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET");
+    return res.status(405).json({ valid: false, message: "M\xE9todo n\xE3o permitido." });
+  }
+  const wait = rateLimit(clientKey(req));
+  if (wait > 0) {
+    res.setHeader("Retry-After", String(wait));
+    return res.status(429).json({ valid: false, message: "Muitas consultas. Tente novamente em instantes." });
+  }
+  const raw = req.query?.code;
+  const code = (Array.isArray(raw) ? raw[0] : raw ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  if (!CODE_PATTERN.test(code)) {
+    return res.status(400).json({ valid: false, message: "C\xF3digo de verifica\xE7\xE3o inv\xE1lido." });
+  }
+  const config = supabaseConfig();
+  if (!config) {
+    return res.status(503).json({ valid: false, message: "Verifica\xE7\xE3o indispon\xEDvel no momento." });
+  }
+  try {
+    const upstream = await fetch(`${config.url}/rest/v1/rpc/verify_report`, {
+      method: "POST",
+      headers: {
+        apikey: config.key,
+        Authorization: `Bearer ${config.key}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ p_code: code }),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)
+    });
+    if (!upstream.ok) {
+      return res.status(502).json({ valid: false, message: "N\xE3o foi poss\xEDvel consultar o registro agora." });
+    }
+    const payload = await upstream.json();
+    return res.status(200).json(payload && typeof payload === "object" ? payload : { valid: false });
+  } catch {
+    return res.status(502).json({ valid: false, message: "N\xE3o foi poss\xEDvel consultar o registro agora." });
   }
 }
 
@@ -35857,7 +35933,7 @@ async function iopgpsToken(admin, tenantId) {
   await admin.from("iopgps_credentials").update({ access_token: token, token_expires_at: new Date(expiresAtMs).toISOString(), updated_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", row.id);
   return { token, baseUrl: row.base_url };
 }
-async function handler7(req, res) {
+async function handler8(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -35914,7 +35990,7 @@ async function assertSuperadmin(req, admin) {
   const { data: profile } = await admin.from("profiles").select("role").eq("id", data.user.id).single();
   if (profile?.role !== "superadmin") throw Object.assign(new Error("Apenas superusu\xE1rio"), { status: 403 });
 }
-async function handler8(req, res) {
+async function handler9(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -36052,7 +36128,7 @@ async function findUserByEmail(admin, email) {
   }
   return null;
 }
-async function handler9(req, res) {
+async function handler10(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -36167,7 +36243,7 @@ async function assertSuperadmin3(req, admin) {
   const { data: profile } = await admin.from("profiles").select("role").eq("id", data.user.id).single();
   if (profile?.role !== "superadmin") throw Object.assign(new Error("Apenas superusu\xE1rio"), { status: 403 });
 }
-async function handler10(req, res) {
+async function handler11(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -36214,7 +36290,7 @@ async function assertSuperadmin4(req, admin) {
 }
 var WINDOW_SECONDS6 = 60;
 var MAX_HITS6 = 5;
-async function handler11(req, res) {
+async function handler12(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ message: "Method not allowed" });
@@ -36302,7 +36378,7 @@ function isSuperadminRequest(req) {
   if (forcedSurface === "web") return false;
   return cleanHostname(req) === SUPERADMIN_HOST;
 }
-function invoke(handler12, params = {}) {
+function invoke(handler13, params = {}) {
   return async (req, res, next) => {
     const legacyReq = Object.create(req);
     Object.defineProperty(legacyReq, "query", {
@@ -36311,28 +36387,28 @@ function invoke(handler12, params = {}) {
       value: { ...req.query, ...params, ...req.params }
     });
     try {
-      await handler12(legacyReq, res);
+      await handler13(legacyReq, res);
     } catch (error) {
       next(error);
     }
   };
 }
-function adminOnly(handler12) {
+function adminOnly(handler13) {
   return (req, res, next) => {
     if (!isSuperadminRequest(req)) {
       res.status(404).json({ message: "Endpoint n\xE3o encontrado." });
       return;
     }
-    void invoke(handler12)(req, res, next);
+    void invoke(handler13)(req, res, next);
   };
 }
-function webOnly(handler12) {
+function webOnly(handler13) {
   return (req, res, next) => {
     if (isSuperadminRequest(req)) {
       res.status(404).json({ message: "Endpoint n\xE3o encontrado." });
       return;
     }
-    void invoke(handler12)(req, res, next);
+    void invoke(handler13)(req, res, next);
   };
 }
 app.all("/api/drivers", webOnly(handler));
@@ -36340,14 +36416,15 @@ app.all("/api/drivers/pre-register", webOnly(handler2));
 app.all("/api/drivers/:id/provision-access", webOnly(handler3));
 app.all("/api/drivers/:id/reset-password", webOnly(handler4));
 app.all("/api/managers", (req, res, next) => {
-  const handler12 = isSuperadminRequest(req) ? handler9 : handler5;
-  void invoke(handler12)(req, res, next);
+  const handler13 = isSuperadminRequest(req) ? handler10 : handler5;
+  void invoke(handler13)(req, res, next);
 });
 app.all("/api/access", webOnly(handler6));
-app.all("/api/tenants/create", adminOnly(handler11));
-app.all("/api/iopgps-device", adminOnly(handler7));
-app.all("/api/iopgps", adminOnly(handler8));
-app.all("/api/vehicle-photos", adminOnly(handler10));
+app.all("/api/verify/:code", webOnly(handler7));
+app.all("/api/tenants/create", adminOnly(handler12));
+app.all("/api/iopgps-device", adminOnly(handler8));
+app.all("/api/iopgps", adminOnly(handler9));
+app.all("/api/vehicle-photos", adminOnly(handler11));
 app.get("/health", (_req, res) => {
   res.status(200).json({
     ok: true,
