@@ -11,7 +11,7 @@ export interface ReportColumn {
     key: string;
     label: string;
     align?: 'left' | 'right' | 'center';
-    format?: 'text' | 'integer' | 'decimal' | 'currency' | 'percent' | 'date';
+    format?: 'text' | 'integer' | 'decimal' | 'currency' | 'percent' | 'date' | 'datetime';
     defaultVisible?: boolean;
     filterable?: boolean;
     minWidth?: number;
@@ -30,12 +30,24 @@ export interface ReportChart {
     data: { label: string; value: number }[];
 }
 
+export type ReportRow = Record<string, string | number>;
+
+/** Tabela secundária do relatório (exportada como 2ª aba/bloco e coberta pelo hash). */
+export interface ReportExtraTable {
+    title: string;
+    columns: ReportColumn[];
+    rows: ReportRow[];
+}
+
 export interface ReportDataset {
     columns: ReportColumn[];
-    rows: Record<string, string | number>[];
+    rows: ReportRow[];
     kpis: ReportKpi[];
     charts?: ReportChart[];
     notes?: string[];
+    /** 'vehicle-log' = impressão no formato da folha de papel (mapa mensal de uso). */
+    layout?: 'vehicle-log';
+    extraTables?: ReportExtraTable[];
 }
 
 export interface ReportFilterInput {
@@ -45,7 +57,26 @@ export interface ReportFilterInput {
     dateFrom?: string;
     /** ISO date (yyyy-mm-dd) final */
     dateTo?: string;
+    /** id (uuid) do condutor; vazio = todos */
+    driverId?: string;
+    /** id (uuid) do veículo; vazio = todos (usado no mapa mensal de uso) */
+    vehicleId?: string;
 }
+
+/** Relatórios que envolvem viagens ou abastecimentos e aceitam o filtro por condutor. */
+export const DRIVER_FILTER_REPORTS: ReadonlySet<string> = new Set([
+    'fuel-consumption',
+    'trip-analysis',
+    'driver-performance',
+    'cost-analysis',
+    'department-usage',
+    'efficiency-report',
+    'infractions',
+    'fuel-by-station',
+    'vehicle-monthly-log',
+]);
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const EMPTY: ReportDataset = { kpis: [], columns: [], rows: [], charts: [] };
@@ -222,7 +253,7 @@ async function fleetSummary(f?: ReportFilterInput): Promise<ReportDataset> {
 
 async function fuelConsumption(f?: ReportFilterInput): Promise<ReportDataset> {
     const { from, to } = dateRange(f);
-    const q = supabase
+    let q = supabase
         .from('fuelings')
         .select(`id, liters, total_cost, price_per_liter, km_per_liter, station, station_id,
             created_at, filled_at, fuel_type, odometer, vehicle_id, workflow_status,
@@ -230,6 +261,7 @@ async function fuelConsumption(f?: ReportFilterInput): Promise<ReportDataset> {
         .in('workflow_status', ['validado', 'lancado_direto'])
         .order('created_at', { ascending: false })
         .order('id', { ascending: true });
+    if (f?.driverId) q = q.eq('driver_id', f.driverId);
     let list = await fetchAllRows(q);
     list = list.filter((row) => withinRange(row.filled_at ?? row.created_at, from, to));
     if (f?.departmentId) {
@@ -396,6 +428,7 @@ async function tripAnalysis(f?: ReportFilterInput): Promise<ReportDataset> {
         .order('id', { ascending: true });
     if (from) q = q.gte('start_at', from);
     if (to) q = q.lte('start_at', to);
+    if (f?.driverId) q = q.eq('driver_id', f.driverId);
     let list = await fetchAllRows(q);
     if (f?.departmentId) {
         list = list.filter((r) => (r.vehicles as { department_id?: string } | null)?.department_id === f.departmentId);
@@ -455,6 +488,7 @@ async function driverPerformance(f?: ReportFilterInput): Promise<ReportDataset> 
         .order('score', { ascending: false })
         .order('id', { ascending: true });
     if (f?.departmentId) dq = dq.eq('department_id', f.departmentId);
+    if (f?.driverId) dq = dq.eq('id', f.driverId);
     const drivers = await fetchAllRows(dq);
 
     const { from, to } = dateRange(f);
@@ -466,6 +500,7 @@ async function driverPerformance(f?: ReportFilterInput): Promise<ReportDataset> 
         .order('id', { ascending: true });
     if (from) tq = tq.gte('start_at', from);
     if (to) tq = tq.lte('start_at', to);
+    if (f?.driverId) tq = tq.eq('driver_id', f.driverId);
     const trips = await fetchAllRows(tq);
 
     const tripStats = new Map<string, { trips: number; km: number }>();
@@ -530,12 +565,13 @@ async function departmentAggregates(f?: ReportFilterInput) {
             supabase.from('vehicles').select('id, department_id, status').order('id'),
         ),
         (() => {
-            const q = supabase
+            let q = supabase
                 .from('fuelings')
                 .select('id, total_cost, created_at, filled_at, vehicle_id')
                 .in('workflow_status', ['validado', 'lancado_direto'])
                 .order('created_at', { ascending: false })
                 .order('id');
+            if (f?.driverId) q = q.eq('driver_id', f.driverId);
             return fetchAllRows(q);
         })(),
         (() => {
@@ -547,6 +583,7 @@ async function departmentAggregates(f?: ReportFilterInput) {
                 .order('id');
             if (from) q = q.gte('start_at', from);
             if (to) q = q.lte('start_at', to);
+            if (f?.driverId) q = q.eq('driver_id', f.driverId);
             return fetchAllRows(q);
         })(),
         fetchAllRows(
@@ -748,6 +785,9 @@ async function infractionsReport(f?: ReportFilterInput): Promise<ReportDataset> 
         .order('id', { ascending: true });
     if (from) q = q.gte('occurred_at', from);
     if (to) q = q.lte('occurred_at', to);
+    if (f?.driverId && UUID_PATTERN.test(f.driverId)) {
+        q = q.or(`indicated_driver_id.eq.${f.driverId},suggested_driver_id.eq.${f.driverId}`);
+    }
     let list = await fetchAllRows(q);
     if (f?.departmentId) {
         list = list.filter((r) => (r.vehicles as { department_id?: string } | null)?.department_id === f.departmentId);
@@ -803,13 +843,14 @@ async function infractionsReport(f?: ReportFilterInput): Promise<ReportDataset> 
 
 async function fuelByStation(f?: ReportFilterInput): Promise<ReportDataset> {
     const { from, to } = dateRange(f);
-    const query = supabase
+    let query = supabase
         .from('fuelings')
         .select('id, station_id, liters, total_cost, workflow_status, created_at, filled_at, fuel_stations(name), vehicles(department_id)')
         .not('station_id', 'is', null)
         .in('workflow_status', ['concluido', 'validado', 'lancado_direto', 'rejeitado_admin'])
         .order('created_at', { ascending: false })
         .order('id', { ascending: true });
+    if (f?.driverId) query = query.eq('driver_id', f.driverId);
 
     type FuelRow = {
         station_id: string | null;
@@ -1319,6 +1360,279 @@ async function procurementLegacyReconciliation(f?: ReportFilterInput): Promise<R
     };
 }
 
+// ── Mapa mensal de uso do veículo ─────────────────────────────────────────────
+
+const PURPOSE_CATEGORY_LABEL: Record<string, string> = {
+    saude: 'Saúde',
+    educacao: 'Educação',
+    transporte_escolar: 'Transporte escolar',
+    obras_servicos: 'Obras e serviços',
+    administrativo: 'Administrativo',
+    assistencia_social: 'Assistência social',
+    seguranca: 'Segurança',
+    agricultura: 'Agricultura',
+    outro: 'Outro',
+};
+
+function fmtDateTime(iso?: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function monthKey(iso: string): string {
+    const d = new Date(iso);
+    return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
+/** 'MM/AAAA' -> 'AAAAMM', para ordenar cronologicamente. */
+function monthSortKey(value: string | number): string {
+    const [month = '', year = ''] = String(value).split('/');
+    return `${year}${month}`;
+}
+
+function passengerNames(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((item) => {
+            if (typeof item === 'string') return item.trim();
+            if (item && typeof item === 'object') {
+                const record = item as Record<string, unknown>;
+                const name = record.name ?? record.nome ?? record.full_name;
+                return typeof name === 'string' ? name.trim() : '';
+            }
+            return '';
+        })
+        .filter(Boolean);
+}
+
+interface LogVehicle {
+    plate?: string | null;
+    brand?: string | null;
+    model?: string | null;
+    unit_code?: string | null;
+    department_id?: string | null;
+    departments?: { name?: string | null } | null;
+}
+
+interface LogTripRow {
+    id: string;
+    trip_number: number | null;
+    start_at: string;
+    end_at: string | null;
+    start_odometer: number | null;
+    end_odometer: number | null;
+    distance_km: number | null;
+    origin: string | null;
+    destination: string | null;
+    purpose: string | null;
+    purpose_category: string | null;
+    status: string;
+    passenger_count: number | null;
+    passengers: unknown;
+    odometer_gap_km: number | null;
+    off_hours: boolean;
+    is_retroactive: boolean;
+    vehicle_id: string | null;
+    vehicles: LogVehicle | null;
+    profiles: { full_name?: string | null; registration_number?: string | null; cnh_number?: string | null } | null;
+    trip_stops: { seq: number; description: string | null }[] | null;
+}
+
+async function vehicleMonthlyLog(f?: ReportFilterInput): Promise<ReportDataset> {
+    const { from, to } = dateRange(f);
+    let tq = supabase
+        .from('trips')
+        .select(`id, trip_number, start_at, end_at, start_odometer, end_odometer, distance_km, origin,
+            destination, purpose, purpose_category, status, passenger_count, passengers,
+            odometer_gap_km, off_hours, is_retroactive, vehicle_id,
+            vehicles(plate, brand, model, unit_code, department_id, departments(name)),
+            profiles!trips_driver_id_fkey(full_name, registration_number, cnh_number),
+            trip_stops(seq, description)`)
+        .not('vehicle_id', 'is', null)
+        .order('start_at', { ascending: true })
+        .order('id', { ascending: true });
+    if (from) tq = tq.gte('start_at', from);
+    if (to) tq = tq.lte('start_at', to);
+    if (f?.vehicleId) tq = tq.eq('vehicle_id', f.vehicleId);
+    if (f?.driverId) tq = tq.eq('driver_id', f.driverId);
+
+    let fq = supabase
+        .from('fuelings')
+        .select('id, liters, total_cost, km_per_liter, invoice_number, created_at, filled_at, vehicle_id, vehicles(plate, department_id)')
+        .in('workflow_status', ['validado', 'lancado_direto'])
+        .not('vehicle_id', 'is', null)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true });
+    if (f?.vehicleId) fq = fq.eq('vehicle_id', f.vehicleId);
+    if (f?.driverId) fq = fq.eq('driver_id', f.driverId);
+
+    const [tripData, fuelData] = await Promise.all([fetchAllRows(tq), fetchAllRows(fq)]);
+    let trips = tripData as unknown as LogTripRow[];
+    if (f?.departmentId) {
+        trips = trips.filter((trip) => trip.vehicles?.department_id === f.departmentId);
+    }
+
+    const rows: ReportRow[] = trips.map((trip) => {
+        const vehicle = trip.vehicles;
+        const stops = [...(trip.trip_stops ?? [])]
+            .sort((a, b) => a.seq - b.seq)
+            .map((stop) => (stop.description ?? '').trim())
+            .filter(Boolean)
+            .join(' → ');
+        const names = passengerNames(trip.passengers);
+        const count = trip.passenger_count ?? names.length;
+        const passengers = names.length > 0
+            ? names.join('; ')
+            : count > 0 ? `${count} passageiro(s)` : '';
+        const startKm = trip.start_odometer;
+        const endKm = trip.end_odometer;
+        const distance = trip.distance_km
+            ?? (startKm !== null && endKm !== null ? Math.max(endKm - startKm, 0) : null);
+        const flags: string[] = [];
+        if (trip.status === 'cancelada') flags.push('Cancelada');
+        if (trip.status === 'andamento') flags.push('Em andamento');
+        if (trip.status === 'problema') flags.push('Encerrada com anomalia');
+        if (trip.is_retroactive) flags.push('Retroativa');
+        if (trip.off_hours) flags.push('Fora do expediente');
+        if ((trip.odometer_gap_km ?? 0) > 0) flags.push(`Salto de km (+${NUM(Number(trip.odometer_gap_km), 0)} km)`);
+        const category = PURPOSE_CATEGORY_LABEL[trip.purpose_category ?? ''] ?? '';
+        const purpose = [trip.purpose?.trim(), category ? `(${category})` : ''].filter(Boolean).join(' ');
+        return {
+            month: monthKey(trip.start_at),
+            plate: vehicle?.plate ?? '',
+            prefix: vehicle?.unit_code ?? '',
+            model: [vehicle?.brand, vehicle?.model].filter(Boolean).join(' '),
+            department: vehicle?.departments?.name ?? '',
+            number: trip.trip_number ?? '',
+            departure: fmtDateTime(trip.start_at),
+            arrival: fmtDateTime(trip.end_at),
+            startKm: startKm ?? '',
+            endKm: endKm ?? '',
+            distance: trip.status === 'cancelada' ? '' : (distance ?? ''),
+            origin: trip.origin ?? '',
+            stops,
+            destination: trip.destination ?? '',
+            purpose,
+            driver: trip.profiles?.full_name ?? '',
+            registration: trip.profiles?.registration_number ?? '',
+            cnh: trip.profiles?.cnh_number ?? '',
+            passengers,
+            situation: flags.length > 0 ? flags.join('; ') : 'Regular',
+        };
+    });
+    rows.sort((a, b) =>
+        String(a.plate).localeCompare(String(b.plate), 'pt-BR')
+        || monthSortKey(a.month).localeCompare(monthSortKey(b.month))
+        || Number(a.number) - Number(b.number));
+
+    type FuelLogRow = {
+        liters: number | null;
+        total_cost: number | null;
+        km_per_liter: number | null;
+        invoice_number: string | null;
+        created_at: string;
+        filled_at: string | null;
+        vehicles: { plate?: string | null; department_id?: string | null } | null;
+    };
+    const fuelRows: ReportRow[] = (fuelData as unknown as FuelLogRow[])
+        .filter((row) =>
+            withinRange(row.filled_at ?? row.created_at, from, to)
+            && (!f?.departmentId || row.vehicles?.department_id === f.departmentId))
+        .map((row) => {
+            const when = row.filled_at ?? row.created_at;
+            return {
+                month: monthKey(when),
+                plate: row.vehicles?.plate ?? '',
+                date: fmtDate(when),
+                liters: Number(row.liters ?? 0),
+                cost: Number(row.total_cost ?? 0),
+                invoice: row.invoice_number ?? '',
+                kmPerLiter: Number(row.km_per_liter ?? 0) > 0 ? Number(row.km_per_liter) : '',
+            };
+        })
+        .sort((a, b) =>
+            String(a.plate).localeCompare(String(b.plate), 'pt-BR')
+            || monthSortKey(a.month).localeCompare(monthSortKey(b.month))
+            || String(a.date).split('/').reverse().join('').localeCompare(String(b.date).split('/').reverse().join('')));
+
+    const valid = trips.filter((trip) => trip.status !== 'cancelada');
+    const totalKm = rows.reduce((sum, row) => sum + (typeof row.distance === 'number' ? row.distance : 0), 0);
+    const totalLiters = fuelRows.reduce((sum, row) => sum + Number(row.liters), 0);
+    const totalCost = fuelRows.reduce((sum, row) => sum + Number(row.cost), 0);
+    const irregular = trips.filter((trip) =>
+        trip.status === 'cancelada' || trip.is_retroactive || trip.off_hours || (trip.odometer_gap_km ?? 0) > 0).length;
+
+    return {
+        layout: 'vehicle-log',
+        kpis: [
+            { label: 'Viagens (sem canceladas)', value: NUM(valid.length) },
+            { label: 'Km rodados', value: `${NUM(totalKm, 0)} km` },
+            { label: 'Combustível', value: `${NUM(totalLiters, 1)} L · ${BRL(totalCost)}` },
+            { label: 'Com ressalva', value: NUM(irregular) },
+        ],
+        columns: [
+            { key: 'month', label: 'Mês', minWidth: 70 },
+            { key: 'plate', label: 'Placa', filterable: true, minWidth: 85 },
+            { key: 'prefix', label: 'Prefixo', defaultVisible: false, minWidth: 80 },
+            { key: 'model', label: 'Modelo', defaultVisible: false, minWidth: 140 },
+            { key: 'department', label: 'Secretaria', filterable: true, defaultVisible: false, minWidth: 170 },
+            { key: 'number', label: 'Nº', align: 'right', format: 'integer', minWidth: 55 },
+            { key: 'departure', label: 'Saída', format: 'datetime', minWidth: 125 },
+            { key: 'arrival', label: 'Chegada', format: 'datetime', minWidth: 125 },
+            { key: 'startKm', label: 'Km inicial', align: 'right', format: 'integer', minWidth: 90 },
+            { key: 'endKm', label: 'Km final', align: 'right', format: 'integer', minWidth: 90 },
+            { key: 'distance', label: 'Km rodado', align: 'right', format: 'decimal', minWidth: 90 },
+            { key: 'origin', label: 'Origem', minWidth: 140 },
+            { key: 'stops', label: 'Paradas', minWidth: 150 },
+            { key: 'destination', label: 'Destino', filterable: true, minWidth: 160 },
+            { key: 'purpose', label: 'Finalidade', minWidth: 190 },
+            { key: 'driver', label: 'Condutor', filterable: true, minWidth: 150 },
+            { key: 'registration', label: 'Matrícula', minWidth: 90 },
+            { key: 'cnh', label: 'CNH', minWidth: 110 },
+            { key: 'passengers', label: 'Passageiros', minWidth: 160 },
+            { key: 'situation', label: 'Situação', filterable: true, minWidth: 150 },
+        ],
+        rows,
+        extraTables: [{
+            title: 'Abastecimentos do período',
+            columns: [
+                { key: 'month', label: 'Mês', minWidth: 70 },
+                { key: 'plate', label: 'Placa', minWidth: 85 },
+                { key: 'date', label: 'Data', format: 'date', minWidth: 90 },
+                { key: 'liters', label: 'Litros', align: 'right', format: 'decimal', minWidth: 80 },
+                { key: 'cost', label: 'Valor', align: 'right', format: 'currency', minWidth: 100 },
+                { key: 'invoice', label: 'Nota fiscal', minWidth: 110 },
+                { key: 'kmPerLiter', label: 'Km/L', align: 'right', format: 'decimal', minWidth: 80 },
+            ],
+            rows: fuelRows,
+        }],
+        notes: [
+            'Equivalente digital da folha de mapa de uso do veículo: uma folha por veículo e mês, uma linha por viagem.',
+            'Viagens canceladas aparecem na listagem, mas não somam quilometragem nem contagem de viagens.',
+            'Abastecimentos consideram somente registros validados ou lançados diretamente.',
+        ],
+    };
+}
+
+/**
+ * Mantém nas tabelas secundárias apenas as folhas (placa + mês) que ainda têm
+ * viagens depois dos filtros de tela, deixando exportação e prévia coerentes.
+ */
+export function syncExtraTables(
+    extraTables: ReportExtraTable[] | undefined,
+    rows: ReportRow[],
+): ReportExtraTable[] | undefined {
+    if (!extraTables) return extraTables;
+    const sheets = new Set(rows.map((row) => `${String(row.plate)}|${String(row.month)}`));
+    return extraTables.map((table) => ({
+        ...table,
+        rows: table.rows.filter((row) => sheets.has(`${String(row.plate)}|${String(row.month)}`)),
+    }));
+}
+
 const FETCHERS: Record<string, (f?: ReportFilterInput) => Promise<ReportDataset>> = {
     'fleet-summary': fleetSummary,
     'fuel-consumption': fuelConsumption,
@@ -1334,6 +1648,7 @@ const FETCHERS: Record<string, (f?: ReportFilterInput) => Promise<ReportDataset>
     'maintenance-by-shop': maintenanceByShop,
     'procurement-fiscal-reconciliation': procurementFiscalReconciliation,
     'procurement-legacy-reconciliation': procurementLegacyReconciliation,
+    'vehicle-monthly-log': vehicleMonthlyLog,
 };
 
 /** Busca o dataset real de um relatório, aplicando os filtros selecionados. */
@@ -1354,6 +1669,44 @@ export async function fetchDepartmentOptions(): Promise<{ value: string; label: 
     return [
         { value: '', label: 'Todas as secretarias' },
         ...data.map((d) => ({ value: d.id, label: d.name })),
+    ];
+}
+
+/** Condutores (motoristas) para o filtro por condutor. */
+export async function fetchDriverOptions(): Promise<{ value: string; label: string }[]> {
+    const data = await fetchAllRows(
+        supabase
+            .from('profiles')
+            .select('id, full_name')
+            .eq('role', 'motorista')
+            .order('full_name')
+            .order('id'),
+    );
+    return [
+        { value: '', label: 'Todos os condutores' },
+        ...data.map((driver) => ({ value: driver.id, label: driver.full_name })),
+    ];
+}
+
+/** Veículos (opcionalmente de uma secretaria) para o mapa mensal de uso. */
+export async function fetchVehicleOptions(
+    departmentId?: string,
+): Promise<{ value: string; label: string }[]> {
+    let query = supabase
+        .from('vehicles')
+        .select('id, plate, brand, model, unit_code, department_id')
+        .order('plate')
+        .order('id');
+    if (departmentId) query = query.eq('department_id', departmentId);
+    const data = await fetchAllRows(query);
+    return [
+        { value: '', label: departmentId ? 'Todos os veículos da secretaria' : 'Todos os veículos' },
+        ...data.map((vehicle) => ({
+            value: vehicle.id,
+            label: [vehicle.plate ?? vehicle.unit_code, [vehicle.brand, vehicle.model].filter(Boolean).join(' ')]
+                .filter(Boolean)
+                .join(' — '),
+        })),
     ];
 }
 

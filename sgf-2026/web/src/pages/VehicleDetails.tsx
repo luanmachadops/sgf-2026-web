@@ -51,6 +51,9 @@ import { resolveDocUrl } from '@/lib/docStorage';
 import { toast } from 'sonner';
 import type { Tables } from '@/types/database.types';
 import { VehicleChecklistsTab } from '@/components/vehicles/VehicleChecklistsTab';
+import { VehicleContractsTab } from '@/components/vehicles/VehicleContractsTab';
+import { VehiclePreventiveTab } from '@/components/vehicles/VehiclePreventiveTab';
+import { costCentersApi, ownershipLabel } from '@/lib/fleet-api';
 import { useAuth } from '@/contexts/AuthContext';
 
 const FUEL_LABEL: Record<string, string> = {
@@ -94,6 +97,7 @@ export default function VehicleDetails() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const multiInputRef = useRef<HTMLInputElement>(null);
     const tabsRef = useRef<HTMLDivElement>(null);
+    const canManageFleet = ['admin', 'gestor', 'superadmin'].includes(user?.accountRole ?? '');
     const canDeleteVehicle = ['admin', 'gestor', 'superadmin'].includes(user?.accountRole ?? '');
 
     const deleteVehicle = useMutation({
@@ -120,6 +124,11 @@ export default function VehicleDetails() {
         queryKey: ['vehicle', id],
         queryFn: () => vehiclesApi.getById(id!),
         enabled: Boolean(id),
+    });
+
+    const { data: costCenters = [] } = useQuery({
+        queryKey: ['cost-centers'],
+        queryFn: () => costCentersApi.getAll(),
     });
 
     // ── Fotos/documentos deste veículo (placa, renavam, hodômetro, extras) ──
@@ -308,6 +317,8 @@ export default function VehicleDetails() {
 
     const v = vehicle as unknown as VehicleRow;
     const fuelLabel = v.fuel_type ? (FUEL_LABEL[String(v.fuel_type).toLowerCase()] ?? String(v.fuel_type)) : '—';
+    const costCenter = costCenters.find((c) => c.id === v.cost_center_id);
+    const costCenterLabel = costCenter ? `${costCenter.code} · ${costCenter.name}` : '—';
     const plateMatches = normalizePlate(plateConfirmation) === normalizePlate(v.plate ?? '');
 
     // ── Colunas das tabs ───────────────────────────────────────────────────
@@ -441,12 +452,14 @@ export default function VehicleDetails() {
                     }, 50);
                 }}
             >
-                <TabsList className="grid w-full grid-cols-5 lg:w-[500px] mx-auto bg-slate-100/50 p-1 rounded-xl">
+                <TabsList className="flex w-full overflow-x-auto lg:grid lg:grid-cols-7 lg:w-[760px] mx-auto bg-slate-100/50 p-1 rounded-xl">
                     <TabsTrigger value="info" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Info</TabsTrigger>
                     <TabsTrigger value="trips" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Viagens</TabsTrigger>
                     <TabsTrigger value="refuelings" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Abaste.</TabsTrigger>
                     <TabsTrigger value="maintenances" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Manut.</TabsTrigger>
                     <TabsTrigger value="checklists" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Checklists</TabsTrigger>
+                    <TabsTrigger value="preventive" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Preventiva</TabsTrigger>
+                    <TabsTrigger value="contracts" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all">Contratos</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="info">
@@ -587,6 +600,8 @@ export default function VehicleDetails() {
                                         { label: 'Chassi', value: (v as { chassis?: string | null }).chassis ?? '—', isMono: true },
                                         { label: 'Código Unidade', value: v.unit_code ?? '—', isMono: true },
                                         { label: 'Secretaria Responsável', value: departmentName },
+                                        { label: 'Vínculo', value: ownershipLabel(v.ownership) },
+                                        { label: 'Centro de Custo', value: costCenterLabel },
                                         { label: 'Vencimento do Seguro', value: v.insurance_expiry ? formatDate(v.insurance_expiry) : '—' },
                                     ].map((item) => (
                                         <div key={item.label} className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
@@ -670,6 +685,14 @@ export default function VehicleDetails() {
 
                 <TabsContent value="checklists">
                     <VehicleChecklistsTab vehicleId={v.id} />
+                </TabsContent>
+
+                <TabsContent value="preventive">
+                    <VehiclePreventiveTab vehicleId={v.id} canManage={canManageFleet} />
+                </TabsContent>
+
+                <TabsContent value="contracts">
+                    <VehicleContractsTab vehicleId={v.id} ownership={v.ownership} canManage={canManageFleet} />
                 </TabsContent>
             </Tabs>
             </div>

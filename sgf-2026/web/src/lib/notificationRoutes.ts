@@ -13,7 +13,13 @@ const SERVICE_ORDER_TYPES = new Set([
     'service_orders',
 ]);
 const FUELING_TYPES = new Set(['abastecimento', 'fuel', 'fueling', 'refueling']);
-const TRIP_TYPES = new Set(['trip', 'viagem']);
+const TRIP_TYPES = new Set([
+    'trip',
+    'viagem',
+    'viagem_salto_km',
+    'viagem_km_regressivo',
+    'viagem_fora_expediente',
+]);
 const CHECKLIST_TYPES = new Set(['checklist']);
 const INFRACTION_TYPES = new Set(['infraction', 'infracao', 'multa']);
 const DRIVER_TYPES = new Set(['cnh', 'driver', 'motorista', 'profile']);
@@ -83,6 +89,11 @@ function normalizeManagerLink(rawLink: string | null | undefined): string | null
     ]);
     if (fuelingId) return withQuery('/abastecimentos', search, 'id', fuelingId);
     if (['/fuel', '/fuelings', '/refuelings'].includes(pathname)) return `/abastecimentos${search}`;
+
+    if (pathname === '/trip-detail') {
+        const detailId = url.searchParams.get('id');
+        return detailId ? `/viagens?id=${encodeURIComponent(detailId)}` : '/viagens';
+    }
 
     const tripId = matchEntityPath(pathname, ['/trips', '/viagens']);
     if (tripId) return withQuery('/viagens', search, 'id', tripId);

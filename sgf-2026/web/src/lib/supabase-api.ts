@@ -697,7 +697,7 @@ export const tripsApi = withFotoUrls({
     getById: async (id: string): Promise<TripRecord> => {
         const { data, error } = await supabase
             .from('trips')
-            .select('*, vehicles(id, plate, brand, model, photo_url, department_id), profiles!trips_driver_id_fkey(id, full_name, photo_url), canceller:profiles!trips_cancelled_by_fkey(full_name)')
+            .select('*, vehicles(id, plate, brand, model, photo_url, department_id), profiles!trips_driver_id_fkey(id, full_name, photo_url), canceller:profiles!trips_cancelled_by_fkey(full_name), registrar:profiles!trips_retroactive_registered_by_fkey(full_name)')
             .eq('id', id)
             .single();
         if (error) handleError(error);
@@ -2098,6 +2098,7 @@ export const dashboardApi = withFotoUrls({
             tripsResult,
             refuelingsResult,
             maintenancesResult,
+            plansResult,
         ] = await Promise.all([
             supabase.from('vehicles').select('id, status'),
             supabase.from('profiles').select('id, driver_status, cnh_expiry, score').eq('role', 'motorista').is('archived_at', null),
@@ -2107,12 +2108,14 @@ export const dashboardApi = withFotoUrls({
             supabase.from('fuelings').select('id, liters, total_cost, km_per_liter, has_anomaly')
                 .gte('created_at', monthStart).lte('created_at', monthEnd),
             supabase.from('service_orders').select('id, status, created_at'),
+            supabase.from('maintenance_plan_status').select('status').eq('active', true),
         ]);
         if (vehiclesResult.error) handleError(vehiclesResult.error);
         if (driversResult.error) handleError(driversResult.error);
         if (tripsResult.error) handleError(tripsResult.error);
         if (refuelingsResult.error) handleError(refuelingsResult.error);
         if (maintenancesResult.error) handleError(maintenancesResult.error);
+        if (plansResult.error) handleError(plansResult.error);
 
         const vehicles = vehiclesResult.data || [];
         const drivers = driversResult.data || [];
@@ -2152,6 +2155,12 @@ export const dashboardApi = withFotoUrls({
             }, 0) / tripsWithDuration.length
             : 0;
 
+        // Conformidade preventiva = planos ativos em dia / planos ativos com base de cálculo.
+        const scoredPlans = (plansResult.data || []).filter(p => p.status !== 'sem_base');
+        const preventiveCompliance = scoredPlans.length > 0
+            ? Math.round((scoredPlans.filter(p => p.status === 'em_dia').length / scoredPlans.length) * 100)
+            : 0;
+
         const pendingMaint = maintenances.filter(m => m.status === 'pendente').length;
         const inProgressMaint = maintenances.filter(m => m.status === 'em_execucao').length;
 
@@ -2185,7 +2194,7 @@ export const dashboardApi = withFotoUrls({
                 pendingRequests: pendingMaint,
                 inProgress: inProgressMaint,
                 avgResolutionDays: 0, // Would need completed maintenance dates
-                preventiveCompliance: 0, // Would need scheduled maintenance data
+                preventiveCompliance,
             },
             drivers: {
                 totalActive: activeDrivers.length,

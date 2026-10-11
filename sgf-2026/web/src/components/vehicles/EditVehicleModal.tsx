@@ -7,6 +7,8 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { FileText, Plus, X, Download, Loader2, Camera, Sparkles } from '@/components/sgf/icons';
 import { departmentsApi, vehiclesApi, vehicleDocumentsApi } from '@/lib/supabase-api';
+import { type VehicleOwnership } from '@/lib/fleet-api';
+import { VehicleClassificationFields } from '@/components/vehicles/VehicleClassificationFields';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { resizeAndConvertToWebP, isImageFile, uploadFileId } from '@/lib/imageUtils';
 import { uploadPrivateDoc } from '@/lib/docStorage';
@@ -46,6 +48,8 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
     const [tankCapacity, setTankCapacity] = useState<string>('');
     const [currentOdometer, setCurrentOdometer] = useState<string>('');
     const [departmentId, setDepartmentId] = useState('');
+    const [ownership, setOwnership] = useState<VehicleOwnership>('proprio');
+    const [costCenterId, setCostCenterId] = useState('');
     const [status, setStatus] = useState<'AVAILABLE' | 'IN_USE' | 'MAINTENANCE' | 'INACTIVE'>('AVAILABLE');
     const [insuranceExpiry, setInsuranceExpiry] = useState<string>('');
     const [color, setColor] = useState<string>('');
@@ -100,6 +104,8 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
         setTankCapacity(vehicle.tank_capacity != null ? String(vehicle.tank_capacity) : '');
         setCurrentOdometer(vehicle.current_odometer != null ? String(vehicle.current_odometer) : '0');
         setDepartmentId(vehicle.department_id ?? '');
+        setOwnership(vehicle.ownership ?? 'proprio');
+        setCostCenterId(vehicle.cost_center_id ?? '');
         const s = String(vehicle.status ?? '').toLowerCase();
         setStatus(
             s === 'liberado' ? 'AVAILABLE'
@@ -222,6 +228,8 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
             tank_capacity: Number(tankCapacity),
             current_odometer: Number(currentOdometer) || 0,
             department_id: departmentId,
+            ownership,
+            cost_center_id: costCenterId || null,
             status: status as unknown as TablesUpdate<'vehicles'>['status'],
             insurance_expiry: insuranceExpiry || null,
             color: color.trim() || null,
@@ -387,6 +395,13 @@ export function EditVehicleModal({ isOpen, onClose, vehicle }: EditVehicleModalP
                         fullWidth
                     />
                 </div>
+
+                <VehicleClassificationFields
+                    ownership={ownership}
+                    costCenterId={costCenterId}
+                    onOwnershipChange={setOwnership}
+                    onCostCenterChange={setCostCenterId}
+                />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SGFInput label="Cor" value={color} onChange={(e) => setColor(e.target.value)} placeholder="Ex.: Branco" fullWidth />

@@ -38,6 +38,13 @@ export const ENTITY_TYPE_LABELS: Record<string, string> = {
   user: 'Usuário',
   station: 'Posto',
   trip_correction: 'Correção de viagem',
+  work_schedule: 'Expediente',
+  holiday: 'Feriado',
+  off_hours_authorization: 'Autorização fora do horário',
+  cost_center: 'Centro de custo',
+  rental_contract: 'Contrato de locação',
+  maintenance_plan: 'Plano de manutenção',
+  report_snapshot: 'Relatório emitido',
 };
 
 export const ACTION_LABELS: Record<string, string> = {

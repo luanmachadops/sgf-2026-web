@@ -8,6 +8,8 @@ import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { departmentsApi, vehiclesApi, vehicleDocumentsApi } from '@/lib/supabase-api';
+import { type VehicleOwnership } from '@/lib/fleet-api';
+import { VehicleClassificationFields } from '@/components/vehicles/VehicleClassificationFields';
 import { VEHICLE_TYPES, extractVehicleWithPhotos, type ExtractWithPhotosResult, type VehiclePhotoSlot } from '@/lib/vehicleAI';
 import type { TablesInsert } from '@/types/database.types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -79,6 +81,8 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [brandSelect, setBrandSelect] = useState<string>('');
     const [showMore, setShowMore] = useState(false);
+    const [ownership, setOwnership] = useState<VehicleOwnership>('proprio');
+    const [costCenterId, setCostCenterId] = useState('');
 
     // Uploads manuais de Foto e Documento
     const [vehiclePhotoFile, setVehiclePhotoFile] = useState<File | null>(null);
@@ -247,6 +251,8 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
                 tank_capacity: Number(data.tankCapacity),
                 current_odometer: Number(data.currentOdometer),
                 department_id: data.departmentId,
+                ownership,
+                cost_center_id: costCenterId || null,
                 status: (data.status ?? 'AVAILABLE') as unknown as TablesInsert<'vehicles'>['status'],
                 qr_code: normalizedPlate,
                 vehicle_type: data.vehicleType?.trim() || null,
@@ -569,6 +575,13 @@ export function NewVehicleForm({ onSuccess, onCancel }: NewVehicleFormProps) {
                         )}
                     />
                 </div>
+
+                <VehicleClassificationFields
+                    ownership={ownership}
+                    costCenterId={costCenterId}
+                    onOwnershipChange={setOwnership}
+                    onCostCenterChange={setCostCenterId}
+                />
 
                 {/* Sanfona: documentação e identificação */}
                 <div className="rounded-2xl border border-slate-200/80 bg-white">

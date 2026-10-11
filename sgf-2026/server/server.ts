@@ -10,6 +10,7 @@ import webDriverProvisionAccess from '../web/api/drivers/[id]/provision-access.j
 import webDriverResetPassword from '../web/api/drivers/[id]/reset-password.js';
 import webManagers from '../web/api/managers/index.js';
 import webAccess from '../web/api/access/index.js';
+import webVerifyReport from '../web/api/verify/[code].js';
 
 import adminIopgpsDevice from '../admin/api/iopgps-device.js';
 import adminIopgps from '../admin/api/iopgps.js';
@@ -105,6 +106,8 @@ app.all('/api/managers', (req, res, next) => {
   void invoke(handler)(req, res, next);
 });
 app.all('/api/access', webOnly(webAccess));
+// Verificação pública de autenticidade de relatórios (sem login).
+app.all('/api/verify/:code', webOnly(webVerifyReport));
 
 // APIs exclusivas do painel do superadministrador.
 app.all('/api/tenants/create', adminOnly(adminTenantCreate));

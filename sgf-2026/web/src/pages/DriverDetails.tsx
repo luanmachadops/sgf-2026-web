@@ -22,7 +22,11 @@ import {
     User,
     CalendarClock,
     LockKeyhole,
+    Download,
 } from '@/components/sgf/icons';
+import { toast } from 'sonner';
+import { openPrivateDocument } from '@/lib/docStorage';
+import { CURRENT_TERMS_VERSION, downloadBlob, exportDriverData, getDriverTermsAcceptances } from '@/lib/driver-privacy-api';
 import { EditDriverModal } from '@/components/drivers/EditDriverModal';
 import { DriverAccessForm } from '@/components/drivers/DriverAccessForm';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
@@ -76,6 +80,13 @@ export default function DriverDetails() {
         queryFn: () => driversApi.getById(id!),
         enabled: Boolean(id),
     });
+
+    const { data: termsAcceptances = [] } = useQuery({
+        queryKey: ['driver-terms', id],
+        queryFn: () => getDriverTermsAcceptances(id!),
+        enabled: Boolean(id),
+    });
+    const [exporting, setExporting] = useState(false);
 
     const { data: trips = [] } = useQuery({
         queryKey: ['driver', id, 'trips'],
@@ -145,6 +156,7 @@ export default function DriverDetails() {
         cnh_category: string | null;
         cnh_expiry: string | null;
         cnh_ear: boolean | null;
+        cnh_document_url: string | null;
         registration_number: string | null;
         on_duty: boolean | null;
         shift_start: string | null;
@@ -173,6 +185,28 @@ export default function DriverDetails() {
                     </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                    <SGFButton
+                        variant="secondary"
+                        icon={Download}
+                        loading={exporting}
+                        title="Exportar todos os dados do motorista (LGPD)"
+                        onClick={async () => {
+                            setExporting(true);
+                            try {
+                                const blob = await exportDriverData(d.id);
+                                const slug = (d.full_name ?? 'motorista').normalize('NFD').replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase();
+                                downloadBlob(blob, `dados-lgpd-${slug}-${new Date().toISOString().slice(0, 10)}.json`);
+                                toast.success('Arquivo com os dados do motorista gerado.');
+                            } catch (e) {
+                                toast.error(e instanceof Error ? e.message : 'Não foi possível exportar os dados.');
+                            } finally {
+                                setExporting(false);
+                            }
+                        }}
+                        className="!h-[37px] !rounded-full"
+                    >
+                        <span className="hidden sm:inline">Exportar dados (LGPD)</span>
+                    </SGFButton>
                     <SGFButton variant="secondary" icon={LockKeyhole} onClick={() => setResetOpen(true)} className="!h-[37px] !rounded-full">
                         <span className="hidden sm:inline">Gerar nova senha</span>
                     </SGFButton>
@@ -310,6 +344,27 @@ export default function DriverDetails() {
                                             )
                                         },
                                         { label: 'EAR', value: d.cnh_ear ? 'Sim' : 'Não' },
+                                        {
+                                            label: 'Documento da CNH',
+                                            value: d.cnh_document_url ? (
+                                                <button
+                                                    type="button"
+                                                    className="font-semibold text-emerald-700 hover:underline"
+                                                    onClick={() => openPrivateDocument(d.cnh_document_url as string).catch(() => toast.error('Não foi possível abrir o documento.'))}
+                                                >
+                                                    Ver documento
+                                                </button>
+                                            ) : 'Não enviado',
+                                        },
+                                        {
+                                            label: 'Termo de ciência',
+                                            value: (() => {
+                                                const current = termsAcceptances.find((t) => t.terms_version === CURRENT_TERMS_VERSION);
+                                                if (current) return <SGFBadge variant="success" size="sm">{`Ciente em ${formatDate(current.accepted_at)}`}</SGFBadge>;
+                                                if (termsAcceptances.length > 0) return <SGFBadge variant="warning" size="sm">Versão anterior</SGFBadge>;
+                                                return <SGFBadge variant="warning" size="sm">Pendente</SGFBadge>;
+                                            })(),
+                                        },
                                         { label: 'Secretaria', value: departmentName },
                                         {
                                             label: 'Turno',

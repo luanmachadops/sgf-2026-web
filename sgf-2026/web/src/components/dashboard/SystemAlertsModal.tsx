@@ -12,6 +12,9 @@ import {
     ChevronRight,
     FileText,
     User,
+    Route,
+    Gauge,
+    Clock,
 } from '@/components/sgf/icons';
 import { Modal } from '@/components/ui/Modal';
 import { procurementApi, type ProcurementAlert } from '@/lib/procurement-api';
@@ -20,6 +23,7 @@ import { SGFButton } from '@/components/sgf/SGFButton';
 import { supabase } from '@/lib/supabase';
 import { signFotos } from '@/lib/fotoStorage';
 import { formatDate } from '@/lib/utils';
+import type { IconType } from '@/components/sgf/icons';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const percent = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
@@ -54,6 +58,13 @@ const OPERATIONAL_STYLE: Record<string, { card: string; badge: string; icon: str
     critical: { card: 'border-red-200 bg-red-50/70 hover:bg-red-100/80', badge: 'bg-red-600 text-white', icon: 'text-red-600' },
     warning:  { card: 'border-amber-200 bg-amber-50/70 hover:bg-amber-100/80', badge: 'bg-amber-500 text-white', icon: 'text-amber-600' },
     info:     { card: 'border-blue-200 bg-blue-50/60 hover:bg-blue-100/80', badge: 'bg-blue-600 text-white', icon: 'text-blue-600' },
+};
+
+const OPERATIONAL_ICONS: Record<string, IconType> = {
+    km_regressivo: Gauge,
+    salto_km: Route,
+    fora_expediente: Clock,
+    abast_consumo_baixo: Fuel,
 };
 
 const SESSION_STORAGE_KEY = 'sgf_system_alerts_dismissed';
@@ -335,6 +346,7 @@ export function SystemAlertsModal({ isOpen: externalIsOpen, onClose: externalOnC
                                 <div className="space-y-2.5">
                                     {otherOperationalAlerts.map((a) => {
                                         const st = OPERATIONAL_STYLE[a.severity] ?? OPERATIONAL_STYLE.info;
+                                        const KindIcon = OPERATIONAL_ICONS[a.kind];
                                         return (
                                             <div
                                                 key={a.kind}
@@ -344,6 +356,7 @@ export function SystemAlertsModal({ isOpen: externalIsOpen, onClose: externalOnC
                                                 <span className={`flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-black ${st.badge}`}>
                                                     {a.count}
                                                 </span>
+                                                {KindIcon && <KindIcon className={`h-5 w-5 shrink-0 ${st.icon}`} />}
                                                 <div className="min-w-0 flex-1">
                                                     <span className="block truncate text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
                                                         {a.title}

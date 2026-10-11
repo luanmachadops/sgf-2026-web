@@ -9,7 +9,12 @@ import { SGFToolbar } from '@/components/sgf/SGFToolbar';
 import { PeriodPresetSelect, PeriodRangeFields } from '@/components/sgf/PeriodSelect';
 import { makePeriod, type PeriodValue } from '@/components/sgf/period';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
-import { AlertTriangle, Clock, MapPin, Route } from '@/components/sgf/icons';
+import { OffHoursAuthorizationsModal } from '@/components/trips/OffHoursAuthorizationsModal';
+import { SGFButton } from '@/components/sgf/SGFButton';
+import { hasTripAlert, tripAlertBadges, type TripAlertFlags } from '@/lib/alerts-api';
+import { AlertTriangle, Clock, MapPin, Route, CalendarClock, FileText } from '@/components/sgf/icons';
+import { useAuth } from '@/contexts/AuthContext';
+import { RetroactiveTripModal } from '@/components/trips/RetroactiveTripModal';
 import { VehicleCell, DriverCell } from '@/components/sgf/EntityCells';
 import { formatDate, formatDateTime, formatDistance, getStatusLabel, getStatusColor, matchesSearch } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
@@ -18,7 +23,7 @@ import type { TripStatus } from '@/types';
 import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
 type TripStatusBadge = 'default' | 'success' | 'warning' | 'error' | 'info';
-type TabValue = '' | TripStatus | 'ANOMALY';
+type TabValue = '' | TripStatus | 'ANOMALY' | 'ALERT';
 
 type TripRow = {
     id: string;
@@ -38,6 +43,8 @@ type TripRow = {
     distance: number | null;
     status: TripStatus;
     hasAnomaly: boolean;
+    alerts: TripAlertFlags;
+    retroactive: boolean;
 };
 
 const TABS: { value: TabValue; label: string }[] = [
@@ -45,6 +52,7 @@ const TABS: { value: TabValue; label: string }[] = [
     { value: 'IN_PROGRESS', label: 'Em andamento' },
     { value: 'COMPLETED', label: 'Concluídas' },
     { value: 'ANOMALY', label: 'Com ocorrência' },
+    { value: 'ALERT', label: 'Com alerta' },
     { value: 'CANCELLED', label: 'Canceladas' },
 ];
 
@@ -81,6 +89,10 @@ export default function Trips() {
     const [period, setPeriod] = useState<PeriodValue>(() => makePeriod('1'));
     const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
     const [now, setNow] = useState(() => Date.now());
+    const [authorizationsOpen, setAuthorizationsOpen] = useState(false);
+    const [retroactiveOpen, setRetroactiveOpen] = useState(false);
+    const { user } = useAuth();
+    const canLaunchRetroactive = ['admin', 'gestor'].includes(user?.accountRole ?? '');
     const { setTitle, setDescription } = useHeader();
 
     const paramId = searchParams.get('id') || searchParams.get('tripId');
@@ -127,6 +139,12 @@ export default function Trips() {
             distance: startKm != null && endKm != null ? Math.max(endKm - startKm, 0) : null,
             status: trip.status,
             hasAnomaly: Boolean(trip.has_anomaly),
+            alerts: {
+                odometerGapKm: trip.odometer_gap_km ?? null,
+                offHours: Boolean(trip.off_hours),
+                offHoursAuthorizationId: trip.off_hours_authorization_id ?? null,
+            },
+            retroactive: Boolean(trip.is_retroactive),
         };
     }), [rawTrips]);
 
@@ -153,11 +171,13 @@ export default function Trips() {
         COMPLETED: searched.filter((t) => t.status === 'COMPLETED').length,
         CANCELLED: searched.filter((t) => t.status === 'CANCELLED').length,
         ANOMALY: searched.filter((t) => t.hasAnomaly).length,
+        ALERT: searched.filter((t) => hasTripAlert(t.alerts)).length,
     }), [searched]);
 
     const visible = useMemo(() => searched.filter((t) => {
         if (tab === '') return true;
         if (tab === 'ANOMALY') return t.hasAnomaly;
+        if (tab === 'ALERT') return hasTripAlert(t.alerts);
         return t.status === tab;
     }), [searched, tab]);
 
@@ -233,9 +253,13 @@ export default function Trips() {
         {
             header: 'Status',
             accessor: (row) => (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                     <SGFBadge variant={getStatusColor(row.status) as TripStatusBadge}>{getStatusLabel(row.status)}</SGFBadge>
                     {row.hasAnomaly && <AlertTriangle className="h-4 w-4 text-amber-500" aria-label="Com ocorrência" />}
+                    {row.retroactive && <SGFBadge variant="warning" size="sm">Retroativa</SGFBadge>}
+                    {tripAlertBadges(row.alerts).map((b) => (
+                        <SGFBadge key={b.key} variant={b.variant} size="sm">{b.label}</SGFBadge>
+                    ))}
                 </div>
             ),
         },
@@ -298,6 +322,16 @@ export default function Trips() {
                         );
                     })}
                 </div>
+<div className="flex shrink-0 items-center gap-2">
+                    {canLaunchRetroactive && (
+                        <SGFButton variant="outline" size="sm" icon={FileText} className="shrink-0" onClick={() => setRetroactiveOpen(true)}>
+                            Lançar folha de papel
+                        </SGFButton>
+                    )}
+                    <SGFButton variant="outline" size="sm" icon={CalendarClock} className="shrink-0" onClick={() => setAuthorizationsOpen(true)}>
+                        Autorizações fora do horário
+                    </SGFButton>
+                </div>
                 {avgMinutes > 0 && (
                     <p className="hidden shrink-0 text-xs text-slate-500 md:block">Duração média: <strong className="text-slate-700">{formatDuration(avgMinutes)}</strong></p>
                 )}
@@ -314,6 +348,8 @@ export default function Trips() {
                 />
             </div>
 
+            <OffHoursAuthorizationsModal isOpen={authorizationsOpen} onClose={() => setAuthorizationsOpen(false)} />
+            <RetroactiveTripModal isOpen={retroactiveOpen} onClose={() => setRetroactiveOpen(false)} />
             <TripDetailsModal tripId={activeSelectedTripId} onClose={closeSelectedTrip} />
         </div>
     );

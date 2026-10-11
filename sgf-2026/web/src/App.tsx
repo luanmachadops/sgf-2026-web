@@ -41,6 +41,7 @@ import Procurement from '@/pages/Procurement';
 import ProcurementRegistry from '@/pages/ProcurementRegistry';
 import AccessManagement from '@/pages/AccessManagement';
 import TermsAndPrivacy from '@/pages/TermsAndPrivacy';
+import VerifyReport from '@/pages/VerifyReport';
 
 const StationPortal = lazy(() => import('@/pages/partner/StationPortal'));
 const WorkshopPortal = lazy(() => import('@/pages/partner/WorkshopPortal'));
@@ -111,6 +112,9 @@ function App() {
             <Route path="/convite" element={<Convite />} />
             <Route path="/termos-e-privacidade" element={<TermsAndPrivacy />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            {/* Verificação pública de autenticidade de relatórios (sem login). */}
+            <Route path="/verificar" element={<VerifyReport />} />
+            <Route path="/verificar/:codigo" element={<VerifyReport />} />
             <Route path="/acesso-suspenso" element={<SuspendedAccess />} />
 
             {/* Protected routes */}

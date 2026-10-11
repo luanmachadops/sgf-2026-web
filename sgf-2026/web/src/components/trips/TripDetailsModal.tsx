@@ -6,13 +6,14 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Modal } from '@/components/ui/Modal';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
+import { tripAlertBadges } from '@/lib/alerts-api';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { MapPin, Navigation, Clock, Car, Users, AlertTriangle, Route, Gauge, Maximize, Minimize, Pencil, XCircle } from '@/components/sgf/icons';
 import { formatDateTime, formatDistance, getStatusLabel, getStatusColor } from '@/lib/utils';
 import { useTrip, useTripLocations, useTripTimeline, useTripCorrections, useTripStops, useTripChecklist } from '@/hooks/useTrips';
 import { useAuth } from '@/contexts/AuthContext';
 import { CancelTripModal, CorrectTripModal } from '@/components/trips/TripActionModals';
-import { TripPurposeSection, TripCorrectionsSection, TripChecklistSection } from '@/components/trips/TripExtraSections';
+import { TripPurposeSection, TripCorrectionsSection, TripChecklistSection, TripRecordSection } from '@/components/trips/TripExtraSections';
 import { TripTimeline } from '@/components/trips/TripTimeline';
 import { formatMinutes } from '@/lib/formatMinutes';
 import type { TripRecord } from '@/lib/supabase-api';
@@ -28,6 +29,7 @@ type TripFull = TripRecord & {
     end_odometer_photo_url?: string | null;
     notes?: string | null;
     canceller?: { full_name: string | null } | null;
+    registrar?: { full_name: string | null } | null;
 };
 
 // Marcador colorido simples (início = verde, fim = vermelho)
@@ -258,6 +260,14 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
                         <SGFBadge variant={getStatusColor(trip.status) as 'default' | 'success' | 'warning' | 'error' | 'info'}>
                             {getStatusLabel(trip.status)}
                         </SGFBadge>
+                        {tripAlertBadges({
+                            odometerGapKm: trip.odometer_gap_km ?? null,
+                            offHours: Boolean(trip.off_hours),
+                            offHoursAuthorizationId: trip.off_hours_authorization_id ?? null,
+                        }).map((b) => (
+                            <SGFBadge key={b.key} variant={b.variant}>{b.label}</SGFBadge>
+                        ))}
+                        {trip.is_retroactive && <SGFBadge variant="warning">Retroativa (papel)</SGFBadge>}
                         {hasAnomaly && (
                             <span className="flex items-center gap-1 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
                                 <AlertTriangle className="h-4 w-4" /> Anomalia
@@ -328,6 +338,8 @@ export function TripDetailsModal({ tripId, onClose }: TripDetailsModalProps) {
                     </div>
 
                     <TripPurposeSection trip={trip} stops={stops.data ?? []} />
+
+                    <TripRecordSection trip={trip} registeredByName={trip.registrar?.full_name ?? null} />
 
                     {checklist.data && <TripChecklistSection checklist={checklist.data} />}
 

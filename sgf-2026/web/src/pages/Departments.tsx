@@ -19,6 +19,7 @@ import {
     User,
     Wrench,
 } from '@/components/sgf/icons';
+import { CostCentersSection } from '@/components/departments/CostCentersSection';
 import { DepartmentFormModal } from '@/components/departments/DepartmentFormModal';
 import { NewSecretarioModal } from '@/components/settings/NewSecretarioModal';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
@@ -395,6 +396,8 @@ function DepartmentOverviewPage() {
                     </div>
                 )}
             </div>
+
+            <CostCentersSection />
 
             <DepartmentFormModal isOpen={isFormOpen} onClose={() => setFormOpen(false)} />
             <NewSecretarioModal isOpen={isSecretarioOpen} onClose={() => setSecretarioOpen(false)} />

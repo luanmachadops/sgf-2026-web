@@ -28,6 +28,7 @@ import {
     MaintenanceDetailsModal,
     type MaintenanceDetailsRow,
 } from '@/components/maintenances/MaintenanceDetailsModal';
+import { PreventiveOverview } from '@/components/maintenances/PreventiveOverview';
 import { useMaintenances } from '@/hooks/useMaintenances';
 import { useHeader } from '@/contexts/HeaderContext';
 import { formatCurrency, formatDate, matchesSearch, NO_DRIVER_LABEL } from '@/lib/utils';
@@ -142,6 +143,7 @@ const ORIGIN_LABEL: Record<string, string> = {
     driver: 'Motorista',
     checklist: 'Checklist',
     manager: 'Gestor',
+    preventiva: 'Preventiva',
 };
 
 const PRIORITY_LABEL: Record<MaintenanceItem['priority'], string> = {
@@ -390,6 +392,8 @@ export default function Maintenances() {
                 <SGFKPICard title="Veículos recebidos" value={receivedCount} icon={Car} iconColor="text-emerald-500" chartColor="#10b981" />
                 <SGFKPICard title="Processos pagos" value={paidCount} icon={CheckCircle} iconColor="text-slate-500" chartColor="#64748b" />
             </div>
+
+            <PreventiveOverview />
 
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                 <SGFToolbar

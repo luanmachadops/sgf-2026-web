@@ -14,6 +14,7 @@ import { NewVehicleForm } from '@/components/vehicles/NewVehicleForm';
 import { ImportVehiclesModal } from '@/components/vehicles/ImportVehiclesModal';
 import { useHeader } from '@/contexts/HeaderContext';
 import { departmentsApi } from '@/lib/supabase-api';
+import { OWNERSHIP_OPTIONS, ownershipLabel } from '@/lib/fleet-api';
 import { formatDistance, formatPlate, getStatusColor, getStatusLabel, normalizeSearchIdentifier } from '@/lib/utils';
 import { useVehicles } from '@/hooks/useVehicles';
 import type { VehicleRecord } from '@/lib/supabase-api';
@@ -49,6 +50,7 @@ export default function Vehicles() {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
     const [departmentFilter, setDepartmentFilter] = useState('');
+    const [ownershipFilter, setOwnershipFilter] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
 
@@ -131,11 +133,11 @@ export default function Vehicles() {
 
     const tableRows = useMemo<VehicleTableRow[]>(
         () =>
-            vehicles.map((vehicle) => ({
+            vehicles.filter((vehicle) => !ownershipFilter || vehicle.ownership === ownershipFilter).map((vehicle) => ({
                 ...vehicle,
                 departmentName: vehicle.departments?.name || 'Sem secretaria',
             })),
-        [vehicles]
+        [vehicles, ownershipFilter]
     );
 
     const statusCounts = useMemo(
@@ -170,6 +172,12 @@ export default function Vehicles() {
         {
             header: 'Secretaria',
             accessor: 'departmentName',
+        },
+        {
+            header: 'Vínculo',
+            accessor: (row) => (
+                <SGFBadge variant={row.ownership === 'proprio' ? 'default' : 'info'}>{ownershipLabel(row.ownership)}</SGFBadge>
+            ),
         },
         {
             header: 'Odômetro',
@@ -261,6 +269,13 @@ export default function Vehicles() {
                         options: departmentOptions,
                         placeholder: 'Secretaria',
                     },
+                    {
+                        key: 'ownership',
+                        value: ownershipFilter,
+                        onChange: setOwnershipFilter,
+                        options: [{ value: '', label: 'Todos' }, ...OWNERSHIP_OPTIONS],
+                        placeholder: 'Vínculo',
+                    },
                 ]}
             />
 
@@ -309,7 +324,7 @@ export default function Vehicles() {
                                     </div>
                                     <div className="space-y-0.5 border-l border-slate-200 pl-3">
                                         <p className="truncate">{formatDistance(row.current_odometer)}</p>
-                                        <p className="truncate">{row.year ?? '—'}</p>
+                                        <p className="truncate">{row.year ?? '—'}{row.ownership && row.ownership !== 'proprio' ? ` · ${ownershipLabel(row.ownership)}` : ''}</p>
                                     </div>
                                 </div>
                             </div>

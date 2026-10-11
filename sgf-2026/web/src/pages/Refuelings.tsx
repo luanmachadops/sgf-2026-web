@@ -1,3 +1,4 @@
+import { hasLowConsumption } from '@/lib/alerts-api';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -82,6 +83,7 @@ type RefuelingRow = {
     consumption: number | null;
     isValidated: boolean;
     hasAnomaly: boolean;
+    lowConsumption: boolean;
     workflowStatus: WorkflowStatus;
     maxLiters: number | null;
     fullTank: boolean | null;
@@ -156,6 +158,7 @@ export default function Refuelings() {
                 consumption: row.km_per_liter,
                 isValidated: Boolean(row.validated_at),
                 hasAnomaly: Boolean(row.has_anomaly),
+                lowConsumption: hasLowConsumption(row.anomaly_type),
                 workflowStatus: (row.workflow_status as WorkflowStatus) ?? 'lancado_direto',
                 maxLiters: row.max_liters ?? null,
                 fullTank: (row.full_tank as boolean | null) ?? null,
@@ -252,6 +255,7 @@ export default function Refuelings() {
                     {row.hasAnomaly && (
                         <AlertTriangle className="h-4 w-4 text-yellow-500" />
                     )}
+                    {row.lowConsumption && <SGFBadge variant="warning" size="sm">Consumo abaixo da média</SGFBadge>}
                 </div>
             )
         },

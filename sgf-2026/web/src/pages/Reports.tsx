@@ -17,7 +17,9 @@ import {
     Search,
     X,
     Qr,
+    Clipboard,
 } from '@/components/sgf/icons';
+import { IssuedReportsPanel } from '@/components/reports/IssuedReportsPanel';
 import { QrLabelGenerator } from '@/components/reports/QrLabelGenerator';
 import { cn } from '@/lib/utils';
 import { useHeader } from '@/contexts/HeaderContext';
@@ -121,6 +123,13 @@ const reports: Report[] = [
         category: 'financial',
     },
     {
+        id: 'vehicle-monthly-log',
+        title: 'Mapa Mensal de Uso do Veículo',
+        description: 'Folha digital por veículo e mês: viagens, condutor, paradas, abastecimentos e assinaturas.',
+        icon: <Clipboard className="h-6 w-6" />,
+        category: 'operational',
+    },
+    {
         id: 'procurement-fiscal-reconciliation',
         title: 'Conciliação Fiscal das Licitações',
         description: 'Teto, reserva, realização, faturamento, ateste e pagamento por secretaria e instrumento.',
@@ -157,7 +166,7 @@ export default function Reports() {
 
     useEffect(() => {
         setTitle('Relatórios');
-        setDescription('Gere e exporte relatórios operacionais e financeiros em PDF e Excel.');
+        setDescription('Gere e exporte relatórios operacionais e financeiros em PDF, Excel e CSV, com código de verificação.');
     }, [setTitle, setDescription]);
 
     const { data: kpis, isLoading: kpisLoading } = useQuery({
@@ -367,6 +376,8 @@ export default function Reports() {
                     description={selectedReport.description}
                 />
             )}
+
+            <IssuedReportsPanel />
 
             <QrLabelGenerator isOpen={showQrGen} onClose={() => setShowQrGen(false)} />
         </div>

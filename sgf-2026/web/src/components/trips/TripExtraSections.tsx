@@ -1,21 +1,13 @@
 import type { Tables, Json } from '@/types/database.types';
-import { MapPin, Users, Route, Clock, ShieldCheck } from '@/components/sgf/icons';
+import { MapPin, Users, Route, Clock, ShieldCheck, FileText } from '@/components/sgf/icons';
+import { toast } from 'sonner';
+import { openPrivateDocument } from '@/lib/docStorage';
 import { formatDateTime } from '@/lib/utils';
 import { ChecklistExtras } from '@/components/checklists/ChecklistExtras';
 import { ChecklistItemsList } from '@/components/checklists/ChecklistItemsList';
 import type { TripChecklistRecord, TripCorrectionRecord } from '@/lib/supabase-api';
+import { PURPOSE_CATEGORY_LABEL } from '@/lib/tripPurpose';
 
-const PURPOSE_CATEGORY_LABEL: Record<string, string> = {
-    saude: 'Saúde',
-    educacao: 'Educação',
-    transporte_escolar: 'Transporte escolar',
-    obras_servicos: 'Obras e serviços',
-    administrativo: 'Administrativo',
-    assistencia_social: 'Assistência social',
-    seguranca: 'Segurança',
-    agricultura: 'Agricultura',
-    outro: 'Outro',
-};
 
 const CORRECTION_FIELD_LABEL: Record<string, string> = {
     start_odometer: 'Km inicial',
@@ -188,6 +180,104 @@ export function TripChecklistSection({ checklist }: { checklist: TripChecklistRe
                     <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700">{checklist.notes}</p>
                 )}
                 <ChecklistItemsList items={items} />
+            </div>
+        </div>
+    );
+}
+
+type RecordTrip = Pick<
+    Tables<'trips'>,
+    'start_at' | 'end_at' | 'server_started_at' | 'server_ended_at' | 'is_retroactive' | 'justification' | 'retroactive_document_path'
+>;
+
+/** Diferença acima disso entre relógio do aparelho e do servidor é destacada. */
+const CLOCK_SKEW_ALERT_MS = 5 * 60 * 1000;
+
+function clockSkew(device: string | null, server: string | null): number | null {
+    if (!device || !server) return null;
+    const diff = new Date(device).getTime() - new Date(server).getTime();
+    return Number.isFinite(diff) ? diff : null;
+}
+
+function skewLabel(ms: number): string {
+    const min = Math.round(Math.abs(ms) / 60000);
+    if (min < 60) return `${min} min`;
+    const h = Math.floor(min / 60);
+    return `${h} h ${min % 60} min`;
+}
+
+function TimeRow({ label, device, server }: { label: string; device: string | null; server: string | null }) {
+    const skew = clockSkew(device, server);
+    const alert = skew != null && Math.abs(skew) > CLOCK_SKEW_ALERT_MS;
+    return (
+        <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-500">{label}</p>
+            <p className="text-sm text-slate-900">
+                Aparelho: <span className="font-medium">{device ? formatDateTime(device) : '—'}</span>
+            </p>
+            <p className="text-sm text-slate-900">
+                Servidor: <span className="font-medium">{server ? formatDateTime(server) : 'Sem registro'}</span>
+            </p>
+            {alert && (
+                <p className="mt-1 text-xs font-semibold text-amber-700">
+                    Relógio do aparelho {skew! > 0 ? 'adiantado' : 'atrasado'} em {skewLabel(skew!)}
+                </p>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Procedência do registro: lançamento retroativo (folha de papel) e as horas
+ * do servidor ao lado das do aparelho (P2.1). Viagens anteriores a 11/10/2026
+ * não têm a hora do servidor.
+ */
+export function TripRecordSection({ trip, registeredByName }: { trip: RecordTrip; registeredByName?: string | null }) {
+    const openDoc = async () => {
+        if (!trip.retroactive_document_path) return;
+        try {
+            await openPrivateDocument(trip.retroactive_document_path);
+        } catch {
+            toast.error('Não foi possível abrir a folha de papel.');
+        }
+    };
+
+    if (trip.is_retroactive) {
+        return (
+            <div>
+                <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <FileText className="h-4 w-4 text-amber-600" /> Lançamento retroativo (folha de papel)
+                </p>
+                <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <Field label="Justificativa" value={trip.justification} />
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <Field label="Lançada por" value={registeredByName ?? null} />
+                        <Field label="Lançada em (servidor)" value={trip.server_started_at ? formatDateTime(trip.server_started_at) : null} />
+                    </div>
+                    {trip.retroactive_document_path && (
+                        <button
+                            type="button"
+                            onClick={openDoc}
+                            className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+                        >
+                            <FileText className="h-4 w-4" /> Ver folha de papel
+                        </button>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    if (!trip.server_started_at && !trip.server_ended_at) return null;
+
+    return (
+        <div>
+            <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <Clock className="h-4 w-4 text-emerald-600" /> Horário do registro
+            </p>
+            <div className="grid grid-cols-1 gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
+                <TimeRow label="Início" device={trip.start_at} server={trip.server_started_at} />
+                <TimeRow label="Fim" device={trip.end_at} server={trip.server_ended_at} />
             </div>
         </div>
     );

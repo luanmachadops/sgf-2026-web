@@ -1,3 +1,4 @@
+import { hasLowConsumption } from '@/lib/alerts-api';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -544,6 +545,9 @@ export function RefuelingDetailsModal({
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2">
+                                    {hasLowConsumption(details.anomalyType) && (
+                                        <SGFBadge variant="warning" className="!px-3.5 !py-1 !text-xs !font-bold !rounded-full">Consumo abaixo da média</SGFBadge>
+                                    )}
                                     {details.hasAnomaly && (
                                         <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800 border border-amber-200 animate-pulse">
                                             <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />

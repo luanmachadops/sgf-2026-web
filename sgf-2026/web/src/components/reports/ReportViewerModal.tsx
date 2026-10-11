@@ -24,6 +24,7 @@ import {
     Calendar,
     Check,
     FileSpreadsheet as ExcelIcon,
+    FileText as CsvIcon,
     Filter,
     Printer,
     Search,
@@ -32,16 +33,22 @@ import {
     X,
 } from '@/components/sgf/icons';
 import {
+    DRIVER_FILTER_REPORTS,
     fetchDepartmentOptions,
+    fetchDriverOptions,
     fetchReportDataset,
+    fetchVehicleOptions,
     formatReportValue,
+    syncExtraTables,
     type ReportColumn,
     type ReportDataset,
 } from '@/lib/reportData';
 import {
+    exportReportToCsv,
     exportReportToExcel,
     exportReportToPDF,
     type ReportBranding,
+    type ReportExportResult,
     type ReportFilters,
     type ReportLayoutOptions,
 } from '@/lib/reportExport';
@@ -81,6 +88,7 @@ const contextKeyByReport: Record<string, string> = {
     'maintenance-by-shop': 'shop',
     'procurement-fiscal-reconciliation': 'department',
     'procurement-legacy-reconciliation': 'department',
+    'vehicle-monthly-log': 'plate',
 };
 
 export interface ReportViewerModalProps {
@@ -309,11 +317,28 @@ export function ReportViewerModal({
     const [fontSize, setFontSize] = useState(9);
     const [columnScale, setColumnScale] = useState(100);
     const [previewPage, setPreviewPage] = useState(1);
-    const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null);
+    const [exporting, setExporting] = useState<'pdf' | 'excel' | 'csv' | null>(null);
+    const [driver, setDriver] = useState('');
+    const [vehicle, setVehicle] = useState('');
+    const supportsDriverFilter = DRIVER_FILTER_REPORTS.has(reportId);
+    const isVehicleLog = reportId === 'vehicle-monthly-log';
 
     const { data: departmentOptions = [{ value: '', label: 'Todas as secretarias' }] } = useQuery({
         queryKey: ['report-departments'],
         queryFn: fetchDepartmentOptions,
+        staleTime: 5 * 60 * 1000,
+    });
+
+    const { data: driverOptions = [{ value: '', label: 'Todos os condutores' }] } = useQuery({
+        queryKey: ['report-drivers'],
+        queryFn: fetchDriverOptions,
+        enabled: isOpen && supportsDriverFilter,
+        staleTime: 5 * 60 * 1000,
+    });
+    const { data: vehicleOptions = [{ value: '', label: 'Todos os veículos' }] } = useQuery({
+        queryKey: ['report-vehicles', department],
+        queryFn: () => fetchVehicleOptions(department || undefined),
+        enabled: isOpen && isVehicleLog,
         staleTime: 5 * 60 * 1000,
     });
 
@@ -339,10 +364,12 @@ export function ReportViewerModal({
         isError,
         error,
     } = useQuery({
-        queryKey: ['report-dataset', reportId, department, range.from, range.to],
+        queryKey: ['report-dataset', reportId, department, driver, vehicle, range.from, range.to],
         queryFn: () =>
             fetchReportDataset(reportId, {
                 departmentId: department || undefined,
+                driverId: supportsDriverFilter ? driver || undefined : undefined,
+                vehicleId: isVehicleLog ? vehicle || undefined : undefined,
                 dateFrom: range.from,
                 dateTo: range.to,
             }),
@@ -424,6 +451,7 @@ export function ReportViewerModal({
         columns: visibleColumns,
         rows: filteredRows,
         charts: hasClientFilters ? [] : dataset.charts,
+        extraTables: syncExtraTables(dataset.extraTables, filteredRows),
     }), [dataset, filteredRows, hasClientFilters, visibleColumns]);
 
     const filters: ReportFilters = useMemo(() => ({
@@ -432,6 +460,12 @@ export function ReportViewerModal({
         dateTo: range.to,
         departmentLabel: departmentOptions.find((option) => option.value === department)?.label
             ?? 'Todas as secretarias',
+        driverLabel: supportsDriverFilter && driver
+            ? driverOptions.find((option) => option.value === driver)?.label
+            : undefined,
+        vehicleLabel: isVehicleLog && vehicle
+            ? vehicleOptions.find((option) => option.value === vehicle)?.label
+            : undefined,
         contextLabel: contextColumn && contextValue
             ? `${contextColumn.label}: ${contextValue}`
             : undefined,
@@ -441,6 +475,12 @@ export function ReportViewerModal({
         contextValue,
         department,
         departmentOptions,
+        driver,
+        driverOptions,
+        isVehicleLog,
+        supportsDriverFilter,
+        vehicle,
+        vehicleOptions,
         period,
         range.from,
         range.to,
@@ -469,39 +509,61 @@ export function ReportViewerModal({
         return true;
     };
 
-    const handlePDF = () => {
-        if (!validateExport()) return;
-        setExporting('pdf');
-        exportReportToPDF({
-            reportTitle: title,
-            reportDescription: description,
-            dataset: exportDataset,
-            filters,
-            branding: reportBranding,
-            layout,
-        });
-        window.setTimeout(() => setExporting(null), 500);
+    const exportOptions = () => ({
+        reportTitle: title,
+        reportDescription: description,
+        dataset: exportDataset,
+        filters,
+        branding: reportBranding,
+        layout,
+        snapshot: {
+            reportId,
+            extraFilters: {
+                department_id: department || null,
+                driver_id: supportsDriverFilter ? driver || null : null,
+                vehicle_id: isVehicleLog ? vehicle || null : null,
+            },
+        },
+    });
+
+    const reportExportResult = (result: ReportExportResult, success: string) => {
+        if (result.registered) {
+            toast.success(`${success} Código de verificação: ${result.code}.`);
+        } else {
+            toast.warning(
+                `${success} Não foi possível registrar o código de verificação`
+                + `${result.registrationError ? ` (${result.registrationError})` : ''}; o arquivo foi gerado sem código.`,
+            );
+        }
     };
 
-    const handleExcel = async () => {
+    const runExport = async (
+        kind: 'pdf' | 'excel' | 'csv',
+        action: () => Promise<ReportExportResult>,
+        success: string,
+        failure: string,
+    ) => {
         if (!validateExport()) return;
         try {
-            setExporting('excel');
-            await exportReportToExcel({
-                reportTitle: title,
-                reportDescription: description,
-                dataset: exportDataset,
-                filters,
-                branding: reportBranding,
-                layout,
-            });
-            toast.success('Planilha Excel gerada com sucesso.');
+            setExporting(kind);
+            reportExportResult(await action(), success);
         } catch (exportError) {
-            console.error(exportError);
-            toast.error('Erro ao gerar a planilha Excel.');
+            toast.error(exportError instanceof Error && exportError.message ? exportError.message : failure);
         } finally {
             setExporting(null);
         }
+    };
+
+    const handlePDF = () => {
+        void runExport('pdf', () => exportReportToPDF(exportOptions()), 'Relatório aberto para impressão.', 'Erro ao gerar o PDF.');
+    };
+
+    const handleExcel = () => {
+        void runExport('excel', () => exportReportToExcel(exportOptions()), 'Planilha Excel gerada.', 'Erro ao gerar a planilha Excel.');
+    };
+
+    const handleCsv = () => {
+        void runExport('csv', () => exportReportToCsv(exportOptions()), 'Arquivo CSV gerado.', 'Erro ao gerar o CSV.');
     };
 
     const toggleColumn = (column: ReportColumn) => {
@@ -560,6 +622,15 @@ export function ReportViewerModal({
                         loading={exporting === 'pdf'}
                     >
                         <span className="hidden sm:inline">Imprimir / </span>PDF
+                    </SGFButton>
+                    <SGFButton
+                        variant="secondary"
+                        size="sm"
+                        icon={CsvIcon}
+                        onClick={handleCsv}
+                        loading={exporting === 'csv'}
+                    >
+                        CSV
                     </SGFButton>
                     <SGFButton
                         variant="primary"
@@ -624,11 +695,33 @@ export function ReportViewerModal({
                         <label className="mb-1 block text-xs font-semibold text-slate-500">Secretaria</label>
                         <SGFSelect
                             value={department}
-                            onChange={setDepartment}
+                            onChange={(value) => { setDepartment(value); setVehicle(''); }}
                             options={departmentOptions}
                             triggerClassName="!rounded-full !px-4 !py-2.5 !text-sm !font-medium"
                         />
                     </div>
+                    {isVehicleLog && (
+                        <div className="w-full sm:w-64">
+                            <label className="mb-1 block text-xs font-semibold text-slate-500">Veículo</label>
+                            <SGFSelect
+                                value={vehicle}
+                                onChange={setVehicle}
+                                options={vehicleOptions}
+                                triggerClassName="!rounded-full !px-4 !py-2.5 !text-sm !font-medium"
+                            />
+                        </div>
+                    )}
+                    {supportsDriverFilter && (
+                        <div className="w-full sm:w-56">
+                            <label className="mb-1 block text-xs font-semibold text-slate-500">Condutor</label>
+                            <SGFSelect
+                                value={driver}
+                                onChange={setDriver}
+                                options={driverOptions}
+                                triggerClassName="!rounded-full !px-4 !py-2.5 !text-sm !font-medium"
+                            />
+                        </div>
+                    )}
                     {contextColumn && contextOptions.length > 1 && (
                         <div className="w-full sm:w-56">
                             <label className="mb-1 block text-xs font-semibold text-slate-500">
@@ -994,7 +1087,7 @@ export function ReportViewerModal({
                             {reportBranding.reportFooter
                                 || `${reportBranding.appName || 'Exattus Rotta'} — Gestão pública de frotas por protocolo digital`}
                         </span>
-                        <span className="whitespace-nowrap">Data de emissão e paginação aplicadas na impressão</span>
+                        <span className="whitespace-nowrap">Cada exportação gera um código de verificação de autenticidade</span>
                     </div>
                 </div>
             </div>

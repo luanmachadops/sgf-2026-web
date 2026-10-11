@@ -3,11 +3,14 @@ import { toast } from 'sonner';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { DollarSign, Receipt, CheckCircle, AlertTriangle, Loader2, Save, Building2, ChevronRight } from '@/components/sgf/icons';
+import { DollarSign, Receipt, CheckCircle, AlertTriangle, Loader2, Save, Building2, ChevronRight, CalendarClock } from '@/components/sgf/icons';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAppSettings, useUpdateSettings } from '@/hooks/useSettings';
 import { TenantIdentityCard } from '@/components/settings/TenantIdentityCard';
+import { ToggleRow } from '@/components/settings/SettingsToggle';
+import { WorkHoursSettings } from '@/components/settings/WorkHoursSettings';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
@@ -26,42 +29,13 @@ const FUEL_MODE_OPTIONS = [
     },
 ];
 
-function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-    return (
-        <button
-            type="button"
-            role="switch"
-            aria-checked={checked}
-            disabled={disabled}
-            onClick={() => onChange(!checked)}
-            className={cn(
-                'relative h-6 w-11 shrink-0 rounded-full transition-colors',
-                checked ? 'bg-[var(--sgf-primary)]' : 'bg-slate-300',
-                disabled && 'cursor-default',
-            )}
-        >
-            <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all', checked ? 'left-[22px]' : 'left-0.5')} />
-        </button>
-    );
-}
-
-function ToggleRow({ title, desc, checked, onChange, disabled }: { title: string; desc: string; checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-    return (
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3.5">
-            <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-800">{title}</p>
-                <p className="text-xs text-slate-500">{desc}</p>
-            </div>
-            <Toggle checked={checked} onChange={onChange} disabled={disabled} />
-        </div>
-    );
-}
-
 export default function Configuracoes() {
     const { setTitle, setDescription } = useHeader();
     const { data: settings } = useAppSettings();
     const update = useUpdateSettings();
     const { branding } = useBranding();
+    const { user } = useAuth();
+    const canEditWorkHours = ['admin', 'gestor'].includes(user?.accountRole ?? '');
 
     // Estados dos formulários
     const [fuelPriceMode, setFuelPriceMode] = useState<'contract' | 'free'>('free');
@@ -70,7 +44,7 @@ export default function Configuracoes() {
     const [requireFuelValidation, setRequireFuelValidation] = useState(false);
     const [tankOverflowAlert, setTankOverflowAlert] = useState(true);
 
-    type Section = 'identity' | 'fuelRules' | 'alerts' | 'pricing';
+    type Section = 'identity' | 'fuelRules' | 'alerts' | 'pricing' | 'workHours';
     const [openSection, setOpenSection] = useState<Section | null>(null);
 
 
@@ -181,6 +155,11 @@ export default function Configuracoes() {
                 `Licitação: ${settings?.contractAlertDays ?? '—'} dias antes`,
             ],
         },
+        ...(canEditWorkHours ? [{
+            key: 'workHours' as const, icon: CalendarClock, title: 'Expediente e alertas',
+            description: 'Horário de uso da frota, feriados, tolerâncias e automações.',
+            summary: ['Alerta de uso fora do horário', 'Tolerâncias de km e consumo'],
+        }] : []),
         {
             key: 'pricing', icon: DollarSign, title: 'Precificação de combustível',
             description: 'Como o valor do litro é definido no abastecimento.',
@@ -261,6 +240,12 @@ export default function Configuracoes() {
                     />
                 </div>
             </Modal>
+
+            {canEditWorkHours && (
+                <Modal isOpen={openSection === 'workHours'} onClose={closeModal} title="Expediente e alertas" description="Quando a frota deve circular e quando o sistema deve avisar." size="xl">
+                    <WorkHoursSettings />
+                </Modal>
+            )}
 
             <Modal isOpen={openSection === 'pricing'} onClose={closeModal} title="Precificação de combustível" description="Como o valor do litro é determinado nos abastecimentos." size="lg" footer={saveFooter(handleSaveFuelPrice)}>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
