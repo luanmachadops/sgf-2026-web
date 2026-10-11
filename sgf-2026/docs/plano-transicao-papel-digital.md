@@ -8,6 +8,20 @@
 
 ---
 
+## 0. Status em 2026-10-11
+
+| Item | Situação |
+|---|---|
+| P0.1–P0.4, P0.6 | Feito (banco, painel e app). Termo de ciência versionado em `driver_terms_acceptances`. |
+| P1.2–P1.9 | Feito (banco, painel e app). |
+| P2.1, P2.4, P2.5, P2.6 | Feito: hora do servidor, aviso de CNH na entrada, exportação LGPD do motorista, lançamento retroativo com scan. |
+| P1.1 (offline), P2.2 (GPS falso), P2.3 (login por matrícula) | **Adiados a pedido do usuário.** |
+| P0.5 e seção 5 (decreto, termo, operação paralela, DPO, TCE) | Fora do código — pendente com a prefeitura. |
+
+Tapejara está com `require_trip_purpose = true` (só há usuários de teste no app).
+
+---
+
 ## 1. O que já está pronto (não refazer)
 
 - Login por CPF; bloqueio de viagem por CNH vencida ou sem data (trigger `tf_trip_insert_guard`); aviso de CNH vencendo (cron diário).
