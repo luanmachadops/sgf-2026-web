@@ -663,6 +663,61 @@ export type Database = {
           },
         ]
       }
+      cost_centers: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          created_by: string | null
+          department_id: string | null
+          id: string
+          name: string
+          tenant_id: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          created_by?: string | null
+          department_id?: string | null
+          id?: string
+          name: string
+          tenant_id?: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          department_id?: string | null
+          id?: string
+          name?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_centers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_centers_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_centers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       departments: {
         Row: {
           code: string | null
@@ -1116,6 +1171,60 @@ export type Database = {
           },
         ]
       }
+      driver_terms_acceptances: {
+        Row: {
+          accepted_at: string
+          app_version: string | null
+          device: string | null
+          driver_id: string
+          id: string
+          ip: unknown
+          platform: string | null
+          tenant_id: string
+          terms_version: string
+          user_agent: string | null
+        }
+        Insert: {
+          accepted_at?: string
+          app_version?: string | null
+          device?: string | null
+          driver_id?: string
+          id?: string
+          ip?: unknown
+          platform?: string | null
+          tenant_id?: string
+          terms_version: string
+          user_agent?: string | null
+        }
+        Update: {
+          accepted_at?: string
+          app_version?: string | null
+          device?: string | null
+          driver_id?: string
+          id?: string
+          ip?: unknown
+          platform?: string | null
+          tenant_id?: string
+          terms_version?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_terms_acceptances_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_terms_acceptances_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fuel_stations: {
         Row: {
           address: string | null
@@ -1382,6 +1491,41 @@ export type Database = {
             columns: ["vehicle_id"]
             isOneToOne: false
             referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      holidays: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          date: string
+          description: string
+          id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          date: string
+          description: string
+          id?: string
+          tenant_id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          description?: string
+          id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "holidays_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -1812,6 +1956,82 @@ export type Database = {
           },
         ]
       }
+      maintenance_plans: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          interval_days: number | null
+          interval_km: number | null
+          last_done_at: string | null
+          last_done_km: number | null
+          last_notified_at: string | null
+          last_notified_status: string | null
+          service_label: string
+          service_type: string
+          tenant_id: string
+          vehicle_id: string
+          warn_pct: number
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          interval_days?: number | null
+          interval_km?: number | null
+          last_done_at?: string | null
+          last_done_km?: number | null
+          last_notified_at?: string | null
+          last_notified_status?: string | null
+          service_label: string
+          service_type: string
+          tenant_id?: string
+          vehicle_id: string
+          warn_pct?: number
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          interval_days?: number | null
+          interval_km?: number | null
+          last_done_at?: string | null
+          last_done_km?: number | null
+          last_notified_at?: string | null
+          last_notified_status?: string | null
+          service_label?: string
+          service_type?: string
+          tenant_id?: string
+          vehicle_id?: string
+          warn_pct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_plans_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_plans_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_plans_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       maintenances: {
         Row: {
           created_at: string
@@ -1922,6 +2142,87 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      off_hours_authorizations: {
+        Row: {
+          authorized_by: string | null
+          created_at: string
+          driver_id: string | null
+          id: string
+          reason: string
+          revoke_reason: string | null
+          revoked_at: string | null
+          revoked_by: string | null
+          tenant_id: string
+          valid_from: string
+          valid_to: string
+          vehicle_id: string
+        }
+        Insert: {
+          authorized_by?: string | null
+          created_at?: string
+          driver_id?: string | null
+          id?: string
+          reason: string
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          tenant_id?: string
+          valid_from: string
+          valid_to: string
+          vehicle_id: string
+        }
+        Update: {
+          authorized_by?: string | null
+          created_at?: string
+          driver_id?: string | null
+          id?: string
+          reason?: string
+          revoke_reason?: string | null
+          revoked_at?: string | null
+          revoked_by?: string | null
+          tenant_id?: string
+          valid_from?: string
+          valid_to?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "off_hours_authorizations_authorized_by_fkey"
+            columns: ["authorized_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "off_hours_authorizations_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "off_hours_authorizations_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "off_hours_authorizations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "off_hours_authorizations_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
             referencedColumns: ["id"]
           },
         ]
@@ -2975,6 +3276,85 @@ export type Database = {
           },
         ]
       }
+      report_snapshots: {
+        Row: {
+          content_hash: string
+          file_path: string | null
+          filters: Json
+          generated_at: string
+          generated_by: string | null
+          id: string
+          period_end: string | null
+          period_start: string | null
+          report_type: string
+          row_count: number | null
+          signature_note: string | null
+          signed_at: string | null
+          signed_by: string | null
+          tenant_id: string
+          title: string
+          verification_code: string
+        }
+        Insert: {
+          content_hash: string
+          file_path?: string | null
+          filters?: Json
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          period_end?: string | null
+          period_start?: string | null
+          report_type: string
+          row_count?: number | null
+          signature_note?: string | null
+          signed_at?: string | null
+          signed_by?: string | null
+          tenant_id?: string
+          title: string
+          verification_code: string
+        }
+        Update: {
+          content_hash?: string
+          file_path?: string | null
+          filters?: Json
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          period_end?: string | null
+          period_start?: string | null
+          report_type?: string
+          row_count?: number | null
+          signature_note?: string | null
+          signed_at?: string | null
+          signed_by?: string | null
+          tenant_id?: string
+          title?: string
+          verification_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_snapshots_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_snapshots_signed_by_fkey"
+            columns: ["signed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_snapshots_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_order_events: {
         Row: {
           actor_id: string | null
@@ -3555,6 +3935,7 @@ export type Database = {
           financial_status: Database["public"]["Enums"]["service_order_fin_status"]
           id: string
           issue_id: string | null
+          maintenance_plan_id: string | null
           nad_number: string | null
           odometer: number | null
           opened_by: string
@@ -3586,6 +3967,7 @@ export type Database = {
           financial_status?: Database["public"]["Enums"]["service_order_fin_status"]
           id?: string
           issue_id?: string | null
+          maintenance_plan_id?: string | null
           nad_number?: string | null
           odometer?: number | null
           opened_by?: string
@@ -3617,6 +3999,7 @@ export type Database = {
           financial_status?: Database["public"]["Enums"]["service_order_fin_status"]
           id?: string
           issue_id?: string | null
+          maintenance_plan_id?: string | null
           nad_number?: string | null
           odometer?: number | null
           opened_by?: string
@@ -3657,6 +4040,20 @@ export type Database = {
             columns: ["issue_id"]
             isOneToOne: false
             referencedRelation: "issues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_orders_maintenance_plan_id_fkey"
+            columns: ["maintenance_plan_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_plan_status"
+            referencedColumns: ["plan_id"]
+          },
+          {
+            foreignKeyName: "service_orders_maintenance_plan_id_fkey"
+            columns: ["maintenance_plan_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_plans"
             referencedColumns: ["id"]
           },
           {
@@ -4604,11 +5001,14 @@ export type Database = {
           accent_color: string | null
           address: string | null
           app_name: string | null
+          auto_preventive_os: boolean
           city: string | null
           cnpj: string | null
+          consumption_tolerance_pct: number
           created_at: string
           dark_color: string | null
           id: string
+          km_gap_tolerance: number
           login_eyebrow: string | null
           logo_url: string | null
           mayor_name: string | null
@@ -4634,11 +5034,14 @@ export type Database = {
           accent_color?: string | null
           address?: string | null
           app_name?: string | null
+          auto_preventive_os?: boolean
           city?: string | null
           cnpj?: string | null
+          consumption_tolerance_pct?: number
           created_at?: string
           dark_color?: string | null
           id?: string
+          km_gap_tolerance?: number
           login_eyebrow?: string | null
           logo_url?: string | null
           mayor_name?: string | null
@@ -4664,11 +5067,14 @@ export type Database = {
           accent_color?: string | null
           address?: string | null
           app_name?: string | null
+          auto_preventive_os?: boolean
           city?: string | null
           cnpj?: string | null
+          consumption_tolerance_pct?: number
           created_at?: string
           dark_color?: string | null
           id?: string
+          km_gap_tolerance?: number
           login_eyebrow?: string | null
           logo_url?: string | null
           mayor_name?: string | null
@@ -4817,6 +5223,7 @@ export type Database = {
           lat: number
           lng: number
           recorded_at: string
+          server_received_at: string | null
           speed: number | null
           tenant_id: string
           trip_id: string
@@ -4830,6 +5237,7 @@ export type Database = {
           lat: number
           lng: number
           recorded_at?: string
+          server_received_at?: string | null
           speed?: number | null
           tenant_id?: string
           trip_id: string
@@ -4843,6 +5251,7 @@ export type Database = {
           lat?: number
           lng?: number
           recorded_at?: string
+          server_received_at?: string | null
           speed?: number | null
           tenant_id?: string
           trip_id?: string
@@ -5012,6 +5421,9 @@ export type Database = {
           is_retroactive: boolean
           justification: string | null
           notes: string | null
+          odometer_gap_km: number | null
+          off_hours: boolean
+          off_hours_authorization_id: string | null
           origin: string | null
           passenger_count: number | null
           passengers: Json
@@ -5019,6 +5431,10 @@ export type Database = {
           purpose_category:
             | Database["public"]["Enums"]["trip_purpose_category"]
             | null
+          retroactive_document_path: string | null
+          retroactive_registered_by: string | null
+          server_ended_at: string | null
+          server_started_at: string | null
           start_at: string
           start_odometer: number | null
           start_odometer_photo_url: string | null
@@ -5044,6 +5460,9 @@ export type Database = {
           is_retroactive?: boolean
           justification?: string | null
           notes?: string | null
+          odometer_gap_km?: number | null
+          off_hours?: boolean
+          off_hours_authorization_id?: string | null
           origin?: string | null
           passenger_count?: number | null
           passengers?: Json
@@ -5051,6 +5470,10 @@ export type Database = {
           purpose_category?:
             | Database["public"]["Enums"]["trip_purpose_category"]
             | null
+          retroactive_document_path?: string | null
+          retroactive_registered_by?: string | null
+          server_ended_at?: string | null
+          server_started_at?: string | null
           start_at?: string
           start_odometer?: number | null
           start_odometer_photo_url?: string | null
@@ -5076,6 +5499,9 @@ export type Database = {
           is_retroactive?: boolean
           justification?: string | null
           notes?: string | null
+          odometer_gap_km?: number | null
+          off_hours?: boolean
+          off_hours_authorization_id?: string | null
           origin?: string | null
           passenger_count?: number | null
           passengers?: Json
@@ -5083,6 +5509,10 @@ export type Database = {
           purpose_category?:
             | Database["public"]["Enums"]["trip_purpose_category"]
             | null
+          retroactive_document_path?: string | null
+          retroactive_registered_by?: string | null
+          server_ended_at?: string | null
+          server_started_at?: string | null
           start_at?: string
           start_odometer?: number | null
           start_odometer_photo_url?: string | null
@@ -5102,6 +5532,20 @@ export type Database = {
           {
             foreignKeyName: "trips_driver_id_fkey"
             columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trips_off_hours_authorization_id_fkey"
+            columns: ["off_hours_authorization_id"]
+            isOneToOne: false
+            referencedRelation: "off_hours_authorizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trips_retroactive_registered_by_fkey"
+            columns: ["retroactive_registered_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -5173,11 +5617,88 @@ export type Database = {
           },
         ]
       }
+      vehicle_rental_contracts: {
+        Row: {
+          contract_number: string
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          ended_at: string | null
+          ended_reason: string | null
+          id: string
+          km_franchise: number | null
+          monthly_value: number | null
+          notes: string | null
+          start_date: string
+          supplier_document: string | null
+          supplier_name: string
+          tenant_id: string
+          vehicle_id: string
+        }
+        Insert: {
+          contract_number: string
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          ended_at?: string | null
+          ended_reason?: string | null
+          id?: string
+          km_franchise?: number | null
+          monthly_value?: number | null
+          notes?: string | null
+          start_date: string
+          supplier_document?: string | null
+          supplier_name: string
+          tenant_id?: string
+          vehicle_id: string
+        }
+        Update: {
+          contract_number?: string
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          ended_at?: string | null
+          ended_reason?: string | null
+          id?: string
+          km_franchise?: number | null
+          monthly_value?: number | null
+          notes?: string | null
+          start_date?: string
+          supplier_document?: string | null
+          supplier_name?: string
+          tenant_id?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_rental_contracts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_rental_contracts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_rental_contracts_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicles: {
         Row: {
           brand: string | null
           chassis: string | null
           color: string | null
+          cost_center_id: string | null
           created_at: string
           current_odometer: number
           department: string | null
@@ -5191,6 +5712,7 @@ export type Database = {
           last_service: string | null
           model: string | null
           name: string | null
+          ownership: Database["public"]["Enums"]["vehicle_ownership"]
           photo_url: string | null
           plate: string | null
           qr_code: string | null
@@ -5206,6 +5728,7 @@ export type Database = {
           brand?: string | null
           chassis?: string | null
           color?: string | null
+          cost_center_id?: string | null
           created_at?: string
           current_odometer?: number
           department?: string | null
@@ -5219,6 +5742,7 @@ export type Database = {
           last_service?: string | null
           model?: string | null
           name?: string | null
+          ownership?: Database["public"]["Enums"]["vehicle_ownership"]
           photo_url?: string | null
           plate?: string | null
           qr_code?: string | null
@@ -5234,6 +5758,7 @@ export type Database = {
           brand?: string | null
           chassis?: string | null
           color?: string | null
+          cost_center_id?: string | null
           created_at?: string
           current_odometer?: number
           department?: string | null
@@ -5247,6 +5772,7 @@ export type Database = {
           last_service?: string | null
           model?: string | null
           name?: string | null
+          ownership?: Database["public"]["Enums"]["vehicle_ownership"]
           photo_url?: string | null
           plate?: string | null
           qr_code?: string | null
@@ -5259,6 +5785,13 @@ export type Database = {
           year?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "vehicles_cost_center_id_fkey"
+            columns: ["cost_center_id"]
+            isOneToOne: false
+            referencedRelation: "cost_centers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vehicles_department_id_fkey"
             columns: ["department_id"]
@@ -5275,9 +5808,93 @@ export type Database = {
           },
         ]
       }
+      work_schedules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department_id: string | null
+          end_time: string
+          id: string
+          start_time: string
+          tenant_id: string
+          weekday: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department_id?: string | null
+          end_time: string
+          id?: string
+          start_time: string
+          tenant_id?: string
+          weekday: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department_id?: string | null
+          end_time?: string
+          id?: string
+          start_time?: string
+          tenant_id?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_schedules_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_schedules_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
-      [_ in never]: never
+      maintenance_plan_status: {
+        Row: {
+          active: boolean | null
+          current_odometer: number | null
+          days_remaining: number | null
+          interval_days: number | null
+          interval_km: number | null
+          km_remaining: number | null
+          last_done_at: string | null
+          last_done_km: number | null
+          plan_id: string | null
+          plate: string | null
+          service_label: string | null
+          service_type: string | null
+          status: string | null
+          tenant_id: string | null
+          vehicle_id: string | null
+          vehicle_name: string | null
+          warn_pct: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_plans_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_plans_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       activity_log_compute_hash: {
@@ -5353,6 +5970,7 @@ export type Database = {
       }
       expire_open_authorizations: { Args: never; Returns: number }
       fueling_escrita_direta_motorista: { Args: never; Returns: boolean }
+      gen_report_verification_code: { Args: never; Returns: string }
       get_current_vehicle_people: {
         Args: never
         Returns: {
@@ -5920,6 +6538,7 @@ export type Database = {
         Args: { p_payload: Json; p_request: string }
         Returns: string
       }
+      link_checklist_to_trip: { Args: { p_trip_id: string }; Returns: string }
       log_login: { Args: { p_source?: string }; Returns: undefined }
       log_manual_activity: {
         Args: {
@@ -5930,6 +6549,17 @@ export type Database = {
           p_note?: string
         }
         Returns: undefined
+      }
+      maintenance_plan_eval: {
+        Args: {
+          p_interval_days: number
+          p_interval_km: number
+          p_last_at: string
+          p_last_km: number
+          p_odometer: number
+          p_warn_pct: number
+        }
+        Returns: Record<string, unknown>
       }
       manager_attest_service_order_invoice: {
         Args: { p_invoice_id: string }
@@ -6009,6 +6639,24 @@ export type Database = {
           p_max_liters?: number
           p_note?: string
           p_station_id: string
+          p_vehicle_id: string
+        }
+        Returns: string
+      }
+      manager_create_retroactive_trip: {
+        Args: {
+          p_destination: string
+          p_document_path: string
+          p_driver_id: string
+          p_end_at: string
+          p_end_odometer: number
+          p_justification: string
+          p_origin: string
+          p_passenger_count: number
+          p_purpose: string
+          p_purpose_category: Database["public"]["Enums"]["trip_purpose_category"]
+          p_start_at: string
+          p_start_odometer: number
           p_vehicle_id: string
         }
         Returns: string
@@ -6397,6 +7045,22 @@ export type Database = {
         Args: { p_platform?: string; p_token: string }
         Returns: undefined
       }
+      register_report_snapshot: {
+        Args: {
+          p_content_hash: string
+          p_filters: Json
+          p_period_end: string
+          p_period_start: string
+          p_report_type: string
+          p_row_count: number
+          p_title: string
+        }
+        Returns: {
+          generated_at: string
+          id: string
+          verification_code: string
+        }[]
+      }
       release_stale_trip: {
         Args: { p_reason?: string; p_vehicle_id: string }
         Returns: {
@@ -6522,6 +7186,7 @@ export type Database = {
           retry_after_seconds: number
         }[]
       }
+      run_preventive_maintenance_check: { Args: never; Returns: number }
       save_department_budget: { Args: { p_payload: Json }; Returns: string }
       save_instrument_budget: { Args: { p_payload: Json }; Returns: string }
       save_procurement_item: { Args: { p_payload: Json }; Returns: string }
@@ -6544,6 +7209,10 @@ export type Database = {
       }
       sgf_role: { Args: never; Returns: string }
       sgf_tenant: { Args: never; Returns: string }
+      sign_report_snapshot: {
+        Args: { p_id: string; p_note?: string }
+        Returns: string
+      }
       station_closing_calculate_hash: {
         Args: { p_closing_id: string }
         Returns: string
@@ -6600,6 +7269,7 @@ export type Database = {
           ok: boolean
         }[]
       }
+      verify_report: { Args: { p_code: string }; Returns: Json }
     }
     Enums: {
       checklist_fuel_level:
@@ -6653,6 +7323,7 @@ export type Database = {
         | "agricultura"
         | "outro"
       trip_status: "andamento" | "concluida" | "problema" | "cancelada"
+      vehicle_ownership: "proprio" | "locado" | "cedido" | "comodato"
       vehicle_status: "liberado" | "manutencao" | "bloqueado"
     }
     CompositeTypes: {
@@ -6838,6 +7509,7 @@ export const Constants = {
         "outro",
       ],
       trip_status: ["andamento", "concluida", "problema", "cancelada"],
+      vehicle_ownership: ["proprio", "locado", "cedido", "comodato"],
       vehicle_status: ["liberado", "manutencao", "bloqueado"],
     },
   },
