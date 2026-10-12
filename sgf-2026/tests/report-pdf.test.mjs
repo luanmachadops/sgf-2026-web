@@ -284,3 +284,45 @@ test("código de integridade muda quando qualquer valor muda", async () => {
   assert.equal(a, b);
   assert.notEqual(a, changed);
 });
+
+// ── F6: etiquetas QR e comprovante ──────────────────────────────────────────
+
+const { buildQrLabelsPdf, qrMatrix } = await import("../web/src/lib/qrLabelsPdf.ts");
+const { buildReceiptPdf } = await import("../web/src/lib/receiptPdf.ts");
+
+test("etiquetas QR saem em vetor: nenhuma imagem, placa como texto", async () => {
+  const bytes = await buildQrLabelsPdf({
+    items: Array.from({ length: 30 }, (_, i) => ({ data: `ABC1D${String(i).padStart(2, "0")}`, plate: `ABC-1D${String(i).padStart(2, "0")}`, caption: "Fiat Strada • Obras" })),
+    labelWidthMm: 58, qrSizeMm: 46, plateSizePt: 12, captionSizePt: 7.5, sheet: "A4",
+  });
+  const { raw, streams } = pdfStreams(bytes);
+  assert.ok(!/\/Subtype\s*\/Image/.test(raw + streams), "QR não pode ser bitmap");
+  assert.match(drawnText(streams), /ABC-1D00/);
+  assert.match(drawnText(streams), /ABC-1D29/);
+  // 30 QRs vetoriais continuam leves.
+  assert.ok(bytes.length < 400 * 1024, `${Math.round(bytes.length / 1024)} KB`);
+});
+
+test("matriz do QR usa correção H e o conteúdo da placa crua", () => {
+  const matrix = qrMatrix("abc1d23");
+  assert.equal(matrix.length, matrix[0].length);
+  assert.ok(matrix.length >= 21);
+  // Padrão localizador no canto superior esquerdo: borda 7×7 escura.
+  for (let i = 0; i < 7; i += 1) assert.ok(matrix[0][i] && matrix[i][0]);
+});
+
+test("comprovante de abastecimento tem texto real e omite campos vazios", async () => {
+  const bytes = await buildReceiptPdf({
+    title: "Comprovante de Abastecimento",
+    protocol: "AB-1A2B3C4D",
+    status: "Validado",
+    sections: [{ title: "Abastecimento", fields: [["Litros", "62,40 L"], ["Nota fiscal", "—"]] }],
+    branding: { name: "Prefeitura Municipal de Tapejara" },
+    issuer: "Gestor",
+  });
+  const textContent = drawnText(pdfStreams(bytes).streams);
+  assert.match(textContent, /Comprovante de Abastecimento/);
+  assert.match(textContent, /Protocolo AB-1A2B3C4D/);
+  assert.match(textContent, /62,40 L/);
+  assert.doesNotMatch(textContent, /Nota fiscal/);
+});

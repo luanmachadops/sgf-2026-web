@@ -111,3 +111,33 @@ export function showPdfInTab(tab: Window | null, blob: Blob, fileName: string): 
     }
     tab.location.href = URL.createObjectURL(blob);
 }
+
+/**
+ * Foto para PDF: reduzida ao tamanho impresso e recodificada em JPEG. `maxSide`
+ * padrão (900 px) ≈ 200 dpi numa foto de meia largura da folha A4.
+ */
+export async function loadPhotoForPdf(url: string, maxSide = 900): Promise<ReportLogo | null> {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        const bitmap = await createImageBitmap(await response.blob());
+        try {
+            const ratio = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(bitmap.width * ratio));
+            canvas.height = Math.max(1, Math.round(bitmap.height * ratio));
+            const context = canvas.getContext('2d');
+            if (!context) return null;
+            context.fillStyle = '#FFFFFF';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.imageSmoothingQuality = 'high';
+            context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            const jpeg = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+            return jpeg ? { bytes: new Uint8Array(await jpeg.arrayBuffer()), type: 'jpg' } : null;
+        } finally {
+            bitmap.close();
+        }
+    } catch {
+        return null;
+    }
+}

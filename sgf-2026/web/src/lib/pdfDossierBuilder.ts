@@ -33,30 +33,46 @@ async function fetchArrayBuffer(pathOrUrl: string): Promise<{ bytes: ArrayBuffer
 }
 
 /**
- * Embute uma imagem no PDF. O pdf-lib só entende JPEG e PNG; qualquer outro
- * formato que o navegador saiba abrir (WebP das fotos do app, GIF, HEIC no
- * Safari) é redesenhado num canvas e convertido para JPEG antes.
+ * Embute uma imagem no PDF já no tamanho em que ela vai aparecer.
+ *
+ * - Fotos maiores que `maxSide` (≈200 dpi na área útil da folha) são reduzidas
+ *   e recodificadas em JPEG 0,82: foto de celular de 4000 px não precisa ir
+ *   inteira para um dossiê impresso em A4.
+ * - O pdf-lib só entende JPEG e PNG; outros formatos (WebP das fotos do app,
+ *   GIF, HEIC no Safari) são redesenhados num canvas.
+ * - `keepAlpha` (logo/brasão) recodifica em PNG para manter a transparência.
  */
-async function embedAnyImage(pdf: PDFDocument, bytes: ArrayBuffer) {
+async function embedAnyImage(pdf: PDFDocument, bytes: ArrayBuffer, maxSide = 2000, keepAlpha = false) {
     const head = new Uint8Array(bytes.slice(0, 4));
     const isPng = head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47;
     const isJpeg = head[0] === 0xff && head[1] === 0xd8;
-    if (isPng) return pdf.embedPng(bytes);
-    if (isJpeg) return pdf.embedJpg(bytes);
 
     const bitmap = await createImageBitmap(new Blob([bytes]));
-    const canvas = document.createElement('canvas');
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Canvas indisponível para converter a imagem.');
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(bitmap, 0, 0);
-    bitmap.close();
-    const jpeg = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
-    if (!jpeg) throw new Error('Falha ao converter a imagem para JPEG.');
-    return pdf.embedJpg(await jpeg.arrayBuffer());
+    try {
+        const largest = Math.max(bitmap.width, bitmap.height);
+        if (largest <= maxSide && isPng) return pdf.embedPng(bytes);
+        if (largest <= maxSide && isJpeg) return pdf.embedJpg(bytes);
+
+        const ratio = Math.min(1, maxSide / largest);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(bitmap.width * ratio));
+        canvas.height = Math.max(1, Math.round(bitmap.height * ratio));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas indisponível para converter a imagem.');
+        if (!keepAlpha) {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        const type = keepAlpha ? 'image/png' : 'image/jpeg';
+        const encoded = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.82));
+        if (!encoded) throw new Error('Falha ao converter a imagem.');
+        const out = await encoded.arrayBuffer();
+        return keepAlpha ? pdf.embedPng(out) : pdf.embedJpg(out);
+    } finally {
+        bitmap.close();
+    }
 }
 
 /**
@@ -142,7 +158,7 @@ export async function generateServiceOrderDossier(orderId: string): Promise<Doss
         const fetchedLogo = await fetchArrayBuffer(logoPath);
         if (fetchedLogo?.bytes) {
             try {
-                logoImage = await embedAnyImage(masterPdf, fetchedLogo.bytes);
+                logoImage = await embedAnyImage(masterPdf, fetchedLogo.bytes, 300, true);
             } catch (err) {
                 console.warn('Erro ao embutir logo do município no PDF:', err);
             }
