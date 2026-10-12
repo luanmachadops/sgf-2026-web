@@ -1,6 +1,6 @@
 # Plano — Relatórios (impressão, tabelas, design e catálogo)
 
-> Status: **F1 implementada** (motor de impressão vetorial). F2–F6 pendentes.
+> Status: **F1–F6 implementadas** (2026-10-12). Pendências e decisões em aberto no fim do documento.
 > Base: leitura de `web/src/pages/Reports.tsx`, `components/reports/ReportViewerModal.tsx`,
 > `lib/reportExport.ts` (motor de PDF/Excel) e `lib/reportData.ts` (14 datasets),
 > e do schema em `web/src/types/database.types.ts`, em 2026-10-12.
@@ -256,13 +256,43 @@ relatório mais largo (Conciliação Fiscal, 18 colunas).
   fonte embutida, texto extraível, < 15 KB por página, fonte ≥ 8 pt, blocos
   dentro da folha.
 
+## 6.2 O que F2–F6 entregaram
+
+- **F2** — visualizador: modo "Folha A4" (mostra o próprio PDF), ordenação
+  pelo cabeçalho, agrupamento com cabeçalho e subtotal por grupo (tela, PDF e
+  Excel com `SUBTOTAL`), campos por prioridade com reordenação, modelos
+  salvos no navegador (`viewerState.ts`), catálogo por assunto com a pergunta
+  de cada relatório e recentes (`registry.ts`).
+- **F3** — Consolidado por secretaria (substitui Análise de Custos, Uso por
+  Secretaria e Eficiência), Motoristas: atividade e habilitação, Cadastro da
+  frota ampliado, manutenção com dias na oficina, infrações com AIT e prazos,
+  legado com nomes (fila também acessível em Licitações).
+- **F4** — Boletim de tráfego (substitui Análise de viagens; agrupado por
+  placa e com assinaturas por padrão), Custo por veículo (com ociosos),
+  Vencimentos (CNH, seguro, documentos, contratos — 90 dias), Abastecimentos
+  com anomalia, Checklists reprovados (`operationalReports.ts`).
+- **F5** — bloco de assinaturas configurável e código de integridade SHA-256
+  + emissor no rodapé.
+- **F6** — etiquetas QR vetoriais (`qrLabelsPdf.ts`), fotos do dossiê
+  reduzidas, comprovante de abastecimento em PDF (`receiptPdf.ts`).
+
+### Ainda não feito
+
+- O código de integridade é impresso, mas não há como **validar online**
+  (exige guardar o hash numa tabela — DDL, decisão D7).
+- Agregações continuam no navegador (D2); as consultas de abastecimento já
+  filtram o período no banco.
+- Modelos e assinaturas ficam no navegador de cada usuário (D3/D5): não são
+  compartilhados entre gestores da mesma prefeitura.
+
 ## 7. Decisões pendentes
 
 | # | Decisão | Recomendação |
 |---|---|---|
 | D1 | Gerador de PDF: pdf-lib próprio, jsPDF + autotable ou impressão HTML medida | **Decidido: pdf-lib** (vetorial, mais leve, já no projeto) |
 | D2 | Mover agregações para RPCs no Postgres (DDL em produção) | Sim, a partir da F4 |
-| D3 | Modelos de layout salvos por usuário (localStorage) ou compartilhados por prefeitura (tabela nova) | localStorage na v1 |
-| D4 | Veículos ociosos como relatório próprio ou seção do Custo por veículo | Seção do Custo por veículo |
-| D5 | Assinaturas: quais cargos por padrão e se ficam configuráveis em Configurações | Configurável, padrão "Responsável pela frota" + "Secretário(a)" |
-| D6 | Fusão dos 3 relatórios por secretaria — algum deles é usado isoladamente por alguma prefeitura? | Fundir |
+| D3 | Modelos de layout salvos por usuário (localStorage) ou compartilhados por prefeitura (tabela nova) | **Feito na v1: localStorage** |
+| D4 | Veículos ociosos como relatório próprio ou seção do Custo por veículo | **Feito: coluna/seção do Custo por veículo** |
+| D5 | Assinaturas: quais cargos por padrão e se ficam configuráveis em Configurações | **Feito na v1**: editável no visualizador (navegador); levar para Configurações da prefeitura depende de DDL |
+| D6 | Fusão dos 3 relatórios por secretaria — algum deles é usado isoladamente por alguma prefeitura? | **Feito: fundidos** |
+| D7 | Guardar o código de integridade em tabela para validação pública (QR no rodapé → página de verificação) | Sim, junto com D2 |
