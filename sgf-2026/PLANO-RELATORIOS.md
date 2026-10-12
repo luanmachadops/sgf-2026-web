@@ -1,6 +1,6 @@
 # Plano — Relatórios (impressão, tabelas, design e catálogo)
 
-> Status: **plano**, nada implementado.
+> Status: **F1 implementada** (motor de impressão vetorial). F2–F6 pendentes.
 > Base: leitura de `web/src/pages/Reports.tsx`, `components/reports/ReportViewerModal.tsx`,
 > `lib/reportExport.ts` (motor de PDF/Excel) e `lib/reportData.ts` (14 datasets),
 > e do schema em `web/src/types/database.types.ts`, em 2026-10-12.
@@ -238,11 +238,29 @@ relatório mais largo (Conciliação Fiscal, 18 colunas).
 
 ---
 
+## 6.1 O que a F1 entregou
+
+- `web/src/lib/reports/layout.ts`: encaixe medido com a fonte real do PDF
+  (retrato → paisagem automática → quebra de linha encolhendo primeiro as
+  colunas mais largas → colunas empilhadas → blocos de colunas equilibrados,
+  repetindo as âncoras). Fonte presa entre 8 e 11 pt.
+- `web/src/lib/reports/pdf.ts`: PDF em pdf-lib, Helvetica não embutida, tabela,
+  KPIs, gráficos (barras, rosca, termômetro) e escudo padrão em vetor; brasão
+  embutido uma vez; cabeçalho completo só na 1ª página; rodapé "Página X de Y";
+  linha de totais; moeda sem "R$" nas células (vai para o cabeçalho).
+- Colunas dos 14 relatórios com `priority`, `anchor`, `stackUnder` e `total`.
+- Excel: datas como data, linha de totais com `SUBTOTAL`, congelamento corrigido.
+- Tela: botões Imprimir / PDF, orientação Automática, fonte em pt, medidor de
+  encaixe com "Remover colunas complementares", linha de totais.
+- Teste `sgf-2026/tests/report-pdf.test.mjs`: sem imagem além do brasão, sem
+  fonte embutida, texto extraível, < 15 KB por página, fonte ≥ 8 pt, blocos
+  dentro da folha.
+
 ## 7. Decisões pendentes
 
 | # | Decisão | Recomendação |
 |---|---|---|
-| D1 | Gerador de PDF: pdf-lib próprio, jsPDF + autotable ou impressão HTML medida | pdf-lib (vetorial, mais leve, já no projeto) |
+| D1 | Gerador de PDF: pdf-lib próprio, jsPDF + autotable ou impressão HTML medida | **Decidido: pdf-lib** (vetorial, mais leve, já no projeto) |
 | D2 | Mover agregações para RPCs no Postgres (DDL em produção) | Sim, a partir da F4 |
 | D3 | Modelos de layout salvos por usuário (localStorage) ou compartilhados por prefeitura (tabela nova) | localStorage na v1 |
 | D4 | Veículos ociosos como relatório próprio ou seção do Custo por veículo | Seção do Custo por veículo |
