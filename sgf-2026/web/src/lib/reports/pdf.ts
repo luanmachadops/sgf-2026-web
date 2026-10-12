@@ -43,7 +43,7 @@ import {
     type TableLayout,
     type TextMeasurer,
 } from './layout';
-import type { ReportChart, ReportColumn, ReportExportOptions } from './types';
+import type { ReportChart, ReportColumn, ReportDataset, ReportExportOptions, ReportSignature } from './types';
 
 export interface ReportLogo {
     bytes: Uint8Array;
@@ -69,6 +69,7 @@ const C = {
     headerFill: hex('E9EEF1'),
     totalFill: hex('EEF2F4'),
     zebra: hex('F7F9FA'),
+    groupFill: hex('EAF4F0'),
     panel: hex('F4F7F8'),
     border: hex('DFE7E5'),
     track: hex('E8EFED'),
@@ -594,11 +595,69 @@ function drawTableHeader(ctx: Ctx, block: LayoutBlock, fontSize: number) {
     hline(ctx, contentLeft(), contentLeft() + width, ctx.y, 0.8, ctx.dark);
 }
 
+/** Faixa de totais/subtotais; o rótulo ocupa as células vazias consecutivas. */
+function drawTotalsRow(
+    ctx: Ctx,
+    block: LayoutBlock,
+    fontSize: number,
+    totals: Record<string, number>,
+    label: string,
+    style: 'total' | 'subtotal',
+    newPage: () => void,
+) {
+    const tableWidth = block.cells.reduce((sum, cell) => sum + cell.width, 0);
+    const hasTotal = (cell: LayoutBlock['cells'][number]) =>
+        [cell.column, ...cell.children].some((column) => column.key in totals);
+    if (!block.cells.some(hasTotal)) return;
+    const labelIndex = block.cells.findIndex((cell) => !hasTotal(cell));
+    let spanEnd = labelIndex;
+    while (spanEnd + 1 < block.cells.length && !hasTotal(block.cells[spanEnd + 1])) spanEnd += 1;
+    const labelX = contentLeft() + block.cells.slice(0, Math.max(labelIndex, 0))
+        .reduce((sum, cell) => sum + cell.width, 0);
+    const spanWidth = labelIndex < 0 ? 0 : block.cells.slice(labelIndex, spanEnd + 1)
+        .reduce((sum, cell) => sum + cell.width, 0);
+    const labelLines = labelIndex < 0 ? [] : wrapText(label, spanWidth - CELL_PAD_X * 2, fontSize, ctx.fonts.measurer, true);
+    const prepared = prepareRow(ctx, block, fontSize, (column) =>
+        column.key in totals ? formatPrintValue(totals[column.key], column.format) : '', true);
+    prepared.height = Math.max(prepared.height, labelLines.length * lineHeight(fontSize) + PAD_Y * 2);
+    if (ctx.y + prepared.height > bodyBottom(ctx)) newPage();
+    if (style === 'total') hline(ctx, contentLeft(), contentLeft() + tableWidth, ctx.y, 0.8, ctx.dark);
+    rect(ctx, contentLeft(), ctx.y, tableWidth, prepared.height, style === 'total' ? C.totalFill : C.zebra);
+    const color = style === 'total' ? ctx.dark : C.body;
+    drawRow(ctx, block, prepared, fontSize, color);
+    labelLines.forEach((line, index) => {
+        text(ctx, line, labelX + CELL_PAD_X, ctx.y + PAD_Y + index * lineHeight(fontSize), fontSize, { bold: true, color });
+    });
+    ctx.y += prepared.height;
+    if (style === 'subtotal') hline(ctx, contentLeft(), contentLeft() + tableWidth, ctx.y, 0.5, C.faint);
+}
+
+interface RowGroup {
+    label: string | null;
+    rows: ReportDataset['rows'];
+}
+
+/** Agrupa linhas consecutivas pelo valor da coluna (o visualizador já ordena por ela). */
+export function groupRows(rows: ReportDataset['rows'], column?: ReportColumn): RowGroup[] {
+    if (!column) return [{ label: null, rows }];
+    const groups: RowGroup[] = [];
+    for (const row of rows) {
+        const label = formatReportValue(row[column.key], column.format);
+        const last = groups.at(-1);
+        if (last && last.label === label) last.rows.push(row);
+        else groups.push({ label, rows: [row] });
+    }
+    return groups;
+}
+
 function drawTable(ctx: Ctx, options: BuildReportPdfOptions, layout: TableLayout) {
     const { dataset } = options;
     const fontSize = layout.fontSize;
     const allColumns = dataset.columns;
     const totals = computeTotals(allColumns, dataset.rows);
+    const groupColumn = options.groupBy ? allColumns.find((column) => column.key === options.groupBy)
+        ?? options.groupColumn : undefined;
+    const groups = groupRows(dataset.rows, groupColumn);
 
     layout.blocks.forEach((block, blockIndex) => {
         if (blockIndex > 0) {
@@ -629,50 +688,53 @@ function drawTable(ctx: Ctx, options: BuildReportPdfOptions, layout: TableLayout
             return;
         }
 
-        dataset.rows.forEach((row, rowIndex) => {
+        // Altura aproximada da linha de total, para a última linha não deixá-la sozinha na página.
+        const totalsReserve = totals ? lineHeight(fontSize) * 2 + PAD_Y * 2 : 0;
+        const drawDataRow = (row: ReportDataset['rows'][number], zebra: boolean, keepWithTotals = false) => {
             const prepared = prepareRow(ctx, block, fontSize, (column) =>
                 formatPrintValue(row[column.key], column.format),
             );
-            if (ctx.y + prepared.height > bodyBottom(ctx)) newPage();
-            if (rowIndex % 2 === 1) rect(ctx, contentLeft(), ctx.y, tableWidth, prepared.height, C.zebra);
+            const reserve = keepWithTotals ? totalsReserve : 0;
+            if (ctx.y + prepared.height + reserve > bodyBottom(ctx)) newPage();
+            if (zebra) rect(ctx, contentLeft(), ctx.y, tableWidth, prepared.height, C.zebra);
             drawRow(ctx, block, prepared, fontSize, C.body);
             ctx.y += prepared.height;
             hline(ctx, contentLeft(), contentLeft() + tableWidth, ctx.y, 0.4, C.rule);
-        });
+        };
 
-        if (totals) {
-            const hasTotalInBlock = block.cells.some((cell) =>
-                [cell.column, ...cell.children].some((column) => column.key in totals),
-            );
-            if (hasTotalInBlock) {
-                const hasTotal = (cell: LayoutBlock['cells'][number]) =>
-                    [cell.column, ...cell.children].some((column) => column.key in totals);
-                // O rótulo ocupa as células vazias consecutivas, sem quebrar numa coluna estreita.
-                const labelIndex = block.cells.findIndex((cell) => !hasTotal(cell));
-                let spanEnd = labelIndex;
-                while (spanEnd + 1 < block.cells.length && !hasTotal(block.cells[spanEnd + 1])) spanEnd += 1;
-                const labelX = contentLeft() + block.cells.slice(0, Math.max(labelIndex, 0))
-                    .reduce((sum, cell) => sum + cell.width, 0);
-                const spanWidth = labelIndex < 0 ? 0 : block.cells.slice(labelIndex, spanEnd + 1)
-                    .reduce((sum, cell) => sum + cell.width, 0);
-                const labelLines = labelIndex < 0 ? [] : wrapText(
-                    totalsLabel(dataset.rows.length), spanWidth - CELL_PAD_X * 2, fontSize, ctx.fonts.measurer, true,
-                );
-                const prepared = prepareRow(ctx, block, fontSize, (column) =>
-                    column.key in totals ? formatPrintValue(totals[column.key], column.format) : '', true);
-                prepared.height = Math.max(prepared.height, labelLines.length * lineHeight(fontSize) + PAD_Y * 2);
-                if (ctx.y + prepared.height > bodyBottom(ctx)) newPage();
-                hline(ctx, contentLeft(), contentLeft() + tableWidth, ctx.y, 0.8, ctx.dark);
-                rect(ctx, contentLeft(), ctx.y, tableWidth, prepared.height, C.totalFill);
-                drawRow(ctx, block, prepared, fontSize, ctx.dark);
-                labelLines.forEach((line, index) => {
-                    text(ctx, line, labelX + CELL_PAD_X, ctx.y + PAD_Y + index * lineHeight(fontSize), fontSize, {
+        for (const group of groups) {
+            if (group.label !== null && groupColumn) {
+                const caption = `${groupColumn.label}: ${group.label}  ·  ${group.rows.length} ${group.rows.length === 1 ? 'registro' : 'registros'}`;
+                const lines = wrapText(caption, tableWidth - CELL_PAD_X * 2, fontSize, ctx.fonts.measurer, true);
+                const height = lines.length * lineHeight(fontSize) + PAD_Y * 2 + 2;
+                // Cabeçalho do grupo nunca fica sozinho no pé da página.
+                const firstRow = prepareRow(ctx, block, fontSize, (column) =>
+                    formatPrintValue(group.rows[0][column.key], column.format));
+                if (ctx.y + height + firstRow.height > bodyBottom(ctx)) newPage();
+                rect(ctx, contentLeft(), ctx.y, tableWidth, height, C.groupFill);
+                rect(ctx, contentLeft(), ctx.y, 2.5, height, ctx.primary);
+                lines.forEach((line, index) => {
+                    text(ctx, line, contentLeft() + CELL_PAD_X + 3, ctx.y + PAD_Y + 1 + index * lineHeight(fontSize), fontSize, {
                         bold: true, color: ctx.dark,
                     });
                 });
-                ctx.y += prepared.height;
+                ctx.y += height;
+            }
+            const isLastGroup = group === groups[groups.length - 1];
+            group.rows.forEach((row, index) => drawDataRow(
+                row,
+                index % 2 === 1,
+                isLastGroup && index === group.rows.length - 1 && !(group.label !== null && groups.length > 1),
+            ));
+            if (group.label !== null && groups.length > 1) {
+                const subtotals = computeTotals(allColumns, group.rows);
+                if (subtotals) {
+                    drawTotalsRow(ctx, block, fontSize, subtotals, `Subtotal — ${group.label}`, 'subtotal', newPage);
+                }
             }
         }
+
+        if (totals) drawTotalsRow(ctx, block, fontSize, totals, totalsLabel(dataset.rows.length), 'total', newPage);
         ctx.y += 10;
     });
 }
@@ -699,7 +761,63 @@ function drawNotes(ctx: Ctx, notes: string[], orientation: 'portrait' | 'landsca
     }
 }
 
-function drawFooters(ctx: Ctx, footerText: string, issued: string) {
+function drawSignatures(
+    ctx: Ctx,
+    signatures: ReportSignature[],
+    place: string,
+    orientation: 'portrait' | 'landscape',
+) {
+    const filled = signatures.filter((item) => item.name.trim() || item.role.trim());
+    if (filled.length === 0) return;
+    const left = contentLeft();
+    const width = contentRight(ctx) - left;
+    const perRow = Math.min(filled.length, orientation === 'landscape' ? 4 : 3);
+    const rows = Math.ceil(filled.length / perRow);
+    const rowHeight = 64;
+    const needed = 26 + rows * rowHeight;
+    if (ctx.y + needed > bodyBottom(ctx)) {
+        addPage(ctx, orientation);
+        drawContinuationHeader(ctx);
+    }
+    ctx.y += 8;
+    text(ctx, place, left, ctx.y, 8, { color: C.body, align: 'right', width });
+    ctx.y += 18;
+    const colWidth = width / perRow;
+    filled.forEach((signature, index) => {
+        const column = index % perRow;
+        const row = Math.floor(index / perRow);
+        const x = left + column * colWidth;
+        const top = ctx.y + row * rowHeight + 30;
+        hline(ctx, x + 16, x + colWidth - 16, top, 0.6, C.body);
+        const name = fitLine(ctx, signature.name.trim() || ' ', colWidth - 20, 8, true);
+        text(ctx, name, x, top + 4, 8, { bold: true, color: ctx.dark, align: 'center', width: colWidth });
+        const role = fitLine(ctx, signature.role.trim(), colWidth - 20, 7);
+        text(ctx, role, x, top + 14, 7, { color: C.muted, align: 'center', width: colWidth });
+    });
+    ctx.y += rows * rowHeight;
+}
+
+/**
+ * Código de integridade: SHA-256 do conteúdo (título, filtros, colunas, linhas,
+ * emissão e emissor), em 4 grupos de 4. Qualquer alteração no conteúdo muda o código.
+ */
+export async function reportIntegrityCode(options: BuildReportPdfOptions, issuedAt: Date): Promise<string> {
+    const keys = options.dataset.columns.map((column) => column.key);
+    const canonical = JSON.stringify({
+        title: options.reportTitle,
+        filters: options.filters,
+        columns: keys,
+        rows: options.dataset.rows.map((row) => keys.map((key) => row[key] ?? null)),
+        issuedAt: issuedAt.toISOString(),
+        issuer: options.issuer ?? '',
+        institution: options.branding?.name ?? '',
+    });
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+    const hexText = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('').toUpperCase();
+    return hexText.slice(0, 16).match(/.{4}/g)!.join('-');
+}
+
+function drawFooters(ctx: Ctx, footerText: string, issued: string, integrity: string, issuer?: string) {
     const total = ctx.pages.length;
     ctx.pages.forEach((page, index) => {
         ctx.page = page;
@@ -710,8 +828,13 @@ function drawFooters(ctx: Ctx, footerText: string, issued: string) {
         const top = ctx.pageHeight - M - FOOTER_RESERVED + 8;
         hline(ctx, left, right, top, 0.5, C.rule);
         const pageLabel = `Emissão: ${issued} · Página ${index + 1} de ${total}`;
-        const labelWidth = ctx.fonts.regular.widthOfTextAtSize(ctx.fonts.clean(pageLabel), 6.5);
-        text(ctx, pageLabel, right - labelWidth, top + 5, 6.5, { color: C.muted });
+        const integrityLabel = `Integridade: ${integrity}${issuer ? ` · Emitido por ${issuer}` : ''}`;
+        const labelWidth = Math.max(
+            ctx.fonts.regular.widthOfTextAtSize(ctx.fonts.clean(pageLabel), 6.5),
+            ctx.fonts.regular.widthOfTextAtSize(ctx.fonts.clean(integrityLabel), 6.5),
+        );
+        text(ctx, pageLabel, right - labelWidth, top + 5, 6.5, { color: C.muted, align: 'right', width: labelWidth });
+        text(ctx, integrityLabel, right - labelWidth, top + 13, 6.5, { color: C.muted, align: 'right', width: labelWidth });
         wrapText(footerText, right - left - labelWidth - 20, 6.5, ctx.fonts.measurer)
             .slice(0, 2)
             .forEach((line, lineIndex) => {
@@ -745,8 +868,15 @@ export async function buildReportPdf(options: BuildReportPdfOptions): Promise<Ui
         }
     }
 
+    // Com agrupamento, a coluna do grupo já aparece no cabeçalho de cada grupo.
+    const groupColumn = options.groupBy
+        ? options.dataset.columns.find((column) => column.key === options.groupBy) ?? options.groupColumn
+        : undefined;
+    const tableColumns = groupColumn && options.dataset.columns.length > 1
+        ? options.dataset.columns.filter((column) => column.key !== groupColumn.key)
+        : options.dataset.columns;
     const layout = computeTableLayout({
-        columns: options.dataset.columns,
+        columns: tableColumns,
         rows: options.dataset.rows,
         orientation: options.layout?.orientation ?? 'auto',
         fontSize: options.layout?.fontSize ?? DEFAULT_PRINT_FONT_PT,
@@ -769,9 +899,15 @@ export async function buildReportPdf(options: BuildReportPdfOptions): Promise<Ui
     drawFirstHeader(ctx, options, issued);
     drawKpis(ctx, options);
     drawCharts(ctx, options.dataset.charts ?? []);
-    drawTable(ctx, options, layout);
+    drawTable(ctx, { ...options, groupColumn }, layout);
     drawNotes(ctx, options.dataset.notes ?? [], layout.orientation);
-    drawFooters(ctx, footerText, issued);
+    if (options.signatures?.length) {
+        const city = [branding?.city, branding?.state?.toUpperCase()].filter(Boolean).join('/');
+        const longDate = issuedAt.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+        drawSignatures(ctx, options.signatures, `${city ? `${city}, ` : ''}${longDate}.`, layout.orientation);
+    }
+    const integrity = await reportIntegrityCode(options, issuedAt);
+    drawFooters(ctx, footerText, issued, integrity, options.issuer);
 
     doc.setTitle(options.reportTitle);
     doc.setSubject(options.reportDescription);

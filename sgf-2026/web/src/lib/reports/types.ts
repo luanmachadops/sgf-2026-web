@@ -85,6 +85,11 @@ export interface ReportLayoutOptions {
     fontSize: number;
 }
 
+export interface ReportSignature {
+    name: string;
+    role: string;
+}
+
 export interface ReportExportOptions {
     reportTitle: string;
     reportDescription: string;
@@ -92,4 +97,12 @@ export interface ReportExportOptions {
     filters: ReportFilters;
     branding?: ReportBranding;
     layout?: ReportLayoutOptions;
+    /** Agrupa as linhas (já ordenadas) por esta coluna, com subtotais. */
+    groupBy?: string;
+    /** Definição da coluna de agrupamento quando ela não está entre as visíveis. */
+    groupColumn?: ReportColumn;
+    /** Bloco de assinaturas ao fim do documento. */
+    signatures?: ReportSignature[];
+    /** Quem emitiu (vai no rodapé, junto do código de integridade). */
+    issuer?: string;
 }

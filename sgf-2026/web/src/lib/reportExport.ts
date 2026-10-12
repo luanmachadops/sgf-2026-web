@@ -153,53 +153,91 @@ export async function exportReportToExcel(options: ReportExportOptions): Promise
     });
     headerRow.height = 26;
 
-    dataset.rows.forEach((row, rowIndex) => {
-        const dataRow = worksheet.getRow(headerRowIndex + 1 + rowIndex);
+    const writeDataRow = (rowNumber: number, row: ReportExportOptions['dataset']['rows'][number], zebra: boolean) => {
+        const dataRow = worksheet.getRow(rowNumber);
         dataset.columns.forEach((column, columnIndex) => {
             const cell = dataRow.getCell(columnIndex + 1);
             const raw = row[column.key];
             // Datas vão como data de verdade (ordenam e filtram no Excel).
             cell.value = (column.format === 'date' ? parseBrazilianDate(raw) : null) ?? raw ?? '—';
             cell.font = { size: EXCEL_FONT_SIZE, color: { argb: `FF${DEFAULT_BRAND.text}` } };
-            cell.alignment = {
-                vertical: 'middle',
-                horizontal: column.align ?? 'left',
-                wrapText: true,
-            };
+            cell.alignment = { vertical: 'middle', horizontal: column.align ?? 'left', wrapText: true };
             cell.numFmt = excelFormat(column) ?? 'General';
-            if (rowIndex % 2 === 1) {
-                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
-            }
+            if (zebra) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
             cell.border = { bottom: { style: 'hair', color: { argb: 'FFDFE7E5' } } };
         });
-    });
+    };
+    // SUBTOTAL(9, …) ignora outros SUBTOTAL do intervalo: subtotais de grupo e
+    // total geral convivem sem somar duas vezes, e acompanham edições na planilha.
+    const writeTotalsRow = (
+        rowNumber: number,
+        values: Record<string, number>,
+        label: string,
+        fromRow: number,
+        toRow: number,
+        tone: 'total' | 'subtotal',
+    ) => {
+        const totalRow = worksheet.getRow(rowNumber);
+        const labelIndex = dataset.columns.findIndex((column) => !(column.key in values));
+        dataset.columns.forEach((column, index) => {
+            const cell = totalRow.getCell(index + 1);
+            if (column.key in values) {
+                const letter = worksheet.getColumn(index + 1).letter;
+                cell.value = { formula: `SUBTOTAL(9,${letter}${fromRow}:${letter}${toRow})`, result: values[column.key] };
+                cell.numFmt = excelFormat(column) ?? 'General';
+            } else if (index === labelIndex) {
+                cell.value = label;
+            }
+            cell.font = { bold: true, size: EXCEL_FONT_SIZE, color: { argb: `FF${tone === 'total' ? dark : '334155'}` } };
+            cell.alignment = { vertical: 'middle', horizontal: column.align ?? 'left' };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: tone === 'total' ? 'FFEEF2F4' : 'FFF4F7F8' } };
+            cell.border = tone === 'total'
+                ? { top: { style: 'thin', color: { argb: `FF${dark}` } } }
+                : { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
+        });
+        totalRow.height = 20;
+    };
 
-    const lastDataRow = headerRowIndex + dataset.rows.length;
+    const groupColumn = options.groupBy
+        ? dataset.columns.find((column) => column.key === options.groupBy) ?? options.groupColumn
+        : undefined;
+    let cursor = headerRowIndex + 1;
+    if (groupColumn) {
+        let start = 0;
+        const groupCount = new Set(dataset.rows.map((row) => formatReportValue(row[groupColumn.key], groupColumn.format))).size;
+        while (start < dataset.rows.length) {
+            const label = formatReportValue(dataset.rows[start][groupColumn.key], groupColumn.format);
+            let end = start;
+            while (end < dataset.rows.length && formatReportValue(dataset.rows[end][groupColumn.key], groupColumn.format) === label) end += 1;
+            const groupRows = dataset.rows.slice(start, end);
+            worksheet.mergeCells(cursor, 1, cursor, Math.max(dataset.columns.length, 1));
+            const headCell = worksheet.getCell(cursor, 1);
+            headCell.value = `${groupColumn.label}: ${label} · ${groupRows.length} ${groupRows.length === 1 ? 'registro' : 'registros'}`;
+            headCell.font = { bold: true, size: EXCEL_FONT_SIZE, color: { argb: `FF${dark}` } };
+            headCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAF4F0' } };
+            cursor += 1;
+            const firstDataRow = cursor;
+            groupRows.forEach((row, index) => writeDataRow(cursor + index, row, index % 2 === 1));
+            cursor += groupRows.length;
+            const subtotals = computeTotals(dataset.columns, groupRows);
+            if (subtotals && groupCount > 1) {
+                writeTotalsRow(cursor, subtotals, `Subtotal — ${label}`, firstDataRow, cursor - 1, 'subtotal');
+                cursor += 1;
+            }
+            start = end;
+        }
+    } else {
+        dataset.rows.forEach((row, index) => writeDataRow(cursor + index, row, index % 2 === 1));
+        cursor += dataset.rows.length;
+    }
+
+    const lastDataRow = cursor - 1;
     const totals = computeTotals(dataset.columns, dataset.rows);
     let lastTableRow = lastDataRow;
     if (totals && dataset.rows.length > 0) {
         lastTableRow = lastDataRow + 1;
-        const totalRow = worksheet.getRow(lastTableRow);
-        const labelIndex = dataset.columns.findIndex((column) => !(column.key in totals));
-        dataset.columns.forEach((column, index) => {
-            const cell = totalRow.getCell(index + 1);
-            if (column.key in totals) {
-                const letter = worksheet.getColumn(index + 1).letter;
-                // Fórmula: continua certa se o usuário editar valores na planilha.
-                cell.value = {
-                    formula: `SUBTOTAL(9,${letter}${headerRowIndex + 1}:${letter}${lastDataRow})`,
-                    result: totals[column.key],
-                };
-                cell.numFmt = excelFormat(column) ?? 'General';
-            } else if (index === labelIndex) {
-                cell.value = totalsLabel(dataset.rows.length);
-            }
-            cell.font = { bold: true, size: EXCEL_FONT_SIZE, color: { argb: `FF${dark}` } };
-            cell.alignment = { vertical: 'middle', horizontal: column.align ?? 'left' };
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF2F4' } };
-            cell.border = { top: { style: 'thin', color: { argb: `FF${dark}` } } };
-        });
-        totalRow.height = 22;
+        writeTotalsRow(lastTableRow, totals, totalsLabel(dataset.rows.length), headerRowIndex + 1, lastDataRow, 'total');
+        worksheet.getRow(lastTableRow).height = 22;
     }
 
     worksheet.autoFilter = {
