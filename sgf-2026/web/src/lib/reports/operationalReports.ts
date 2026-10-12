@@ -160,93 +160,37 @@ export async function trafficLog(f?: ReportFilterInput): Promise<ReportDataset> 
 
 export async function vehicleCost(f?: ReportFilterInput): Promise<ReportDataset> {
     const { from, to } = dateRange(f);
-    let vq = supabase
-        .from('vehicles')
-        .select('id, plate, brand, model, status, department_id, departments(name)')
-        .order('plate', { ascending: true })
-        .order('id', { ascending: true });
-    if (f?.departmentId) vq = vq.eq('department_id', f.departmentId);
-    let fq = supabase
-        .from('fuelings')
-        .select('id, vehicle_id, liters, total_cost, filled_at, created_at')
-        .in('workflow_status', ['validado', 'lancado_direto'])
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: true });
-    const fuelFilter = effectiveFuelingDateFilter(from, to);
-    if (fuelFilter) fq = fq.or(fuelFilter);
-    let tq = supabase
-        .from('trips')
-        .select('id, vehicle_id, distance_km, start_at')
-        .in('status', ['concluida', 'problema'])
-        .order('start_at', { ascending: false })
-        .order('id', { ascending: true });
-    if (from) tq = tq.gte('start_at', from);
-    if (to) tq = tq.lte('start_at', to);
-    let oq = supabase
-        .from('service_orders')
-        .select('id, vehicle_id, cost, budget, received_at, completed_at, created_at')
-        .or('operational_status.eq.received,status.eq.concluida')
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: true });
-    if (to) oq = oq.lte('created_at', to);
-    let iq = supabase
-        .from('infractions')
-        .select('id, vehicle_id, amount, occurred_at')
-        .order('occurred_at', { ascending: false })
-        .order('id', { ascending: true });
-    if (from) iq = iq.gte('occurred_at', from);
-    if (to) iq = iq.lte('occurred_at', to);
-    const [vehicles, fuelings, trips, orders, infractions] = await Promise.all([
-        fetchAllRows(vq), fetchAllRows(fq), fetchAllRows(tq), fetchAllRows(oq), fetchAllRows(iq),
-    ]);
-
-    type Acc = { liters: number; fuel: number; km: number; trips: number; maintenance: number; fines: number };
-    const acc = new Map<string, Acc>();
-    const get = (id: string) => {
-        let value = acc.get(id);
-        if (!value) {
-            value = { liters: 0, fuel: 0, km: 0, trips: 0, maintenance: 0, fines: 0 };
-            acc.set(id, value);
-        }
-        return value;
-    };
-    for (const item of fuelings) {
-        if (!item.vehicle_id || !withinRange(item.filled_at ?? item.created_at, from, to)) continue;
-        const value = get(item.vehicle_id);
-        value.liters += Number(item.liters ?? 0);
-        value.fuel += Number(item.total_cost ?? 0);
-    }
-    for (const trip of trips) {
-        if (!trip.vehicle_id) continue;
-        const value = get(trip.vehicle_id);
-        value.km += Number(trip.distance_km ?? 0);
-        value.trips += 1;
-    }
-    for (const order of orders) {
-        if (!order.vehicle_id || !withinRange(order.received_at ?? order.completed_at ?? order.created_at, from, to)) continue;
-        get(order.vehicle_id).maintenance += Number(order.cost ?? order.budget ?? 0);
-    }
-    for (const item of infractions) {
-        if (item.vehicle_id) get(item.vehicle_id).fines += Number(item.amount ?? 0);
-    }
+    // Agregado no Postgres (get_report_vehicle_cost, SECURITY INVOKER: vale o RLS).
+    const { data, error } = await supabase.rpc('get_report_vehicle_cost', {
+        p_from: from,
+        p_to: to,
+        p_department: f?.departmentId,
+    });
+    if (error) throw error;
+    const vehicles = data ?? [];
 
     const rows = vehicles.map((vehicle) => {
-        const value = acc.get(vehicle.id) ?? { liters: 0, fuel: 0, km: 0, trips: 0, maintenance: 0, fines: 0 };
-        const total = value.fuel + value.maintenance + value.fines;
+        const km = Number(vehicle.km ?? 0);
+        const liters = Number(vehicle.liters ?? 0);
+        const fuel = Number(vehicle.fuel ?? 0);
+        const maintenance = Number(vehicle.maintenance ?? 0);
+        const fines = Number(vehicle.fines ?? 0);
+        const trips = Number(vehicle.trips ?? 0);
+        const total = fuel + maintenance + fines;
         return {
             plate: vehicle.plate ?? '—',
             model: [vehicle.brand, vehicle.model].filter(Boolean).join(' ') || '—',
-            department: (vehicle.departments as { name?: string } | null)?.name ?? '—',
-            usage: value.trips === 0 ? 'Sem viagem no período' : 'Em uso',
-            trips: value.trips,
-            km: Math.round(value.km),
-            liters: Number(value.liters.toFixed(2)),
-            kmPerLiter: value.km > 0 && value.liters > 0 ? Number((value.km / value.liters).toFixed(2)) : '—',
-            fuel: Number(value.fuel.toFixed(2)),
-            maintenance: Number(value.maintenance.toFixed(2)),
-            fines: Number(value.fines.toFixed(2)),
+            department: vehicle.department ?? '—',
+            usage: trips === 0 ? 'Sem viagem no período' : 'Em uso',
+            trips,
+            km: Math.round(km),
+            liters: Number(liters.toFixed(2)),
+            kmPerLiter: km > 0 && liters > 0 ? Number((km / liters).toFixed(2)) : '—',
+            fuel: Number(fuel.toFixed(2)),
+            maintenance: Number(maintenance.toFixed(2)),
+            fines: Number(fines.toFixed(2)),
             total: Number(total.toFixed(2)),
-            costPerKm: value.km > 0 ? Number((total / value.km).toFixed(2)) : '—',
+            costPerKm: km > 0 ? Number((total / km).toFixed(2)) : '—',
         };
     }).sort((a, b) => b.total - a.total);
 

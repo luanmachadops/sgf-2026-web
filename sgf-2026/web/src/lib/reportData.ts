@@ -414,90 +414,26 @@ async function driversActivity(f?: ReportFilterInput): Promise<ReportDataset> {
     };
 }
 
-// Agregação por secretaria (Consolidado por secretaria)
+// Agregação por secretaria (Consolidado por secretaria), feita no Postgres
+// (get_report_department_consolidated, SECURITY INVOKER: vale o RLS).
 async function departmentAggregates(f?: ReportFilterInput) {
     const { from, to } = dateRange(f);
-    const fuelQuery = () => {
-        let q = supabase
-            .from('fuelings')
-            .select('id, total_cost, created_at, filled_at, vehicle_id')
-            .in('workflow_status', ['validado', 'lancado_direto'])
-            .order('created_at', { ascending: false })
-            .order('id');
-        // Pré-filtro no banco (data efetiva = abastecimento, senão registro); o
-        // recorte exato é refeito abaixo com `withinRange`.
-        const dateFilter = effectiveFuelingDateFilter(from, to);
-        if (dateFilter) q = q.or(dateFilter);
-        return fetchAllRows(q);
-    };
-    const tripQuery = () => {
-        let q = supabase
-            .from('trips')
-            .select('id, vehicle_id, distance_km, start_at')
-            .in('status', ['concluida', 'problema'])
-            .order('start_at', { ascending: false })
-            .order('id');
-        if (from) q = q.gte('start_at', from);
-        if (to) q = q.lte('start_at', to);
-        return fetchAllRows(q);
-    };
-    const orderQuery = () => {
-        let q = supabase
-            .from('service_orders')
-            .select('id, vehicle_id, cost, budget, status, operational_status, received_at, completed_at, created_at')
-            .or('operational_status.eq.received,status.eq.concluida')
-            .order('created_at', { ascending: false })
-            .order('id');
-        // A competência (recebimento/conclusão) nunca é anterior à abertura.
-        if (to) q = q.lte('created_at', to);
-        return fetchAllRows(q);
-    };
-    const infractionQuery = () => {
-        let q = supabase
-            .from('infractions')
-            .select('id, vehicle_id, amount, occurred_at')
-            .order('occurred_at', { ascending: false })
-            .order('id');
-        if (from) q = q.gte('occurred_at', from);
-        if (to) q = q.lte('occurred_at', to);
-        return fetchAllRows(q);
-    };
-    const [allDepts, vehicles, fuelings, trips, serviceOrders, infractions] = await Promise.all([
-        fetchAllRows(supabase.from('departments').select('id, name').order('name').order('id')),
-        fetchAllRows(supabase.from('vehicles').select('id, department_id, status').order('id')),
-        fuelQuery(),
-        tripQuery(),
-        orderQuery(),
-        infractionQuery(),
-    ]);
-    let depts = allDepts;
-    if (f?.departmentId) depts = depts.filter((d) => d.id === f.departmentId);
-
-    const vehDept = new Map<string, string | null>();
-    for (const v of vehicles) vehDept.set(v.id, v.department_id);
-    const inDept = (vehicleId: string | null, deptId: string) => Boolean(vehicleId) && vehDept.get(vehicleId!) === deptId;
-
-    return depts.map((d) => {
-        const deptVehicles = vehicles.filter((v) => v.department_id === d.id);
-        const fuel = fuelings
-            .filter((fueling) => inDept(fueling.vehicle_id, d.id)
-                && withinRange(fueling.filled_at ?? fueling.created_at, from, to))
-            .reduce((s, x) => s + Number(x.total_cost ?? 0), 0);
-        const deptTrips = trips.filter((x) => inDept(x.vehicle_id, d.id));
-        const km = deptTrips.reduce((s, x) => s + Number(x.distance_km ?? 0), 0);
-        const maintenanceCost = serviceOrders
-            .filter((order) => inDept(order.vehicle_id, d.id)
-                && withinRange(order.received_at ?? order.completed_at ?? order.created_at, from, to))
-            .reduce((sum, order) => sum + Number(order.cost ?? order.budget ?? 0), 0);
-        const fines = infractions
-            .filter((item) => inDept(item.vehicle_id, d.id))
-            .reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
+    const { data, error } = await supabase.rpc('get_report_department_consolidated', {
+        p_from: from,
+        p_to: to,
+        p_department: f?.departmentId,
+    });
+    if (error) throw error;
+    return (data ?? []).map((row) => {
+        const fuel = Number(row.fuel ?? 0);
+        const maintenanceCost = Number(row.maintenance ?? 0);
+        const fines = Number(row.fines ?? 0);
         return {
-            name: d.name,
-            vehicles: deptVehicles.length,
-            available: deptVehicles.filter((v) => v.status === 'liberado').length,
-            trips: deptTrips.length,
-            km,
+            name: row.department,
+            vehicles: Number(row.vehicles ?? 0),
+            available: Number(row.available ?? 0),
+            trips: Number(row.trips ?? 0),
+            km: Number(row.km ?? 0),
             fuel,
             maintenanceCost,
             fines,
