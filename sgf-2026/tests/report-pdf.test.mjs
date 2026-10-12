@@ -222,3 +222,65 @@ test("caracteres fora do WinAnsi não quebram a geração", async () => {
   });
   assert.match(drawnText(pdfStreams(bytes).streams), /Emoji \? e espaço fino — ok/);
 });
+
+// ── F2/F5: agrupamento, assinaturas e integridade ───────────────────────────
+
+const { arrangeRows, nextSort } = await import("../web/src/lib/reports/viewerState.ts");
+const { reportIntegrityCode } = await import("../web/src/lib/reports/pdf.ts");
+
+const tripColumns = [
+  column("plate", { label: "Placa", anchor: true, filterable: true }),
+  column("date", { label: "Data", format: "date" }),
+  column("km", { label: "Km rodados", align: "right", format: "decimal", total: "sum" }),
+];
+const tripRows = [
+  { plate: "BBB2B22", date: "02/09/2026", km: 10 },
+  { plate: "AAA1A11", date: "10/09/2026", km: 5 },
+  { plate: "AAA1A11", date: "01/09/2026", km: 7.5 },
+  { plate: "BBB2B22", date: "15/08/2026", km: 2 },
+];
+
+test("ordena datas dd/mm/aaaa como data e agrupa mantendo a ordem dentro do grupo", () => {
+  const byDate = arrangeRows(tripRows, tripColumns, { key: "date", direction: "asc" }, null);
+  assert.deepEqual(byDate.map((row) => row.date), ["15/08/2026", "01/09/2026", "02/09/2026", "10/09/2026"]);
+  const grouped = arrangeRows(tripRows, tripColumns, { key: "date", direction: "desc" }, "plate");
+  assert.deepEqual(grouped.map((row) => `${row.plate} ${row.date}`), [
+    "AAA1A11 10/09/2026", "AAA1A11 01/09/2026", "BBB2B22 02/09/2026", "BBB2B22 15/08/2026",
+  ]);
+  assert.deepEqual(nextSort(null, "km"), { key: "km", direction: "asc" });
+  assert.deepEqual(nextSort({ key: "km", direction: "asc" }, "km"), { key: "km", direction: "desc" });
+  assert.equal(nextSort({ key: "km", direction: "desc" }, "km"), null);
+});
+
+test("PDF agrupado traz cabeçalho e subtotal por grupo, assinaturas e código de integridade", async () => {
+  const rows = arrangeRows(tripRows, tripColumns, null, "plate");
+  const bytes = await buildReportPdf({
+    ...baseOptions,
+    reportTitle: "Boletim de Tráfego",
+    dataset: { columns: tripColumns, rows, kpis: [] },
+    groupBy: "plate",
+    signatures: [{ name: "Maria Souza", role: "Responsável pela frota" }, { name: "", role: "Secretário(a)" }],
+    issuer: "Gestor Teste",
+  });
+  const textContent = drawnText(pdfStreams(bytes).streams);
+  assert.match(textContent, /Placa: AAA1A11 · 2 registros/);
+  assert.match(textContent, /Subtotal — AAA1A11/);
+  assert.match(textContent, /12,50/); // 5 + 7,5
+  assert.match(textContent, /Total \(4 registros\)/);
+  assert.match(textContent, /Maria Souza/);
+  assert.match(textContent, /Secretário\(a\)/);
+  assert.match(textContent, /Tapejara\/PR, 12 de outubro de 2026/);
+  assert.match(textContent, /Integridade: [0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4} · Emitido por Gestor Teste/);
+});
+
+test("código de integridade muda quando qualquer valor muda", async () => {
+  const options = { ...baseOptions, reportTitle: "X", dataset: { columns: tripColumns, rows: tripRows, kpis: [] } };
+  const a = await reportIntegrityCode(options, baseOptions.issuedAt);
+  const b = await reportIntegrityCode(options, baseOptions.issuedAt);
+  const changed = await reportIntegrityCode(
+    { ...options, dataset: { ...options.dataset, rows: [{ ...tripRows[0], km: 11 }, ...tripRows.slice(1)] } },
+    baseOptions.issuedAt,
+  );
+  assert.equal(a, b);
+  assert.notEqual(a, changed);
+});

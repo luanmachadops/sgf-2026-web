@@ -310,6 +310,17 @@ export function computeTableLayout(input: LayoutInput, measurer: TextMeasurer): 
         const available = contentWidth(orientation);
         const base = { orientation, autoLandscape, fontSize, removableColumns };
         const flat = fitWidths(flatMetrics, available);
+        // Se a tabela só cabe quebrando texto, mas empilhando campos ela cabe
+        // inteira sem quebra, empilhar gera linhas mais baixas e menos páginas.
+        if (flat && sumNat(flatMetrics) > available && stackedMetrics && sumNat(stackedMetrics) <= available) {
+            return {
+                ...base,
+                status: 'stacked',
+                blocks: [toBlock(stackedGroups, stackedMetrics, fitWidths(stackedMetrics, available)!)],
+                tableWidth: available,
+                fillRatio: sumMin(stackedMetrics) / available,
+            };
+        }
         if (flat) {
             return {
                 ...base,
