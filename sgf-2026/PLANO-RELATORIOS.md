@@ -1,6 +1,6 @@
 # Plano — Relatórios (impressão, tabelas, design e catálogo)
 
-> Status: **F1–F6 implementadas** (2026-10-12). Pendências e decisões em aberto no fim do documento.
+> Status: **F1–F6 e pendências D2/D3/D5/D7 implementadas** (2026-10-12).
 > Base: leitura de `web/src/pages/Reports.tsx`, `components/reports/ReportViewerModal.tsx`,
 > `lib/reportExport.ts` (motor de PDF/Excel) e `lib/reportData.ts` (14 datasets),
 > e do schema em `web/src/types/database.types.ts`, em 2026-10-12.
@@ -276,23 +276,24 @@ relatório mais largo (Conciliação Fiscal, 18 colunas).
 - **F6** — etiquetas QR vetoriais (`qrLabelsPdf.ts`), fotos do dossiê
   reduzidas, comprovante de abastecimento em PDF (`receiptPdf.ts`).
 
-### Ainda não feito
+### Pendências fechadas em 2026-10-12
 
-- O código de integridade é impresso, mas não há como **validar online**
-  (exige guardar o hash numa tabela — DDL, decisão D7).
-- Agregações continuam no navegador (D2); as consultas de abastecimento já
-  filtram o período no banco.
-- Modelos e assinaturas ficam no navegador de cada usuário (D3/D5): não são
-  compartilhados entre gestores da mesma prefeitura.
+- **Verificação online (D7):** o banco já tinha `report_snapshots` + `register_report_snapshot` /
+  `verify_report` / `sign_report_snapshot` (P1, sem tela). O PDF baixado/impresso é registrado e leva
+  código + QR para `/verificar/:codigo` (página pública); a página de Relatórios lista os documentos
+  emitidos e permite assinar (admin/gestor). Sem permissão de registro, o PDF sai com o código local.
+- **Agregações no banco (D2):** `get_report_department_consolidated` e `get_report_vehicle_cost`.
+- **Modelos e assinaturas da prefeitura (D3/D5):** `report_layout_models` e
+  `app_settings.report_signatures` (editável em Configurações → Relatórios e assinaturas).
 
 ## 7. Decisões pendentes
 
 | # | Decisão | Recomendação |
 |---|---|---|
 | D1 | Gerador de PDF: pdf-lib próprio, jsPDF + autotable ou impressão HTML medida | **Decidido: pdf-lib** (vetorial, mais leve, já no projeto) |
-| D2 | Mover agregações para RPCs no Postgres (DDL em produção) | Sim, a partir da F4 |
-| D3 | Modelos de layout salvos por usuário (localStorage) ou compartilhados por prefeitura (tabela nova) | **Feito na v1: localStorage** |
+| D2 | Mover agregações para RPCs no Postgres (DDL em produção) | **Feito** (consolidado por secretaria e custo por veículo) |
+| D3 | Modelos de layout salvos por usuário (localStorage) ou compartilhados por prefeitura (tabela nova) | **Feito: compartilhados (`report_layout_models`)** |
 | D4 | Veículos ociosos como relatório próprio ou seção do Custo por veículo | **Feito: coluna/seção do Custo por veículo** |
-| D5 | Assinaturas: quais cargos por padrão e se ficam configuráveis em Configurações | **Feito na v1**: editável no visualizador (navegador); levar para Configurações da prefeitura depende de DDL |
+| D5 | Assinaturas: quais cargos por padrão e se ficam configuráveis em Configurações | **Feito:** padrão da prefeitura em Configurações; ajuste por documento no visualizador |
 | D6 | Fusão dos 3 relatórios por secretaria — algum deles é usado isoladamente por alguma prefeitura? | **Feito: fundidos** |
-| D7 | Guardar o código de integridade em tabela para validação pública (QR no rodapé → página de verificação) | Sim, junto com D2 |
+| D7 | Guardar o código de integridade em tabela para validação pública (QR no rodapé → página de verificação) | **Feito** (reaproveitou `report_snapshots`) |
