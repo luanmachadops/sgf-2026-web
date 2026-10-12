@@ -58,9 +58,9 @@ function circle(cx: number, cy: number, r: number): string {
     return `M${f(cx - r)} ${f(cy)}A${f(r)} ${f(r)} 0 1 0 ${f(cx + r)} ${f(cy)}A${f(r)} ${f(r)} 0 1 0 ${f(cx - r)} ${f(cy)}Z`;
 }
 
-export function qrMatrix(data: string): boolean[][] {
-    const qr = qrcode(0, 'H');
-    qr.addData(data.toUpperCase(), 'Byte');
+export function qrMatrix(data: string, errorCorrection: 'L' | 'M' | 'Q' | 'H' = 'H'): boolean[][] {
+    const qr = qrcode(0, errorCorrection);
+    qr.addData(data, 'Byte');
     qr.make();
     const count = qr.getModuleCount();
     return Array.from({ length: count }, (_, row) => Array.from({ length: count }, (_, col) => qr.isDark(row, col)));
@@ -124,6 +124,38 @@ export function drawVectorQr(page: PDFPage, data: string, x: number, top: number
     }
 }
 
+/**
+ * QR "clássico" para leitura garantida (ex.: link de verificação longo): fundo
+ * branco, margem de 4 módulos, módulos quadrados numa cor só, correção M.
+ */
+export function drawPlainVectorQr(page: PDFPage, data: string, x: number, top: number, size: number): void {
+    const matrix = qrMatrix(data, 'M');
+    const count = matrix.length;
+    const quiet = 4;
+    const cell = size / (count + quiet * 2);
+    const y = page.getHeight() - top;
+    page.drawRectangle({ x, y: y - size, width: size, height: size, color: rgb(1, 1, 1) });
+    const f = (n: number) => n.toFixed(3);
+    const runs: string[] = [];
+    for (let row = 0; row < count; row += 1) {
+        let col = 0;
+        while (col < count) {
+            if (!matrix[row][col]) {
+                col += 1;
+                continue;
+            }
+            let end = col;
+            while (end + 1 < count && matrix[row][end + 1]) end += 1;
+            const rx = (quiet + col) * cell;
+            const ry = (quiet + row) * cell;
+            // Leve sobreposição evita frestas entre linhas na rasterização.
+            runs.push(`M${f(rx)} ${f(ry)}H${f(rx + (end - col + 1) * cell)}V${f(ry + cell * 1.03)}H${f(rx)}Z`);
+            col = end + 1;
+        }
+    }
+    page.drawSvgPath(runs.join(''), { x, y, color: mix(0) });
+}
+
 function fit(font: PDFFont, text: string, size: number, maxWidth: number): string {
     if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
     let out = text;
@@ -170,7 +202,7 @@ export async function buildQrLabelsPdf(options: QrLabelSheetOptions): Promise<Ui
         current.drawSvgPath(roundedRect(0, 0, labelWidth, labelHeight, 3 * MM), {
             x, y: current.getHeight() - top, borderColor: border, borderWidth: 0.6,
         });
-        drawVectorQr(current, item.data, x + (labelWidth - qrSize) / 2, top + padding, qrSize);
+        drawVectorQr(current, item.data.toUpperCase(), x + (labelWidth - qrSize) / 2, top + padding, qrSize);
         const plate = winAnsiSafe(bold, item.plate);
         const plateWidth = bold.widthOfTextAtSize(plate, options.plateSizePt);
         const plateTop = top + padding + qrSize + 2 * MM;

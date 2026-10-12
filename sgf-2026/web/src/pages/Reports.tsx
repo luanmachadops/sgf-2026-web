@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType } from
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { QrLabelGenerator } from '@/components/reports/QrLabelGenerator';
+import { IssuedReportsCard } from '@/components/reports/IssuedReportsCard';
 import {
     AlertTriangle,
     Calendar,
@@ -191,6 +192,8 @@ export default function Reports() {
                     </div>
                 </section>
             ))}
+
+            <IssuedReportsCard />
 
             <SGFCard padding="lg" className="overflow-hidden border border-slate-200/80">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

@@ -3,11 +3,12 @@ import { toast } from 'sonner';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { DollarSign, Receipt, CheckCircle, AlertTriangle, Loader2, Save, Building2, ChevronRight } from '@/components/sgf/icons';
+import { DollarSign, Receipt, CheckCircle, AlertTriangle, Loader2, Save, Building2, ChevronRight, FileText } from '@/components/sgf/icons';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAppSettings, useUpdateSettings } from '@/hooks/useSettings';
 import { TenantIdentityCard } from '@/components/settings/TenantIdentityCard';
+import { ReportSignaturesEditor } from '@/components/settings/ReportSignaturesEditor';
 import { cn } from '@/lib/utils';
 import { useSyncOnChange } from '@/hooks/useSyncOnChange';
 
@@ -70,7 +71,7 @@ export default function Configuracoes() {
     const [requireFuelValidation, setRequireFuelValidation] = useState(false);
     const [tankOverflowAlert, setTankOverflowAlert] = useState(true);
 
-    type Section = 'identity' | 'fuelRules' | 'alerts' | 'pricing';
+    type Section = 'identity' | 'fuelRules' | 'alerts' | 'pricing' | 'reports';
     const [openSection, setOpenSection] = useState<Section | null>(null);
 
 
@@ -186,6 +187,11 @@ export default function Configuracoes() {
             description: 'Como o valor do litro é definido no abastecimento.',
             summary: [fuelModeLabel],
         },
+        {
+            key: 'reports', icon: FileText, title: 'Relatórios e assinaturas',
+            description: 'Quem assina os relatórios oficiais em PDF.',
+            summary: ['Assinaturas padrão dos PDFs'],
+        },
     ];
 
     return (
@@ -260,6 +266,10 @@ export default function Configuracoes() {
                         fullWidth
                     />
                 </div>
+            </Modal>
+
+            <Modal isOpen={openSection === 'reports'} onClose={closeModal} title="Relatórios e assinaturas" description="Assinaturas padrão impressas no fim dos relatórios oficiais." size="lg">
+                <ReportSignaturesEditor onSaved={closeModal} />
             </Modal>
 
             <Modal isOpen={openSection === 'pricing'} onClose={closeModal} title="Precificação de combustível" description="Como o valor do litro é determinado nos abastecimentos." size="lg" footer={saveFooter(handleSaveFuelPrice)}>
