@@ -1,9 +1,9 @@
-// Estado do visualizador de relatórios: ordenação, agrupamento e o que fica
-// salvo no navegador (modelos de layout e assinaturas). localStorage é só
-// conveniência por usuário/navegador — tudo funciona sem ele.
+// Estado do visualizador de relatórios: ordenação, agrupamento e a lista de
+// relatórios recentes (localStorage, só conveniência deste navegador — tudo
+// funciona sem ele). Modelos e assinaturas ficam no banco (reportSettingsApi).
 
 import { parseBrazilianDate } from './format';
-import type { ReportColumn, ReportDataset, ReportOrientation, ReportSignature, ReportValue } from './types';
+import type { ReportColumn, ReportDataset, ReportValue } from './types';
 
 export interface ReportSort {
     key: string;
@@ -70,16 +70,6 @@ export function nextSort(current: ReportSort | null, key: string): ReportSort | 
 
 // ── Persistência local ──────────────────────────────────────────────────────
 
-export interface ReportLayoutModel {
-    name: string;
-    columns: string[];
-    orientation: ReportOrientation;
-    fontSize: number;
-    groupBy: string | null;
-    sort: ReportSort | null;
-    signaturesEnabled: boolean;
-}
-
 function readJson<T>(key: string, fallback: T): T {
     try {
         const raw = window.localStorage.getItem(key);
@@ -95,39 +85,6 @@ function writeJson(key: string, value: unknown): void {
     } catch {
         // Armazenamento bloqueado (aba privada): o recurso só não persiste.
     }
-}
-
-const modelsKey = (reportId: string) => `sgf-report-models:${reportId}`;
-
-export function loadLayoutModels(reportId: string): ReportLayoutModel[] {
-    const value = readJson<unknown>(modelsKey(reportId), []);
-    return Array.isArray(value) ? value.filter((item): item is ReportLayoutModel =>
-        Boolean(item) && typeof (item as ReportLayoutModel).name === 'string'
-        && Array.isArray((item as ReportLayoutModel).columns)) : [];
-}
-
-export function saveLayoutModels(reportId: string, models: ReportLayoutModel[]): void {
-    writeJson(modelsKey(reportId), models);
-}
-
-const SIGNATURES_KEY = 'sgf-report-signatures';
-
-export const DEFAULT_SIGNATURES: ReportSignature[] = [
-    { name: '', role: 'Responsável pela frota' },
-    { name: '', role: 'Secretário(a) responsável' },
-];
-
-export function loadSignatures(): ReportSignature[] {
-    const value = readJson<unknown>(SIGNATURES_KEY, null);
-    if (!Array.isArray(value)) return DEFAULT_SIGNATURES;
-    const list = value
-        .filter((item): item is ReportSignature => Boolean(item) && typeof (item as ReportSignature).role === 'string')
-        .map((item) => ({ name: String(item.name ?? ''), role: String(item.role ?? '') }));
-    return list.length ? list.slice(0, 6) : DEFAULT_SIGNATURES;
-}
-
-export function saveSignatures(signatures: ReportSignature[]): void {
-    writeJson(SIGNATURES_KEY, signatures.slice(0, 6));
 }
 
 const RECENT_KEY = 'sgf-report-recent';

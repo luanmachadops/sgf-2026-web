@@ -2,7 +2,9 @@
 // tamanho impresso e entrega o arquivo (baixar ou abrir para imprimir).
 // O motor (`./pdf`) é carregado sob demanda para não pesar no bundle inicial.
 
-import type { ReportLogo } from './pdf';
+import { supabase } from '../supabase';
+import type { Json } from '@/types/database.types';
+import type { ReportLogo, ReportVerification } from './pdf';
 import type { ReportExportOptions } from './types';
 
 /**
@@ -58,13 +60,67 @@ export function loadReportLogo(url?: string): Promise<ReportLogo | null> {
     return cached;
 }
 
-export async function generateReportPdf(options: ReportExportOptions): Promise<Blob> {
-    const [{ buildReportPdf }, logo] = await Promise.all([
+export interface GeneratedReportPdf {
+    blob: Blob;
+    /** Código de verificação registrado no servidor (null = não registrado). */
+    verificationCode: string | null;
+    /** Motivo de não ter registrado, para avisar o usuário. */
+    registrationError?: string;
+}
+
+/**
+ * Registra o relatório no servidor (report_snapshots, imutável) e devolve o
+ * código de verificação público. Só admin, gestor e secretário registram.
+ */
+async function registerReport(
+    options: ReportExportOptions,
+    reportId: string,
+    hash: string,
+): Promise<{ code: string | null; error?: string }> {
+    const { data, error } = await supabase.rpc('register_report_snapshot', {
+        p_report_type: reportId,
+        p_title: options.reportTitle,
+        // A função aceita período nulo (relatórios de situação atual); os tipos gerados não refletem isso.
+        p_period_start: (options.filters.dateFrom ?? null) as unknown as string,
+        p_period_end: (options.filters.dateTo ?? null) as unknown as string,
+        p_filters: {
+            ...options.filters,
+            columns: options.dataset.columns.map((column) => column.key),
+            groupBy: options.groupBy ?? null,
+        } as unknown as Json,
+        p_content_hash: hash,
+        p_row_count: options.dataset.rows.length,
+    });
+    if (error) return { code: null, error: error.message };
+    return { code: data?.[0]?.verification_code ?? null };
+}
+
+export async function generateReportPdf(
+    options: ReportExportOptions,
+    registration?: { reportId: string },
+): Promise<GeneratedReportPdf> {
+    const [pdfModule, logo] = await Promise.all([
         import('./pdf'),
         loadReportLogo(options.branding?.sealUrl || options.branding?.logoUrl),
     ]);
-    const bytes = await buildReportPdf({ ...options, logo });
-    return new Blob([bytes as BlobPart], { type: 'application/pdf' });
+    const issuedAt = new Date();
+    let verification: ReportVerification | null = null;
+    let registrationError: string | undefined;
+    if (registration) {
+        const hash = await pdfModule.reportContentHash(options, issuedAt);
+        const result = await registerReport(options, registration.reportId, hash);
+        if (result.code) {
+            verification = { code: result.code, url: `${window.location.origin}/verificar/${result.code}` };
+        } else {
+            registrationError = result.error ?? 'Registro não confirmado pelo servidor.';
+        }
+    }
+    const bytes = await pdfModule.buildReportPdf({ ...options, logo, issuedAt, verification });
+    return {
+        blob: new Blob([bytes as BlobPart], { type: 'application/pdf' }),
+        verificationCode: verification?.code ?? null,
+        registrationError,
+    };
 }
 
 export function reportFileName(title: string, extension: 'pdf' | 'xlsx'): string {

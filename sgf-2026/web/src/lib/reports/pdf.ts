@@ -43,6 +43,8 @@ import {
     type TableLayout,
     type TextMeasurer,
 } from './layout';
+import { drawPlainVectorQr } from '../qrLabelsPdf';
+import { formatVerificationCode } from './verification';
 import type { ReportChart, ReportColumn, ReportDataset, ReportExportOptions, ReportSignature } from './types';
 
 export interface ReportLogo {
@@ -50,11 +52,21 @@ export interface ReportLogo {
     type: 'png' | 'jpg';
 }
 
+export interface ReportVerification {
+    /** Código emitido pelo servidor (register_report_snapshot). */
+    code: string;
+    /** Endereço público de conferência (/verificar/CODIGO). */
+    url: string;
+}
+
 export interface BuildReportPdfOptions extends ReportExportOptions {
     logo?: ReportLogo | null;
     /** Data de emissão (fixa nos testes). */
     issuedAt?: Date;
+    /** Registro de autenticidade; sem ele o rodapé mostra só o código de integridade local. */
+    verification?: ReportVerification | null;
 }
+
 
 const DEFAULT_PRIMARY = '00A86B';
 const DEFAULT_DARK = '0F2B2F';
@@ -801,7 +813,11 @@ function drawSignatures(
  * Código de integridade: SHA-256 do conteúdo (título, filtros, colunas, linhas,
  * emissão e emissor), em 4 grupos de 4. Qualquer alteração no conteúdo muda o código.
  */
-export async function reportIntegrityCode(options: BuildReportPdfOptions, issuedAt: Date): Promise<string> {
+/**
+ * SHA-256 (hex, 64 caracteres) do conteúdo do relatório: título, filtros,
+ * colunas, linhas, emissão, emissor e órgão. É o hash registrado no servidor.
+ */
+export async function reportContentHash(options: BuildReportPdfOptions, issuedAt: Date): Promise<string> {
     const keys = options.dataset.columns.map((column) => column.key);
     const canonical = JSON.stringify({
         title: options.reportTitle,
@@ -813,11 +829,44 @@ export async function reportIntegrityCode(options: BuildReportPdfOptions, issued
         institution: options.branding?.name ?? '',
     });
     const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
-    const hexText = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('').toUpperCase();
+    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Código de integridade local (16 primeiros caracteres do hash, em 4 grupos).
+ * Qualquer alteração no conteúdo muda o código.
+ */
+export async function reportIntegrityCode(options: BuildReportPdfOptions, issuedAt: Date): Promise<string> {
+    const hexText = (await reportContentHash(options, issuedAt)).toUpperCase();
     return hexText.slice(0, 16).match(/.{4}/g)!.join('-');
 }
 
-function drawFooters(ctx: Ctx, footerText: string, issued: string, integrity: string, issuer?: string) {
+/** Bloco final com QR vetorial apontando para a página pública de conferência. */
+function drawVerificationBlock(ctx: Ctx, verification: ReportVerification, orientation: 'portrait' | 'landscape') {
+    const qrSize = 84;
+    const height = qrSize + 12;
+    if (ctx.y + height + 10 > bodyBottom(ctx)) {
+        addPage(ctx, orientation);
+        drawContinuationHeader(ctx);
+    }
+    ctx.y += 10;
+    const left = contentLeft();
+    const width = contentRight(ctx) - left;
+    rect(ctx, left, ctx.y, width, height, C.panel);
+    drawPlainVectorQr(ctx.page, verification.url, left + 6, ctx.y + 6, qrSize);
+    const textX = left + qrSize + 20;
+    const textWidth = width - qrSize - 28;
+    text(ctx, 'Autenticidade deste documento', textX, ctx.y + 12, 9, { bold: true, color: ctx.dark });
+    text(ctx, `Código de verificação: ${formatVerificationCode(verification.code)}`, textX, ctx.y + 26, 9, { bold: true, color: ctx.primary });
+    const lines = wrapText(
+        `Aponte a câmera para o QR Code ou acesse ${verification.url} para confirmar que este relatório foi emitido pelo sistema, por qual órgão, quando e com quantos registros.`,
+        textWidth, 7.5, ctx.fonts.measurer,
+    );
+    lines.slice(0, 3).forEach((line, index) => text(ctx, line, textX, ctx.y + 40 + index * 9.5, 7.5, { color: C.muted }));
+    ctx.y += height;
+}
+
+function drawFooters(ctx: Ctx, footerText: string, issued: string, integrityLabelText: string, issuer?: string) {
     const total = ctx.pages.length;
     ctx.pages.forEach((page, index) => {
         ctx.page = page;
@@ -828,7 +877,7 @@ function drawFooters(ctx: Ctx, footerText: string, issued: string, integrity: st
         const top = ctx.pageHeight - M - FOOTER_RESERVED + 8;
         hline(ctx, left, right, top, 0.5, C.rule);
         const pageLabel = `Emissão: ${issued} · Página ${index + 1} de ${total}`;
-        const integrityLabel = `Integridade: ${integrity}${issuer ? ` · Emitido por ${issuer}` : ''}`;
+        const integrityLabel = `${integrityLabelText}${issuer ? ` · Emitido por ${issuer}` : ''}`;
         const labelWidth = Math.max(
             ctx.fonts.regular.widthOfTextAtSize(ctx.fonts.clean(pageLabel), 6.5),
             ctx.fonts.regular.widthOfTextAtSize(ctx.fonts.clean(integrityLabel), 6.5),
@@ -906,8 +955,11 @@ export async function buildReportPdf(options: BuildReportPdfOptions): Promise<Ui
         const longDate = issuedAt.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
         drawSignatures(ctx, options.signatures, `${city ? `${city}, ` : ''}${longDate}.`, layout.orientation);
     }
-    const integrity = await reportIntegrityCode(options, issuedAt);
-    drawFooters(ctx, footerText, issued, integrity, options.issuer);
+    if (options.verification) drawVerificationBlock(ctx, options.verification, layout.orientation);
+    const integrityLabel = options.verification
+        ? `Verificação: ${formatVerificationCode(options.verification.code)}`
+        : `Integridade: ${await reportIntegrityCode(options, issuedAt)}`;
+    drawFooters(ctx, footerText, issued, integrityLabel, options.issuer);
 
     doc.setTitle(options.reportTitle);
     doc.setSubject(options.reportDescription);

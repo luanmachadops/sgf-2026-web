@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Bar,
     BarChart,
@@ -47,6 +47,12 @@ import {
 } from '@/lib/reports/layout';
 import { findReport } from '@/lib/reports/registry';
 import {
+    DEFAULT_SIGNATURES,
+    reportSettingsApi,
+    type ReportLayoutConfig,
+} from '@/lib/reports/reportSettingsApi';
+import { formatVerificationCode } from '@/lib/reports/verification';
+import {
     downloadBlob,
     generateReportPdf,
     openPendingPdfTab,
@@ -64,18 +70,14 @@ import type {
 } from '@/lib/reports/types';
 import {
     arrangeRows,
-    loadLayoutModels,
-    loadSignatures,
     nextSort,
     rememberRecentReport,
-    saveLayoutModels,
-    saveSignatures,
-    type ReportLayoutModel,
     type ReportSort,
 } from '@/lib/reports/viewerState';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { matchesSearch } from '@/lib/utils';
+import { canAccessModule } from '@/lib/accessModules';
 import { toast } from 'sonner';
 import { LegacyReconciliationDialog, type LegacyReportRow } from './LegacyReconciliationDialog';
 import { ReportTable } from './ReportTable';
@@ -162,9 +164,53 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
     const [sort, setSort] = useState<ReportSort | null>(null);
     const [groupBy, setGroupBy] = useState<string | null>(definition?.groupBy ?? null);
     const [signaturesEnabled, setSignaturesEnabled] = useState(Boolean(definition?.signatures));
-    const [signatures, setSignatures] = useState<ReportSignature[]>(() => loadSignatures());
-    const [models, setModels] = useState<ReportLayoutModel[]>(() => loadLayoutModels(reportId));
+    const queryClient = useQueryClient();
+    const canManageDefaults = ['admin', 'gestor', 'superadmin'].includes(user?.accountRole ?? '');
+    // Gravar o padrão escreve em app_settings, que o filtro de módulos liga a Configurações.
+    const canSaveDefaultSignatures = canManageDefaults && canAccessModule(user?.allowedModules, 'settings');
+    // Assinaturas: padrão da prefeitura (app_settings), editáveis só para este documento.
+    const signaturesQuery = useQuery({
+        queryKey: ['report-signatures'],
+        queryFn: reportSettingsApi.getSignatures,
+        staleTime: 5 * 60 * 1000,
+        enabled: isOpen,
+    });
+    const [signatureEdits, setSignatureEdits] = useState<ReportSignature[] | null>(null);
+    const signatures = signatureEdits ?? signaturesQuery.data ?? DEFAULT_SIGNATURES;
+    const saveDefaultSignatures = useMutation({
+        mutationFn: () => reportSettingsApi.saveSignatures(signatures),
+        onSuccess: () => {
+            toast.success('Assinaturas salvas como padrão da prefeitura.');
+            setSignatureEdits(null);
+            void queryClient.invalidateQueries({ queryKey: ['report-signatures'] });
+        },
+        onError: (saveError) => toast.error(saveError instanceof Error ? saveError.message : 'Não foi possível salvar.'),
+    });
+    // Modelos de layout compartilhados pela prefeitura.
+    const modelsQuery = useQuery({
+        queryKey: ['report-models', reportId],
+        queryFn: () => reportSettingsApi.listModels(reportId),
+        enabled: isOpen,
+    });
+    const models = modelsQuery.data ?? [];
     const [modelName, setModelName] = useState('');
+    const saveModelMutation = useMutation({
+        mutationFn: (input: { name: string; config: ReportLayoutConfig }) =>
+            reportSettingsApi.saveModel(reportId, input.name, input.config),
+        onSuccess: (_, input) => {
+            toast.success(`Modelo "${input.name}" salvo para toda a prefeitura.`);
+            void queryClient.invalidateQueries({ queryKey: ['report-models', reportId] });
+        },
+        onError: (saveError) => toast.error(saveError instanceof Error ? saveError.message : 'Não foi possível salvar o modelo.'),
+    });
+    const deleteModelMutation = useMutation({
+        mutationFn: (id: string) => reportSettingsApi.deleteModel(id),
+        onSuccess: () => {
+            setModelName('');
+            void queryClient.invalidateQueries({ queryKey: ['report-models', reportId] });
+        },
+        onError: (deleteError) => toast.error(deleteError instanceof Error ? deleteError.message : 'Não foi possível excluir o modelo.'),
+    });
     const [exporting, setExporting] = useState<'pdf' | 'print' | 'excel' | null>(null);
 
     useEffect(() => {
@@ -293,8 +339,9 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
         let cancelled = false;
         setSheetState('loading');
         const timer = window.setTimeout(() => {
+            // Pré-visualização não registra: só o PDF baixado/impresso ganha código.
             generateReportPdf(exportOptions)
-                .then((blob) => {
+                .then(({ blob }) => {
                     if (cancelled) return;
                     const url = URL.createObjectURL(blob);
                     if (sheetUrlRef.current) URL.revokeObjectURL(sheetUrlRef.current);
@@ -336,10 +383,17 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
         const tab = mode === 'print' ? openPendingPdfTab() : null;
         try {
             setExporting(mode);
-            const blob = await generateReportPdf(exportOptions);
+            const result = await generateReportPdf(exportOptions, { reportId });
             const fileName = reportFileName(title, 'pdf');
-            if (mode === 'print') showPdfInTab(tab, blob, fileName);
-            else downloadBlob(blob, fileName);
+            if (mode === 'print') showPdfInTab(tab, result.blob, fileName);
+            else downloadBlob(result.blob, fileName);
+            if (result.verificationCode) {
+                toast.success(`Relatório registrado. Código de verificação: ${formatVerificationCode(result.verificationCode)}`);
+            } else {
+                toast.warning('PDF gerado sem registro de autenticidade (só o código de integridade local).', {
+                    description: result.registrationError,
+                });
+            }
         } catch (exportError) {
             tab?.close();
             console.error(exportError);
@@ -388,16 +442,17 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
         });
     };
 
-    const applyModel = (name: string) => {
-        const model = models.find((item) => item.name === name);
+    const applyModel = (id: string) => {
+        const model = models.find((item) => item.id === id);
         if (!model) return;
-        const known = model.columns.filter((key) => columnByKey.has(key));
+        const { config } = model;
+        const known = config.columns.filter((key) => columnByKey.has(key));
         if (known.length) setColumnOrder(known);
-        setOrientation(model.orientation);
-        setFontSize(model.fontSize);
-        setGroupBy(model.groupBy && columnByKey.has(model.groupBy) ? model.groupBy : null);
-        setSort(model.sort && columnByKey.has(model.sort.key) ? model.sort : null);
-        setSignaturesEnabled(model.signaturesEnabled);
+        setOrientation(config.orientation);
+        setFontSize(config.fontSize);
+        setGroupBy(config.groupBy && columnByKey.has(config.groupBy) ? config.groupBy : null);
+        setSort(config.sort && columnByKey.has(config.sort.key) ? config.sort : null);
+        setSignaturesEnabled(config.signaturesEnabled);
         setModelName(model.name);
         toast.success(`Modelo "${model.name}" aplicado.`);
     };
@@ -407,24 +462,18 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
             toast.warning('Dê um nome ao modelo.');
             return;
         }
-        const model: ReportLayoutModel = {
-            name, columns: columnOrder, orientation, fontSize, groupBy, sort, signaturesEnabled,
-        };
-        const next = [...models.filter((item) => item.name !== name), model].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-        setModels(next);
-        saveLayoutModels(reportId, next);
-        toast.success(`Modelo "${name}" salvo neste navegador.`);
+        saveModelMutation.mutate({
+            name,
+            config: { columns: columnOrder, orientation, fontSize, groupBy, sort, signaturesEnabled },
+        });
     };
+    const selectedModel = models.find((model) => model.name === modelName.trim());
+    const canDeleteSelected = Boolean(selectedModel)
+        && (selectedModel?.createdBy === user?.id || canManageDefaults);
     const deleteModel = () => {
-        const next = models.filter((item) => item.name !== modelName.trim());
-        setModels(next);
-        saveLayoutModels(reportId, next);
-        setModelName('');
+        if (selectedModel) deleteModelMutation.mutate(selectedModel.id);
     };
-    const updateSignatures = (next: ReportSignature[]) => {
-        setSignatures(next);
-        saveSignatures(next);
-    };
+    const updateSignatures = (next: ReportSignature[]) => setSignatureEdits(next);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -474,7 +523,7 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
                         fullWidth
                         value=""
                         onChange={applyModel}
-                        options={[{ value: '', label: 'Aplicar um modelo…' }, ...models.map((model) => ({ value: model.name, label: model.name }))]}
+                        options={[{ value: '', label: 'Aplicar um modelo…' }, ...models.map((model) => ({ value: model.id, label: model.name }))]}
                         triggerClassName="!rounded-xl !py-2 !text-sm"
                     />
                 )}
@@ -487,12 +536,12 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
                         aria-label="Nome do modelo"
                         className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-[var(--sgf-primary)] focus:outline-none"
                     />
-                    <SGFButton size="sm" variant="secondary" icon={Save} onClick={saveModel} aria-label="Salvar modelo" />
-                    {models.some((model) => model.name === modelName.trim()) && (
-                        <SGFButton size="sm" variant="ghost" icon={Trash2} onClick={deleteModel} aria-label="Excluir modelo" />
+                    <SGFButton size="sm" variant="secondary" icon={Save} onClick={saveModel} loading={saveModelMutation.isPending} aria-label="Salvar modelo" />
+                    {canDeleteSelected && (
+                        <SGFButton size="sm" variant="ghost" icon={Trash2} onClick={deleteModel} loading={deleteModelMutation.isPending} aria-label="Excluir modelo" />
                     )}
                 </div>
-                <p className="mt-1 text-[11px] text-slate-400">Guarda campos, ordem, agrupamento e impressão neste navegador.</p>
+                <p className="mt-1 text-[11px] text-slate-400">Guarda campos, ordem, agrupamento e impressão para todos os usuários da prefeitura.</p>
             </div>
 
             <div>
@@ -636,7 +685,14 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
                                 Adicionar assinatura
                             </SGFButton>
                         )}
-                        <p className="text-[11px] text-slate-400">Nomes e cargos ficam salvos neste navegador para os próximos relatórios.</p>
+                        <p className="text-[11px] text-slate-400">
+                            As alterações valem para este documento. O padrão da prefeitura também pode ser editado em Configurações.
+                        </p>
+                        {canSaveDefaultSignatures && signatureEdits && (
+                            <SGFButton size="sm" variant="secondary" loading={saveDefaultSignatures.isPending} onClick={() => saveDefaultSignatures.mutate()}>
+                                Salvar como padrão da prefeitura
+                            </SGFButton>
+                        )}
                     </div>
                 )}
             </div>

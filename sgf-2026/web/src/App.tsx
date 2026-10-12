@@ -42,6 +42,7 @@ import ProcurementRegistry from '@/pages/ProcurementRegistry';
 import AccessManagement from '@/pages/AccessManagement';
 import TermsAndPrivacy from '@/pages/TermsAndPrivacy';
 
+const VerificarRelatorio = lazy(() => import('@/pages/VerificarRelatorio'));
 const StationPortal = lazy(() => import('@/pages/partner/StationPortal'));
 const WorkshopPortal = lazy(() => import('@/pages/partner/WorkshopPortal'));
 
@@ -112,6 +113,9 @@ function App() {
             <Route path="/termos-e-privacidade" element={<TermsAndPrivacy />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/acesso-suspenso" element={<SuspendedAccess />} />
+            {/* Conferência pública de relatórios (QR impresso no PDF) — sem login. */}
+            <Route path="/verificar" element={<Suspense fallback={routeLoading}><VerificarRelatorio /></Suspense>} />
+            <Route path="/verificar/:code" element={<Suspense fallback={routeLoading}><VerificarRelatorio /></Suspense>} />
 
             {/* Protected routes */}
             <Route element={<PrivateRoute allow={['ADMIN', 'MANAGER', 'SUPERADMIN']} />}>

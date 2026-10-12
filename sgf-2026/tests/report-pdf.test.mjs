@@ -326,3 +326,36 @@ test("comprovante de abastecimento tem texto real e omite campos vazios", async 
   assert.match(textContent, /62,40 L/);
   assert.doesNotMatch(textContent, /Nota fiscal/);
 });
+
+// ── Verificação pública (report_snapshots) ──────────────────────────────────
+
+const { reportContentHash } = await import("../web/src/lib/reports/pdf.ts");
+const { formatVerificationCode, normalizeVerificationCode } = await import("../web/src/lib/reports/verification.ts");
+
+test("hash do conteúdo é SHA-256 hex (64) e o código local deriva dele", async () => {
+  const options = { ...baseOptions, reportTitle: "X", dataset: { columns: tripColumns, rows: tripRows, kpis: [] } };
+  const hash = await reportContentHash(options, baseOptions.issuedAt);
+  assert.match(hash, /^[0-9a-f]{64}$/);
+  const code = await reportIntegrityCode(options, baseOptions.issuedAt);
+  assert.equal(code.replaceAll("-", ""), hash.slice(0, 16).toUpperCase());
+});
+
+test("formata e normaliza o código de verificação do servidor", () => {
+  assert.equal(formatVerificationCode("abcd2345efgh"), "ABCD-2345-EFGH");
+  assert.equal(normalizeVerificationCode(" abcd-2345 efgh "), "ABCD2345EFGH");
+});
+
+test("PDF registrado traz código no rodapé e QR vetorial de conferência", async () => {
+  const bytes = await buildReportPdf({
+    ...baseOptions,
+    dataset: { columns: tripColumns, rows: tripRows, kpis: [] },
+    verification: { code: "ABCD2345EFGH", url: "https://frota.exemplo.gov.br/verificar/ABCD2345EFGH" },
+  });
+  const { raw, streams } = pdfStreams(bytes);
+  const textContent = drawnText(streams);
+  assert.match(textContent, /Verificação: ABCD-2345-EFGH/);
+  assert.match(textContent, /Código de verificação: ABCD-2345-EFGH/);
+  assert.match(textContent, /frota\.exemplo\.gov\.br\/verificar/);
+  assert.doesNotMatch(textContent, /Integridade:/);
+  assert.ok(!/\/Subtype\s*\/Image/.test(raw + streams), "QR de verificação também é vetor");
+});
