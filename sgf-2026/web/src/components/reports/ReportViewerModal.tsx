@@ -22,6 +22,7 @@ import { ContractUsageGauge } from '@/components/procurement/ContractUsageGauge'
 import {
     ArrowLeft,
     Calendar,
+    Download,
     Check,
     FileSpreadsheet as ExcelIcon,
     Filter,
@@ -40,11 +41,26 @@ import {
 } from '@/lib/reportData';
 import {
     exportReportToExcel,
-    exportReportToPDF,
     type ReportBranding,
     type ReportFilters,
     type ReportLayoutOptions,
 } from '@/lib/reportExport';
+import { computeTotals, totalsLabel } from '@/lib/reports/format';
+import {
+    DEFAULT_PRINT_FONT_PT,
+    MAX_PRINT_FONT_PT,
+    MIN_PRINT_FONT_PT,
+    computeTableLayout,
+    describeLayout,
+    type TextMeasurer,
+} from '@/lib/reports/layout';
+import {
+    downloadBlob,
+    generateReportPdf,
+    openPendingPdfTab,
+    reportFileName,
+    showPdfInTab,
+} from '@/lib/reports/reportPdfBrowser';
 import { useBranding } from '@/contexts/BrandingContext';
 import { toast } from 'sonner';
 import { matchesSearch } from '@/lib/utils';
@@ -305,11 +321,18 @@ export function ReportViewerModal({
     const [contextValue, setContextValue] = useState('');
     const [visibleColumnKeys, setVisibleColumnKeys] = useState<string[]>([]);
     const [showCustomization, setShowCustomization] = useState(false);
-    const [orientation, setOrientation] = useState<ReportLayoutOptions['orientation']>('portrait');
-    const [fontSize, setFontSize] = useState(9);
-    const [columnScale, setColumnScale] = useState(100);
+    const [orientation, setOrientation] = useState<ReportLayoutOptions['orientation']>('auto');
+    const [fontSize, setFontSize] = useState(DEFAULT_PRINT_FONT_PT);
     const [previewPage, setPreviewPage] = useState(1);
-    const [exporting, setExporting] = useState<'pdf' | 'excel' | null>(null);
+    const [exporting, setExporting] = useState<'pdf' | 'print' | 'excel' | null>(null);
+
+    // Mede com as mesmas fontes do PDF, para o medidor de encaixe bater com o impresso.
+    const { data: pdfMeasurer } = useQuery<TextMeasurer>({
+        queryKey: ['report-pdf-measurer'],
+        queryFn: async () => (await import('@/lib/reports/pdf')).getPdfTextMeasurer(),
+        staleTime: Infinity,
+        enabled: isOpen,
+    });
 
     const { data: departmentOptions = [{ value: '', label: 'Todas as secretarias' }] } = useQuery({
         queryKey: ['report-departments'],
@@ -399,12 +422,17 @@ export function ReportViewerModal({
         [dataset.columns, visibleColumnKeys],
     );
     const visibleTableWidth = useMemo(
-        () => visibleColumns.reduce(
-            (total, column) => total + (column.minWidth ?? 110) * (columnScale / 100),
-            0,
-        ),
-        [columnScale, visibleColumns],
+        () => visibleColumns.reduce((total, column) => total + (column.minWidth ?? 110), 0),
+        [visibleColumns],
     );
+    const totals = useMemo(() => computeTotals(visibleColumns, filteredRows), [filteredRows, visibleColumns]);
+    const totalsLabelKey = totals ? visibleColumns.find((column) => !(column.key in totals))?.key : undefined;
+    const printLayout = useMemo(() => {
+        if (!pdfMeasurer || visibleColumns.length === 0) return null;
+        return computeTableLayout({ columns: visibleColumns, rows: filteredRows, orientation, fontSize }, pdfMeasurer);
+    }, [filteredRows, fontSize, orientation, pdfMeasurer, visibleColumns]);
+    const printFit = printLayout ? describeLayout(printLayout) : null;
+    const removableVisible = printLayout?.removableColumns ?? [];
     const previewPageCount = Math.max(1, Math.ceil(filteredRows.length / PREVIEW_PAGE_SIZE));
     const previewRows = useMemo(
         () => filteredRows.slice(
@@ -450,8 +478,7 @@ export function ReportViewerModal({
     const layout: ReportLayoutOptions = useMemo(() => ({
         orientation,
         fontSize,
-        columnScale,
-    }), [columnScale, fontSize, orientation]);
+    }), [fontSize, orientation]);
 
     const validateExport = (): boolean => {
         if (!rangeIsValid) {
@@ -469,32 +496,39 @@ export function ReportViewerModal({
         return true;
     };
 
-    const handlePDF = () => {
+    const exportOptions = {
+        reportTitle: title,
+        reportDescription: description,
+        dataset: exportDataset,
+        filters,
+        branding: reportBranding,
+        layout,
+    };
+
+    const handlePDF = async (mode: 'pdf' | 'print') => {
         if (!validateExport()) return;
-        setExporting('pdf');
-        exportReportToPDF({
-            reportTitle: title,
-            reportDescription: description,
-            dataset: exportDataset,
-            filters,
-            branding: reportBranding,
-            layout,
-        });
-        window.setTimeout(() => setExporting(null), 500);
+        // A aba de impressão precisa abrir no clique, antes do await.
+        const tab = mode === 'print' ? openPendingPdfTab() : null;
+        try {
+            setExporting(mode);
+            const blob = await generateReportPdf(exportOptions);
+            const fileName = reportFileName(title, 'pdf');
+            if (mode === 'print') showPdfInTab(tab, blob, fileName);
+            else downloadBlob(blob, fileName);
+        } catch (exportError) {
+            tab?.close();
+            console.error(exportError);
+            toast.error('Erro ao gerar o PDF do relatório.');
+        } finally {
+            setExporting(null);
+        }
     };
 
     const handleExcel = async () => {
         if (!validateExport()) return;
         try {
             setExporting('excel');
-            await exportReportToExcel({
-                reportTitle: title,
-                reportDescription: description,
-                dataset: exportDataset,
-                filters,
-                branding: reportBranding,
-                layout,
-            });
+            await exportReportToExcel(exportOptions);
             toast.success('Planilha Excel gerada com sucesso.');
         } catch (exportError) {
             console.error(exportError);
@@ -556,10 +590,21 @@ export function ReportViewerModal({
                         variant="secondary"
                         size="sm"
                         icon={Printer}
-                        onClick={handlePDF}
-                        loading={exporting === 'pdf'}
+                        onClick={() => void handlePDF('print')}
+                        loading={exporting === 'print'}
+                        disabled={exporting !== null && exporting !== 'print'}
                     >
-                        <span className="hidden sm:inline">Imprimir / </span>PDF
+                        <span className="hidden sm:inline">Imprimir</span>
+                    </SGFButton>
+                    <SGFButton
+                        variant="secondary"
+                        size="sm"
+                        icon={Download}
+                        onClick={() => void handlePDF('pdf')}
+                        loading={exporting === 'pdf'}
+                        disabled={exporting !== null && exporting !== 'pdf'}
+                    >
+                        PDF
                     </SGFButton>
                     <SGFButton
                         variant="primary"
@@ -665,7 +710,7 @@ export function ReportViewerModal({
 
             {showCustomization && (
                 <section className="shrink-0 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:px-6">
-                    <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[1fr_auto_auto_auto]">
+                    <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[1fr_auto_auto]">
                         <div>
                             <div className="mb-2 flex items-center gap-2">
                                 <Filter className="h-4 w-4 text-[var(--sgf-primary)]" />
@@ -702,6 +747,7 @@ export function ReportViewerModal({
                             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-600">Orientação</p>
                             <div className="flex rounded-full border border-slate-200 bg-white p-1">
                                 {([
+                                    ['auto', 'Automática'],
                                     ['portrait', 'Vertical'],
                                     ['landscape', 'Horizontal'],
                                 ] as const).map(([value, label]) => (
@@ -709,6 +755,7 @@ export function ReportViewerModal({
                                         key={value}
                                         type="button"
                                         onClick={() => setOrientation(value)}
+                                        aria-pressed={orientation === value}
                                         className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
                                             orientation === value
                                                 ? 'bg-[var(--sgf-dark)] text-white'
@@ -722,33 +769,43 @@ export function ReportViewerModal({
                         </div>
                         <label className="min-w-40">
                             <span className="mb-2 flex justify-between text-xs font-bold uppercase tracking-wide text-slate-600">
-                                Fonte <strong className="text-[var(--sgf-primary)]">{fontSize}px</strong>
+                                Fonte impressa <strong className="text-[var(--sgf-primary)]">{fontSize.toLocaleString('pt-BR')} pt</strong>
                             </span>
                             <input
                                 type="range"
-                                min="7"
-                                max="13"
-                                step="1"
+                                min={MIN_PRINT_FONT_PT}
+                                max={MAX_PRINT_FONT_PT}
+                                step="0.5"
                                 value={fontSize}
                                 onChange={(event) => setFontSize(Number(event.target.value))}
                                 className="accent-[var(--sgf-primary)]"
                             />
                         </label>
-                        <label className="min-w-40">
-                            <span className="mb-2 flex justify-between text-xs font-bold uppercase tracking-wide text-slate-600">
-                                Colunas <strong className="text-[var(--sgf-primary)]">{columnScale}%</strong>
-                            </span>
-                            <input
-                                type="range"
-                                min="70"
-                                max="140"
-                                step="5"
-                                value={columnScale}
-                                onChange={(event) => setColumnScale(Number(event.target.value))}
-                                className="accent-[var(--sgf-primary)]"
-                            />
-                        </label>
                     </div>
+                    {printFit && (
+                        <div
+                            role="status"
+                            className={`mx-auto mt-4 flex max-w-7xl flex-col gap-2 rounded-xl border px-4 py-2.5 text-xs font-semibold sm:flex-row sm:items-center sm:justify-between ${
+                                printFit.tone === 'warn'
+                                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                    : printFit.tone === 'info'
+                                        ? 'border-blue-200 bg-blue-50 text-blue-800'
+                                        : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                            }`}
+                        >
+                            <span>Impressão: {printFit.message}</span>
+                            {printLayout?.status === 'split' && removableVisible.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setVisibleColumnKeys((current) =>
+                                        current.filter((key) => !removableVisible.some((column) => column.key === key)))}
+                                    className="shrink-0 rounded-full border border-amber-300 bg-white px-3 py-1 text-amber-800 hover:bg-amber-100"
+                                >
+                                    Remover colunas complementares
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </section>
             )}
 
@@ -909,7 +966,7 @@ export function ReportViewerModal({
                                         {visibleColumns.map((column) => (
                                             <col
                                                 key={column.key}
-                                                style={{ width: `${(column.minWidth ?? 110) * (columnScale / 100)}px` }}
+                                                style={{ width: `${column.minWidth ?? 110}px` }}
                                             />
                                         ))}
                                     </colgroup>
@@ -949,6 +1006,24 @@ export function ReportViewerModal({
                                             </tr>
                                         ))}
                                     </tbody>
+                                    {totals && previewPage === previewPageCount && (
+                                        <tfoot>
+                                            <tr className="border-t-2 border-[var(--sgf-dark)] bg-slate-100 font-bold text-[var(--sgf-dark)]">
+                                                {visibleColumns.map((column) => (
+                                                    <td
+                                                        key={column.key}
+                                                        className="whitespace-nowrap px-3 py-2.5 align-top"
+                                                        style={{ textAlign: column.align ?? 'left' }}
+                                                    >
+                                                        {column.key in totals
+                                                            ? formatReportValue(totals[column.key], column.format)
+                                                            : column.key === totalsLabelKey ? totalsLabel(filteredRows.length) : ''}
+                                                    </td>
+                                                ))}
+                                                {showLegacyAction && <td />}
+                                            </tr>
+                                        </tfoot>
+                                    )}
                                 </table>
                             </div>
                         )}
