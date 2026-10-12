@@ -6,37 +6,10 @@ import type { PostgrestError } from '@supabase/supabase-js';
 import { procurementApi, type ProcurementContractUsage } from './procurement-api';
 import { supabase } from './supabase';
 import { ITEM_CATEGORIES } from './procurement-items-api';
+import type { ReportDataset } from './reports/types';
 
-export interface ReportColumn {
-    key: string;
-    label: string;
-    align?: 'left' | 'right' | 'center';
-    format?: 'text' | 'integer' | 'decimal' | 'currency' | 'percent' | 'date';
-    defaultVisible?: boolean;
-    filterable?: boolean;
-    minWidth?: number;
-}
-
-export interface ReportKpi {
-    label: string;
-    value: string;
-}
-
-export interface ReportChart {
-    title: string;
-    description?: string;
-    type: 'bar' | 'donut' | 'gauge';
-    valueFormat?: 'integer' | 'decimal' | 'currency' | 'percent';
-    data: { label: string; value: number }[];
-}
-
-export interface ReportDataset {
-    columns: ReportColumn[];
-    rows: Record<string, string | number>[];
-    kpis: ReportKpi[];
-    charts?: ReportChart[];
-    notes?: string[];
-}
+export type { ReportChart, ReportColumn, ReportDataset, ReportKpi } from './reports/types';
+export { formatReportValue } from './reports/format';
 
 export interface ReportFilterInput {
     /** id (uuid) da secretaria; vazio = todas */
@@ -103,21 +76,6 @@ function topChartData(
         .filter((item) => Number.isFinite(item.value))
         .sort((a, b) => b.value - a.value)
         .slice(0, limit);
-}
-
-export function formatReportValue(
-    value: string | number | null | undefined,
-    format: ReportColumn['format'] = 'text',
-): string {
-    if (value === null || value === undefined || value === '') return '—';
-    if (typeof value !== 'number') return String(value);
-    if (format === 'currency') {
-        return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    }
-    if (format === 'integer') return NUM(value, 0);
-    if (format === 'decimal') return NUM(value, 2);
-    if (format === 'percent') return `${NUM(value, 1)}%`;
-    return value.toLocaleString('pt-BR');
 }
 
 const VEHICLE_STATUS_LABEL: Record<string, string> = {
@@ -202,11 +160,11 @@ async function fleetSummary(f?: ReportFilterInput): Promise<ReportDataset> {
             { label: 'Secretarias', value: NUM(depts.size) },
         ],
         columns: [
-            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90 },
-            { key: 'model', label: 'Modelo', filterable: true, minWidth: 160 },
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
+            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90, priority: 1, anchor: true },
+            { key: 'model', label: 'Modelo', filterable: true, minWidth: 160, stackUnder: 'plate' },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180, priority: 1 },
             { key: 'odometer', label: 'Odômetro (km)', align: 'right', format: 'integer', minWidth: 120 },
-            { key: 'status', label: 'Status atual', filterable: true, minWidth: 120 },
+            { key: 'status', label: 'Status atual', filterable: true, minWidth: 120, priority: 1 },
         ],
         rows,
         charts: [{
@@ -276,16 +234,16 @@ async function fuelConsumption(f?: ReportFilterInput): Promise<ReportDataset> {
             { label: 'Veículos monitorados', value: NUM(vehicles.size) },
         ],
         columns: [
-            { key: 'date', label: 'Data', format: 'date', minWidth: 90 },
-            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90 },
-            { key: 'model', label: 'Modelo', filterable: true, minWidth: 150 },
+            { key: 'date', label: 'Data', format: 'date', minWidth: 90, priority: 1, anchor: true },
+            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90, priority: 1, anchor: true },
+            { key: 'model', label: 'Modelo', filterable: true, minWidth: 150, stackUnder: 'plate' },
             { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
             { key: 'fuelType', label: 'Combustível', filterable: true, minWidth: 105 },
-            { key: 'liters', label: 'Litros', align: 'right', format: 'decimal', minWidth: 85 },
+            { key: 'liters', label: 'Litros', align: 'right', format: 'decimal', minWidth: 85, priority: 1, total: 'sum' },
             { key: 'unitPrice', label: 'Preço unitário', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'cost', label: 'Valor total', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'cost', label: 'Valor total', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
             { key: 'avg', label: 'Média (km/L)', align: 'right', format: 'decimal', minWidth: 110 },
-            { key: 'odometer', label: 'Odômetro', align: 'right', format: 'integer', defaultVisible: false, minWidth: 100 },
+            { key: 'odometer', label: 'Odômetro', align: 'right', format: 'integer', defaultVisible: false, minWidth: 100, priority: 3 },
             { key: 'station', label: 'Posto', filterable: true, minWidth: 160 },
         ],
         rows,
@@ -355,20 +313,20 @@ async function maintenanceHistory(f?: ReportFilterInput): Promise<ReportDataset>
             { label: 'Recebidas', value: NUM(list.filter((r) => r.operational_status === 'received').length) },
         ],
         columns: [
-            { key: 'openedAt', label: 'Abertura', format: 'date', minWidth: 90 },
-            { key: 'receivedAt', label: 'Recebimento', format: 'date', defaultVisible: false, minWidth: 100 },
-            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90 },
-            { key: 'model', label: 'Modelo', filterable: true, minWidth: 150 },
+            { key: 'openedAt', label: 'Abertura', format: 'date', minWidth: 90, priority: 1, anchor: true },
+            { key: 'receivedAt', label: 'Recebimento', format: 'date', defaultVisible: false, minWidth: 100, priority: 3 },
+            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90, priority: 1, anchor: true },
+            { key: 'model', label: 'Modelo', filterable: true, minWidth: 150, stackUnder: 'plate' },
             { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
-            { key: 'category', label: 'Categoria', filterable: true, minWidth: 120 },
-            { key: 'description', label: 'Descrição', minWidth: 220 },
+            { key: 'category', label: 'Categoria', filterable: true, minWidth: 120, stackUnder: 'description' },
+            { key: 'description', label: 'Descrição', minWidth: 220, priority: 1 },
             { key: 'shop', label: 'Oficina', filterable: true, minWidth: 160 },
-            { key: 'budget', label: 'Orçado', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'cost', label: 'Custo final', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'operationalStatus', label: 'Situação operacional', filterable: true, minWidth: 145 },
-            { key: 'financialStatus', label: 'Situação financeira', filterable: true, minWidth: 145 },
-            { key: 'commitment', label: 'Empenho', defaultVisible: false, minWidth: 115 },
-            { key: 'nad', label: 'NAD', defaultVisible: false, minWidth: 100 },
+            { key: 'budget', label: 'Orçado', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'cost', label: 'Custo final', align: 'right', format: 'currency', minWidth: 110, priority: 1, total: 'sum' },
+            { key: 'operationalStatus', label: 'Situação operacional', filterable: true, minWidth: 145, priority: 1 },
+            { key: 'financialStatus', label: 'Situação financeira', filterable: true, minWidth: 145, stackUnder: 'operationalStatus' },
+            { key: 'commitment', label: 'Empenho', defaultVisible: false, minWidth: 115, priority: 3 },
+            { key: 'nad', label: 'NAD', defaultVisible: false, minWidth: 100, priority: 3, stackUnder: 'commitment' },
         ],
         rows,
         charts: [{
@@ -426,14 +384,14 @@ async function tripAnalysis(f?: ReportFilterInput): Promise<ReportDataset> {
             { label: 'Canceladas', value: NUM(list.filter((r) => r.status === 'cancelada').length) },
         ],
         columns: [
-            { key: 'date', label: 'Data', format: 'date', minWidth: 90 },
-            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90 },
-            { key: 'model', label: 'Modelo', filterable: true, minWidth: 150 },
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
-            { key: 'driver', label: 'Motorista', filterable: true, minWidth: 160 },
-            { key: 'distance', label: 'Distância (km)', align: 'right', format: 'decimal', minWidth: 115 },
+            { key: 'date', label: 'Data', format: 'date', minWidth: 90, priority: 1, anchor: true },
+            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90, priority: 1, anchor: true },
+            { key: 'model', label: 'Modelo', filterable: true, minWidth: 150, stackUnder: 'plate' },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180, stackUnder: 'driver' },
+            { key: 'driver', label: 'Motorista', filterable: true, minWidth: 160, priority: 1 },
+            { key: 'distance', label: 'Distância (km)', align: 'right', format: 'decimal', minWidth: 115, priority: 1, total: 'sum' },
             { key: 'destination', label: 'Destino', filterable: true, minWidth: 180 },
-            { key: 'status', label: 'Situação', filterable: true, minWidth: 120 },
+            { key: 'status', label: 'Situação', filterable: true, minWidth: 120, priority: 1 },
         ],
         rows,
         charts: [{
@@ -498,10 +456,10 @@ async function driverPerformance(f?: ReportFilterInput): Promise<ReportDataset> 
             { label: 'Pontuação média', value: `${NUM(avgScore, 0)}/100` },
         ],
         columns: [
-            { key: 'driver', label: 'Motorista', filterable: true, minWidth: 170 },
+            { key: 'driver', label: 'Motorista', filterable: true, minWidth: 170, priority: 1, anchor: true },
             { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
-            { key: 'trips', label: 'Viagens encerradas', align: 'right', format: 'integer', minWidth: 130 },
-            { key: 'km', label: 'Km encerrados', align: 'right', format: 'integer', minWidth: 110 },
+            { key: 'trips', label: 'Viagens encerradas', align: 'right', format: 'integer', minWidth: 130, total: 'sum' },
+            { key: 'km', label: 'Km encerrados', align: 'right', format: 'integer', minWidth: 110, total: 'sum' },
             { key: 'score', label: 'Pontuação atual', align: 'right', format: 'decimal', minWidth: 115 },
         ],
         rows,
@@ -617,10 +575,10 @@ async function costAnalysis(f?: ReportFilterInput): Promise<ReportDataset> {
             { label: 'Secretarias', value: NUM(agg.length) },
         ],
         columns: [
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
-            { key: 'fuel', label: 'Combustível', align: 'right', format: 'currency', minWidth: 125 },
-            { key: 'maintenance', label: 'Manutenção concluída', align: 'right', format: 'currency', minWidth: 160 },
-            { key: 'total', label: 'Total operacional', align: 'right', format: 'currency', minWidth: 145 },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180, priority: 1, anchor: true },
+            { key: 'fuel', label: 'Combustível', align: 'right', format: 'currency', minWidth: 125, total: 'sum' },
+            { key: 'maintenance', label: 'Manutenção concluída', align: 'right', format: 'currency', minWidth: 160, total: 'sum' },
+            { key: 'total', label: 'Total operacional', align: 'right', format: 'currency', minWidth: 145, priority: 1, total: 'sum' },
         ],
         rows,
         charts: [{
@@ -659,13 +617,13 @@ async function departmentUsage(f?: ReportFilterInput): Promise<ReportDataset> {
             { label: 'Total de viagens', value: NUM(agg.reduce((s, d) => s + d.trips, 0)) },
         ],
         columns: [
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
-            { key: 'vehicles', label: 'Veículos atuais', align: 'right', format: 'integer', minWidth: 120 },
-            { key: 'trips', label: 'Viagens encerradas', align: 'right', format: 'integer', minWidth: 130 },
-            { key: 'km', label: 'Km encerrados', align: 'right', format: 'integer', minWidth: 110 },
-            { key: 'fuelCost', label: 'Combustível', align: 'right', format: 'currency', minWidth: 120 },
-            { key: 'maintenanceCost', label: 'Manutenção', align: 'right', format: 'currency', minWidth: 120 },
-            { key: 'totalCost', label: 'Custo operacional', align: 'right', format: 'currency', minWidth: 140 },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180, priority: 1, anchor: true },
+            { key: 'vehicles', label: 'Veículos atuais', align: 'right', format: 'integer', minWidth: 120, total: 'sum' },
+            { key: 'trips', label: 'Viagens encerradas', align: 'right', format: 'integer', minWidth: 130, total: 'sum' },
+            { key: 'km', label: 'Km encerrados', align: 'right', format: 'integer', minWidth: 110, total: 'sum' },
+            { key: 'fuelCost', label: 'Combustível', align: 'right', format: 'currency', minWidth: 120, total: 'sum' },
+            { key: 'maintenanceCost', label: 'Manutenção', align: 'right', format: 'currency', minWidth: 120, total: 'sum' },
+            { key: 'totalCost', label: 'Custo operacional', align: 'right', format: 'currency', minWidth: 140, priority: 1, total: 'sum' },
         ],
         rows,
         charts: [{
@@ -704,11 +662,11 @@ async function efficiencyReport(f?: ReportFilterInput): Promise<ReportDataset> {
             { label: 'Veículos atuais', value: NUM(totalVeh) },
         ],
         columns: [
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180, priority: 1, anchor: true },
             { key: 'availability', label: 'Disponibilidade atual', align: 'right', format: 'percent', minWidth: 145 },
             { key: 'maintenance', label: 'Em manutenção agora', align: 'right', format: 'percent', minWidth: 150 },
-            { key: 'trips', label: 'Viagens encerradas', align: 'right', format: 'integer', minWidth: 130 },
-            { key: 'km', label: 'Km encerrados', align: 'right', format: 'integer', minWidth: 115 },
+            { key: 'trips', label: 'Viagens encerradas', align: 'right', format: 'integer', minWidth: 130, total: 'sum' },
+            { key: 'km', label: 'Km encerrados', align: 'right', format: 'integer', minWidth: 115, total: 'sum' },
         ],
         rows,
         charts: [{
@@ -776,14 +734,14 @@ async function infractionsReport(f?: ReportFilterInput): Promise<ReportDataset> 
             { label: 'Pontos acumulados', value: NUM(totalPoints) },
         ],
         columns: [
-            { key: 'date', label: 'Data', format: 'date', minWidth: 90 },
-            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90 },
-            { key: 'description', label: 'Infração', filterable: true, minWidth: 190 },
-            { key: 'location', label: 'Local', filterable: true, minWidth: 170 },
+            { key: 'date', label: 'Data', format: 'date', minWidth: 90, priority: 1, anchor: true },
+            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90, priority: 1, anchor: true },
+            { key: 'description', label: 'Infração', filterable: true, minWidth: 190, priority: 1 },
+            { key: 'location', label: 'Local', filterable: true, minWidth: 170, stackUnder: 'description' },
             { key: 'driver', label: 'Condutor', filterable: true, minWidth: 160 },
-            { key: 'amount', label: 'Valor', align: 'right', format: 'currency', minWidth: 105 },
-            { key: 'points', label: 'Pontos', align: 'right', format: 'integer', defaultVisible: false, minWidth: 80 },
-            { key: 'status', label: 'Situação', filterable: true, minWidth: 110 },
+            { key: 'amount', label: 'Valor', align: 'right', format: 'currency', minWidth: 105, priority: 1, total: 'sum' },
+            { key: 'points', label: 'Pontos', align: 'right', format: 'integer', defaultVisible: false, minWidth: 80, priority: 3, total: 'sum' },
+            { key: 'status', label: 'Situação', filterable: true, minWidth: 110, priority: 1 },
         ],
         rows,
         charts: [{
@@ -912,21 +870,21 @@ async function fuelByStation(f?: ReportFilterInput): Promise<ReportDataset> {
             { label: 'Saldo disponível', value: BRL(total.remaining) },
         ],
         columns: [
-            { key: 'station', label: 'Posto', filterable: true, minWidth: 180 },
-            { key: 'fuelings', label: 'Registros', align: 'right', format: 'integer', minWidth: 90 },
-            { key: 'liters', label: 'Litros', align: 'right', format: 'decimal', minWidth: 90 },
-            { key: 'presented', label: 'Apresentado', align: 'right', format: 'currency', minWidth: 125 },
-            { key: 'validated', label: 'Validado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'pending', label: 'Pendente', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'rejected', label: 'Rejeitados', align: 'right', format: 'integer', minWidth: 95 },
-            { key: 'contractValue', label: 'Contratado', align: 'right', format: 'currency', minWidth: 120 },
-            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'realized', label: 'Realizado acumulado', align: 'right', format: 'currency', minWidth: 145 },
-            { key: 'disputed', label: 'Em contestação', align: 'right', format: 'currency', defaultVisible: false, minWidth: 125 },
-            { key: 'remaining', label: 'Saldo disponível', align: 'right', format: 'currency', minWidth: 130 },
+            { key: 'station', label: 'Posto', filterable: true, minWidth: 180, priority: 1, anchor: true },
+            { key: 'fuelings', label: 'Registros', align: 'right', format: 'integer', minWidth: 90, total: 'sum' },
+            { key: 'liters', label: 'Litros', align: 'right', format: 'decimal', minWidth: 90, total: 'sum' },
+            { key: 'presented', label: 'Apresentado', align: 'right', format: 'currency', minWidth: 125, total: 'sum' },
+            { key: 'validated', label: 'Validado', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
+            { key: 'pending', label: 'Pendente', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'rejected', label: 'Rejeitados', align: 'right', format: 'integer', minWidth: 95, total: 'sum' },
+            { key: 'contractValue', label: 'Contratado', align: 'right', format: 'currency', minWidth: 120, total: 'sum' },
+            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'realized', label: 'Realizado acumulado', align: 'right', format: 'currency', minWidth: 145, total: 'sum' },
+            { key: 'disputed', label: 'Em contestação', align: 'right', format: 'currency', defaultVisible: false, minWidth: 125, priority: 3, total: 'sum' },
+            { key: 'remaining', label: 'Saldo disponível', align: 'right', format: 'currency', minWidth: 130, priority: 1, total: 'sum' },
             { key: 'consumedPercent', label: '% consumido', align: 'right', format: 'percent', minWidth: 105 },
-            { key: 'invoiced', label: 'Faturado', defaultVisible: false, minWidth: 145 },
-            { key: 'paid', label: 'Pago', defaultVisible: false, minWidth: 145 },
+            { key: 'invoiced', label: 'Faturado', defaultVisible: false, minWidth: 145, priority: 3 },
+            { key: 'paid', label: 'Pago', defaultVisible: false, minWidth: 145, priority: 3 },
         ],
         rows,
         charts: [{
@@ -983,20 +941,20 @@ async function stationFiscalClosing(f?: ReportFilterInput): Promise<ReportDatase
             { label: 'Saldo em trâmite', value: BRL(Math.max(total - paid, 0)) },
         ],
         columns: [
-            { key: 'protocol', label: 'Protocolo', filterable: true, minWidth: 150 },
-            { key: 'station', label: 'Posto', filterable: true, minWidth: 180 },
+            { key: 'protocol', label: 'Protocolo', filterable: true, minWidth: 150, priority: 1, anchor: true },
+            { key: 'station', label: 'Posto', filterable: true, minWidth: 180, priority: 1 },
             { key: 'competence', label: 'Competência', format: 'date', minWidth: 100 },
-            { key: 'records', label: 'Registros', align: 'right', format: 'integer', minWidth: 85 },
-            { key: 'amount', label: 'Valor fechado', align: 'right', format: 'currency', minWidth: 125 },
+            { key: 'records', label: 'Registros', align: 'right', format: 'integer', minWidth: 85, total: 'sum' },
+            { key: 'amount', label: 'Valor fechado', align: 'right', format: 'currency', minWidth: 125, priority: 1, total: 'sum' },
             { key: 'closingStatus', label: 'Conferência', filterable: true, minWidth: 110 },
-            { key: 'fiscalStatus', label: 'Situação fiscal', filterable: true, minWidth: 145 },
+            { key: 'fiscalStatus', label: 'Situação fiscal', filterable: true, minWidth: 145, priority: 1 },
             { key: 'commitment', label: 'Empenho', filterable: true, minWidth: 120 },
-            { key: 'nad', label: 'NAD', defaultVisible: false, minWidth: 100 },
-            { key: 'invoice', label: 'Nota fiscal', filterable: true, minWidth: 110 },
-            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'balance', label: 'Saldo', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'hash', label: 'Hash SHA-256', defaultVisible: false, minWidth: 300 },
+            { key: 'nad', label: 'NAD', defaultVisible: false, minWidth: 100, priority: 3, stackUnder: 'commitment' },
+            { key: 'invoice', label: 'Nota fiscal', filterable: true, minWidth: 110, stackUnder: 'commitment' },
+            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'balance', label: 'Saldo', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'hash', label: 'Hash SHA-256', defaultVisible: false, minWidth: 300, priority: 3 },
         ],
         rows,
         charts: [{
@@ -1130,19 +1088,19 @@ async function maintenanceByShop(f?: ReportFilterInput): Promise<ReportDataset> 
             { label: 'Saldo disponível', value: BRL(totals.remaining) },
         ],
         columns: [
-            { key: 'shop', label: 'Oficina', filterable: true, minWidth: 180 },
-            { key: 'orders', label: 'OS', align: 'right', format: 'integer', minWidth: 70 },
-            { key: 'budget', label: 'Orçado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'cost', label: 'Custo final', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'execution', label: 'Em execução', align: 'right', format: 'integer', minWidth: 105 },
-            { key: 'openFinance', label: 'Financeiro aberto', align: 'right', format: 'integer', minWidth: 130 },
-            { key: 'paidOrders', label: 'OS pagas', align: 'right', format: 'integer', defaultVisible: false, minWidth: 85 },
-            { key: 'contractValue', label: 'Contratado', align: 'right', format: 'currency', minWidth: 120 },
-            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'realized', label: 'Realizado acumulado', align: 'right', format: 'currency', minWidth: 145 },
-            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'remaining', label: 'Saldo disponível', align: 'right', format: 'currency', minWidth: 130 },
+            { key: 'shop', label: 'Oficina', filterable: true, minWidth: 180, priority: 1, anchor: true },
+            { key: 'orders', label: 'OS', align: 'right', format: 'integer', minWidth: 70, total: 'sum' },
+            { key: 'budget', label: 'Orçado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'cost', label: 'Custo final', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
+            { key: 'execution', label: 'Em execução', align: 'right', format: 'integer', minWidth: 105, total: 'sum' },
+            { key: 'openFinance', label: 'Financeiro aberto', align: 'right', format: 'integer', minWidth: 130, total: 'sum' },
+            { key: 'paidOrders', label: 'OS pagas', align: 'right', format: 'integer', defaultVisible: false, minWidth: 85, priority: 3, total: 'sum' },
+            { key: 'contractValue', label: 'Contratado', align: 'right', format: 'currency', minWidth: 120, total: 'sum' },
+            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'realized', label: 'Realizado acumulado', align: 'right', format: 'currency', minWidth: 145, total: 'sum' },
+            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'remaining', label: 'Saldo disponível', align: 'right', format: 'currency', minWidth: 130, priority: 1, total: 'sum' },
             { key: 'consumedPercent', label: '% consumido', align: 'right', format: 'percent', minWidth: 105 },
         ],
         rows,
@@ -1228,24 +1186,24 @@ async function procurementFiscalReconciliation(f?: ReportFilterInput): Promise<R
             { label: 'Saldo disponível', value: BRL(sumNumber('remaining')) },
         ],
         columns: [
-            { key: 'fiscalYear', label: 'Exercício', align: 'right', format: 'integer', minWidth: 85 },
-            { key: 'process', label: 'Processo', filterable: true, minWidth: 140 },
-            { key: 'instrument', label: 'Instrumento', filterable: true, minWidth: 180 },
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 170 },
-            { key: 'category', label: 'Categoria', filterable: true, minWidth: 120 },
+            { key: 'fiscalYear', label: 'Exercício', align: 'right', format: 'text', minWidth: 85, stackUnder: 'process' },
+            { key: 'process', label: 'Processo', filterable: true, minWidth: 140, priority: 1, anchor: true },
+            { key: 'instrument', label: 'Instrumento', filterable: true, minWidth: 180, stackUnder: 'process' },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 170, priority: 1 },
+            { key: 'category', label: 'Categoria', filterable: true, minWidth: 120, stackUnder: 'department' },
             { key: 'appropriation', label: 'Dotação', filterable: true, minWidth: 135 },
-            { key: 'fundingSource', label: 'Fonte', filterable: true, minWidth: 95 },
-            { key: 'simam', label: 'Código SIM-AM', filterable: true, minWidth: 150 },
-            { key: 'planned', label: 'Teto', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'disputed', label: 'Contestado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'legacyReconciled', label: 'Legado conciliado', align: 'right', format: 'currency', minWidth: 135 },
-            { key: 'consumed', label: 'Consumido', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'remaining', label: 'Saldo', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'attested', label: 'Atestado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 105 },
+            { key: 'fundingSource', label: 'Fonte', filterable: true, minWidth: 95, stackUnder: 'appropriation' },
+            { key: 'simam', label: 'Código SIM-AM', filterable: true, minWidth: 150, priority: 3, stackUnder: 'appropriation' },
+            { key: 'planned', label: 'Teto', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
+            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'disputed', label: 'Contestado', align: 'right', format: 'currency', minWidth: 115, priority: 3, total: 'sum' },
+            { key: 'legacyReconciled', label: 'Legado conciliado', align: 'right', format: 'currency', minWidth: 135, priority: 3, total: 'sum' },
+            { key: 'consumed', label: 'Consumido', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
+            { key: 'remaining', label: 'Saldo', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
+            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'attested', label: 'Atestado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 105, total: 'sum' },
         ],
         rows,
         charts: [{
@@ -1295,20 +1253,20 @@ async function procurementLegacyReconciliation(f?: ReportFilterInput): Promise<R
             { label: 'Situação', value: rows.length > 0 ? 'Aguardando vínculo' : 'Sem pendências' },
         ],
         columns: [
-            { key: 'sourceType', label: 'Origem', filterable: true, minWidth: 145 },
-            { key: 'sourceId', label: 'Registro legado', filterable: true, minWidth: 280 },
-            { key: 'contractId', label: 'ID do contrato legado', defaultVisible: false, minWidth: 280 },
+            { key: 'sourceType', label: 'Origem', filterable: true, minWidth: 145, priority: 1, anchor: true },
+            { key: 'sourceId', label: 'Registro legado', filterable: true, minWidth: 280, priority: 3 },
+            { key: 'contractId', label: 'ID do contrato legado', defaultVisible: false, minWidth: 280, priority: 3 },
             { key: 'contract', label: 'Contrato legado', filterable: true, minWidth: 170 },
-            { key: 'fiscalYear', label: 'Exercício', align: 'right', format: 'integer', minWidth: 85 },
-            { key: 'departmentId', label: 'ID da secretaria', defaultVisible: false, minWidth: 280 },
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 170 },
-            { key: 'partnerId', label: 'Fornecedor', filterable: true, minWidth: 280 },
-            { key: 'vehicleId', label: 'Veículo', filterable: true, minWidth: 280 },
-            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'disputed', label: 'Contestado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'consumed', label: 'A conciliar', align: 'right', format: 'currency', minWidth: 125 },
-            { key: 'status', label: 'Situação', filterable: true, minWidth: 145 },
+            { key: 'fiscalYear', label: 'Exercício', align: 'right', format: 'text', minWidth: 85, stackUnder: 'contract' },
+            { key: 'departmentId', label: 'ID da secretaria', defaultVisible: false, minWidth: 280, priority: 3 },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 170, priority: 1 },
+            { key: 'partnerId', label: 'Fornecedor', filterable: true, minWidth: 280, priority: 3 },
+            { key: 'vehicleId', label: 'Veículo', filterable: true, minWidth: 280, priority: 3 },
+            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'disputed', label: 'Contestado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'consumed', label: 'A conciliar', align: 'right', format: 'currency', minWidth: 125, priority: 1, total: 'sum' },
+            { key: 'status', label: 'Situação', filterable: true, minWidth: 145, priority: 1 },
         ],
         rows,
         notes: [
