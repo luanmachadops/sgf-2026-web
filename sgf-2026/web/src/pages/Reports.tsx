@@ -1,3 +1,5 @@
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFButton } from '@/components/sgf/SGFButton';
@@ -85,6 +87,12 @@ export default function Reports() {
     const [searchTerm, setSearchTerm] = useState('');
     const [showQrGen, setShowQrGen] = useState(false);
     const { setTitle, setDescription } = useHeader();
+    const navigate = useNavigate();
+    const { user } = useAuth();
+    // Trilha de auditoria: administrador e superadministrador; gestor só com escopo global (mesma regra da rota).
+    const canSeeAudit = user?.accountRole === 'admin'
+        || user?.accountRole === 'superadmin'
+        || (user?.accountRole === 'gestor' && !user?.departmentScopeId);
 
     useEffect(() => {
         setTitle('Relatórios');
@@ -165,6 +173,27 @@ export default function Reports() {
                     </div>
                 </section>
             ))}
+
+            {canSeeAudit && (
+                <SGFCard padding="lg" className="overflow-hidden border border-slate-200/80">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--sgf-dark)] to-[var(--sgf-primary)] text-white">
+                                <ShieldCheck className="h-6 w-6" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-semibold text-slate-900">Trilha de auditoria</h3>
+                                <p className="text-sm text-slate-500">
+                                    Quem fez o quê e quando: alterações em viagens, abastecimentos, manutenções, cadastros e acessos.
+                                </p>
+                            </div>
+                        </div>
+                        <SGFButton icon={ShieldCheck} onClick={() => navigate('/relatorios/auditoria')} className="shrink-0">
+                            Abrir trilha
+                        </SGFButton>
+                    </div>
+                </SGFCard>
+            )}
 
             <SGFCard padding="lg" className="overflow-hidden border border-slate-200/80">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

@@ -12,10 +12,8 @@ import {
     Route,
     BuildingGovernment,
     Toolbox,
-    Gavel,
     BarChart3,
     Settings2,
-    ShieldCheck,
     Clipboard,
     X,
     LogOut,
@@ -47,7 +45,6 @@ type MenuItem = {
     path: string;
     badge?: string;
     module?: AccessModule;
-    auditOnly?: boolean;
 };
 type MenuSection = { title: string; items: MenuItem[] };
 const menuSections: MenuSection[] = [
@@ -92,17 +89,10 @@ const menuSections: MenuSection[] = [
     {
         title: 'Administração',
         items: [
-            { icon: Gavel, label: 'Limites por secretaria', path: '/limites', module: 'budgets' },
             { icon: BarChart3, label: 'Relatórios & Auditoria', path: '/relatorios', module: 'reports' },
-        ]
-    },
-    {
-        title: 'Sistema',
-        items: [
-            { icon: ShieldCheck, label: 'Trilha de auditoria', path: '/auditoria', auditOnly: true },
             { icon: Settings2, label: 'Configurações', path: '/configuracoes', module: 'settings' },
         ]
-    }
+    },
 ];
 const GLOBAL_ONLY_PATHS = new Set([
     '/postos',
@@ -125,18 +115,11 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
     const { user, logout } = useAuth();
     const { branding } = useBranding();
     const departmentScoped = Boolean(user?.departmentScopeId);
-    const canSeeAudit = user?.accountRole === 'admin'
-        || user?.accountRole === 'superadmin'
-        || (user?.accountRole === 'gestor' && !departmentScoped);
-    const visibleSections = menuSections
-        .map((section) => ({
-            ...section,
-            items: section.items
-                .filter((item) => !item.auditOnly || canSeeAudit)
-                .filter((item) => !item.module || canAccessModule(user?.allowedModules, item.module))
-                .filter((item) => !departmentScoped || !GLOBAL_ONLY_PATHS.has(item.path)),
-        }))
-        .filter((section) => section.items.length > 0);
+    // Os grupos só ordenam o menu; ele é exibido como uma lista única, sem títulos.
+    const visibleItems = menuSections
+        .flatMap((section) => section.items)
+        .filter((item) => !item.module || canAccessModule(user?.allowedModules, item.module))
+        .filter((item) => !departmentScoped || !GLOBAL_ONLY_PATHS.has(item.path));
 
     return (
         <div
@@ -194,21 +177,8 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                 "flex-1 overflow-y-auto py-3 custom-scrollbar",
                 isCollapsed ? "px-2" : "px-3"
             )}>
-                {visibleSections.map((section, sectionIndex) => (
-                    <div key={sectionIndex} className="mb-3 last:mb-0">
-                        {/* Section header */}
-                        {!isCollapsed && (
-                            <p className="mb-1 px-2 text-[9px] font-normal uppercase tracking-[0.06em] text-white/30 select-none">
-                                {section.title}
-                            </p>
-                        )}
-                        {isCollapsed && (
-                            <div className="mb-2 w-5 h-px bg-white/10 mx-auto" />
-                        )}
-
-                        {/* Items */}
                         <div className="space-y-0.5">
-                            {section.items.map((item) => {
+                            {visibleItems.map((item) => {
                                 const Icon = item.icon;
                                 const isActive = item.path === '/'
                                     ? location.pathname === '/'
@@ -251,8 +221,6 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
                                 );
                             })}
                         </div>
-                    </div>
-                ))}
             </nav>
 
             {/* Divider */}

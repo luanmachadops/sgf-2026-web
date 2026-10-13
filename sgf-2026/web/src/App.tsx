@@ -137,7 +137,8 @@ function App() {
                 <Route path="/postos/:id" element={<ModuleRoute module="stations"><GlobalManagementRoute><Stations /></GlobalManagementRoute></ModuleRoute>} />
                 <Route path="/oficinas" element={<ModuleRoute module="repair_shops"><GlobalManagementRoute><RepairShops /></GlobalManagementRoute></ModuleRoute>} />
                 <Route path="/oficinas/:id" element={<ModuleRoute module="repair_shops"><GlobalManagementRoute><RepairShops /></GlobalManagementRoute></ModuleRoute>} />
-                <Route path="/auditoria" element={<AuditRoute><Auditoria /></AuditRoute>} />
+                <Route path="/relatorios/auditoria" element={<AuditRoute><Auditoria /></AuditRoute>} />
+                <Route path="/auditoria" element={<Navigate to="/relatorios/auditoria" replace />} />
                 <Route path="/configuracoes" element={<ModuleRoute module="settings"><GlobalManagementRoute><Configuracoes /></GlobalManagementRoute></ModuleRoute>} />
                 <Route path="/limites" element={<ModuleRoute module="budgets"><DepartmentBudgets /></ModuleRoute>} />
                 {/* Endereços antigos do módulo de licitações levam aos limites por secretaria. */}

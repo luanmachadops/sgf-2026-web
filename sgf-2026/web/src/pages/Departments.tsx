@@ -1,7 +1,7 @@
 import { useGoBack } from '@/hooks/useGoBack';
 import { VehicleCell, DriverCell } from '@/components/sgf/EntityCells';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
     ArrowLeft,
@@ -20,6 +20,8 @@ import {
     Wrench,
 } from '@/components/sgf/icons';
 import { CostCentersSection } from '@/components/departments/CostCentersSection';
+import { DepartmentBudgetsSection } from '@/pages/DepartmentBudgets';
+import { canAccessModule } from '@/lib/accessModules';
 import { DepartmentFormModal } from '@/components/departments/DepartmentFormModal';
 import { NewSecretarioModal } from '@/components/settings/NewSecretarioModal';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
@@ -200,6 +202,14 @@ function DepartmentOverviewPage() {
     // Criar acesso (secretário) é exclusivo do administrador.
     const { user } = useAuth();
     const canCreateAccess = user?.accountRole === 'admin';
+    const canSeeBudgets = canAccessModule(user?.allowedModules, 'budgets');
+    // /secretarias#limites (links de alertas e cadastros) rola até os limites.
+    const { hash } = useLocation();
+    useEffect(() => {
+        if (hash !== '#limites' || !canSeeBudgets) return;
+        const timer = window.setTimeout(() => document.getElementById('limites')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+        return () => window.clearTimeout(timer);
+    }, [hash, canSeeBudgets]);
 
     const { data = [], isLoading } = useQuery({
         queryKey: ['departments', 'operational-overview'],
@@ -396,6 +406,8 @@ function DepartmentOverviewPage() {
                     </div>
                 )}
             </div>
+
+            {canSeeBudgets && <DepartmentBudgetsSection embedded />}
 
             <CostCentersSection />
 

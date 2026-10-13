@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { Navigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -553,6 +554,23 @@ function BudgetHistory({
 export default function DepartmentBudgets() {
   const { user } = useAuth();
   const { setTitle, setDescription } = useHeader();
+  useEffect(() => {
+    setTitle("Limites por secretaria");
+    setDescription(
+      "Teto de consumo de cada secretaria em cada licitação de combustível e manutenção.",
+    );
+  }, [setTitle, setDescription]);
+  // A tela fica dentro de Secretarias; secretário (sem acesso a Secretarias) usa esta rota.
+  if (!user?.departmentScopeId) return <Navigate to="/secretarias#limites" replace />;
+  return <DepartmentBudgetsSection />;
+}
+
+/**
+ * Valor empenhado por secretaria em cada licitação. Fica na página de
+ * Secretarias (`embedded`), logo abaixo dos cards, e na rota /limites.
+ */
+export function DepartmentBudgetsSection({ embedded = false }: { embedded?: boolean }) {
+  const { user } = useAuth();
   const [year, setYear] = useState(new Date().getFullYear());
   const [category, setCategory] = useState<"fuel" | "maintenance">("fuel");
   const [editor, setEditor] = useState<DepartmentBudget | "new" | null>(null);
@@ -566,19 +584,21 @@ export default function DepartmentBudgets() {
   });
   const canEdit = user?.accountRole === "admin";
   const canAudit = ["admin", "gestor"].includes(user?.accountRole ?? "");
-  useEffect(() => {
-    setTitle("Limites por secretaria");
-    setDescription(
-      "Teto de consumo de cada secretaria em cada licitação de combustível e manutenção.",
-    );
-  }, [setTitle, setDescription]);
   const contracts = (query.data ?? []).filter(
     (c) =>
       c.category === category &&
       c.reference.toLowerCase().includes(search.toLowerCase()),
   );
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" id="limites">
+      {embedded && (
+        <div>
+          <h3 className="text-lg font-semibold text-slate-900">Limites por secretaria</h3>
+          <p className="text-sm text-slate-500">
+            Valor empenhado por cada secretaria em cada licitação de combustível e manutenção.
+          </p>
+        </div>
+      )}
       <SGFCard>
         <p className="text-sm text-slate-600">
           Para cada licitação, informe os fornecedores e o valor que cada
