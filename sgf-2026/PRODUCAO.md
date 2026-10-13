@@ -327,7 +327,7 @@ Detalhes e decisões em `PLANO-RELATORIOS.md`. Branch `claude/sweet-tesla-vrsqb8
   (retroativa, fora do expediente, salto de km) — o "Mapa Mensal de Uso do Veículo" local virou esse boletim.
   Migrations P1/P2 locais duplicadas removidas (SQL idêntico às exportadas da produção).
 
-## 🟡 T10 — Licitações reduzidas a "limite por secretaria" (2026-10-13)
+## ✅ T10 — Licitações reduzidas a "limite por secretaria" (2026-10-13)
 
 Decisão do usuário: licitação, contrato e prestação de contas (TCE/SIM-AM, empenho, NF, ateste,
 pagamento) são geridos pelas secretarias e pela contabilidade. O sistema só precisa do **teto de consumo
@@ -350,9 +350,9 @@ empenho — Lei 4.320/64 art. 60 — porque o **limite da secretaria = valor emp
 (2) prova de cada abastecimento/serviço na frota oficial para a liquidação — art. 63; TCE-PR Acórdão
 1629/16; (3) fiscalização e recebimento registrados — Lei 14.133/21 arts. 117 e 140.
 
-**Fase 2 — banco (migration `20261013150000_simplify_procurement_to_department_limits.sql`, ⏳ NÃO APLICADA):**
-o `apply_migration` do MCP foi bloqueado pelo controle de permissões do Claude Code. Aplicar pelo painel do
-Supabase (SQL editor) ou liberar a ferramenta. Reversão em `docs/rollback/`. O que faz:
+**Fase 2 — banco (migration `20261013170623_simplify_procurement_to_department_limits.sql`, ✅ aplicada em
+produção em 2026-10-13 e conferida: 4 travas removidas, aprovação sem vínculo, 0 OS aguardando empenho,
+limite por secretaria ativo).** Reversão em `docs/rollback/`. O que faz:
 - remove `trg_fuelings_require_commitment` / `trg_station_operations_require_commitment` (saldo de empenho do
   posto; sem empenho cadastrado, **recusava toda autorização em posto** — último abastecimento com posto
   concluído é de junho) e `trg_enforce_station_contract_budget` / `trg_enforce_repair_shop_contract_budget`
@@ -362,7 +362,7 @@ Supabase (SQL editor) ou liberar a ferramenta. Reversão em `docs/rollback/`. O 
   a cota da secretaria é reservada nesse update; OS em `awaiting_commitment` são liberadas;
 - `save_department_budget` aceita `reporting.empenhos` ({department_id: nº do empenho}, só referência).
 
-**Fase 3 e 4 — interface (feitas no código, ⏳ só publicar DEPOIS da migration):**
+**Fase 3 e 4 — interface (publicadas junto com a migration):**
 - Limites: "valor empenhado" por secretaria + nº do empenho opcional; alerta a 80% e mensagem de reforço.
 - OS: orçamento aprovado → oficina executa → recebimento (art. 140). Saem empenho/NF/ateste/pagamento do
   painel e do portal da oficina (`InvoiceModal` removido); "Fechamento" da oficina vira "Serviços do mês".
@@ -373,6 +373,9 @@ Supabase (SQL editor) ou liberar a ferramenta. Reversão em `docs/rollback/`. O 
 - Relatórios novos: **Extrato por Fornecedor** (cada abastecimento validado e OS recebida, para conferir a
   NF antes de liquidar) e **Consumo por Secretaria × Empenho**. "Fechamento por Posto" e "Manutenções por
   Oficina" sem colunas de contrato.
+- Menu: lista única sem grupos; limites dentro de Secretarias (abaixo dos cards; `/limites` redireciona,
+  exceto para secretário); trilha de auditoria em Relatórios (`/relatorios/auditoria`); gestão de acessos em
+  Configurações (`/configuracoes/acessos`).
 - Pré-requisito: 82 de 88 veículos sem secretaria — despesas com fornecedor vinculado a uma licitação são
   recusadas até preencher (usuário vai ajustar manualmente).
 

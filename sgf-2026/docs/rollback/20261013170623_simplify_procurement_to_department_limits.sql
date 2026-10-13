@@ -1,4 +1,4 @@
--- Reversão de 20261013150000_simplify_procurement_to_department_limits.sql.
+-- Reversão de 20261013170623_simplify_procurement_to_department_limits.sql.
 -- Definições copiadas da produção em 2026-10-13, antes da mudança.
 -- Não reverte o passo 3c (OS que já foram liberadas continuam liberadas).
 

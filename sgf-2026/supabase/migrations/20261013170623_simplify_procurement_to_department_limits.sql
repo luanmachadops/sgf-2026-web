@@ -14,7 +14,7 @@
 --      de licitação e libera a oficina para executar, sem a etapa de empenho.
 --
 -- Nada é apagado: tabelas e funções antigas ficam no banco, sem uso. A reversão
--- está em docs/rollback/20261013150000_simplify_procurement_to_department_limits.sql.
+-- está em docs/rollback/20261013170623_simplify_procurement_to_department_limits.sql.
 
 -- 1 e 2. Travas de empenho do posto e de contrato do fornecedor.
 drop trigger if exists trg_fuelings_require_commitment on public.fuelings;
