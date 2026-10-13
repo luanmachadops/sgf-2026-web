@@ -13,7 +13,7 @@ import { checkRateLimitByKey, sendRateLimited } from '../_lib/rate-limit.js';
  *   GET    /access?partnerType=posto&partnerId=…    → usuários de um posto/oficina
  *   GET    /access?impact=<id>                       → o que a exclusão vai fazer
  *   POST   /access  { role, … }                      → cria (equipe, motorista, posto, oficina)
- *   PATCH  /access  { id, name?, email?, departmentId?, role?, allowedModules?, accessBlocked?, resetPassword? }
+ *   PATCH  /access  { id, name?, email?, phone?, departmentId?, role?, allowedModules?, accessBlocked?, resetPassword? }
  *   DELETE /access  { id }                           → exclui de vez OU arquiva (quem tem histórico)
  *
  * Excluir nunca apaga histórico: quem já registrou algo (viagem, abastecimento,
@@ -340,6 +340,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
                     authUpdate.email = email;
                     authUpdate.email_confirm = true;
                 }
+            }
+            if (body.phone !== undefined) {
+                // Telefone de contato: só dígitos (10 ou 11 com DDD); vazio apaga.
+                const phone = cleanText(body.phone, 40).replace(/\D/g, '');
+                if (phone && (phone.length < 10 || phone.length > 11)) fail('Informe um telefone com DDD.', 400);
+                update.phone = phone || null;
             }
             if (body.role !== undefined && body.role !== target.role) {
                 const role = String(body.role);

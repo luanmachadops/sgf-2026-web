@@ -6,12 +6,12 @@ import {
     Car,
     Users,
     Fuel,
-    Droplet,
+    Store,
     Wrench,
     SecurityCamera,
     Route,
     BuildingGovernment,
-    Toolbox,
+    Garage,
     BarChart3,
     Settings2,
     Clipboard,
@@ -76,14 +76,14 @@ const menuSections: MenuSection[] = [
         title: 'Combustível',
         items: [
             { icon: Fuel, label: 'Abastecimentos', path: '/abastecimentos', module: 'refuelings' },
-            { icon: Droplet, label: 'Postos', path: '/postos', module: 'stations' },
+            { icon: Store, label: 'Postos', path: '/postos', module: 'stations' },
         ]
     },
     {
         title: 'Manutenção',
         items: [
             { icon: Wrench, label: 'Manutenções', path: '/manutencoes', module: 'maintenances' },
-            { icon: Toolbox, label: 'Oficinas', path: '/oficinas', module: 'repair_shops' },
+            { icon: Garage, label: 'Oficinas', path: '/oficinas', module: 'repair_shops' },
         ]
     },
     {

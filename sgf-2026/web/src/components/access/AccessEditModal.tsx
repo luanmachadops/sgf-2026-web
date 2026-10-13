@@ -11,6 +11,7 @@ import { accessManagementApi, type ManagedAccess, type ManagedAccessRole, type U
 import { departmentsApi } from '@/lib/supabase-api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSyncOnChange } from '@/hooks/useSyncOnChange';
+import { maskPhone } from '@/lib/utils';
 import { ModuleChecks } from './accessShared';
 import { ROLE_LABEL, STAFF_ROLES, loginOf } from './accessRoles';
 
@@ -30,6 +31,7 @@ export function AccessEditModal({ access, onClose, onSaved, onRemove, onTempPass
     const navigate = useNavigate();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
     const [role, setRole] = useState<ManagedAccessRole>('secretario');
     const [departmentId, setDepartmentId] = useState('');
     const [modules, setModules] = useState<string[]>([]);
@@ -38,6 +40,7 @@ export function AccessEditModal({ access, onClose, onSaved, onRemove, onTempPass
         if (!access) return;
         setName(access.full_name ?? '');
         setEmail(access.email ?? '');
+        setPhone(maskPhone(access.phone ?? ''));
         setRole(access.role);
         setDepartmentId(access.department_id ?? '');
         setModules(access.allowed_modules ?? []);
@@ -61,6 +64,7 @@ export function AccessEditModal({ access, onClose, onSaved, onRemove, onTempPass
             const patch: UpdateManagedAccess = {};
             if (name.trim() !== (access.full_name ?? '')) patch.name = name.trim();
             if (email.trim().toLowerCase() !== (access.email ?? '').toLowerCase()) patch.email = email.trim();
+            if (phone.replace(/\D/g, '') !== (access.phone ?? '').replace(/\D/g, '')) patch.phone = phone.replace(/\D/g, '');
             if (isStaff && role !== access.role) patch.role = role;
             if (showDepartment && departmentId !== (access.department_id ?? '')) patch.departmentId = departmentId || null;
             if (isStaff && !isSelf && JSON.stringify([...modules].sort()) !== JSON.stringify([...(access.allowed_modules ?? [])].sort())) {
@@ -134,6 +138,15 @@ export function AccessEditModal({ access, onClose, onSaved, onRemove, onTempPass
                             value={email}
                             onChange={(event) => setEmail(event.target.value)}
                             hint={isDriver ? `O motorista entra pelo ${loginOf(access)}.` : 'É o login. A pessoa passa a entrar com o novo e-mail.'}
+                            fullWidth
+                        />
+                        <SGFInput
+                            label="Telefone (contato)"
+                            type="tel"
+                            inputMode="tel"
+                            value={phone}
+                            onChange={(event) => setPhone(maskPhone(event.target.value))}
+                            placeholder="(00) 00000-0000"
                             fullWidth
                         />
                         {isStaff && (

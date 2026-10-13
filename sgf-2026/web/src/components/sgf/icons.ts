@@ -190,3 +190,6 @@ export { VehicleCarCollision24Regular as Collision } from '@fluentui/react-icons
 export { TopSpeed24Regular as Speedometer } from '@fluentui/react-icons';
 export { FullScreenMaximize24Regular as Maximize } from '@fluentui/react-icons';
 export { FullScreenMinimize24Regular as Minimize } from '@fluentui/react-icons';
+
+export { BuildingRetail24Regular as Store } from '@fluentui/react-icons';
+export { HomeGarage24Regular as Garage } from '@fluentui/react-icons';

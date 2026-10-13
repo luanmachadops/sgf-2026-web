@@ -115,6 +115,31 @@ export interface DepartmentOverview {
     lastActivityAt: string | null;
 }
 
+export interface DepartmentSecretary {
+    id: string;
+    full_name: string;
+    email: string | null;
+    cpf: string | null;
+    phone: string | null;
+    photo_url: string | null;
+    role: string;
+    tenant_id: string;
+    department_id: string;
+    access_blocked: boolean;
+    must_change_password: boolean;
+    allowed_modules: string[];
+    driver_status: string | null;
+    created_at: string;
+}
+
+export interface DepartmentAlert {
+    kind: 'trip' | 'fueling' | 'checklist';
+    id: string;
+    date: string | null;
+    detail: string;
+    vehicle: { id: string; plate: string | null; brand: string | null; model: string | null; photo_url: string | null } | null;
+}
+
 export interface DepartmentMonthlyFuelPoint {
     month: string;
     totalCost: number;
@@ -1759,21 +1784,43 @@ export const departmentsApi = withFotoUrls({
     },
 
     // Secretários (role 'secretario') ativos, com a secretaria a que estão vinculados.
-    getSecretaries: async (): Promise<Array<{ id: string; department_id: string; full_name: string; photo_url: string | null }>> => {
-        const { data, error } = await supabase
+    getSecretaries: async (departmentId?: string): Promise<DepartmentSecretary[]> => {
+        let query = supabase
             .from('profiles')
-            .select('id, department_id, full_name, photo_url')
+            .select('id, full_name, email, cpf, phone, photo_url, role, tenant_id, department_id, access_blocked, must_change_password, allowed_modules, driver_status, created_at')
             .eq('role', 'secretario')
             .is('archived_at', null)
             .not('department_id', 'is', null)
             .order('full_name', { ascending: true });
+        if (departmentId) query = query.eq('department_id', departmentId);
+        const { data, error } = await query;
         if (error) handleError(error);
-        return (data || []).map((row) => ({
-            id: row.id,
-            department_id: row.department_id as string,
-            full_name: row.full_name ?? '',
-            photo_url: row.photo_url,
-        }));
+        return (data || []).map((row) => ({ ...row, department_id: row.department_id as string, full_name: row.full_name ?? '' }));
+    },
+
+    // Itens que compõem os "alertas operacionais" da secretaria: viagens com
+    // problema, abastecimentos com anomalia e checklists com item de atenção.
+    getAlerts: async (departmentId: string): Promise<DepartmentAlert[]> => {
+        const { data: vehicles, error } = await supabase.from('vehicles').select('id, plate, brand, model, photo_url').eq('department_id', departmentId);
+        if (error) handleError(error);
+        const ids = (vehicles || []).map((v) => v.id);
+        if (ids.length === 0) return [];
+        const byId = new Map((vehicles || []).map((v) => [v.id, v]));
+        const [trips, fuelings, checklists] = await Promise.all([
+            supabase.from('trips').select('id, vehicle_id, start_at, destination').in('vehicle_id', ids).eq('status', 'problema').order('start_at', { ascending: false }).limit(100),
+            supabase.from('fuelings').select('id, vehicle_id, created_at, anomaly_type, station').in('vehicle_id', ids).eq('has_anomaly', true).order('created_at', { ascending: false }).limit(100),
+            supabase.from('checklists').select('id, vehicle_id, created_at, notes').in('vehicle_id', ids).eq('quick_confirm', false).order('created_at', { ascending: false }).limit(100),
+        ]);
+        if (trips.error) handleError(trips.error);
+        if (fuelings.error) handleError(fuelings.error);
+        if (checklists.error) handleError(checklists.error);
+        const vehicleOf = (id: string | null) => (id ? byId.get(id) ?? null : null);
+        const items: DepartmentAlert[] = [
+            ...(trips.data || []).map((t) => ({ kind: 'trip' as const, id: t.id, date: t.start_at, detail: t.destination ? `Destino: ${t.destination}` : 'Viagem marcada com problema', vehicle: vehicleOf(t.vehicle_id) })),
+            ...(fuelings.data || []).map((f) => ({ kind: 'fueling' as const, id: f.id, date: f.created_at, detail: [f.anomaly_type, f.station].filter(Boolean).join(' · ') || 'Abastecimento fora do padrão', vehicle: vehicleOf(f.vehicle_id) })),
+            ...(checklists.data || []).map((c) => ({ kind: 'checklist' as const, id: c.id, date: c.created_at, detail: c.notes || 'Item do checklist marcado como atenção', vehicle: vehicleOf(c.vehicle_id) })),
+        ];
+        return items.sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime());
     },
 
     getOperationalOverview: async (

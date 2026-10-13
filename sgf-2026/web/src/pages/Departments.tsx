@@ -1,7 +1,7 @@
 import { useGoBack } from '@/hooks/useGoBack';
 import { VehicleCell, DriverCell } from '@/components/sgf/EntityCells';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
     ArrowLeft,
@@ -18,6 +18,8 @@ import {
     Wrench,
 } from '@/components/sgf/icons';
 import { CostCentersSection } from '@/components/departments/CostCentersSection';
+import { DepartmentSecretaryCard } from '@/components/departments/DepartmentSecretaryCard';
+import { DepartmentAlertsList } from '@/components/departments/DepartmentAlertsList';
 import { DepartmentBudgetsSection } from '@/pages/DepartmentBudgets';
 import { canAccessModule } from '@/lib/accessModules';
 import { departmentBudgetApi } from '@/lib/department-budget-api';
@@ -202,12 +204,14 @@ function DepartmentCard({
     secretaries,
     budget,
     onOpen,
+    onOpenAlerts,
 }: {
     item: DepartmentOverview;
     month?: DepartmentOverview;
     secretaries: Secretary[];
     budget?: BudgetUsage;
     onOpen: () => void;
+    onOpenAlerts: () => void;
 }) {
     const secretary = secretaries[0];
     const extraSecretaries = secretaries.length - 1;
@@ -229,7 +233,14 @@ function DepartmentCard({
                         {item.code && <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{item.code}</p>}
                     </div>
                     {alerts > 0 ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
+                        <span
+                            role="link"
+                            tabIndex={0}
+                            title="Ver os alertas desta secretaria"
+                            onClick={(event) => { event.stopPropagation(); onOpenAlerts(); }}
+                            onKeyDown={(event) => { if (event.key === 'Enter') { event.stopPropagation(); onOpenAlerts(); } }}
+                            className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-600 transition-colors hover:bg-rose-100"
+                        >
                             <ShieldAlert className="h-3 w-3" />
                             {alerts} {alerts === 1 ? 'alerta' : 'alertas'}
                         </span>
@@ -330,7 +341,7 @@ function DepartmentOverviewPage() {
     const monthById = useMemo(() => new Map(monthData.map((item) => [item.id, item])), [monthData]);
     const { data: secretaries = [] } = useQuery({
         queryKey: ['departments', 'secretaries'],
-        queryFn: departmentsApi.getSecretaries,
+        queryFn: () => departmentsApi.getSecretaries(),
     });
     const secretariesByDepartment = useMemo(() => {
         const map = new Map<string, typeof secretaries>();
@@ -529,6 +540,7 @@ function DepartmentOverviewPage() {
                                 secretaries={secretariesByDepartment.get(item.id) ?? []}
                                 budget={canSeeBudgets ? budgetByDepartment.get(item.id) : undefined}
                                 onOpen={() => navigate(`/secretarias/${item.id}`)}
+                                onOpenAlerts={() => navigate(`/secretarias/${item.id}?aba=alertas`)}
                             />
                         ))}
                     </div>
@@ -545,13 +557,13 @@ function DepartmentOverviewPage() {
     );
 }
 
-function DetailKpis({ detail }: { detail: DepartmentDetail }) {
+function DetailKpis({ detail, onAlertsClick }: { detail: DepartmentDetail; onAlertsClick: () => void }) {
     return (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
             <SGFKPICard title="Consumo de combustível" value={formatCurrency(detail.overview.fuelCost)} icon={Fuel} iconColor="text-emerald-500" />
             <SGFKPICard title="Quilometragem rodada" value={formatDistance(detail.overview.totalTripKm)} icon={Gauge} iconColor="text-blue-500" />
             <SGFKPICard title="Frota da pasta" value={detail.overview.vehicleCount} icon={Car} iconColor="text-amber-500" />
-            <SGFKPICard title="Alertas operacionais" value={detail.overview.anomalyCount} icon={ShieldAlert} iconColor="text-rose-500" />
+            <SGFKPICard title="Alertas operacionais" value={detail.overview.anomalyCount} icon={ShieldAlert} iconColor="text-rose-500" onClick={onAlertsClick} />
         </div>
     );
 }
@@ -566,11 +578,24 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
     const [selectedRefuelId, setSelectedRefuelId] = useState<string | null>(null);
     const [selectedMaintId, setSelectedMaintId] = useState<string | null>(null);
     const tabsRef = useRef<HTMLDivElement>(null);
+    // ?aba=alertas (vindo do card da secretaria) abre direto a lista de alertas.
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [tab, setTab] = useState(() => (searchParams.get('aba') === 'alertas' ? 'alerts' : 'vehicles'));
+    const scrollToTabs = () => setTimeout(() => tabsRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    const openAlerts = () => { setTab('alerts'); scrollToTabs(); };
+    const cameForAlerts = searchParams.get('aba') === 'alertas';
 
     const { data: detail, isLoading } = useQuery({
         queryKey: ['departments', 'operational-detail', departmentId],
         queryFn: () => departmentsApi.getOperationalDetail(departmentId),
     });
+    const hasDetail = Boolean(detail);
+    useEffect(() => {
+        if (cameForAlerts && hasDetail) {
+            const timer = window.setTimeout(() => tabsRef.current?.scrollIntoView({ behavior: 'smooth' }), 300);
+            return () => window.clearTimeout(timer);
+        }
+    }, [cameForAlerts, hasDetail]);
 
     useEffect(() => {
         setTitle('Secretarias');
@@ -780,7 +805,9 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                 </div>
             </div>
 
-            <DetailKpis detail={detail} />
+            <DetailKpis detail={detail} onAlertsClick={openAlerts} />
+
+            <DepartmentSecretaryCard departmentId={departmentId} onCreate={() => setSecretarioOpen(true)} />
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.25fr_0.9fr]">
                 <SGFCard padding="lg" className="border border-slate-200/80">
@@ -902,20 +929,23 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
 
             <div ref={tabsRef} className="scroll-mt-28 w-full">
                 <Tabs
-                    defaultValue="vehicles"
+                    value={tab}
                     className="w-full"
-                    onValueChange={() => {
-                        setTimeout(() => {
-                            tabsRef.current?.scrollIntoView({ behavior: 'smooth' });
-                        }, 50);
+                    onValueChange={(value) => {
+                        setTab(value);
+                        if (cameForAlerts) setSearchParams({}, { replace: true });
+                        scrollToTabs();
                     }}
                 >
-                <TabsList className="flex overflow-x-auto sm:grid w-full sm:grid-cols-5 max-w-[650px] mx-auto bg-slate-100/50 p-1 rounded-xl scrollbar-none whitespace-nowrap">
+                <TabsList className="flex overflow-x-auto sm:grid w-full sm:grid-cols-6 max-w-[780px] mx-auto bg-slate-100/50 p-1 rounded-xl scrollbar-none whitespace-nowrap">
                     <TabsTrigger value="vehicles" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm px-3 shrink-0 flex-1">Veículos</TabsTrigger>
                     <TabsTrigger value="drivers" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm px-3 shrink-0 flex-1">Motoristas</TabsTrigger>
                     <TabsTrigger value="trips" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm px-3 shrink-0 flex-1">Viagens</TabsTrigger>
                     <TabsTrigger value="refuelings" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm px-3 shrink-0 flex-1">Abastecimentos</TabsTrigger>
                     <TabsTrigger value="maintenances" className="rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm px-3 shrink-0 flex-1">Manutenções</TabsTrigger>
+                    <TabsTrigger value="alerts" className="rounded-lg data-[state=active]:bg-rose-500 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm px-3 shrink-0 flex-1">
+                        Alertas{detail.overview.anomalyCount > 0 && <span className="ml-1.5 rounded-full bg-rose-100 px-1.5 text-[11px] font-bold text-rose-600">{detail.overview.anomalyCount}</span>}
+                    </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="vehicles" className="mt-4">
@@ -1259,6 +1289,9 @@ function DepartmentDetailPage({ departmentId }: { departmentId: string }) {
                             })
                         )}
                     </div>
+                </TabsContent>
+                <TabsContent value="alerts" className="mt-4">
+                    <DepartmentAlertsList departmentId={departmentId} onOpenTrip={setSelectedTripId} onOpenFueling={setSelectedRefuelId} />
                 </TabsContent>
             </Tabs>
             </div>

@@ -276,6 +276,7 @@ export interface CreateManagedAccess {
 export interface UpdateManagedAccess {
     name?: string;
     email?: string;
+    phone?: string;
     role?: ManagedAccessRole;
     departmentId?: string | null;
     allowedModules?: string[];
