@@ -1,8 +1,11 @@
+-- Exportada de produção em 2026-10-13 (supabase_migrations.schema_migrations,
+-- versão 20261009211905). Já aplicada; o SQL abaixo é o registrado no banco, sem alterações.
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- P1.8 + P1.9 — Manutencao preventiva por km/tempo e classificacao da frota
 -- (propria x locada x cedida x comodato, contrato de locacao, centro de custo).
 --
--- Aplicada em produção em 2026-10-09 com aprovação do usuário.
+-- NAO APLICADA ainda: requer aprovacao explicita (DDL em producao).
 --
 -- Decisoes:
 --  * Nao usa a tabela morta `maintenances`; a preventiva vive em

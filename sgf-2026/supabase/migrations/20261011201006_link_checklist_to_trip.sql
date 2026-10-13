@@ -1,11 +1,5 @@
--- Vincula o checklist do dia à viagem recém-iniciada pelo motorista.
---
--- O app fazia `UPDATE checklists SET trip_id = ...` direto, mas `checklists`
--- não tem política PERMISSIVE de UPDATE para o motorista (só as RESTRICTIVE
--- active_session_*). O UPDATE afetava 0 linhas em silêncio: nenhum checklist
--- de produção tinha trip_id. Em vez de abrir UPDATE na tabela (o motorista
--- poderia reescrever itens/estado do checklist), uma RPC que só preenche o
--- trip_id do checklist certo.
+-- Exportada de produção em 2026-10-13 (supabase_migrations.schema_migrations,
+-- versão 20261011201006). Já aplicada; o SQL abaixo é o registrado no banco, sem alterações.
 
 create or replace function public.link_checklist_to_trip(p_trip_id uuid)
 returns uuid
@@ -27,8 +21,6 @@ begin
     raise exception 'Viagem não encontrada para este motorista.' using errcode = '42501';
   end if;
 
-  -- Checklist do mesmo motorista e veículo, do dia da viagem, feito antes do
-  -- início e ainda sem viagem — o mesmo critério que a guarda TR007 usa.
   select c.id
     into v_checklist
     from public.checklists c

@@ -7,7 +7,7 @@ import { SGFSelect } from '@/components/sgf/SGFSelect';
 import { StyledQr } from '@/components/qr/StyledQr';
 import { Printer, Loader2 } from '@/components/sgf/icons';
 import { vehiclesApi, departmentsApi } from '@/lib/supabase-api';
-import { createVehicleQr } from '@/lib/vehicleQr';
+import { openPendingPdfTab, showPdfInTab } from '@/lib/reports/reportPdfBrowser';
 import { formatPlate } from '@/lib/utils';
 
 interface QrLabelGeneratorProps {
@@ -16,33 +16,23 @@ interface QrLabelGeneratorProps {
 }
 
 // Tamanhos de etiqueta (mm): largura do card e lado do QR.
-const LABEL_SIZES: Record<string, { label: string; w: number; qr: number; plate: number; model: number }> = {
-    small:  { label: 'Pequena (≈45mm)', w: 45, qr: 34, plate: 11, model: 9 },
-    medium: { label: 'Média (≈58mm)',   w: 58, qr: 46, plate: 13, model: 10.5 },
-    large:  { label: 'Grande (≈72mm)',  w: 72, qr: 58, plate: 16, model: 13 },
+// Tamanhos de etiqueta: largura do card e lado do QR (mm); textos em pt.
+const LABEL_SIZES: Record<string, { label: string; w: number; qr: number; plate: number; caption: number }> = {
+    small:  { label: 'Pequena (≈45mm)', w: 45, qr: 34, plate: 10, caption: 6.5 },
+    medium: { label: 'Média (≈58mm)',   w: 58, qr: 46, plate: 12, caption: 7.5 },
+    large:  { label: 'Grande (≈72mm)',  w: 72, qr: 58, plate: 14, caption: 9 },
 };
 
-const SHEET_SIZES: Record<string, { label: string; css: string }> = {
-    A4:     { label: 'A4 (210 × 297 mm)', css: 'A4' },
-    letter: { label: 'Carta (216 × 279 mm)', css: 'letter' },
+const SHEET_SIZES: Record<'A4' | 'letter', { label: string }> = {
+    A4:     { label: 'A4 (210 × 297 mm)' },
+    letter: { label: 'Carta (216 × 279 mm)' },
 };
-
-async function qrPngDataUrl(plate: string): Promise<string> {
-    const qr = createVehicleQr(plate, 420, 'canvas');
-    const blob = await qr.getRawData('png');
-    if (!blob) return '';
-    return await new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob as Blob);
-    });
-}
 
 export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
     const [departmentId, setDepartmentId] = useState('');
     const [vehicleType, setVehicleType] = useState('');
     const [labelSize, setLabelSize] = useState('medium');
-    const [sheet, setSheet] = useState('A4');
+    const [sheet, setSheet] = useState<'A4' | 'letter'>('A4');
     const [generating, setGenerating] = useState(false);
 
     const { data: vehicles = [] } = useQuery({
@@ -76,55 +66,27 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
 
     const handlePrint = async () => {
         if (selected.length === 0) return toast.error('Nenhum veículo com placa para os filtros escolhidos.');
+        // A aba precisa abrir no clique, antes do await, para não ser bloqueada.
+        const tab = openPendingPdfTab();
         setGenerating(true);
         try {
             const size = LABEL_SIZES[labelSize];
-            const sheetCss = SHEET_SIZES[sheet].css;
-
-            // Gera o PNG de cada QR (independentes, sem conflito de ids).
-            const items = await Promise.all(
-                selected.map(async (v) => ({
+            const { buildQrLabelsPdf } = await import('@/lib/qrLabelsPdf');
+            const bytes = await buildQrLabelsPdf({
+                items: selected.map((v) => ({
+                    data: v.plate as string,
                     plate: formatPlate(v.plate as string),
-                    model: [v.brand, v.model].filter(Boolean).join(' '),
-                    dept: v.departments?.name ?? '',
-                    img: await qrPngDataUrl(v.plate as string),
+                    caption: [[v.brand, v.model].filter(Boolean).join(' '), v.departments?.name ?? ''].filter(Boolean).join(' • '),
                 })),
-            );
-
-            const labelsHtml = items.map((it) => `
-                <div class="label">
-                  <img src="${it.img}" alt="QR ${it.plate}" />
-                  <div class="plate">${it.plate}</div>
-                  <div class="model">${it.model}${it.dept ? ' • ' + it.dept : ''}</div>
-                </div>`).join('');
-
-            const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8" />
-              <title>Etiquetas QR — Frota</title>
-              <style>
-                @page { size: ${sheetCss}; margin: 8mm; }
-                * { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-                body { font-family: Inter, system-ui, -apple-system, sans-serif; background:#fff; padding:6mm; }
-                .sheet { display:flex; flex-wrap:wrap; gap:4mm; align-content:flex-start; }
-                .label { width:${size.w}mm; border:1px solid #cbd5e1; border-radius:10px; padding:3mm 2mm; display:flex; flex-direction:column; align-items:center; gap:1.5mm; break-inside:avoid; }
-                .label img { width:${size.qr}mm; height:${size.qr}mm; display:block; }
-                .plate { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-weight:800; font-size:${size.plate}px; letter-spacing:1px; color:#0F2B2F; }
-                .model { font-size:${size.model}px; color:#64748b; text-align:center; line-height:1.2; }
-                @media print { .no-print { display:none } }
-              </style></head>
-              <body>
-                <div class="sheet">${labelsHtml}</div>
-                <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 350); };</script>
-              </body></html>`;
-
-            const win = window.open('', '_blank');
-            if (!win) {
-                toast.error('Permita pop-ups para abrir a folha de impressão.');
-                return;
-            }
-            win.document.open();
-            win.document.write(html);
-            win.document.close();
+                labelWidthMm: size.w,
+                qrSizeMm: size.qr,
+                plateSizePt: size.plate,
+                captionSizePt: size.caption,
+                sheet,
+            });
+            showPdfInTab(tab, new Blob([bytes as BlobPart], { type: 'application/pdf' }), 'etiquetas-qr-frota.pdf');
         } catch (err) {
+            tab?.close();
             toast.error((err as { message?: string })?.message ?? 'Falha ao gerar as etiquetas.');
         } finally {
             setGenerating(false);
@@ -168,13 +130,13 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                             label="Tamanho da folha"
                             options={Object.entries(SHEET_SIZES).map(([value, s]) => ({ value, label: s.label }))}
                             value={sheet}
-                            onChange={setSheet}
+                            onChange={(value) => setSheet(value === 'letter' ? 'letter' : 'A4')}
                             fullWidth
                         />
                     </div>
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-800">
                         <strong>{selected.length}</strong> veículo{selected.length === 1 ? '' : 's'} com placa selecionado{selected.length === 1 ? '' : 's'}.
-                        A impressão abre numa nova aba — use <strong>Salvar como PDF</strong> ou envie para a impressora.
+                        As etiquetas abrem numa nova aba como PDF vetorial (QR nítido em qualquer tamanho), pronto para imprimir ou salvar.
                     </div>
                 </div>
 

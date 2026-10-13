@@ -2,242 +2,103 @@
 // Cada relatório agrega registros do banco em KPIs de resumo, colunas e linhas
 // que abastecem tanto a pré-visualização na tela quanto as exportações (PDF/Excel).
 
-import type { PostgrestError } from '@supabase/supabase-js';
 import { procurementApi, type ProcurementContractUsage } from './procurement-api';
 import { supabase } from './supabase';
 import { ITEM_CATEGORIES } from './procurement-items-api';
+import type { ReportDataset } from './reports/types';
+import {
+    checklistFailures,
+    expirations,
+    fuelAnomalies,
+    trafficLog,
+    vehicleCost,
+} from './reports/operationalReports';
 
-export interface ReportColumn {
-    key: string;
-    label: string;
-    align?: 'left' | 'right' | 'center';
-    format?: 'text' | 'integer' | 'decimal' | 'currency' | 'percent' | 'date' | 'datetime';
-    defaultVisible?: boolean;
-    filterable?: boolean;
-    minWidth?: number;
-}
+export type { ReportChart, ReportColumn, ReportDataset, ReportKpi } from './reports/types';
+export { formatReportValue } from './reports/format';
 
-export interface ReportKpi {
-    label: string;
-    value: string;
-}
+import {
+    BRL,
+    EMPTY,
+    NUM,
+    SO_FINANCIAL_STATUS_LABEL,
+    SO_OPERATIONAL_STATUS_LABEL,
+    SO_STATUS_LABEL,
+    TRIP_STATUS_LABEL,
+    VEHICLE_STATUS_LABEL,
+    dateRange,
+    fetchAllRows,
+    fmtDate,
+    topChartData,
+    vehicleLabel,
+    withinRange,
+    ORIGIN_LABEL,
+    PRIORITY_LABEL,
+    capitalize,
+    daysUntil,
+    effectiveFuelingDateFilter,
+    expiryStatus,
+    groupCount,
+    safeUuid,
+    startOfToday,
+} from './reports/datasetHelpers';
+import type { Rel, ReportFilterInput } from './reports/datasetHelpers';
 
-export interface ReportChart {
-    title: string;
-    description?: string;
-    type: 'bar' | 'donut' | 'gauge';
-    valueFormat?: 'integer' | 'decimal' | 'currency' | 'percent';
-    data: { label: string; value: number }[];
-}
-
-export type ReportRow = Record<string, string | number>;
-
-/** Tabela secundária do relatório (exportada como 2ª aba/bloco e coberta pelo hash). */
-export interface ReportExtraTable {
-    title: string;
-    columns: ReportColumn[];
-    rows: ReportRow[];
-}
-
-export interface ReportDataset {
-    columns: ReportColumn[];
-    rows: ReportRow[];
-    kpis: ReportKpi[];
-    charts?: ReportChart[];
-    notes?: string[];
-    /** 'vehicle-log' = impressão no formato da folha de papel (mapa mensal de uso). */
-    layout?: 'vehicle-log';
-    extraTables?: ReportExtraTable[];
-}
-
-export interface ReportFilterInput {
-    /** id (uuid) da secretaria; vazio = todas */
-    departmentId?: string;
-    /** ISO date (yyyy-mm-dd) inicial */
-    dateFrom?: string;
-    /** ISO date (yyyy-mm-dd) final */
-    dateTo?: string;
-    /** id (uuid) do condutor; vazio = todos */
-    driverId?: string;
-    /** id (uuid) do veículo; vazio = todos (usado no mapa mensal de uso) */
-    vehicleId?: string;
-}
-
-/** Relatórios que envolvem viagens ou abastecimentos e aceitam o filtro por condutor. */
-export const DRIVER_FILTER_REPORTS: ReadonlySet<string> = new Set([
-    'fuel-consumption',
-    'trip-analysis',
-    'driver-performance',
-    'cost-analysis',
-    'department-usage',
-    'efficiency-report',
-    'infractions',
-    'fuel-by-station',
-    'vehicle-monthly-log',
-]);
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-const EMPTY: ReportDataset = { kpis: [], columns: [], rows: [], charts: [] };
-const PAGE_SIZE = 1000;
-
-type RangeQuery<T> = {
-    range: (
-        from: number,
-        to: number,
-    ) => PromiseLike<{ data: T[] | null; error: PostgrestError | null }>;
-};
-
-/**
- * O Data API limita respostas por projeto (1.000 linhas por padrão). Relatórios
- * não podem aceitar truncamento silencioso, então percorremos todas as páginas.
- * As consultas chamadoras devem sempre informar uma ordenação determinística.
- */
-async function fetchAllRows<T>(query: RangeQuery<T>): Promise<T[]> {
-    const rows: T[] = [];
-    for (let offset = 0; ; offset += PAGE_SIZE) {
-        const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-        const page = data ?? [];
-        rows.push(...page);
-        if (page.length < PAGE_SIZE) return rows;
-    }
-}
-
-const BRL = (n: number) =>
-    n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
-
-const NUM = (n: number, d = 0) =>
-    n.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
-
-function dateRange(f?: ReportFilterInput) {
-    const from = f?.dateFrom ? new Date(f.dateFrom + 'T00:00:00').toISOString() : undefined;
-    const to = f?.dateTo ? new Date(f.dateTo + 'T23:59:59').toISOString() : undefined;
-    return { from, to };
-}
-
-function withinRange(value: string | null | undefined, from?: string, to?: string): boolean {
-    if (!value) return false;
-    const time = new Date(value).getTime();
-    if (Number.isNaN(time)) return false;
-    if (from && time < new Date(from).getTime()) return false;
-    if (to && time > new Date(to).getTime()) return false;
-    return true;
-}
-
-function topChartData(
-    values: { label: string; value: number }[],
-    limit = 8,
-): { label: string; value: number }[] {
-    return [...values]
-        .filter((item) => Number.isFinite(item.value))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, limit);
-}
-
-export function formatReportValue(
-    value: string | number | null | undefined,
-    format: ReportColumn['format'] = 'text',
-): string {
-    if (value === null || value === undefined || value === '') return '—';
-    if (typeof value !== 'number') return String(value);
-    if (format === 'currency') {
-        return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    }
-    if (format === 'integer') return NUM(value, 0);
-    if (format === 'decimal') return NUM(value, 2);
-    if (format === 'percent') return `${NUM(value, 1)}%`;
-    return value.toLocaleString('pt-BR');
-}
-
-const VEHICLE_STATUS_LABEL: Record<string, string> = {
-    liberado: 'Disponível',
-    manutencao: 'Em manutenção',
-    bloqueado: 'Bloqueado',
-};
-
-const SO_STATUS_LABEL: Record<string, string> = {
-    pendente: 'Pendente',
-    aprovada: 'Aprovada',
-    rejeitada: 'Rejeitada',
-    em_execucao: 'Em execução',
-    concluida: 'Concluída',
-};
-
-const SO_OPERATIONAL_STATUS_LABEL: Record<string, string> = {
-    pending: 'Pendente',
-    authorized: 'Autorizada',
-    at_shop: 'Na oficina',
-    awaiting_quote_approval: 'Aguardando orçamento',
-    in_progress: 'Em execução',
-    ready: 'Pronta',
-    received: 'Recebida',
-    cancelled: 'Cancelada',
-};
-
-const SO_FINANCIAL_STATUS_LABEL: Record<string, string> = {
-    not_started: 'Não iniciado',
-    awaiting_commitment: 'Aguardando empenho',
-    committed: 'Empenhada',
-    invoiced: 'Faturada',
-    attested: 'Atestada',
-    paid: 'Paga',
-};
-
-const TRIP_STATUS_LABEL: Record<string, string> = {
-    andamento: 'Em andamento',
-    concluida: 'Concluída',
-    problema: 'Com anomalia',
-    cancelada: 'Cancelada',
-    pendente: 'Pendente',
-};
-
-function fmtDate(iso?: string | null): string {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
-}
-
-type Rel = { plate?: string | null; brand?: string | null; model?: string | null } | null;
-const vehicleLabel = (v: Rel) =>
-    v ? [v.brand, v.model].filter(Boolean).join(' ') || (v.plate ?? '—') : '—';
+export type { ReportFilterInput } from './reports/datasetHelpers';
 
 // ── Relatórios ───────────────────────────────────────────────────────────────
 
 async function fleetSummary(f?: ReportFilterInput): Promise<ReportDataset> {
     let q = supabase
         .from('vehicles')
-        .select('id, plate, brand, model, current_odometer, status, department_id, created_at, departments(name)')
-        .order('created_at', { ascending: false })
+        .select(`id, plate, brand, model, year, vehicle_type, fuel_type, renavam, unit_code, insurance_expiry,
+            current_odometer, status, department_id, departments(name)`)
+        .order('plate', { ascending: true })
         .order('id', { ascending: true });
     if (f?.departmentId) q = q.eq('department_id', f.departmentId);
     const data = await fetchAllRows(q);
+    const today = startOfToday();
     const rows = data.map((v) => ({
         plate: v.plate ?? '—',
+        unitCode: v.unit_code || '—',
         model: [v.brand, v.model].filter(Boolean).join(' ') || '—',
+        year: v.year ? String(v.year) : '—',
+        type: v.vehicle_type ? capitalize(v.vehicle_type) : '—',
+        fuelType: v.fuel_type ? String(v.fuel_type).toUpperCase() : '—',
         department: (v.departments as { name?: string } | null)?.name ?? '—',
         odometer: Number(v.current_odometer ?? 0),
+        insurance: fmtDate(v.insurance_expiry ? `${v.insurance_expiry}T12:00:00` : null),
+        renavam: v.renavam || '—',
         status: VEHICLE_STATUS_LABEL[v.status as string] ?? (v.status as string) ?? '—',
     }));
     const depts = new Set(data.map((v) => v.department_id).filter(Boolean));
+    const insuranceExpired = data.filter((v) => v.insurance_expiry && daysUntil(v.insurance_expiry, today) < 0).length;
     const statusCounts = Object.entries(VEHICLE_STATUS_LABEL).map(([status, label]) => ({
         label,
         value: data.filter((vehicle) => vehicle.status === status).length,
     }));
+    const byDepartment = new Map<string, number>();
+    for (const row of rows) byDepartment.set(row.department, (byDepartment.get(row.department) ?? 0) + 1);
     return {
         kpis: [
             { label: 'Total de veículos', value: NUM(rows.length) },
             { label: 'Disponíveis agora', value: NUM(data.filter((v) => v.status === 'liberado').length) },
             { label: 'Em manutenção agora', value: NUM(data.filter((v) => v.status === 'manutencao').length) },
+            { label: 'Seguro vencido', value: NUM(insuranceExpired) },
             { label: 'Secretarias', value: NUM(depts.size) },
         ],
         columns: [
-            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90 },
-            { key: 'model', label: 'Modelo', filterable: true, minWidth: 160 },
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
+            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90, priority: 1, anchor: true },
+            { key: 'unitCode', label: 'Código interno', filterable: true, minWidth: 110, priority: 3, stackUnder: 'plate' },
+            { key: 'model', label: 'Modelo', filterable: true, minWidth: 160, stackUnder: 'plate' },
+            { key: 'year', label: 'Ano', align: 'right', format: 'text', minWidth: 60 },
+            { key: 'type', label: 'Tipo', filterable: true, minWidth: 90, priority: 3 },
+            { key: 'fuelType', label: 'Combustível', filterable: true, minWidth: 105 },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180, priority: 1 },
             { key: 'odometer', label: 'Odômetro (km)', align: 'right', format: 'integer', minWidth: 120 },
-            { key: 'status', label: 'Status atual', filterable: true, minWidth: 120 },
+            { key: 'insurance', label: 'Seguro até', format: 'date', minWidth: 95 },
+            { key: 'renavam', label: 'RENAVAM', defaultVisible: false, minWidth: 120, priority: 3 },
+            { key: 'status', label: 'Status atual', filterable: true, minWidth: 120, priority: 1 },
         ],
         rows,
         charts: [{
@@ -246,8 +107,14 @@ async function fleetSummary(f?: ReportFilterInput): Promise<ReportDataset> {
             type: 'donut',
             valueFormat: 'integer',
             data: statusCounts,
+        }, {
+            title: 'Veículos por secretaria',
+            description: 'Alocação atual da frota.',
+            type: 'bar',
+            valueFormat: 'integer',
+            data: topChartData([...byDepartment].map(([label, value]) => ({ label, value }))),
         }],
-        notes: ['Os indicadores de disponibilidade e manutenção representam a situação atual, não uma média histórica do período.'],
+        notes: ['Cadastro e situação são a fotografia da frota na data de emissão; o filtro de período não se aplica.'],
     };
 }
 
@@ -262,7 +129,9 @@ async function fuelConsumption(f?: ReportFilterInput): Promise<ReportDataset> {
         .order('created_at', { ascending: false })
         .order('id', { ascending: true });
     if (f?.driverId) q = q.eq('driver_id', f.driverId);
-    let list = await fetchAllRows(q);
+    if (f?.vehicleId) q = q.eq('vehicle_id', f.vehicleId);
+    const dateFilter = effectiveFuelingDateFilter(from, to);
+    let list = await fetchAllRows(dateFilter ? q.or(dateFilter) : q);
     list = list.filter((row) => withinRange(row.filled_at ?? row.created_at, from, to));
     if (f?.departmentId) {
         list = list.filter((r) => (r.vehicles as { department_id?: string } | null)?.department_id === f.departmentId);
@@ -308,16 +177,16 @@ async function fuelConsumption(f?: ReportFilterInput): Promise<ReportDataset> {
             { label: 'Veículos monitorados', value: NUM(vehicles.size) },
         ],
         columns: [
-            { key: 'date', label: 'Data', format: 'date', minWidth: 90 },
-            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90 },
-            { key: 'model', label: 'Modelo', filterable: true, minWidth: 150 },
+            { key: 'date', label: 'Data', format: 'date', minWidth: 90, priority: 1, anchor: true },
+            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90, priority: 1, anchor: true },
+            { key: 'model', label: 'Modelo', filterable: true, minWidth: 150, stackUnder: 'plate' },
             { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
             { key: 'fuelType', label: 'Combustível', filterable: true, minWidth: 105 },
-            { key: 'liters', label: 'Litros', align: 'right', format: 'decimal', minWidth: 85 },
+            { key: 'liters', label: 'Litros', align: 'right', format: 'decimal', minWidth: 85, priority: 1, total: 'sum' },
             { key: 'unitPrice', label: 'Preço unitário', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'cost', label: 'Valor total', align: 'right', format: 'currency', minWidth: 115 },
+            { key: 'cost', label: 'Valor total', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
             { key: 'avg', label: 'Média (km/L)', align: 'right', format: 'decimal', minWidth: 110 },
-            { key: 'odometer', label: 'Odômetro', align: 'right', format: 'integer', defaultVisible: false, minWidth: 100 },
+            { key: 'odometer', label: 'Odômetro', align: 'right', format: 'integer', defaultVisible: false, minWidth: 100, priority: 3 },
             { key: 'station', label: 'Posto', filterable: true, minWidth: 160 },
         ],
         rows,
@@ -339,8 +208,8 @@ async function maintenanceHistory(f?: ReportFilterInput): Promise<ReportDataset>
     const { from, to } = dateRange(f);
     let q = supabase
         .from('service_orders')
-        .select(`id, created_at, received_at, completed_at, category, description, status, priority,
-            budget, cost, odometer, operational_status, financial_status, commitment_number, nad_number,
+        .select(`id, created_at, received_at, completed_at, at_shop_at, category, description, status, priority,
+            origin, budget, cost, odometer, operational_status, financial_status, commitment_number, nad_number,
             vehicle_id, repair_shops(name),
             vehicles(plate, brand, model, department_id, departments(name))`)
         .order('created_at', { ascending: false })
@@ -351,27 +220,43 @@ async function maintenanceHistory(f?: ReportFilterInput): Promise<ReportDataset>
     if (f?.departmentId) {
         list = list.filter((r) => (r.vehicles as { department_id?: string } | null)?.department_id === f.departmentId);
     }
-    const rows = list.map((r) => ({
-        openedAt: fmtDate(r.created_at),
-        receivedAt: fmtDate(r.received_at),
-        model: vehicleLabel(r.vehicles as Rel),
-        plate: (r.vehicles as Rel)?.plate ?? '—',
-        department: (r.vehicles as { departments?: { name?: string } | null } | null)?.departments?.name ?? '—',
-        category: r.category ?? '—',
-        description: r.description ?? '—',
-        shop: (r.repair_shops as { name?: string } | null)?.name ?? '—',
-        budget: Number(r.budget ?? 0),
-        cost: Number(r.cost ?? 0),
-        operationalStatus: SO_OPERATIONAL_STATUS_LABEL[r.operational_status as string]
-            ?? SO_STATUS_LABEL[r.status as string]
-            ?? String(r.operational_status ?? r.status ?? '—'),
-        financialStatus: SO_FINANCIAL_STATUS_LABEL[r.financial_status as string]
-            ?? String(r.financial_status ?? '—'),
-        commitment: r.commitment_number ?? '—',
-        nad: r.nad_number ?? '—',
-    }));
+    const now = Date.now();
+    const shopDays = (order: (typeof list)[number]): number | null => {
+        if (!order.at_shop_at) return null;
+        const start = new Date(order.at_shop_at).getTime();
+        const end = new Date(order.completed_at ?? order.received_at ?? now).getTime();
+        if (Number.isNaN(start) || Number.isNaN(end) || end < start) return null;
+        return Math.max(0, Math.round((end - start) / 86_400_000));
+    };
+    const rows = list.map((r) => {
+        const days = shopDays(r);
+        return {
+            openedAt: fmtDate(r.created_at),
+            receivedAt: fmtDate(r.received_at),
+            model: vehicleLabel(r.vehicles as Rel),
+            plate: (r.vehicles as Rel)?.plate ?? '—',
+            department: (r.vehicles as { departments?: { name?: string } | null } | null)?.departments?.name ?? '—',
+            category: r.category ?? '—',
+            description: r.description ?? '—',
+            origin: r.origin ? ORIGIN_LABEL[r.origin] ?? capitalize(r.origin) : '—',
+            priority: r.priority ? PRIORITY_LABEL[r.priority] ?? capitalize(r.priority) : '—',
+            shop: (r.repair_shops as { name?: string } | null)?.name ?? '—',
+            days: days ?? '—',
+            budget: Number(r.budget ?? 0),
+            cost: Number(r.cost ?? 0),
+            operationalStatus: SO_OPERATIONAL_STATUS_LABEL[r.operational_status as string]
+                ?? SO_STATUS_LABEL[r.status as string]
+                ?? String(r.operational_status ?? r.status ?? '—'),
+            financialStatus: SO_FINANCIAL_STATUS_LABEL[r.financial_status as string]
+                ?? String(r.financial_status ?? '—'),
+            commitment: r.commitment_number ?? '—',
+            nad: r.nad_number ?? '—',
+        };
+    });
     const registeredCost = list.reduce((sum, row) => sum + Number(row.cost ?? 0), 0);
     const approvedBudget = list.reduce((sum, row) => sum + Number(row.budget ?? 0), 0);
+    const measured = list.map(shopDays).filter((value): value is number => value !== null);
+    const avgDays = measured.length ? measured.reduce((sum, value) => sum + value, 0) / measured.length : null;
     const statusCounts = new Map<string, number>();
     for (const row of rows) {
         statusCounts.set(
@@ -384,23 +269,26 @@ async function maintenanceHistory(f?: ReportFilterInput): Promise<ReportDataset>
             { label: 'Ordens de serviço', value: NUM(list.length) },
             { label: 'Orçamento aprovado', value: BRL(approvedBudget) },
             { label: 'Custo final registrado', value: BRL(registeredCost) },
-            { label: 'Recebidas', value: NUM(list.filter((r) => r.operational_status === 'received').length) },
+            { label: 'Média na oficina', value: avgDays === null ? 'Sem medição' : `${NUM(avgDays, 1)} dias` },
         ],
         columns: [
-            { key: 'openedAt', label: 'Abertura', format: 'date', minWidth: 90 },
-            { key: 'receivedAt', label: 'Recebimento', format: 'date', defaultVisible: false, minWidth: 100 },
-            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90 },
-            { key: 'model', label: 'Modelo', filterable: true, minWidth: 150 },
+            { key: 'openedAt', label: 'Abertura', format: 'date', minWidth: 90, priority: 1, anchor: true },
+            { key: 'receivedAt', label: 'Recebimento', format: 'date', defaultVisible: false, minWidth: 100, priority: 3 },
+            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90, priority: 1, anchor: true },
+            { key: 'model', label: 'Modelo', filterable: true, minWidth: 150, stackUnder: 'plate' },
             { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
-            { key: 'category', label: 'Categoria', filterable: true, minWidth: 120 },
-            { key: 'description', label: 'Descrição', minWidth: 220 },
+            { key: 'category', label: 'Categoria', filterable: true, minWidth: 120, stackUnder: 'description' },
+            { key: 'description', label: 'Descrição', minWidth: 220, priority: 1 },
+            { key: 'origin', label: 'Origem', filterable: true, defaultVisible: false, minWidth: 120, priority: 3 },
+            { key: 'priority', label: 'Prioridade', filterable: true, minWidth: 95, priority: 3 },
             { key: 'shop', label: 'Oficina', filterable: true, minWidth: 160 },
-            { key: 'budget', label: 'Orçado', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'cost', label: 'Custo final', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'operationalStatus', label: 'Situação operacional', filterable: true, minWidth: 145 },
-            { key: 'financialStatus', label: 'Situação financeira', filterable: true, minWidth: 145 },
-            { key: 'commitment', label: 'Empenho', defaultVisible: false, minWidth: 115 },
-            { key: 'nad', label: 'NAD', defaultVisible: false, minWidth: 100 },
+            { key: 'days', label: 'Dias na oficina', align: 'right', format: 'integer', minWidth: 105 },
+            { key: 'budget', label: 'Orçado', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'cost', label: 'Custo final', align: 'right', format: 'currency', minWidth: 110, priority: 1, total: 'sum' },
+            { key: 'operationalStatus', label: 'Situação operacional', filterable: true, minWidth: 145, priority: 1 },
+            { key: 'financialStatus', label: 'Situação financeira', filterable: true, minWidth: 145, stackUnder: 'operationalStatus' },
+            { key: 'commitment', label: 'Empenho', defaultVisible: false, minWidth: 115, priority: 3 },
+            { key: 'nad', label: 'NAD', defaultVisible: false, minWidth: 100, priority: 3, stackUnder: 'commitment' },
         ],
         rows,
         charts: [{
@@ -412,85 +300,22 @@ async function maintenanceHistory(f?: ReportFilterInput): Promise<ReportDataset>
         }],
         notes: [
             'O período considera a data de abertura da ordem de serviço.',
+            'Dias na oficina contam da entrada na oficina até a conclusão (ou recebimento); ordens ainda abertas contam até a emissão.',
             'Custo final registrado não significa, por si só, valor liquidado ou pago; a situação financeira deve ser conferida.',
         ],
     };
 }
 
-async function tripAnalysis(f?: ReportFilterInput): Promise<ReportDataset> {
-    const { from, to } = dateRange(f);
-    let q = supabase
-        .from('trips')
-        .select(`id, start_at, distance_km, destination, status, end_at, vehicle_id,
-            vehicles(plate, brand, model, department_id, departments(name)),
-            profiles!trips_driver_id_fkey(full_name)`)
-        .order('start_at', { ascending: false })
-        .order('id', { ascending: true });
-    if (from) q = q.gte('start_at', from);
-    if (to) q = q.lte('start_at', to);
-    if (f?.driverId) q = q.eq('driver_id', f.driverId);
-    let list = await fetchAllRows(q);
-    if (f?.departmentId) {
-        list = list.filter((r) => (r.vehicles as { department_id?: string } | null)?.department_id === f.departmentId);
-    }
-    const rows = list.map((r) => ({
-        date: fmtDate(r.start_at),
-        model: vehicleLabel(r.vehicles as Rel),
-        plate: (r.vehicles as Rel)?.plate ?? '—',
-        department: (r.vehicles as { departments?: { name?: string } | null } | null)?.departments?.name ?? '—',
-        driver: (r.profiles as { full_name?: string } | null)?.full_name ?? '—',
-        distance: Number(r.distance_km ?? 0),
-        destination: r.destination ?? '—',
-        status: TRIP_STATUS_LABEL[r.status as string] ?? String(r.status ?? '—'),
-    }));
-    const completed = list.filter((r) => ['concluida', 'problema'].includes(r.status));
-    const totalKm = completed.reduce((s, r) => s + Number(r.distance_km ?? 0), 0);
-    const avgKm = completed.length ? totalKm / completed.length : 0;
-    const tripStatusCounts = Object.entries(TRIP_STATUS_LABEL).map(([status, label]) => ({
-        label,
-        value: list.filter((trip) => trip.status === status).length,
-    }));
-    return {
-        kpis: [
-            { label: 'Viagens realizadas', value: NUM(list.filter((r) => r.status !== 'cancelada').length) },
-            { label: 'Km percorridos', value: `${NUM(totalKm, 0)} km` },
-            { label: 'Distância média', value: `${NUM(avgKm, 0)} km` },
-            { label: 'Anomalias', value: NUM(list.filter((r) => r.status === 'problema').length) },
-            { label: 'Canceladas', value: NUM(list.filter((r) => r.status === 'cancelada').length) },
-        ],
-        columns: [
-            { key: 'date', label: 'Data', format: 'date', minWidth: 90 },
-            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90 },
-            { key: 'model', label: 'Modelo', filterable: true, minWidth: 150 },
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
-            { key: 'driver', label: 'Motorista', filterable: true, minWidth: 160 },
-            { key: 'distance', label: 'Distância (km)', align: 'right', format: 'decimal', minWidth: 115 },
-            { key: 'destination', label: 'Destino', filterable: true, minWidth: 180 },
-            { key: 'status', label: 'Situação', filterable: true, minWidth: 120 },
-        ],
-        rows,
-        charts: [{
-            title: 'Situação das viagens',
-            description: 'Quantidade de viagens por situação no período selecionado.',
-            type: 'donut',
-            valueFormat: 'integer',
-            data: tripStatusCounts,
-        }],
-        notes: ['Quilometragem total e distância média consideram viagens encerradas, inclusive as encerradas com anomalia. Viagens canceladas aparecem na listagem, mas não entram nas contagens de viagens realizadas nem na quilometragem.'],
-    };
-}
-
-async function driverPerformance(f?: ReportFilterInput): Promise<ReportDataset> {
+async function driversActivity(f?: ReportFilterInput): Promise<ReportDataset> {
     let dq = supabase
         .from('profiles')
-        .select('id, full_name, score, driver_status, department_id, departments(name)')
+        .select('id, full_name, cnh_category, cnh_expiry, driver_status, department_id, departments(name)')
         .eq('role', 'motorista')
-        .order('score', { ascending: false })
+        .is('archived_at', null)
+        .order('full_name', { ascending: true })
         .order('id', { ascending: true });
     if (f?.departmentId) dq = dq.eq('department_id', f.departmentId);
     if (f?.driverId) dq = dq.eq('id', f.driverId);
-    const drivers = await fetchAllRows(dq);
-
     const { from, to } = dateRange(f);
     let tq = supabase
         .from('trips')
@@ -501,7 +326,16 @@ async function driverPerformance(f?: ReportFilterInput): Promise<ReportDataset> 
     if (from) tq = tq.gte('start_at', from);
     if (to) tq = tq.lte('start_at', to);
     if (f?.driverId) tq = tq.eq('driver_id', f.driverId);
-    const trips = await fetchAllRows(tq);
+    let iq = supabase
+        .from('infractions')
+        .select('id, amount, points, occurred_at, indicated_driver_id')
+        .not('indicated_driver_id', 'is', null)
+        .order('occurred_at', { ascending: false })
+        .order('id', { ascending: true });
+    if (from) iq = iq.gte('occurred_at', from);
+    if (to) iq = iq.lte('occurred_at', to);
+    if (f?.driverId) iq = iq.eq('indicated_driver_id', f.driverId);
+    const [drivers, trips, infractions] = await Promise.all([fetchAllRows(dq), fetchAllRows(tq), fetchAllRows(iq)]);
 
     const tripStats = new Map<string, { trips: number; km: number }>();
     for (const t of trips) {
@@ -511,33 +345,58 @@ async function driverPerformance(f?: ReportFilterInput): Promise<ReportDataset> 
         cur.km += Number(t.distance_km ?? 0);
         tripStats.set(t.driver_id, cur);
     }
+    const infractionStats = new Map<string, { count: number; points: number; amount: number }>();
+    for (const item of infractions) {
+        if (!item.indicated_driver_id) continue;
+        const cur = infractionStats.get(item.indicated_driver_id) ?? { count: 0, points: 0, amount: 0 };
+        cur.count += 1;
+        cur.points += Number(item.points ?? 0);
+        cur.amount += Number(item.amount ?? 0);
+        infractionStats.set(item.indicated_driver_id, cur);
+    }
 
+    const today = startOfToday();
+    let expired = 0;
+    let expiring = 0;
     const rows = drivers.map((d) => {
         const st = tripStats.get(d.id) ?? { trips: 0, km: 0 };
+        const inf = infractionStats.get(d.id) ?? { count: 0, points: 0, amount: 0 };
+        const days = d.cnh_expiry ? daysUntil(d.cnh_expiry, today) : null;
+        if (days !== null && days < 0) expired += 1;
+        else if (days !== null && days <= 30) expiring += 1;
         return {
             driver: d.full_name ?? '—',
             department: (d.departments as { name?: string } | null)?.name ?? '—',
+            cnhCategory: d.cnh_category || '—',
+            cnhExpiry: fmtDate(d.cnh_expiry ? `${d.cnh_expiry}T12:00:00` : null),
+            cnhStatus: expiryStatus(days),
             trips: st.trips,
-            km: Number(st.km.toFixed(0)),
-            score: Number(d.score ?? 0),
+            km: Math.round(st.km),
+            infractions: inf.count,
+            points: inf.points,
+            fines: Number(inf.amount.toFixed(2)),
+            status: d.driver_status ? capitalize(d.driver_status) : '—',
         };
     });
-    const totalTrips = rows.reduce((s, r) => s + Number(r.trips), 0);
-    const active = drivers.filter((d) => d.driver_status === 'ativo');
-    const avgScore = active.length ? active.reduce((s, d) => s + Number(d.score ?? 0), 0) / active.length : 0;
     return {
         kpis: [
             { label: 'Motoristas', value: NUM(drivers.length) },
-            { label: 'Ativos', value: NUM(active.length) },
-            { label: 'Viagens no período', value: NUM(totalTrips) },
-            { label: 'Pontuação média', value: `${NUM(avgScore, 0)}/100` },
+            { label: 'CNH vencida', value: NUM(expired) },
+            { label: 'CNH vence em 30 dias', value: NUM(expiring) },
+            { label: 'Viagens no período', value: NUM(rows.reduce((s, r) => s + r.trips, 0)) },
         ],
         columns: [
-            { key: 'driver', label: 'Motorista', filterable: true, minWidth: 170 },
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
-            { key: 'trips', label: 'Viagens encerradas', align: 'right', format: 'integer', minWidth: 130 },
-            { key: 'km', label: 'Km encerrados', align: 'right', format: 'integer', minWidth: 110 },
-            { key: 'score', label: 'Pontuação atual', align: 'right', format: 'decimal', minWidth: 115 },
+            { key: 'driver', label: 'Motorista', filterable: true, minWidth: 170, priority: 1, anchor: true },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180, stackUnder: 'driver' },
+            { key: 'cnhCategory', label: 'Categoria CNH', filterable: true, minWidth: 100 },
+            { key: 'cnhExpiry', label: 'CNH válida até', format: 'date', minWidth: 105 },
+            { key: 'cnhStatus', label: 'Situação da CNH', filterable: true, minWidth: 130, priority: 1 },
+            { key: 'trips', label: 'Viagens encerradas', align: 'right', format: 'integer', minWidth: 130, total: 'sum' },
+            { key: 'km', label: 'Km encerrados', align: 'right', format: 'integer', minWidth: 110, total: 'sum' },
+            { key: 'infractions', label: 'Infrações', align: 'right', format: 'integer', minWidth: 90, total: 'sum' },
+            { key: 'points', label: 'Pontos', align: 'right', format: 'integer', minWidth: 80, total: 'sum' },
+            { key: 'fines', label: 'Multas', align: 'right', format: 'currency', minWidth: 110, priority: 3, total: 'sum' },
+            { key: 'status', label: 'Cadastro', filterable: true, minWidth: 90, priority: 3 },
         ],
         rows,
         charts: [{
@@ -546,221 +405,105 @@ async function driverPerformance(f?: ReportFilterInput): Promise<ReportDataset> 
             type: 'bar',
             valueFormat: 'integer',
             data: topChartData(rows.map((row) => ({ label: String(row.driver), value: Number(row.km) }))),
+        }, {
+            title: 'Situação das CNHs',
+            description: 'Validade das habilitações na data de emissão.',
+            type: 'donut',
+            valueFormat: 'integer',
+            data: groupCount(rows.map((row) => String(row.cnhStatus).startsWith('Vence em') ? 'Vence em até 90 dias' : String(row.cnhStatus))),
         }],
         notes: [
             'Viagens e quilômetros consideram viagens encerradas, inclusive as encerradas com anomalia.',
-            'A pontuação é o valor atual do cadastro do motorista na data de emissão.',
+            'Infrações, pontos e multas consideram somente infrações com condutor indicado, pela data da infração.',
+            'A situação da CNH é calculada na data de emissão; motoristas arquivados não aparecem.',
         ],
     };
 }
 
-// Agregação por secretaria (compartilhada por cost-analysis, department-usage, efficiency-report)
+// Agregação por secretaria (Consolidado por secretaria), feita no Postgres
+// (get_report_department_consolidated, SECURITY INVOKER: vale o RLS).
 async function departmentAggregates(f?: ReportFilterInput) {
     const { from, to } = dateRange(f);
-    const [allDepts, vehicles, fuelings, trips, serviceOrders] = await Promise.all([
-        fetchAllRows(
-            supabase.from('departments').select('id, name').order('name').order('id'),
-        ),
-        fetchAllRows(
-            supabase.from('vehicles').select('id, department_id, status').order('id'),
-        ),
-        (() => {
-            let q = supabase
-                .from('fuelings')
-                .select('id, total_cost, created_at, filled_at, vehicle_id')
-                .in('workflow_status', ['validado', 'lancado_direto'])
-                .order('created_at', { ascending: false })
-                .order('id');
-            if (f?.driverId) q = q.eq('driver_id', f.driverId);
-            return fetchAllRows(q);
-        })(),
-        (() => {
-            let q = supabase
-                .from('trips')
-                .select('id, vehicle_id, distance_km, start_at')
-                .in('status', ['concluida', 'problema'])
-                .order('start_at', { ascending: false })
-                .order('id');
-            if (from) q = q.gte('start_at', from);
-            if (to) q = q.lte('start_at', to);
-            if (f?.driverId) q = q.eq('driver_id', f.driverId);
-            return fetchAllRows(q);
-        })(),
-        fetchAllRows(
-            supabase
-                .from('service_orders')
-                .select('id, vehicle_id, cost, budget, status, operational_status, received_at, completed_at, created_at')
-                .or('operational_status.eq.received,status.eq.concluida')
-                .order('created_at', { ascending: false })
-                .order('id'),
-        ),
-    ]);
-    let depts = allDepts;
-    if (f?.departmentId) depts = depts.filter((d) => d.id === f.departmentId);
-
-    const vehDept = new Map<string, string | null>();
-    for (const v of vehicles) vehDept.set(v.id, v.department_id);
-
-    return depts.map((d) => {
-        const deptVehicles = vehicles.filter((v) => v.department_id === d.id);
-        const fuel = fuelings
-            .filter((fueling) =>
-                fueling.vehicle_id
-                && vehDept.get(fueling.vehicle_id) === d.id
-                && withinRange(fueling.filled_at ?? fueling.created_at, from, to)
-            )
-            .reduce((s, x) => s + Number(x.total_cost ?? 0), 0);
-        const deptTrips = trips.filter((x) => x.vehicle_id && vehDept.get(x.vehicle_id) === d.id);
-        const km = deptTrips.reduce((s, x) => s + Number(x.distance_km ?? 0), 0);
-        const maintenanceOrders = serviceOrders.filter((order) => {
-            if (!order.vehicle_id || vehDept.get(order.vehicle_id) !== d.id) return false;
-            const competence = order.received_at ?? order.completed_at ?? order.created_at;
-            return withinRange(competence, from, to);
-        });
-        const maintenanceCost = maintenanceOrders.reduce(
-            (sum, order) => sum + Number(order.cost ?? order.budget ?? 0),
-            0,
-        );
+    const { data, error } = await supabase.rpc('get_report_department_consolidated', {
+        p_from: from,
+        p_to: to,
+        p_department: f?.departmentId,
+    });
+    if (error) throw error;
+    return (data ?? []).map((row) => {
+        const fuel = Number(row.fuel ?? 0);
+        const maintenanceCost = Number(row.maintenance ?? 0);
+        const fines = Number(row.fines ?? 0);
         return {
-            name: d.name,
-            vehicles: deptVehicles.length,
-            available: deptVehicles.filter((v) => v.status === 'liberado').length,
-            maintenanceVehicles: deptVehicles.filter((v) => v.status === 'manutencao').length,
-            trips: deptTrips.length,
-            km,
+            name: row.department,
+            vehicles: Number(row.vehicles ?? 0),
+            available: Number(row.available ?? 0),
+            trips: Number(row.trips ?? 0),
+            km: Number(row.km ?? 0),
             fuel,
             maintenanceCost,
-            totalCost: fuel + maintenanceCost,
+            fines,
+            totalCost: fuel + maintenanceCost + fines,
         };
     });
 }
 
-async function costAnalysis(f?: ReportFilterInput): Promise<ReportDataset> {
-    const agg = await departmentAggregates(f);
-    const rows = agg.map((d) => ({
-        department: d.name,
-        fuel: Number(d.fuel.toFixed(0)),
-        maintenance: Number(d.maintenanceCost.toFixed(0)),
-        total: Number(d.totalCost.toFixed(0)),
-    }));
-    const totalFuel = agg.reduce((s, d) => s + d.fuel, 0);
-    const totalMaintenance = agg.reduce((s, d) => s + d.maintenanceCost, 0);
-    const totalCost = totalFuel + totalMaintenance;
-    return {
-        kpis: [
-            { label: 'Custo operacional', value: BRL(totalCost) },
-            { label: 'Combustível', value: BRL(totalFuel) },
-            { label: 'Manutenção concluída', value: BRL(totalMaintenance) },
-            { label: 'Secretarias', value: NUM(agg.length) },
-        ],
-        columns: [
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
-            { key: 'fuel', label: 'Combustível', align: 'right', format: 'currency', minWidth: 125 },
-            { key: 'maintenance', label: 'Manutenção concluída', align: 'right', format: 'currency', minWidth: 160 },
-            { key: 'total', label: 'Total operacional', align: 'right', format: 'currency', minWidth: 145 },
-        ],
-        rows,
-        charts: [{
-            title: 'Custo operacional por secretaria',
-            description: 'Combustível efetivo e manutenções concluídas no período.',
-            type: 'bar',
-            valueFormat: 'currency',
-            data: topChartData(rows.map((row) => ({ label: String(row.department), value: Number(row.total) }))),
-        }],
-        notes: [
-            'Combustível considera somente abastecimentos efetivos.',
-            'Manutenção considera o custo final (ou orçamento, se o custo estiver ausente) das ordens recebidas/concluídas no período.',
-            'Os valores são operacionais e devem ser conciliados com empenhos, notas, liquidação e pagamentos nos relatórios fiscais específicos.',
-        ],
-    };
-}
-
-async function departmentUsage(f?: ReportFilterInput): Promise<ReportDataset> {
+async function departmentConsolidated(f?: ReportFilterInput): Promise<ReportDataset> {
     const agg = await departmentAggregates(f);
     const rows = agg.map((d) => ({
         department: d.name,
         vehicles: d.vehicles,
+        availability: d.vehicles > 0 ? (d.available / d.vehicles) * 100 : '—',
         trips: d.trips,
-        km: Number(d.km.toFixed(0)),
-        fuelCost: Number(d.fuel.toFixed(0)),
-        maintenanceCost: Number(d.maintenanceCost.toFixed(0)),
-        totalCost: Number(d.totalCost.toFixed(0)),
+        km: Math.round(d.km),
+        fuel: Number(d.fuel.toFixed(2)),
+        maintenance: Number(d.maintenanceCost.toFixed(2)),
+        fines: Number(d.fines.toFixed(2)),
+        total: Number(d.totalCost.toFixed(2)),
+        costPerKm: d.km > 0 ? Number((d.totalCost / d.km).toFixed(2)) : '—',
     }));
-    const totalVehicles = agg.reduce((s, d) => s + d.vehicles, 0);
-    const biggest = [...agg].sort((a, b) => b.vehicles - a.vehicles)[0];
+    const sum = (key: 'fuel' | 'maintenanceCost' | 'fines' | 'totalCost' | 'km') =>
+        agg.reduce((s, d) => s + d[key], 0);
+    const totalKm = sum('km');
     return {
         kpis: [
-            { label: 'Secretarias', value: NUM(agg.length) },
-            { label: 'Veículos alocados', value: NUM(totalVehicles) },
-            { label: 'Maior frota', value: biggest ? `${biggest.name} (${biggest.vehicles})` : '—' },
-            { label: 'Total de viagens', value: NUM(agg.reduce((s, d) => s + d.trips, 0)) },
+            { label: 'Custo total', value: BRL(sum('totalCost')) },
+            { label: 'Combustível', value: BRL(sum('fuel')) },
+            { label: 'Manutenção', value: BRL(sum('maintenanceCost')) },
+            { label: 'Multas', value: BRL(sum('fines')) },
+            { label: 'Custo por km', value: totalKm > 0 ? `R$ ${NUM(sum('totalCost') / totalKm, 2)}` : 'Sem km no período' },
         ],
         columns: [
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
-            { key: 'vehicles', label: 'Veículos atuais', align: 'right', format: 'integer', minWidth: 120 },
-            { key: 'trips', label: 'Viagens encerradas', align: 'right', format: 'integer', minWidth: 130 },
-            { key: 'km', label: 'Km encerrados', align: 'right', format: 'integer', minWidth: 110 },
-            { key: 'fuelCost', label: 'Combustível', align: 'right', format: 'currency', minWidth: 120 },
-            { key: 'maintenanceCost', label: 'Manutenção', align: 'right', format: 'currency', minWidth: 120 },
-            { key: 'totalCost', label: 'Custo operacional', align: 'right', format: 'currency', minWidth: 140 },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180, priority: 1, anchor: true },
+            { key: 'vehicles', label: 'Veículos', align: 'right', format: 'integer', minWidth: 85, total: 'sum' },
+            { key: 'availability', label: 'Disponíveis na emissão', align: 'right', format: 'percent', minWidth: 140, priority: 3 },
+            { key: 'trips', label: 'Viagens', align: 'right', format: 'integer', minWidth: 85, total: 'sum' },
+            { key: 'km', label: 'Km rodados', align: 'right', format: 'integer', minWidth: 100, total: 'sum' },
+            { key: 'fuel', label: 'Combustível', align: 'right', format: 'currency', minWidth: 120, total: 'sum' },
+            { key: 'maintenance', label: 'Manutenção', align: 'right', format: 'currency', minWidth: 120, total: 'sum' },
+            { key: 'fines', label: 'Multas', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'total', label: 'Custo total', align: 'right', format: 'currency', minWidth: 130, priority: 1, total: 'sum' },
+            { key: 'costPerKm', label: 'Custo por km', align: 'right', format: 'currency', minWidth: 110, priority: 1 },
         ],
         rows,
         charts: [{
-            title: 'Veículos por secretaria',
-            description: 'Distribuição atual dos veículos alocados.',
+            title: 'Custo total por secretaria',
+            description: 'Combustível efetivo, manutenções concluídas e multas no período.',
+            type: 'bar',
+            valueFormat: 'currency',
+            data: topChartData(rows.map((row) => ({ label: String(row.department), value: Number(row.total) }))),
+        }, {
+            title: 'Quilometragem por secretaria',
+            description: 'Km de viagens encerradas no período.',
             type: 'bar',
             valueFormat: 'integer',
-            data: topChartData(rows.map((row) => ({ label: String(row.department), value: Number(row.vehicles) }))),
+            data: topChartData(rows.map((row) => ({ label: String(row.department), value: Number(row.km) }))),
         }],
         notes: [
-            'Veículos representam a alocação atual; viagens, quilômetros e custos obedecem ao período selecionado.',
-            'Custo operacional separa combustível efetivo e manutenções concluídas.',
-        ],
-    };
-}
-
-async function efficiencyReport(f?: ReportFilterInput): Promise<ReportDataset> {
-    const agg = await departmentAggregates(f);
-    const pct = (n: number, total: number) => (total > 0 ? `${Math.round((n / total) * 100)}%` : '0%');
-    const rows = agg.map((d) => ({
-        department: d.name,
-        availability: d.vehicles > 0 ? (d.available / d.vehicles) * 100 : 0,
-        maintenance: d.vehicles > 0 ? (d.maintenanceVehicles / d.vehicles) * 100 : 0,
-        km: Number(d.km.toFixed(0)),
-        trips: d.trips,
-    }));
-    const totalVeh = agg.reduce((s, d) => s + d.vehicles, 0);
-    const totalAvail = agg.reduce((s, d) => s + d.available, 0);
-    const totalMaint = agg.reduce((s, d) => s + d.maintenanceVehicles, 0);
-    const totalKm = agg.reduce((s, d) => s + d.km, 0);
-    return {
-        kpis: [
-            { label: 'Disponibilidade atual', value: pct(totalAvail, totalVeh) },
-            { label: 'Em manutenção agora', value: pct(totalMaint, totalVeh) },
-            { label: 'Km por veículo atual', value: `${NUM(totalVeh > 0 ? totalKm / totalVeh : 0, 0)} km` },
-            { label: 'Veículos atuais', value: NUM(totalVeh) },
-        ],
-        columns: [
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 180 },
-            { key: 'availability', label: 'Disponibilidade atual', align: 'right', format: 'percent', minWidth: 145 },
-            { key: 'maintenance', label: 'Em manutenção agora', align: 'right', format: 'percent', minWidth: 150 },
-            { key: 'trips', label: 'Viagens encerradas', align: 'right', format: 'integer', minWidth: 130 },
-            { key: 'km', label: 'Km encerrados', align: 'right', format: 'integer', minWidth: 115 },
-        ],
-        rows,
-        charts: [{
-            title: 'Disponibilidade atual por secretaria',
-            description: 'Percentual calculado com base no estado atual dos veículos.',
-            type: 'bar',
-            valueFormat: 'percent',
-            data: topChartData(rows.map((row) => ({
-                label: String(row.department),
-                value: Number(row.availability),
-            }))),
-        }],
-        notes: [
-            'Disponibilidade e manutenção são fotografias do estado atual da frota na emissão.',
-            'Viagens e quilômetros consideram viagens encerradas, inclusive as encerradas com anomalia.',
+            'Substitui os antigos relatórios Análise de Custos, Uso por Secretaria e Relatório de Eficiência.',
+            'Combustível considera somente abastecimentos efetivos; manutenção, o custo final (ou orçamento, se ausente) das ordens recebidas/concluídas no período; multas, o valor das infrações ocorridas no período.',
+            'Veículos e disponibilidade são a situação na emissão; viagens, km e custos obedecem ao período.',
+            'Os valores são operacionais e devem ser conciliados com empenhos, notas e pagamentos nos relatórios fiscais.',
         ],
     };
 }
@@ -778,6 +521,7 @@ async function infractionsReport(f?: ReportFilterInput): Promise<ReportDataset> 
     let q = supabase
         .from('infractions')
         .select(`id, occurred_at, plate, description, location, amount, points, status, vehicle_id,
+            ait, code, indication_deadline, due_date,
             vehicles(department_id),
             indicated:profiles!infractions_indicated_driver_id_fkey(full_name),
             suggested:profiles!infractions_suggested_driver_id_fkey(full_name)`)
@@ -785,18 +529,26 @@ async function infractionsReport(f?: ReportFilterInput): Promise<ReportDataset> 
         .order('id', { ascending: true });
     if (from) q = q.gte('occurred_at', from);
     if (to) q = q.lte('occurred_at', to);
-    if (f?.driverId && UUID_PATTERN.test(f.driverId)) {
-        q = q.or(`indicated_driver_id.eq.${f.driverId},suggested_driver_id.eq.${f.driverId}`);
-    }
+    const driverId = safeUuid(f?.driverId);
+    if (driverId) q = q.or(`indicated_driver_id.eq.${driverId},suggested_driver_id.eq.${driverId}`);
     let list = await fetchAllRows(q);
     if (f?.departmentId) {
         list = list.filter((r) => (r.vehicles as { department_id?: string } | null)?.department_id === f.departmentId);
     }
 
+    const today = startOfToday();
+    const indicationOverdue = (r: (typeof list)[number]) => r.status === 'pendente'
+        && Boolean(r.indication_deadline) && daysUntil(String(r.indication_deadline), today) < 0;
     const rows = list.map((r) => ({
         date: fmtDate(r.occurred_at),
         plate: r.plate ?? '—',
+        ait: r.ait || '—',
+        code: r.code || '—',
         description: r.description ?? '—',
+        deadline: r.indication_deadline
+            ? `${fmtDate(String(r.indication_deadline).length === 10 ? `${r.indication_deadline}T12:00:00` : r.indication_deadline)}${indicationOverdue(r) ? ' (vencido)' : ''}`
+            : '—',
+        dueDate: fmtDate(r.due_date ? (String(r.due_date).length === 10 ? `${r.due_date}T12:00:00` : r.due_date) : null),
         location: r.location ?? '—',
         driver: (r.indicated as { full_name?: string } | null)?.full_name
             ?? (r.suggested as { full_name?: string } | null)?.full_name
@@ -812,18 +564,23 @@ async function infractionsReport(f?: ReportFilterInput): Promise<ReportDataset> 
         kpis: [
             { label: 'Total de infrações', value: NUM(list.length) },
             { label: 'Pendentes', value: NUM(list.filter((r) => r.status === 'pendente').length) },
+            { label: 'Indicação vencida', value: NUM(list.filter(indicationOverdue).length) },
             { label: 'Valor total', value: BRL(totalAmount) },
             { label: 'Pontos acumulados', value: NUM(totalPoints) },
         ],
         columns: [
-            { key: 'date', label: 'Data', format: 'date', minWidth: 90 },
-            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90 },
-            { key: 'description', label: 'Infração', filterable: true, minWidth: 190 },
-            { key: 'location', label: 'Local', filterable: true, minWidth: 170 },
+            { key: 'date', label: 'Data', format: 'date', minWidth: 90, priority: 1, anchor: true },
+            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90, priority: 1, anchor: true },
+            { key: 'ait', label: 'AIT', filterable: true, minWidth: 110, stackUnder: 'plate' },
+            { key: 'code', label: 'Código', filterable: true, minWidth: 80, priority: 3, stackUnder: 'description' },
+            { key: 'description', label: 'Infração', filterable: true, minWidth: 190, priority: 1 },
+            { key: 'location', label: 'Local', filterable: true, minWidth: 170, stackUnder: 'description' },
             { key: 'driver', label: 'Condutor', filterable: true, minWidth: 160 },
-            { key: 'amount', label: 'Valor', align: 'right', format: 'currency', minWidth: 105 },
-            { key: 'points', label: 'Pontos', align: 'right', format: 'integer', defaultVisible: false, minWidth: 80 },
-            { key: 'status', label: 'Situação', filterable: true, minWidth: 110 },
+            { key: 'amount', label: 'Valor', align: 'right', format: 'currency', minWidth: 105, priority: 1, total: 'sum' },
+            { key: 'points', label: 'Pontos', align: 'right', format: 'integer', defaultVisible: false, minWidth: 80, priority: 3, total: 'sum' },
+            { key: 'deadline', label: 'Prazo de indicação', minWidth: 120 },
+            { key: 'dueDate', label: 'Vencimento', format: 'date', minWidth: 95, priority: 3 },
+            { key: 'status', label: 'Situação', filterable: true, minWidth: 110, priority: 1 },
         ],
         rows,
         charts: [{
@@ -953,21 +710,21 @@ async function fuelByStation(f?: ReportFilterInput): Promise<ReportDataset> {
             { label: 'Saldo disponível', value: BRL(total.remaining) },
         ],
         columns: [
-            { key: 'station', label: 'Posto', filterable: true, minWidth: 180 },
-            { key: 'fuelings', label: 'Registros', align: 'right', format: 'integer', minWidth: 90 },
-            { key: 'liters', label: 'Litros', align: 'right', format: 'decimal', minWidth: 90 },
-            { key: 'presented', label: 'Apresentado', align: 'right', format: 'currency', minWidth: 125 },
-            { key: 'validated', label: 'Validado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'pending', label: 'Pendente', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'rejected', label: 'Rejeitados', align: 'right', format: 'integer', minWidth: 95 },
-            { key: 'contractValue', label: 'Contratado', align: 'right', format: 'currency', minWidth: 120 },
-            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'realized', label: 'Realizado acumulado', align: 'right', format: 'currency', minWidth: 145 },
-            { key: 'disputed', label: 'Em contestação', align: 'right', format: 'currency', defaultVisible: false, minWidth: 125 },
-            { key: 'remaining', label: 'Saldo disponível', align: 'right', format: 'currency', minWidth: 130 },
+            { key: 'station', label: 'Posto', filterable: true, minWidth: 180, priority: 1, anchor: true },
+            { key: 'fuelings', label: 'Registros', align: 'right', format: 'integer', minWidth: 90, total: 'sum' },
+            { key: 'liters', label: 'Litros', align: 'right', format: 'decimal', minWidth: 90, total: 'sum' },
+            { key: 'presented', label: 'Apresentado', align: 'right', format: 'currency', minWidth: 125, total: 'sum' },
+            { key: 'validated', label: 'Validado', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
+            { key: 'pending', label: 'Pendente', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'rejected', label: 'Rejeitados', align: 'right', format: 'integer', minWidth: 95, total: 'sum' },
+            { key: 'contractValue', label: 'Contratado', align: 'right', format: 'currency', minWidth: 120, total: 'sum' },
+            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'realized', label: 'Realizado acumulado', align: 'right', format: 'currency', minWidth: 145, total: 'sum' },
+            { key: 'disputed', label: 'Em contestação', align: 'right', format: 'currency', defaultVisible: false, minWidth: 125, priority: 3, total: 'sum' },
+            { key: 'remaining', label: 'Saldo disponível', align: 'right', format: 'currency', minWidth: 130, priority: 1, total: 'sum' },
             { key: 'consumedPercent', label: '% consumido', align: 'right', format: 'percent', minWidth: 105 },
-            { key: 'invoiced', label: 'Faturado', defaultVisible: false, minWidth: 145 },
-            { key: 'paid', label: 'Pago', defaultVisible: false, minWidth: 145 },
+            { key: 'invoiced', label: 'Faturado', defaultVisible: false, minWidth: 145, priority: 3 },
+            { key: 'paid', label: 'Pago', defaultVisible: false, minWidth: 145, priority: 3 },
         ],
         rows,
         charts: [{
@@ -1024,20 +781,20 @@ async function stationFiscalClosing(f?: ReportFilterInput): Promise<ReportDatase
             { label: 'Saldo em trâmite', value: BRL(Math.max(total - paid, 0)) },
         ],
         columns: [
-            { key: 'protocol', label: 'Protocolo', filterable: true, minWidth: 150 },
-            { key: 'station', label: 'Posto', filterable: true, minWidth: 180 },
+            { key: 'protocol', label: 'Protocolo', filterable: true, minWidth: 150, priority: 1, anchor: true },
+            { key: 'station', label: 'Posto', filterable: true, minWidth: 180, priority: 1 },
             { key: 'competence', label: 'Competência', format: 'date', minWidth: 100 },
-            { key: 'records', label: 'Registros', align: 'right', format: 'integer', minWidth: 85 },
-            { key: 'amount', label: 'Valor fechado', align: 'right', format: 'currency', minWidth: 125 },
+            { key: 'records', label: 'Registros', align: 'right', format: 'integer', minWidth: 85, total: 'sum' },
+            { key: 'amount', label: 'Valor fechado', align: 'right', format: 'currency', minWidth: 125, priority: 1, total: 'sum' },
             { key: 'closingStatus', label: 'Conferência', filterable: true, minWidth: 110 },
-            { key: 'fiscalStatus', label: 'Situação fiscal', filterable: true, minWidth: 145 },
+            { key: 'fiscalStatus', label: 'Situação fiscal', filterable: true, minWidth: 145, priority: 1 },
             { key: 'commitment', label: 'Empenho', filterable: true, minWidth: 120 },
-            { key: 'nad', label: 'NAD', defaultVisible: false, minWidth: 100 },
-            { key: 'invoice', label: 'Nota fiscal', filterable: true, minWidth: 110 },
-            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'balance', label: 'Saldo', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'hash', label: 'Hash SHA-256', defaultVisible: false, minWidth: 300 },
+            { key: 'nad', label: 'NAD', defaultVisible: false, minWidth: 100, priority: 3, stackUnder: 'commitment' },
+            { key: 'invoice', label: 'Nota fiscal', filterable: true, minWidth: 110, stackUnder: 'commitment' },
+            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'balance', label: 'Saldo', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'hash', label: 'Hash SHA-256', defaultVisible: false, minWidth: 300, priority: 3 },
         ],
         rows,
         charts: [{
@@ -1171,19 +928,19 @@ async function maintenanceByShop(f?: ReportFilterInput): Promise<ReportDataset> 
             { label: 'Saldo disponível', value: BRL(totals.remaining) },
         ],
         columns: [
-            { key: 'shop', label: 'Oficina', filterable: true, minWidth: 180 },
-            { key: 'orders', label: 'OS', align: 'right', format: 'integer', minWidth: 70 },
-            { key: 'budget', label: 'Orçado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'cost', label: 'Custo final', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'execution', label: 'Em execução', align: 'right', format: 'integer', minWidth: 105 },
-            { key: 'openFinance', label: 'Financeiro aberto', align: 'right', format: 'integer', minWidth: 130 },
-            { key: 'paidOrders', label: 'OS pagas', align: 'right', format: 'integer', defaultVisible: false, minWidth: 85 },
-            { key: 'contractValue', label: 'Contratado', align: 'right', format: 'currency', minWidth: 120 },
-            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'realized', label: 'Realizado acumulado', align: 'right', format: 'currency', minWidth: 145 },
-            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 110 },
-            { key: 'remaining', label: 'Saldo disponível', align: 'right', format: 'currency', minWidth: 130 },
+            { key: 'shop', label: 'Oficina', filterable: true, minWidth: 180, priority: 1, anchor: true },
+            { key: 'orders', label: 'OS', align: 'right', format: 'integer', minWidth: 70, total: 'sum' },
+            { key: 'budget', label: 'Orçado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'cost', label: 'Custo final', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
+            { key: 'execution', label: 'Em execução', align: 'right', format: 'integer', minWidth: 105, total: 'sum' },
+            { key: 'openFinance', label: 'Financeiro aberto', align: 'right', format: 'integer', minWidth: 130, total: 'sum' },
+            { key: 'paidOrders', label: 'OS pagas', align: 'right', format: 'integer', defaultVisible: false, minWidth: 85, priority: 3, total: 'sum' },
+            { key: 'contractValue', label: 'Contratado', align: 'right', format: 'currency', minWidth: 120, total: 'sum' },
+            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'realized', label: 'Realizado acumulado', align: 'right', format: 'currency', minWidth: 145, total: 'sum' },
+            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'remaining', label: 'Saldo disponível', align: 'right', format: 'currency', minWidth: 130, priority: 1, total: 'sum' },
             { key: 'consumedPercent', label: '% consumido', align: 'right', format: 'percent', minWidth: 105 },
         ],
         rows,
@@ -1269,24 +1026,24 @@ async function procurementFiscalReconciliation(f?: ReportFilterInput): Promise<R
             { label: 'Saldo disponível', value: BRL(sumNumber('remaining')) },
         ],
         columns: [
-            { key: 'fiscalYear', label: 'Exercício', align: 'right', format: 'integer', minWidth: 85 },
-            { key: 'process', label: 'Processo', filterable: true, minWidth: 140 },
-            { key: 'instrument', label: 'Instrumento', filterable: true, minWidth: 180 },
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 170 },
-            { key: 'category', label: 'Categoria', filterable: true, minWidth: 120 },
+            { key: 'fiscalYear', label: 'Exercício', align: 'right', format: 'text', minWidth: 85, stackUnder: 'process' },
+            { key: 'process', label: 'Processo', filterable: true, minWidth: 140, priority: 1, anchor: true },
+            { key: 'instrument', label: 'Instrumento', filterable: true, minWidth: 180, stackUnder: 'process' },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 170, priority: 1 },
+            { key: 'category', label: 'Categoria', filterable: true, minWidth: 120, stackUnder: 'department' },
             { key: 'appropriation', label: 'Dotação', filterable: true, minWidth: 135 },
-            { key: 'fundingSource', label: 'Fonte', filterable: true, minWidth: 95 },
-            { key: 'simam', label: 'Código SIM-AM', filterable: true, minWidth: 150 },
-            { key: 'planned', label: 'Teto', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'disputed', label: 'Contestado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'legacyReconciled', label: 'Legado conciliado', align: 'right', format: 'currency', minWidth: 135 },
-            { key: 'consumed', label: 'Consumido', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'remaining', label: 'Saldo', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'attested', label: 'Atestado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 105 },
+            { key: 'fundingSource', label: 'Fonte', filterable: true, minWidth: 95, stackUnder: 'appropriation' },
+            { key: 'simam', label: 'Código SIM-AM', filterable: true, minWidth: 150, priority: 3, stackUnder: 'appropriation' },
+            { key: 'planned', label: 'Teto', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
+            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'disputed', label: 'Contestado', align: 'right', format: 'currency', minWidth: 115, priority: 3, total: 'sum' },
+            { key: 'legacyReconciled', label: 'Legado conciliado', align: 'right', format: 'currency', minWidth: 135, priority: 3, total: 'sum' },
+            { key: 'consumed', label: 'Consumido', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
+            { key: 'remaining', label: 'Saldo', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
+            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'attested', label: 'Atestado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 105, total: 'sum' },
         ],
         rows,
         charts: [{
@@ -1305,14 +1062,39 @@ async function procurementFiscalReconciliation(f?: ReportFilterInput): Promise<R
     };
 }
 
+const LEGACY_SOURCE_LABEL: Record<string, string> = {
+    fuelings: 'Abastecimento',
+    service_orders: 'Ordem de serviço',
+    station_operations: 'Operação de posto',
+};
+
 async function procurementLegacyReconciliation(f?: ReportFilterInput): Promise<ReportDataset> {
     const { data, error } = await supabase.rpc('get_procurement_legacy_reconciliation', {
         p_year: fiscalYearFilter(f),
         p_department: f?.departmentId ?? null,
     });
     if (error) throw error;
-    const rows = (data ?? []).map((row) => ({
+    const source = data ?? [];
+    // A RPC devolve só identificadores; o relatório mostra nome e placa.
+    const vehicleIds = [...new Set(source.map((row) => row.vehicle_id).filter(Boolean))];
+    const partnerIds = [...new Set(source.map((row) => row.partner_id).filter(Boolean))];
+    const [vehicles, stations, shops] = await Promise.all([
+        vehicleIds.length
+            ? fetchAllRows(supabase.from('vehicles').select('id, plate').in('id', vehicleIds).order('id'))
+            : Promise.resolve([]),
+        partnerIds.length
+            ? fetchAllRows(supabase.from('fuel_stations').select('id, name').in('id', partnerIds).order('id'))
+            : Promise.resolve([]),
+        partnerIds.length
+            ? fetchAllRows(supabase.from('repair_shops').select('id, name').in('id', partnerIds).order('id'))
+            : Promise.resolve([]),
+    ]);
+    const plateById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle.plate]));
+    const partnerById = new Map([...stations, ...shops].map((partner) => [partner.id, partner.name]));
+    const rows = source.map((row) => ({
+        // `sourceType` segue cru: a conciliação o envia de volta ao banco.
         sourceType: row.source_type,
+        sourceLabel: LEGACY_SOURCE_LABEL[row.source_type] ?? capitalize(row.source_type),
         sourceId: row.source_id,
         contractId: row.contract_id,
         contract: row.contract_reference,
@@ -1320,7 +1102,9 @@ async function procurementLegacyReconciliation(f?: ReportFilterInput): Promise<R
         departmentId: row.department_id,
         department: row.department_name ?? '—',
         partnerId: row.partner_id,
+        partner: partnerById.get(row.partner_id) ?? 'Fornecedor não encontrado',
         vehicleId: row.vehicle_id ?? '—',
+        vehicle: row.vehicle_id ? plateById.get(row.vehicle_id) ?? '—' : '—',
         reserved: Number(row.reserved_amount),
         realized: Number(row.realized_amount),
         disputed: Number(row.disputed_amount),
@@ -1336,20 +1120,22 @@ async function procurementLegacyReconciliation(f?: ReportFilterInput): Promise<R
             { label: 'Situação', value: rows.length > 0 ? 'Aguardando vínculo' : 'Sem pendências' },
         ],
         columns: [
-            { key: 'sourceType', label: 'Origem', filterable: true, minWidth: 145 },
-            { key: 'sourceId', label: 'Registro legado', filterable: true, minWidth: 280 },
-            { key: 'contractId', label: 'ID do contrato legado', defaultVisible: false, minWidth: 280 },
+            { key: 'sourceLabel', label: 'Origem', filterable: true, minWidth: 145, priority: 1, anchor: true },
+            { key: 'sourceId', label: 'Registro legado', filterable: true, defaultVisible: false, minWidth: 280, priority: 3 },
+            { key: 'contractId', label: 'ID do contrato legado', defaultVisible: false, minWidth: 280, priority: 3 },
             { key: 'contract', label: 'Contrato legado', filterable: true, minWidth: 170 },
-            { key: 'fiscalYear', label: 'Exercício', align: 'right', format: 'integer', minWidth: 85 },
-            { key: 'departmentId', label: 'ID da secretaria', defaultVisible: false, minWidth: 280 },
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 170 },
-            { key: 'partnerId', label: 'Fornecedor', filterable: true, minWidth: 280 },
-            { key: 'vehicleId', label: 'Veículo', filterable: true, minWidth: 280 },
-            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'disputed', label: 'Contestado', align: 'right', format: 'currency', minWidth: 115 },
-            { key: 'consumed', label: 'A conciliar', align: 'right', format: 'currency', minWidth: 125 },
-            { key: 'status', label: 'Situação', filterable: true, minWidth: 145 },
+            { key: 'fiscalYear', label: 'Exercício', align: 'right', format: 'text', minWidth: 85, stackUnder: 'contract' },
+            { key: 'departmentId', label: 'ID da secretaria', defaultVisible: false, minWidth: 280, priority: 3 },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 170, priority: 1 },
+            { key: 'partner', label: 'Fornecedor', filterable: true, minWidth: 180, priority: 1 },
+            { key: 'vehicle', label: 'Veículo', filterable: true, minWidth: 90, stackUnder: 'partner' },
+            { key: 'partnerId', label: 'ID do fornecedor', defaultVisible: false, minWidth: 280, priority: 3 },
+            { key: 'vehicleId', label: 'ID do veículo', defaultVisible: false, minWidth: 280, priority: 3 },
+            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'disputed', label: 'Contestado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
+            { key: 'consumed', label: 'A conciliar', align: 'right', format: 'currency', minWidth: 125, priority: 1, total: 'sum' },
+            { key: 'status', label: 'Situação', filterable: true, minWidth: 145, priority: 1 },
         ],
         rows,
         notes: [
@@ -1360,295 +1146,23 @@ async function procurementLegacyReconciliation(f?: ReportFilterInput): Promise<R
     };
 }
 
-// ── Mapa mensal de uso do veículo ─────────────────────────────────────────────
-
-const PURPOSE_CATEGORY_LABEL: Record<string, string> = {
-    saude: 'Saúde',
-    educacao: 'Educação',
-    transporte_escolar: 'Transporte escolar',
-    obras_servicos: 'Obras e serviços',
-    administrativo: 'Administrativo',
-    assistencia_social: 'Assistência social',
-    seguranca: 'Segurança',
-    agricultura: 'Agricultura',
-    outro: 'Outro',
-};
-
-function fmtDateTime(iso?: string | null): string {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '';
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function monthKey(iso: string): string {
-    const d = new Date(iso);
-    return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-}
-
-/** 'MM/AAAA' -> 'AAAAMM', para ordenar cronologicamente. */
-function monthSortKey(value: string | number): string {
-    const [month = '', year = ''] = String(value).split('/');
-    return `${year}${month}`;
-}
-
-function passengerNames(value: unknown): string[] {
-    if (!Array.isArray(value)) return [];
-    return value
-        .map((item) => {
-            if (typeof item === 'string') return item.trim();
-            if (item && typeof item === 'object') {
-                const record = item as Record<string, unknown>;
-                const name = record.name ?? record.nome ?? record.full_name;
-                return typeof name === 'string' ? name.trim() : '';
-            }
-            return '';
-        })
-        .filter(Boolean);
-}
-
-interface LogVehicle {
-    plate?: string | null;
-    brand?: string | null;
-    model?: string | null;
-    unit_code?: string | null;
-    department_id?: string | null;
-    departments?: { name?: string | null } | null;
-}
-
-interface LogTripRow {
-    id: string;
-    trip_number: number | null;
-    start_at: string;
-    end_at: string | null;
-    start_odometer: number | null;
-    end_odometer: number | null;
-    distance_km: number | null;
-    origin: string | null;
-    destination: string | null;
-    purpose: string | null;
-    purpose_category: string | null;
-    status: string;
-    passenger_count: number | null;
-    passengers: unknown;
-    odometer_gap_km: number | null;
-    off_hours: boolean;
-    is_retroactive: boolean;
-    vehicle_id: string | null;
-    vehicles: LogVehicle | null;
-    profiles: { full_name?: string | null; registration_number?: string | null; cnh_number?: string | null } | null;
-    trip_stops: { seq: number; description: string | null }[] | null;
-}
-
-async function vehicleMonthlyLog(f?: ReportFilterInput): Promise<ReportDataset> {
-    const { from, to } = dateRange(f);
-    let tq = supabase
-        .from('trips')
-        .select(`id, trip_number, start_at, end_at, start_odometer, end_odometer, distance_km, origin,
-            destination, purpose, purpose_category, status, passenger_count, passengers,
-            odometer_gap_km, off_hours, is_retroactive, vehicle_id,
-            vehicles(plate, brand, model, unit_code, department_id, departments(name)),
-            profiles!trips_driver_id_fkey(full_name, registration_number, cnh_number),
-            trip_stops(seq, description)`)
-        .not('vehicle_id', 'is', null)
-        .order('start_at', { ascending: true })
-        .order('id', { ascending: true });
-    if (from) tq = tq.gte('start_at', from);
-    if (to) tq = tq.lte('start_at', to);
-    if (f?.vehicleId) tq = tq.eq('vehicle_id', f.vehicleId);
-    if (f?.driverId) tq = tq.eq('driver_id', f.driverId);
-
-    let fq = supabase
-        .from('fuelings')
-        .select('id, liters, total_cost, km_per_liter, invoice_number, created_at, filled_at, vehicle_id, vehicles(plate, department_id)')
-        .in('workflow_status', ['validado', 'lancado_direto'])
-        .not('vehicle_id', 'is', null)
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true });
-    if (f?.vehicleId) fq = fq.eq('vehicle_id', f.vehicleId);
-    if (f?.driverId) fq = fq.eq('driver_id', f.driverId);
-
-    const [tripData, fuelData] = await Promise.all([fetchAllRows(tq), fetchAllRows(fq)]);
-    let trips = tripData as unknown as LogTripRow[];
-    if (f?.departmentId) {
-        trips = trips.filter((trip) => trip.vehicles?.department_id === f.departmentId);
-    }
-
-    const rows: ReportRow[] = trips.map((trip) => {
-        const vehicle = trip.vehicles;
-        const stops = [...(trip.trip_stops ?? [])]
-            .sort((a, b) => a.seq - b.seq)
-            .map((stop) => (stop.description ?? '').trim())
-            .filter(Boolean)
-            .join(' → ');
-        const names = passengerNames(trip.passengers);
-        const count = trip.passenger_count ?? names.length;
-        const passengers = names.length > 0
-            ? names.join('; ')
-            : count > 0 ? `${count} passageiro(s)` : '';
-        const startKm = trip.start_odometer;
-        const endKm = trip.end_odometer;
-        const distance = trip.distance_km
-            ?? (startKm !== null && endKm !== null ? Math.max(endKm - startKm, 0) : null);
-        const flags: string[] = [];
-        if (trip.status === 'cancelada') flags.push('Cancelada');
-        if (trip.status === 'andamento') flags.push('Em andamento');
-        if (trip.status === 'problema') flags.push('Encerrada com anomalia');
-        if (trip.is_retroactive) flags.push('Retroativa');
-        if (trip.off_hours) flags.push('Fora do expediente');
-        if ((trip.odometer_gap_km ?? 0) > 0) flags.push(`Salto de km (+${NUM(Number(trip.odometer_gap_km), 0)} km)`);
-        const category = PURPOSE_CATEGORY_LABEL[trip.purpose_category ?? ''] ?? '';
-        const purpose = [trip.purpose?.trim(), category ? `(${category})` : ''].filter(Boolean).join(' ');
-        return {
-            month: monthKey(trip.start_at),
-            plate: vehicle?.plate ?? '',
-            prefix: vehicle?.unit_code ?? '',
-            model: [vehicle?.brand, vehicle?.model].filter(Boolean).join(' '),
-            department: vehicle?.departments?.name ?? '',
-            number: trip.trip_number ?? '',
-            departure: fmtDateTime(trip.start_at),
-            arrival: fmtDateTime(trip.end_at),
-            startKm: startKm ?? '',
-            endKm: endKm ?? '',
-            distance: trip.status === 'cancelada' ? '' : (distance ?? ''),
-            origin: trip.origin ?? '',
-            stops,
-            destination: trip.destination ?? '',
-            purpose,
-            driver: trip.profiles?.full_name ?? '',
-            registration: trip.profiles?.registration_number ?? '',
-            cnh: trip.profiles?.cnh_number ?? '',
-            passengers,
-            situation: flags.length > 0 ? flags.join('; ') : 'Regular',
-        };
-    });
-    rows.sort((a, b) =>
-        String(a.plate).localeCompare(String(b.plate), 'pt-BR')
-        || monthSortKey(a.month).localeCompare(monthSortKey(b.month))
-        || Number(a.number) - Number(b.number));
-
-    type FuelLogRow = {
-        liters: number | null;
-        total_cost: number | null;
-        km_per_liter: number | null;
-        invoice_number: string | null;
-        created_at: string;
-        filled_at: string | null;
-        vehicles: { plate?: string | null; department_id?: string | null } | null;
-    };
-    const fuelRows: ReportRow[] = (fuelData as unknown as FuelLogRow[])
-        .filter((row) =>
-            withinRange(row.filled_at ?? row.created_at, from, to)
-            && (!f?.departmentId || row.vehicles?.department_id === f.departmentId))
-        .map((row) => {
-            const when = row.filled_at ?? row.created_at;
-            return {
-                month: monthKey(when),
-                plate: row.vehicles?.plate ?? '',
-                date: fmtDate(when),
-                liters: Number(row.liters ?? 0),
-                cost: Number(row.total_cost ?? 0),
-                invoice: row.invoice_number ?? '',
-                kmPerLiter: Number(row.km_per_liter ?? 0) > 0 ? Number(row.km_per_liter) : '',
-            };
-        })
-        .sort((a, b) =>
-            String(a.plate).localeCompare(String(b.plate), 'pt-BR')
-            || monthSortKey(a.month).localeCompare(monthSortKey(b.month))
-            || String(a.date).split('/').reverse().join('').localeCompare(String(b.date).split('/').reverse().join('')));
-
-    const valid = trips.filter((trip) => trip.status !== 'cancelada');
-    const totalKm = rows.reduce((sum, row) => sum + (typeof row.distance === 'number' ? row.distance : 0), 0);
-    const totalLiters = fuelRows.reduce((sum, row) => sum + Number(row.liters), 0);
-    const totalCost = fuelRows.reduce((sum, row) => sum + Number(row.cost), 0);
-    const irregular = trips.filter((trip) =>
-        trip.status === 'cancelada' || trip.is_retroactive || trip.off_hours || (trip.odometer_gap_km ?? 0) > 0).length;
-
-    return {
-        layout: 'vehicle-log',
-        kpis: [
-            { label: 'Viagens (sem canceladas)', value: NUM(valid.length) },
-            { label: 'Km rodados', value: `${NUM(totalKm, 0)} km` },
-            { label: 'Combustível', value: `${NUM(totalLiters, 1)} L · ${BRL(totalCost)}` },
-            { label: 'Com ressalva', value: NUM(irregular) },
-        ],
-        columns: [
-            { key: 'month', label: 'Mês', minWidth: 70 },
-            { key: 'plate', label: 'Placa', filterable: true, minWidth: 85 },
-            { key: 'prefix', label: 'Prefixo', defaultVisible: false, minWidth: 80 },
-            { key: 'model', label: 'Modelo', defaultVisible: false, minWidth: 140 },
-            { key: 'department', label: 'Secretaria', filterable: true, defaultVisible: false, minWidth: 170 },
-            { key: 'number', label: 'Nº', align: 'right', format: 'integer', minWidth: 55 },
-            { key: 'departure', label: 'Saída', format: 'datetime', minWidth: 125 },
-            { key: 'arrival', label: 'Chegada', format: 'datetime', minWidth: 125 },
-            { key: 'startKm', label: 'Km inicial', align: 'right', format: 'integer', minWidth: 90 },
-            { key: 'endKm', label: 'Km final', align: 'right', format: 'integer', minWidth: 90 },
-            { key: 'distance', label: 'Km rodado', align: 'right', format: 'decimal', minWidth: 90 },
-            { key: 'origin', label: 'Origem', minWidth: 140 },
-            { key: 'stops', label: 'Paradas', minWidth: 150 },
-            { key: 'destination', label: 'Destino', filterable: true, minWidth: 160 },
-            { key: 'purpose', label: 'Finalidade', minWidth: 190 },
-            { key: 'driver', label: 'Condutor', filterable: true, minWidth: 150 },
-            { key: 'registration', label: 'Matrícula', minWidth: 90 },
-            { key: 'cnh', label: 'CNH', minWidth: 110 },
-            { key: 'passengers', label: 'Passageiros', minWidth: 160 },
-            { key: 'situation', label: 'Situação', filterable: true, minWidth: 150 },
-        ],
-        rows,
-        extraTables: [{
-            title: 'Abastecimentos do período',
-            columns: [
-                { key: 'month', label: 'Mês', minWidth: 70 },
-                { key: 'plate', label: 'Placa', minWidth: 85 },
-                { key: 'date', label: 'Data', format: 'date', minWidth: 90 },
-                { key: 'liters', label: 'Litros', align: 'right', format: 'decimal', minWidth: 80 },
-                { key: 'cost', label: 'Valor', align: 'right', format: 'currency', minWidth: 100 },
-                { key: 'invoice', label: 'Nota fiscal', minWidth: 110 },
-                { key: 'kmPerLiter', label: 'Km/L', align: 'right', format: 'decimal', minWidth: 80 },
-            ],
-            rows: fuelRows,
-        }],
-        notes: [
-            'Equivalente digital da folha de mapa de uso do veículo: uma folha por veículo e mês, uma linha por viagem.',
-            'Viagens canceladas aparecem na listagem, mas não somam quilometragem nem contagem de viagens.',
-            'Abastecimentos consideram somente registros validados ou lançados diretamente.',
-        ],
-    };
-}
-
-/**
- * Mantém nas tabelas secundárias apenas as folhas (placa + mês) que ainda têm
- * viagens depois dos filtros de tela, deixando exportação e prévia coerentes.
- */
-export function syncExtraTables(
-    extraTables: ReportExtraTable[] | undefined,
-    rows: ReportRow[],
-): ReportExtraTable[] | undefined {
-    if (!extraTables) return extraTables;
-    const sheets = new Set(rows.map((row) => `${String(row.plate)}|${String(row.month)}`));
-    return extraTables.map((table) => ({
-        ...table,
-        rows: table.rows.filter((row) => sheets.has(`${String(row.plate)}|${String(row.month)}`)),
-    }));
-}
-
 const FETCHERS: Record<string, (f?: ReportFilterInput) => Promise<ReportDataset>> = {
     'fleet-summary': fleetSummary,
     'fuel-consumption': fuelConsumption,
     'maintenance-history': maintenanceHistory,
-    'trip-analysis': tripAnalysis,
-    'driver-performance': driverPerformance,
-    'cost-analysis': costAnalysis,
-    'department-usage': departmentUsage,
-    'efficiency-report': efficiencyReport,
+    'traffic-log': trafficLog,
+    'vehicle-cost': vehicleCost,
+    expirations,
+    'fuel-anomalies': fuelAnomalies,
+    'checklist-failures': checklistFailures,
+    'drivers-activity': driversActivity,
+    'department-consolidated': departmentConsolidated,
     'infractions': infractionsReport,
     'fuel-by-station': fuelByStation,
     'station-fiscal-closing': stationFiscalClosing,
     'maintenance-by-shop': maintenanceByShop,
     'procurement-fiscal-reconciliation': procurementFiscalReconciliation,
     'procurement-legacy-reconciliation': procurementLegacyReconciliation,
-    'vehicle-monthly-log': vehicleMonthlyLog,
 };
 
 /** Busca o dataset real de um relatório, aplicando os filtros selecionados. */
@@ -1659,17 +1173,6 @@ export async function fetchReportDataset(
     const fn = FETCHERS[reportId];
     if (!fn) return EMPTY;
     return fn(filters);
-}
-
-/** Opções de secretaria (reais) para os filtros do relatório. */
-export async function fetchDepartmentOptions(): Promise<{ value: string; label: string }[]> {
-    const data = await fetchAllRows(
-        supabase.from('departments').select('id, name').order('name').order('id'),
-    );
-    return [
-        { value: '', label: 'Todas as secretarias' },
-        ...data.map((d) => ({ value: d.id, label: d.name })),
-    ];
 }
 
 /** Condutores (motoristas) para o filtro por condutor. */
@@ -1684,11 +1187,11 @@ export async function fetchDriverOptions(): Promise<{ value: string; label: stri
     );
     return [
         { value: '', label: 'Todos os condutores' },
-        ...data.map((driver) => ({ value: driver.id, label: driver.full_name })),
+        ...data.map((driver) => ({ value: driver.id, label: driver.full_name ?? '—' })),
     ];
 }
 
-/** Veículos (opcionalmente de uma secretaria) para o mapa mensal de uso. */
+/** Veículos (opcionalmente de uma secretaria) para o filtro por veículo. */
 export async function fetchVehicleOptions(
     departmentId?: string,
 ): Promise<{ value: string; label: string }[]> {
@@ -1707,6 +1210,17 @@ export async function fetchVehicleOptions(
                 .filter(Boolean)
                 .join(' — '),
         })),
+    ];
+}
+
+/** Opções de secretaria (reais) para os filtros do relatório. */
+export async function fetchDepartmentOptions(): Promise<{ value: string; label: string }[]> {
+    const data = await fetchAllRows(
+        supabase.from('departments').select('id, name').order('name').order('id'),
+    );
+    return [
+        { value: '', label: 'Todas as secretarias' },
+        ...data.map((d) => ({ value: d.id, label: d.name })),
     ];
 }
 

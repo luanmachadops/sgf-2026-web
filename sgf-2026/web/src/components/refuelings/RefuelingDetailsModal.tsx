@@ -27,6 +27,9 @@ import { refuelingsApi } from '@/lib/supabase-api';
 import { formatCurrency, formatDate, formatPlate, cn, NO_DRIVER_LABEL } from '@/lib/utils';
 import { useValidateRefueling, useCancelFuelAuthorization } from '@/hooks/useRefuelings';
 import { isAuthorizationExpired } from '@/lib/fuelingAuthorization';
+import { useBranding } from '@/contexts/BrandingContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { loadPhotoForPdf, loadReportLogo, openPendingPdfTab, showPdfInTab } from '@/lib/reports/reportPdfBrowser';
 
 export type WorkflowStatus =
     | 'autorizado'
@@ -238,6 +241,9 @@ export function RefuelingDetailsModal({
 }: RefuelingDetailsModalProps) {
     const [reviewReason, setReviewReason] = useState('');
     const [photoViewer, setPhotoViewer] = useState<{ images: string[]; index: number } | null>(null);
+    const [printing, setPrinting] = useState(false);
+    const { branding } = useBranding();
+    const { user } = useAuth();
 
     const validateMutation = useValidateRefueling();
     const cancelAuthMutation = useCancelFuelAuthorization();
@@ -367,8 +373,94 @@ export function RefuelingDetailsModal({
         toast.success(`Protocolo AB-${shortId} copiado com sucesso!`);
     };
 
-    const handlePrint = () => {
-        window.print();
+    // Comprovante em PDF próprio (vetorial; fotos reduzidas ao tamanho impresso),
+    // em vez de imprimir a tela inteira do sistema.
+    const handlePrint = async () => {
+        if (!details) return;
+        const tab = openPendingPdfTab();
+        setPrinting(true);
+        try {
+            const workflowMeta = getWorkflowMeta(details.rawStatus, details.expired);
+            const dash = (value: unknown) => (value === null || value === undefined || value === '' ? '—' : String(value));
+            const photoSources = [
+                ['Bico da bomba / litragem', details.photoPump],
+                ['Painel / hodômetro', details.photoDashboard],
+                ['Cupom fiscal / NFC-e', details.photoReceipt],
+                ['Requisição / ordem', details.photoRequisition],
+            ].filter((item): item is [string, string] => Boolean(item[1]));
+            const [{ buildReceiptPdf }, logo, photos] = await Promise.all([
+                import('@/lib/receiptPdf'),
+                loadReportLogo(branding.sealUrl || branding.logoUrl),
+                Promise.all(photoSources.map(async ([label, url]) => ({ label, image: await loadPhotoForPdf(url) }))),
+            ]);
+            const fuelKey = String(details.fuelType ?? '').toLowerCase();
+            const bytes = await buildReceiptPdf({
+                title: 'Comprovante de Abastecimento',
+                protocol: `AB-${details.id.slice(0, 8).toUpperCase()}`,
+                status: workflowMeta.label,
+                branding: {
+                    name: branding.name,
+                    appName: branding.appName,
+                    city: branding.city,
+                    state: branding.state,
+                    cnpj: branding.cnpj,
+                    address: branding.address,
+                    supportPhone: branding.supportPhone,
+                    reportFooter: branding.reportFooter,
+                    primaryColor: branding.primaryColor,
+                    darkColor: branding.darkColor,
+                },
+                logo,
+                issuer: user?.name,
+                sections: [
+                    {
+                        title: 'Abastecimento',
+                        fields: [
+                            ['Data e hora', details.date ? new Date(details.date).toLocaleString('pt-BR') : '—'],
+                            ['Combustível', FUEL_LABELS[fuelKey] ?? dash(details.fuelType)],
+                            ['Litros', `${details.liters.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} L`],
+                            ['Preço por litro', formatCurrency(details.pricePerLiter)],
+                            ['Valor total', formatCurrency(details.totalCost)],
+                            ['Odômetro', details.odometer ? `${details.odometer.toLocaleString('pt-BR')} km` : '—'],
+                            ['Consumo', details.consumption ? `${Number(details.consumption).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} km/L` : '—'],
+                            ['Tanque cheio', details.fullTank === true ? 'Sim' : details.fullTank === false ? 'Não' : '—'],
+                        ],
+                    },
+                    {
+                        title: 'Veículo e condutor',
+                        fields: [
+                            ['Placa', formatPlate(details.vehiclePlate)],
+                            ['Modelo', dash(details.vehicleModel)],
+                            ['Secretaria', dash(details.vehicleDepartment)],
+                            ['Motorista', dash(details.driverName)],
+                        ],
+                    },
+                    {
+                        title: 'Posto e documento fiscal',
+                        fields: [
+                            ['Posto', dash(details.stationName)],
+                            ['CNPJ do posto', dash(details.stationCnpj)],
+                            ['Nota fiscal', dash(details.invoiceNumber)],
+                            ['Cupom da bomba', dash(details.receiptNumber)],
+                            ['Chave NFC-e', dash(details.nfceAccessKey)],
+                        ],
+                    },
+                    ...(details.hasAnomaly ? [{
+                        title: 'Anomalia',
+                        fields: [['Tipo', dash(details.anomalyType ?? 'Sinalizada no registro')]] as [string, string][],
+                    }] : []),
+                ],
+                notes: details.notes,
+                photos: photos.flatMap((photo) => (photo.image ? [{ label: photo.label, image: photo.image }] : [])),
+            });
+            showPdfInTab(tab, new Blob([bytes as BlobPart], { type: 'application/pdf' }), `abastecimento-AB-${details.id.slice(0, 8)}.pdf`);
+        } catch (printError) {
+            tab?.close();
+            console.error(printError);
+            toast.error('Não foi possível gerar o comprovante em PDF.');
+        } finally {
+            setPrinting(false);
+        }
     };
 
     const handleValidate = (approved: boolean) => {
@@ -559,9 +651,11 @@ export function RefuelingDetailsModal({
                                     </SGFBadge>
                                     <button
                                         type="button"
-                                        onClick={handlePrint}
-                                        className="rounded-full p-2 text-slate-400 hover:bg-white hover:text-slate-700 transition-all"
-                                        title="Imprimir comprovante"
+                                        onClick={() => void handlePrint()}
+                                        disabled={printing}
+                                        className="rounded-full p-2 text-slate-400 hover:bg-white hover:text-slate-700 transition-all disabled:opacity-50"
+                                        title="Comprovante em PDF"
+                                        aria-label="Gerar comprovante em PDF"
                                     >
                                         <Printer className="h-4 w-4" />
                                     </button>

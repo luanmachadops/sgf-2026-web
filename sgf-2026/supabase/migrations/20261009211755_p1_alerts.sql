@@ -1,8 +1,11 @@
+-- Exportada de produção em 2026-10-13 (supabase_migrations.schema_migrations,
+-- versão 20261009211755). Já aplicada; o SQL abaixo é o registrado no banco, sem alterações.
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- P1.4 / P1.5 / P1.6 — Alertas de controle: salto de km, uso fora do expediente
 -- e consumo anômalo.
 --
--- Aplicada em produção em 2026-10-09 com aprovação do usuário.
+-- NÃO APLICADA ainda: requer aprovação explícita (DDL em produção).
 --
 -- Princípio: NENHUM destes alertas bloqueia a operação (emergências existem).
 -- Eles apenas MARCAM o registro e NOTIFICAM os gestores do tenant.

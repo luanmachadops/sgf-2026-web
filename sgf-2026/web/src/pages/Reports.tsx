@@ -1,297 +1,145 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
 import { SGFCard } from '@/components/sgf/SGFCard';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { ReportViewerModal } from '@/components/reports/ReportViewerModal';
-import {
-    Car,
-    Fuel,
-    Wrench,
-    Route,
-    Users,
-    TrendingUp,
-    BarChart3,
-    PieChart,
-    Receipt,
-    ShieldCheck,
-    Search,
-    X,
-    Qr,
-    Clipboard,
-} from '@/components/sgf/icons';
-import { IssuedReportsPanel } from '@/components/reports/IssuedReportsPanel';
 import { QrLabelGenerator } from '@/components/reports/QrLabelGenerator';
-import { cn } from '@/lib/utils';
+import { IssuedReportsCard } from '@/components/reports/IssuedReportsCard';
+import {
+    AlertTriangle,
+    Calendar,
+    Car,
+    CheckCircle,
+    Clock,
+    Fuel,
+    Money,
+    PieChart,
+    Qr,
+    Receipt,
+    Route,
+    Search,
+    ShieldCheck,
+    Users,
+    Wrench,
+    X,
+} from '@/components/sgf/icons';
 import { useHeader } from '@/contexts/HeaderContext';
-import { useEffect } from 'react';
-import { SGFKPICard } from '@/components/sgf/SGFKPICard';
-import { motion, AnimatePresence } from 'framer-motion';
-import { dashboardApi } from '@/lib/supabase-api';
-import { formatCurrency } from '@/lib/utils';
+import {
+    REPORTS,
+    REPORT_SUBJECTS,
+    type ReportDefinition,
+    type ReportIconKey,
+    type ReportSubject,
+} from '@/lib/reports/registry';
+import { loadRecentReports } from '@/lib/reports/viewerState';
+import { matchesSearch } from '@/lib/utils';
 
-interface Report {
-    id: string;
-    title: string;
-    description: string;
-    icon: React.ReactNode;
-    category: 'fleet' | 'financial' | 'operational';
+const ReportViewerModal = lazy(() => import('@/components/reports/ReportViewerModal'));
+
+const ICONS: Record<ReportIconKey, ComponentType<{ className?: string }>> = {
+    car: Car,
+    route: Route,
+    cost: Money,
+    pie: PieChart,
+    fuel: Fuel,
+    alert: AlertTriangle,
+    wrench: Wrench,
+    check: CheckCircle,
+    users: Users,
+    receipt: Receipt,
+    calendar: Calendar,
+    shield: ShieldCheck,
+};
+
+function ReportCard({ report, onOpen }: { report: ReportDefinition; onOpen: () => void }) {
+    const Icon = ICONS[report.icon];
+    return (
+        <button
+            type="button"
+            onClick={onOpen}
+            className="group flex h-full w-full flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-[var(--sgf-shadow-xs)] transition hover:border-[var(--sgf-primary)]/50 hover:shadow-md focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--sgf-primary)]/20"
+        >
+            <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--sgf-primary)]/10 text-[var(--sgf-primary)]">
+                    <Icon className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                    <h3 className="text-sm font-bold tracking-tight text-slate-900 group-hover:text-[var(--sgf-dark)]">{report.title}</h3>
+                    <p className="mt-1 text-xs font-semibold leading-relaxed text-[var(--sgf-primary)]">{report.question}</p>
+                </div>
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-slate-500">{report.description}</p>
+            {(report.signatures || report.snapshot) && (
+                <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
+                    {report.signatures && (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">Com assinaturas</span>
+                    )}
+                    {report.snapshot && (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">Situação atual</span>
+                    )}
+                </div>
+            )}
+        </button>
+    );
 }
 
-const reports: Report[] = [
-    {
-        id: 'fleet-summary',
-        title: 'Resumo da Frota',
-        description: 'Visão geral de todos os veículos, status e distribuição por secretaria.',
-        icon: <Car className="h-6 w-6" />,
-        category: 'fleet',
-    },
-    {
-        id: 'fuel-consumption',
-        title: 'Consumo de Combustível',
-        description: 'Análise detalhada de consumo, gastos e eficiência por veículo.',
-        icon: <Fuel className="h-6 w-6" />,
-        category: 'financial',
-    },
-    {
-        id: 'maintenance-history',
-        title: 'Histórico de Manutenções',
-        description: 'Registro completo de manutenções realizadas e custos.',
-        icon: <Wrench className="h-6 w-6" />,
-        category: 'operational',
-    },
-    {
-        id: 'trip-analysis',
-        title: 'Análise de Viagens',
-        description: 'Estatísticas de viagens, quilometragem e utilização.',
-        icon: <Route className="h-6 w-6" />,
-        category: 'operational',
-    },
-    {
-        id: 'driver-performance',
-        title: 'Desempenho de Motoristas',
-        description: 'Avaliação de motoristas, viagens realizadas e indicadores.',
-        icon: <Users className="h-6 w-6" />,
-        category: 'operational',
-    },
-    {
-        id: 'cost-analysis',
-        title: 'Análise de Custos',
-        description: 'Relatório financeiro detalhado com projeções e comparativos.',
-        icon: <TrendingUp className="h-6 w-6" />,
-        category: 'financial',
-    },
-    {
-        id: 'department-usage',
-        title: 'Uso por Secretaria',
-        description: 'Distribuição de recursos e gastos por secretaria.',
-        icon: <PieChart className="h-6 w-6" />,
-        category: 'fleet',
-    },
-    {
-        id: 'efficiency-report',
-        title: 'Relatório de Eficiência',
-        description: 'KPIs de eficiência operacional e utilização da frota.',
-        icon: <BarChart3 className="h-6 w-6" />,
-        category: 'operational',
-    },
-    {
-        id: 'infractions',
-        title: 'Infrações de Trânsito',
-        description: 'Multas registradas, condutor indicado, valores e situação.',
-        icon: <Receipt className="h-6 w-6" />,
-        category: 'operational',
-    },
-    {
-        id: 'fuel-by-station',
-        title: 'Fechamento por Posto',
-        description: 'Volumes, valores validados, pendências e rejeições agrupados por fornecedor.',
-        icon: <Fuel className="h-6 w-6" />,
-        category: 'financial',
-    },
-    {
-        id: 'station-fiscal-closing',
-        title: 'Fechamento Fiscal dos Postos',
-        description: 'Protocolos mensais, empenho, nota fiscal, ateste, pagamento e integridade.',
-        icon: <Receipt className="h-6 w-6" />,
-        category: 'financial',
-    },
-    {
-        id: 'maintenance-by-shop',
-        title: 'Manutenções por Oficina',
-        description: 'Ordens, orçamento aprovado, custo final e processos em aberto por oficina.',
-        icon: <Wrench className="h-6 w-6" />,
-        category: 'financial',
-    },
-    {
-        id: 'vehicle-monthly-log',
-        title: 'Mapa Mensal de Uso do Veículo',
-        description: 'Folha digital por veículo e mês: viagens, condutor, paradas, abastecimentos e assinaturas.',
-        icon: <Clipboard className="h-6 w-6" />,
-        category: 'operational',
-    },
-    {
-        id: 'procurement-fiscal-reconciliation',
-        title: 'Conciliação Fiscal das Licitações',
-        description: 'Teto, reserva, realização, faturamento, ateste e pagamento por secretaria e instrumento.',
-        icon: <Receipt className="h-6 w-6" />,
-        category: 'financial',
-    },
-    {
-        id: 'procurement-legacy-reconciliation',
-        title: 'Fila de Conciliação do Legado',
-        description: 'Lançamentos antigos sem vínculo comprovado com ata, contrato ou dotação central.',
-        icon: <ShieldCheck className="h-6 w-6" />,
-        category: 'financial',
-    },
-];
-
-const categoryLabels: Record<string, string> = {
-    fleet: 'Frota',
-    financial: 'Financeiro',
-    operational: 'Operacional',
-};
-
-const categoryColors: Record<string, string> = {
-    fleet: 'bg-amber-100 text-amber-700',
-    financial: 'bg-green-100 text-green-700',
-    operational: 'bg-blue-100 text-blue-700',
-};
-
 export default function Reports() {
-    const [selectedReport, setSelectedReport] = useState<Report | null>(null);
-    const [categoryFilter, setCategoryFilter] = useState<string>('');
+    const [selectedReport, setSelectedReport] = useState<ReportDefinition | null>(null);
+    const [subjectFilter, setSubjectFilter] = useState<ReportSubject | ''>('');
     const [searchTerm, setSearchTerm] = useState('');
     const [showQrGen, setShowQrGen] = useState(false);
+    const [recentIds, setRecentIds] = useState<string[]>(() => loadRecentReports());
     const { setTitle, setDescription } = useHeader();
 
     useEffect(() => {
         setTitle('Relatórios');
-        setDescription('Gere e exporte relatórios operacionais e financeiros em PDF, Excel e CSV, com código de verificação.');
+        setDescription('Documentos da frota para gestão, controle interno e prestação de contas, em PDF e Excel.');
     }, [setTitle, setDescription]);
 
-    const { data: kpis, isLoading: kpisLoading } = useQuery({
-        queryKey: ['reports-kpis'],
-        queryFn: () => dashboardApi.getKPIs(),
-        staleTime: 5 * 60 * 1000,
-    });
-    const { data: expenseChart } = useQuery({
-        queryKey: ['reports-expense-chart'],
-        queryFn: () => dashboardApi.getExpenseChart(6),
-        staleTime: 5 * 60 * 1000,
-    });
+    const filtered = useMemo(() => REPORTS.filter((report) =>
+        (!subjectFilter || report.subject === subjectFilter)
+        && matchesSearch(searchTerm, report.title, report.description, report.question)), [searchTerm, subjectFilter]);
+    const recent = recentIds
+        .map((id) => REPORTS.find((report) => report.id === id))
+        .filter((report): report is ReportDefinition => Boolean(report))
+        .slice(0, 4);
+    const sections = REPORT_SUBJECTS
+        .map((subject) => ({ ...subject, reports: filtered.filter((report) => report.subject === subject.id) }))
+        .filter((section) => section.reports.length > 0);
 
-    const fuelChartData = (expenseChart ?? []).map((d) => ({ month: d.month, value: d.fuel }));
-
-    const filteredReports = reports.filter((r) => {
-        const matchesCategory = !categoryFilter || r.category === categoryFilter;
-        const matchesSearch = !searchTerm ||
-            r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            r.description.toLowerCase().includes(searchTerm.toLowerCase());
-        return matchesCategory && matchesSearch;
-    });
+    const chip = (active: boolean) =>
+        'px-4 py-2 rounded-full text-sm font-semibold border transition whitespace-nowrap '
+        + (active
+            ? 'bg-[var(--sgf-primary)] text-white border-[var(--sgf-primary)]'
+            : 'bg-white text-slate-600 border-slate-200 hover:border-[var(--sgf-primary)]/50');
 
     return (
         <div className="space-y-8 pb-10">
-            {/* KPIs Section — dados reais da frota */}
-            <div className="grid gap-4 md:grid-cols-4">
-                <SGFKPICard
-                    title="Veículos na Frota"
-                    value={kpis?.fleet.totalVehicles ?? 0}
-                    icon={Car}
-                    iconColor="text-emerald-500"
-                    chartColor="#10b981"
-                    loading={kpisLoading}
-                />
-                <SGFKPICard
-                    title="Viagens no Mês"
-                    value={kpis?.trips.totalTripsMonth ?? 0}
-                    icon={Route}
-                    iconColor="text-blue-500"
-                    chartColor="#3b82f6"
-                    loading={kpisLoading}
-                />
-                <SGFKPICard
-                    title="Combustível (mês)"
-                    value={formatCurrency(kpis?.fuel.totalCostMonth ?? 0)}
-                    icon={Fuel}
-                    iconColor="text-amber-500"
-                    chartColor="#f59e0b"
-                    chartData={fuelChartData}
-                    loading={kpisLoading}
-                />
-                <SGFKPICard
-                    title="Disponibilidade"
-                    value={`${Math.round(kpis?.fleet.availabilityRate ?? 0)}%`}
-                    icon={TrendingUp}
-                    iconColor="text-emerald-600"
-                    chartColor="#059669"
-                    loading={kpisLoading}
-                />
-            </div>
-
-            {/* Gerador de etiquetas QR dos veículos */}
-            <SGFCard padding="lg" className="overflow-hidden border border-slate-200/80">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0F2B2F] to-[#00A86B] text-white">
-                            <Qr className="h-6 w-6" />
-                        </div>
-                        <div>
-                            <h3 className="text-lg font-semibold text-slate-900">Etiquetas QR dos veículos</h3>
-                            <p className="text-sm text-slate-500">
-                                Gere etiquetas com o QR Code (placa) por secretaria e tipo, escolha o tamanho e imprima/baixe em PDF.
-                            </p>
-                        </div>
-                    </div>
-                    <SGFButton icon={Qr} onClick={() => setShowQrGen(true)} className="shrink-0">
-                        Abrir gerador
-                    </SGFButton>
-                </div>
-            </SGFCard>
-
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                    <button
-                        type="button"
-                        onClick={() => setCategoryFilter('')}
-                        className={
-                            'px-4 py-2.5 rounded-full text-sm font-semibold border transition whitespace-nowrap ' +
-                            (categoryFilter === ''
-                                ? 'bg-emerald-500 text-white border-emerald-500'
-                                : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300')
-                        }
-                    >
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Assuntos">
+                    <button type="button" role="tab" aria-selected={subjectFilter === ''} onClick={() => setSubjectFilter('')} className={chip(subjectFilter === '')}>
                         Todos
                     </button>
-                    {Object.entries(categoryLabels).map(([key, label]) => {
-                        const isActive = categoryFilter === key;
-                        return (
-                            <button
-                                key={key}
-                                type="button"
-                                onClick={() => setCategoryFilter(key)}
-                                className={
-                                    'px-4 py-2.5 rounded-full text-sm font-semibold border transition whitespace-nowrap ' +
-                                    (isActive
-                                        ? 'bg-emerald-500 text-white border-emerald-500'
-                                        : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300')
-                                }
-                            >
-                                {label}
-                            </button>
-                        );
-                    })}
+                    {REPORT_SUBJECTS.map((subject) => (
+                        <button
+                            key={subject.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={subjectFilter === subject.id}
+                            onClick={() => setSubjectFilter(subject.id)}
+                            className={chip(subjectFilter === subject.id)}
+                        >
+                            {subject.label}
+                        </button>
+                    ))}
                 </div>
-
-                {/* Busca (padrão do site: input arredondado com ícone) */}
-                <div className="group relative w-full shrink-0 sm:w-72">
+                <div className="group relative w-full shrink-0 lg:w-72">
                     <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[var(--sgf-primary)]" />
                     <input
                         type="text"
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="Buscar relatório..."
-                        className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-9 text-sm font-medium text-slate-700 shadow-[var(--sgf-shadow-xs)] transition-all placeholder:text-slate-400 hover:border-[var(--sgf-primary)]/50 hover:bg-slate-50/50 focus:border-[var(--sgf-primary)] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[var(--sgf-primary)]/10"
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        placeholder="Buscar relatório ou pergunta..."
+                        aria-label="Buscar relatório"
+                        className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-9 text-sm font-medium text-slate-700 shadow-[var(--sgf-shadow-xs)] transition-all placeholder:text-slate-400 hover:border-[var(--sgf-primary)]/50 focus:border-[var(--sgf-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--sgf-primary)]/10"
                     />
                     {searchTerm && (
                         <button
@@ -306,8 +154,27 @@ export default function Reports() {
                 </div>
             </div>
 
-            {/* Estado vazio quando a busca não encontra relatórios */}
-            {filteredReports.length === 0 && (
+            {recent.length > 0 && !subjectFilter && !searchTerm && (
+                <section aria-labelledby="recent-reports">
+                    <h2 id="recent-reports" className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <Clock className="h-4 w-4" /> Usados recentemente
+                    </h2>
+                    <div className="flex flex-wrap gap-2">
+                        {recent.map((report) => (
+                            <button
+                                key={report.id}
+                                type="button"
+                                onClick={() => setSelectedReport(report)}
+                                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-[var(--sgf-primary)]/50 hover:text-[var(--sgf-dark)]"
+                            >
+                                {report.title}
+                            </button>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {sections.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 py-12 text-center">
                     <p className="text-sm font-medium text-slate-400">
                         Nenhum relatório encontrado{searchTerm ? ` para "${searchTerm}"` : ''}.
@@ -315,69 +182,53 @@ export default function Reports() {
                 </div>
             )}
 
-            {/* Reports Grid */}
-            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                <AnimatePresence mode="popLayout">
-                    {filteredReports.map((report) => (
-                        <motion.div
-                            key={report.id}
-                            layout
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            transition={{ duration: 0.2 }}
-                            className="h-full"
-                        >
-                            <SGFCard
-                                className="group relative h-full overflow-hidden border border-slate-100 hover:border-slate-200"
-                                onClick={() => setSelectedReport(report)}
-                                padding="md"
-                                hover
-                            >
-                                {/* Subtle Background Pattern */}
-                                <div className={cn(
-                                    "absolute -right-6 -top-6 h-32 w-32 rounded-full blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-500",
-                                    (categoryColors[report.category] || '').split(' ')[0]
-                                )} />
+            {sections.map((section) => (
+                <section key={section.id} aria-labelledby={`subject-${section.id}`}>
+                    <h2 id={`subject-${section.id}`} className="mb-3 text-base font-bold text-[var(--sgf-dark)]">{section.label}</h2>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {section.reports.map((report) => (
+                            <ReportCard key={report.id} report={report} onOpen={() => setSelectedReport(report)} />
+                        ))}
+                    </div>
+                </section>
+            ))}
 
-                                <div className="relative z-10 flex h-full flex-col">
-                                    {/* Topo: ícone + categoria */}
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className={cn("p-2 rounded-xl [&>svg]:h-5 [&>svg]:w-5", categoryColors[report.category])}>
-                                            {report.icon}
-                                        </div>
-                                        <span className={cn(
-                                            "px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider",
-                                            categoryColors[report.category]
-                                        )}>
-                                            {categoryLabels[report.category]}
-                                        </span>
-                                    </div>
+            <IssuedReportsCard />
 
-                                    {/* Conteúdo */}
-                                    <div className="mt-3 flex-1">
-                                        <h3 className="font-bold text-slate-900 tracking-tight text-sm mb-1 line-clamp-1">{report.title}</h3>
-                                        <p className="text-xs text-slate-500 font-medium leading-relaxed line-clamp-2">{report.description}</p>
-                                    </div>
-                                </div>
-                            </SGFCard>
-                        </motion.div>
-                    ))}
-                </AnimatePresence>
-            </div>
+            <SGFCard padding="lg" className="overflow-hidden border border-slate-200/80">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--sgf-dark)] to-[var(--sgf-primary)] text-white">
+                            <Qr className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-semibold text-slate-900">Etiquetas QR dos veículos</h3>
+                            <p className="text-sm text-slate-500">
+                                Etiquetas com o QR Code (placa) por secretaria e tipo, em PDF vetorial para impressão.
+                            </p>
+                        </div>
+                    </div>
+                    <SGFButton icon={Qr} onClick={() => setShowQrGen(true)} className="shrink-0">
+                        Abrir gerador
+                    </SGFButton>
+                </div>
+            </SGFCard>
 
-            {/* Visualizador de relatório (tela cheia) */}
             {selectedReport && (
+                <Suspense fallback={null}>
                 <ReportViewerModal
-                    isOpen={!!selectedReport}
-                    onClose={() => setSelectedReport(null)}
+                    key={selectedReport.id}
+                    isOpen
+                    onClose={() => {
+                        setSelectedReport(null);
+                        setRecentIds(loadRecentReports());
+                    }}
                     reportId={selectedReport.id}
                     title={selectedReport.title}
                     description={selectedReport.description}
                 />
+                </Suspense>
             )}
-
-            <IssuedReportsPanel />
 
             <QrLabelGenerator isOpen={showQrGen} onClose={() => setShowQrGen(false)} />
         </div>

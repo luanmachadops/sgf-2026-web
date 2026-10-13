@@ -1,3 +1,6 @@
+-- Exportada de produção em 2026-10-13 (supabase_migrations.schema_migrations,
+-- versão 20261009211919). Já aplicada; o SQL abaixo é o registrado no banco, sem alterações.
+
 -- P1: mapeia no filtro de API (sgf_private.check_api_access -> resource_allowed)
 -- as tabelas, views e RPCs novas do P1. Sem isso, admin/gestor recebem
 -- "Modulo nao autorizado" (recurso sem mapeamento = negado). So acrescenta casos.

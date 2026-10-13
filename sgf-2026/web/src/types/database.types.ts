@@ -248,6 +248,7 @@ export type Database = {
           org_mayor: string | null
           org_name: string | null
           org_state: string | null
+          report_signatures: Json
           require_fuel_validation: boolean
           tank_overflow_alert: boolean
           tenant_id: string
@@ -265,6 +266,7 @@ export type Database = {
           org_mayor?: string | null
           org_name?: string | null
           org_state?: string | null
+          report_signatures?: Json
           require_fuel_validation?: boolean
           tank_overflow_alert?: boolean
           tenant_id?: string
@@ -282,6 +284,7 @@ export type Database = {
           org_mayor?: string | null
           org_name?: string | null
           org_state?: string | null
+          report_signatures?: Json
           require_fuel_validation?: boolean
           tank_overflow_alert?: boolean
           tenant_id?: string
@@ -3276,6 +3279,54 @@ export type Database = {
           },
         ]
       }
+      report_layout_models: {
+        Row: {
+          config: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          report_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          config: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          report_id: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          report_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_layout_models_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_layout_models_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_snapshots: {
         Row: {
           content_hash: string
@@ -6207,6 +6258,36 @@ export type Database = {
           plate: string
           priority: string
           year: number
+        }[]
+      }
+      get_report_department_consolidated: {
+        Args: { p_department?: string; p_from?: string; p_to?: string }
+        Returns: {
+          available: number
+          department: string
+          department_id: string
+          fines: number
+          fuel: number
+          km: number
+          maintenance: number
+          trips: number
+          vehicles: number
+        }[]
+      }
+      get_report_vehicle_cost: {
+        Args: { p_department?: string; p_from?: string; p_to?: string }
+        Returns: {
+          brand: string
+          department: string
+          fines: number
+          fuel: number
+          km: number
+          liters: number
+          maintenance: number
+          model: string
+          plate: string
+          trips: number
+          vehicle_id: string
         }[]
       }
       get_station_authorizations_with_contracts: { Args: never; Returns: Json }

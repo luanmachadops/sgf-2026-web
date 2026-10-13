@@ -1,7 +1,9 @@
+-- Exportada de produção em 2026-10-13 (supabase_migrations.schema_migrations,
+-- versão 20261009211827). Já aplicada; o SQL abaixo é o registrado no banco, sem alterações.
+
 -- =====================================================================
 -- P1.7 (Prompt E): autenticidade verificavel dos relatorios de prestacao de contas.
--- Aplicada em produção em 2026-10-09 com aprovação do usuário.
--- Depende de: get_user_tenant_id, is_admin_or_manager,
+-- NAO APLICADA. Depende de: get_user_tenant_id, is_admin_or_manager,
 -- is_secretario, is_superadmin, check_current_access, tf_activity_log,
 -- sgf_private.resource_allowed / current_session_allowed, pgcrypto (schema extensions).
 --

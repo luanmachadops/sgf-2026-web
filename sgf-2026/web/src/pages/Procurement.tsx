@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +9,13 @@ import { procurementApi } from '@/lib/procurement-api';
 import { procurementAccess } from '@/lib/procurement-navigation';
 import { canAccessModule } from '@/lib/accessModules';
 import { formatCurrency, matchesSearch } from '@/lib/utils';
+
+const ReportViewerModal = lazy(() => import('@/components/reports/ReportViewerModal'));
+const LEGACY_REPORT = {
+  id: 'procurement-legacy-reconciliation',
+  title: 'Fila de Conciliação do Legado',
+  description: 'Lançamentos antigos sem vínculo comprovado com ata, contrato ou dotação central.',
+};
 
 const PAGE_SIZE = 10;
 const money = (value: number | null) => value === null ? 'Não informado' : formatCurrency(value);
@@ -28,6 +35,8 @@ function ContractOverview() {
   const [kind, setKind] = useState('');
   const [filter, setFilter] = useState('');
   const [page, setPage] = useState(0);
+  const [showLegacy, setShowLegacy] = useState(false);
+  const canSeeLegacy = canAccessModule(user?.allowedModules, 'reports');
   const query = useQuery({
     queryKey: ['procurement-contract-usage', user?.tenantId],
     queryFn: procurementApi.getContractUsage,
@@ -62,7 +71,29 @@ function ContractOverview() {
           precisam ser conferidas nos documentos antes de serem tratadas como uma única licitação.
           Os valores apresentados são os limites informados em cada cadastro.
         </p>
+        {canSeeLegacy && (
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-amber-900">
+              <strong>Conciliação do legado:</strong> lançamentos antigos que ainda precisam ser vinculados a uma ata,
+              contrato ou dotação, com justificativa e documento.
+            </p>
+            <SGFButton size="sm" variant="secondary" className="shrink-0" onClick={() => setShowLegacy(true)}>
+              Abrir fila de conciliação
+            </SGFButton>
+          </div>
+        )}
       </SGFCard>
+      {showLegacy && (
+        <Suspense fallback={null}>
+          <ReportViewerModal
+            isOpen
+            onClose={() => setShowLegacy(false)}
+            reportId={LEGACY_REPORT.id}
+            title={LEGACY_REPORT.title}
+            description={LEGACY_REPORT.description}
+          />
+        </Suspense>
+      )}
       <div className="grid gap-3 sm:grid-cols-3">
         <SGFInput label="Buscar fornecedor ou referência" value={search} fullWidth
           onChange={(event) => { setSearch(event.target.value); setPage(0); }} />

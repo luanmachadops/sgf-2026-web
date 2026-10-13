@@ -1,17 +1,6 @@
--- ─────────────────────────────────────────────────────────────────────────────
--- P2.6 — Lançamento retroativo das folhas de papel (transição)
--- P0.6 — Termo de ciência do motorista (LGPD), registrado por versão
--- P2.1 — Hora do servidor ao lado da hora do aparelho
---
--- Princípios mantidos do P0: nada se apaga; viagem retroativa nasce concluída
--- e imutável; toda escrita passa por RPC/trigger auditados (activity_log).
--- ─────────────────────────────────────────────────────────────────────────────
+-- Exportada de produção em 2026-10-13 (supabase_migrations.schema_migrations,
+-- versão 20261011202503). Já aplicada; o SQL abaixo é o registrado no banco, sem alterações.
 
--- ═════════════════════════════ P2.1 hora do servidor ═════════════════════════
--- O app grava start_at/end_at e recorded_at com o relógio do aparelho, que pode
--- estar errado (ou alterado). O servidor passa a carimbar a própria hora.
--- Colunas criadas vazias e só depois com default: assim as linhas antigas não
--- recebem a hora desta migration (o que pareceria um carimbo verdadeiro).
 alter table public.trips
   add column if not exists server_started_at timestamptz,
   add column if not exists server_ended_at   timestamptz;
@@ -24,8 +13,6 @@ comment on column public.trips.server_started_at is 'Hora do servidor no INSERT 
 comment on column public.trips.server_ended_at   is 'Hora do servidor quando a viagem passou a concluida/cancelada (o end_at vem do aparelho).';
 comment on column public.trip_locations.server_received_at is 'Hora do servidor ao receber o ponto (recorded_at vem do aparelho).';
 
--- Carimbo do fim: BEFORE UPDATE, na transição a partir de 'andamento' (a única
--- que tf_trip_cancel_guard deixa passar sem RPC). Sem tocar em linhas antigas.
 create or replace function public.tf_trip_server_end_time()
 returns trigger
 language plpgsql
@@ -45,18 +32,12 @@ create trigger trg_trip_server_end_time
   before update of status on public.trips
   for each row execute function public.tf_trip_server_end_time();
 
--- ═════════════════════════════ P2.6 retroativo ═══════════════════════════════
 alter table public.trips
   add column if not exists retroactive_document_path text,
   add column if not exists retroactive_registered_by uuid references public.profiles(id);
 
 comment on column public.trips.retroactive_document_path is 'Scan/foto da folha de papel (bucket documentos). Obrigatório em viagem retroativa.';
 
--- A guarda de início de viagem existe para o motorista no app (checklist do
--- dia, veículo liberado agora, CNH hoje). Uma viagem do papel já aconteceu: as
--- checagens de "agora" não se aplicam. A RPC abaixo liga app.retroactive_trip
--- só dentro da própria transação; o motorista não consegue ligar essa chave
--- (set_config é por sessão/transação e a RPC é a única que o faz).
 create or replace function public.tf_trip_insert_guard()
  returns trigger
  language plpgsql
@@ -84,8 +65,6 @@ begin
   end if;
 
   if v_retroactive then
-    -- Viagem lançada pelo gestor a partir da folha de papel: só valida o
-    -- vínculo do veículo; as regras de "iniciar agora" não se aplicam.
     select v.status into v_vehicle from public.vehicles v where v.id = new.vehicle_id;
     if not found then
       raise exception 'TRIP_GUARD_VEHICLE_NOT_FOUND: veiculo nao encontrado.'
@@ -180,7 +159,6 @@ begin
 end;
 $function$;
 
--- Motorista nunca marca a própria viagem como retroativa pelo app.
 create or replace function public.tf_trip_retroactive_only_by_rpc()
 returns trigger
 language plpgsql
@@ -277,8 +255,6 @@ end $$;
 revoke all on function public.manager_create_retroactive_trip(uuid, uuid, timestamptz, timestamptz, integer, integer, text, text, text, public.trip_purpose_category, integer, text, text) from public, anon;
 grant execute on function public.manager_create_retroactive_trip(uuid, uuid, timestamptz, timestamptz, integer, integer, text, text, text, public.trip_purpose_category, integer, text, text) to authenticated;
 
--- A notificação "Viagem retroativa registrada" dizia que o MOTORISTA registrou;
--- agora quem lança é o gestor.
 create or replace function public.notify_retroactive_trip()
  returns trigger
  language plpgsql
@@ -322,10 +298,6 @@ begin
 end;
 $function$;
 
--- ═════════════════════════════ P0.6 termo de ciência ═════════════════════════
--- Base legal do rastreamento de servidor é obrigação legal / política pública
--- (LGPD art. 7º II e III, art. 23), não consentimento. Registramos a CIÊNCIA:
--- versão do termo, data/hora do servidor, aparelho e versão do app.
 create table if not exists public.driver_terms_acceptances (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null default public.get_user_tenant_id() references public.tenants(id),
@@ -342,7 +314,6 @@ create table if not exists public.driver_terms_acceptances (
 
 comment on table public.driver_terms_acceptances is 'Ciência do motorista sobre rastreamento e uso dos dados (LGPD). Uma linha por versão do termo; imutável.';
 
--- IP e user-agent vêm do cabeçalho da requisição (mesmo padrão de tf_activity_log).
 create or replace function public.tf_driver_terms_fill()
 returns trigger
 language plpgsql
@@ -411,7 +382,6 @@ create policy driver_terms_select_manager on public.driver_terms_acceptances
 
 grant select, insert on public.driver_terms_acceptances to authenticated;
 
--- ═════════════════════════════ mapa de módulos da API ════════════════════════
 create or replace function sgf_private.resource_modules(p_resource text, p_write boolean)
  returns text[]
  language sql
