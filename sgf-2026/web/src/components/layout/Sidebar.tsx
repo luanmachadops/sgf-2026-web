@@ -47,7 +47,6 @@ type MenuItem = {
     path: string;
     badge?: string;
     module?: AccessModule;
-    accessManagersOnly?: boolean;
     auditOnly?: boolean;
 };
 type MenuSection = { title: string; items: MenuItem[] };
@@ -100,7 +99,6 @@ const menuSections: MenuSection[] = [
     {
         title: 'Sistema',
         items: [
-            { icon: ShieldCheck, label: 'Gerenciar acessos', path: '/acessos', accessManagersOnly: true },
             { icon: ShieldCheck, label: 'Trilha de auditoria', path: '/auditoria', auditOnly: true },
             { icon: Settings2, label: 'Configurações', path: '/configuracoes', module: 'settings' },
         ]
@@ -127,9 +125,6 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
     const { user, logout } = useAuth();
     const { branding } = useBranding();
     const departmentScoped = Boolean(user?.departmentScopeId);
-    // Gestão de acessos: só administrador e superadministrador.
-    const canManageAccess = user?.accountRole === 'admin'
-        || user?.accountRole === 'superadmin';
     const canSeeAudit = user?.accountRole === 'admin'
         || user?.accountRole === 'superadmin'
         || (user?.accountRole === 'gestor' && !departmentScoped);
@@ -137,7 +132,6 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
         .map((section) => ({
             ...section,
             items: section.items
-                .filter((item) => !item.accessManagersOnly || canManageAccess)
                 .filter((item) => !item.auditOnly || canSeeAudit)
                 .filter((item) => !item.module || canAccessModule(user?.allowedModules, item.module))
                 .filter((item) => !departmentScoped || !GLOBAL_ONLY_PATHS.has(item.path)),

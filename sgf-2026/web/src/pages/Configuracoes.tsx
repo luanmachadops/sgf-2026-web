@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { SGFButton } from '@/components/sgf/SGFButton';
-import { DollarSign, Receipt, CheckCircle, AlertTriangle, Loader2, Save, Building2, ChevronRight, CalendarClock, FileText } from '@/components/sgf/icons';
+import { DollarSign, Receipt, CheckCircle, AlertTriangle, Loader2, Save, Building2, ChevronRight, CalendarClock, FileText, ShieldCheck } from '@/components/sgf/icons';
 import { useBranding } from '@/contexts/BrandingContext';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useAppSettings, useUpdateSettings } from '@/hooks/useSettings';
@@ -134,7 +135,16 @@ export default function Configuracoes() {
     );
 
     const fuelModeLabel = FUEL_MODE_OPTIONS.find((o) => o.value === (settings?.fuelPriceMode ?? fuelPriceMode))?.title ?? '—';
-    const cards: { key: Section; icon: typeof Receipt; title: string; description: string; summary: string[] }[] = [
+    const navigate = useNavigate();
+    // Gestão de acessos: só administrador e superadministrador (mesma regra da rota).
+    const canManageAccess = user?.accountRole === 'admin' || user?.accountRole === 'superadmin';
+    const cards: { key: Section | 'access'; icon: typeof Receipt; title: string; description: string; summary: string[]; to?: string }[] = [
+        ...(canManageAccess ? [{
+            key: 'access' as const, icon: ShieldCheck, title: 'Gerenciar acessos',
+            description: 'Usuários do painel, perfis e permissões por módulo.',
+            summary: ['Gestores, secretários e parceiros'],
+            to: '/configuracoes/acessos',
+        }] : []),
         {
             key: 'identity', icon: Building2, title: 'Identidade da Prefeitura',
             description: 'Logo, brasão, cores e dados que aparecem no painel e no app.',
@@ -182,7 +192,7 @@ export default function Configuracoes() {
                         <button
                             key={card.key}
                             type="button"
-                            onClick={() => openModal(card.key)}
+                            onClick={() => (card.to ? navigate(card.to) : openModal(card.key as Section))}
                             className="group flex flex-col gap-4 rounded-[var(--sgf-card-radius)] border border-slate-200/80 bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[var(--sgf-primary)] hover:shadow-md focus:outline-none focus:ring-4 focus:ring-[var(--sgf-focus-ring)]"
                         >
                             <div className="flex items-start justify-between gap-3">

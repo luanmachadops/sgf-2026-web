@@ -143,7 +143,8 @@ function App() {
                 {/* Endereços antigos do módulo de licitações levam aos limites por secretaria. */}
                 <Route path="/licitacoes/*" element={<Navigate to="/limites" replace />} />
                 <Route path="/configuracoes/limites" element={<Navigate to="/limites" replace />} />
-                <Route path="/acessos" element={<AccessManagersRoute><AccessManagement /></AccessManagersRoute>} />
+                <Route path="/configuracoes/acessos" element={<AccessManagersRoute><AccessManagement /></AccessManagersRoute>} />
+                <Route path="/acessos" element={<Navigate to="/configuracoes/acessos" replace />} />
                 <Route path="/perfil" element={<Perfil />} />
                 <Route path="/notificacoes" element={<ModuleRoute module="notifications"><Notificacoes /></ModuleRoute>} />
               </Route>
