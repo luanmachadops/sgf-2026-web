@@ -79,7 +79,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { matchesSearch } from '@/lib/utils';
 import { canAccessModule } from '@/lib/accessModules';
 import { toast } from 'sonner';
-import { LegacyReconciliationDialog, type LegacyReportRow } from './LegacyReconciliationDialog';
 import { ReportTable } from './ReportTable';
 
 // Padrões fixos: um array novo a cada render mudaria `filters`/`exportOptions`
@@ -133,11 +132,6 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
     const definition = findReport(reportId);
     const { branding: tenantBranding } = useBranding();
     const { user } = useAuth();
-    const [legacyRow, setLegacyRow] = useState<LegacyReportRow | null>(null);
-    const canReconcileLegacy = ['admin', 'gestor', 'superadmin'].includes(user?.accountRole ?? '')
-        && user?.allowedModules?.includes('procurement') === true
-        && user?.allowedModules?.includes('budgets') === true
-        && user?.allowedModules?.includes('reports') === true;
     const reportBranding: ReportBranding = useMemo(() => ({
         name: tenantBranding.name,
         appName: tenantBranding.appName,
@@ -515,14 +509,13 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
     useEffect(() => {
         if (!isOpen) return;
         const onKey = (keyboardEvent: KeyboardEvent) => {
-            if (keyboardEvent.key === 'Escape' && !legacyRow) onClose();
+            if (keyboardEvent.key === 'Escape') onClose();
         };
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
-    }, [isOpen, legacyRow, onClose]);
+    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
-    const showLegacyAction = reportId === 'procurement-legacy-reconciliation' && canReconcileLegacy;
     const fitTone = printFit?.tone === 'warn'
         ? 'border-amber-200 bg-amber-50 text-amber-800'
         : printFit?.tone === 'info'
@@ -1002,11 +995,6 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
                                         groupColumn={groupColumn}
                                         sort={sort}
                                         onSort={(key) => setSort((current) => nextSort(current, key))}
-                                        renderAction={showLegacyAction ? (row) => (
-                                            <SGFButton type="button" size="sm" variant="secondary" onClick={() => setLegacyRow(row)}>
-                                                Conciliar
-                                            </SGFButton>
-                                        ) : undefined}
                                     />
                                 )}
                             </div>
@@ -1031,18 +1019,6 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
                     </div>
                 )}
             </div>
-            {showLegacyAction && (
-                <LegacyReconciliationDialog
-                    key={legacyRow ? `${String(legacyRow.sourceType)}:${String(legacyRow.sourceId)}` : 'closed'}
-                    row={legacyRow}
-                    isOpen={legacyRow !== null}
-                    onClose={() => setLegacyRow(null)}
-                    onCompleted={() => {
-                        setLegacyRow(null);
-                        toast.success('Lançamento legado conciliado com auditoria.');
-                    }}
-                />
-            )}
         </div>,
         document.body,
     );

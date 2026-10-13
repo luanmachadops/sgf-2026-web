@@ -4,7 +4,6 @@
 
 import { procurementApi, type ProcurementContractUsage } from './procurement-api';
 import { supabase } from './supabase';
-import { ITEM_CATEGORIES } from './procurement-items-api';
 import type { ReportDataset } from './reports/types';
 import {
     checklistFailures,
@@ -747,71 +746,6 @@ async function fuelByStation(f?: ReportFilterInput): Promise<ReportDataset> {
     };
 }
 
-async function stationFiscalClosing(f?: ReportFilterInput): Promise<ReportDataset> {
-    const { data, error } = await supabase.rpc('get_station_closing_register', {
-        p_from: f?.dateFrom,
-        p_to: f?.dateTo,
-    });
-    if (error) throw error;
-    const rows = (data ?? []).map((row) => ({
-        protocol: row.protocol,
-        station: row.station_name,
-        competence: row.competence,
-        records: Number(row.record_count),
-        amount: Number(row.total_amount),
-        closingStatus: row.closing_status.replaceAll('_', ' '),
-        fiscalStatus: row.fiscal_status.replaceAll('_', ' '),
-        commitment: row.commitment_number ?? '—',
-        nad: row.nad_number ?? '—',
-        invoice: row.invoice_number ?? '—',
-        invoiced: Number(row.invoice_amount ?? 0),
-        paid: Number(row.paid_amount ?? 0),
-        balance: Math.max(Number(row.invoice_amount ?? row.total_amount) - Number(row.paid_amount ?? 0), 0),
-        hash: row.snapshot_hash,
-    }));
-    const total = rows.reduce((sum, row) => sum + row.amount, 0);
-    const paid = rows.reduce((sum, row) => sum + row.paid, 0);
-    const fiscalStatuses = new Map<string, number>();
-    for (const row of rows) fiscalStatuses.set(row.fiscalStatus, (fiscalStatuses.get(row.fiscalStatus) ?? 0) + row.amount);
-    return {
-        kpis: [
-            { label: 'Fechamentos', value: NUM(rows.length) },
-            { label: 'Valor fechado', value: BRL(total) },
-            { label: 'Valor pago', value: BRL(paid) },
-            { label: 'Saldo em trâmite', value: BRL(Math.max(total - paid, 0)) },
-        ],
-        columns: [
-            { key: 'protocol', label: 'Protocolo', filterable: true, minWidth: 150, priority: 1, anchor: true },
-            { key: 'station', label: 'Posto', filterable: true, minWidth: 180, priority: 1 },
-            { key: 'competence', label: 'Competência', format: 'date', minWidth: 100 },
-            { key: 'records', label: 'Registros', align: 'right', format: 'integer', minWidth: 85, total: 'sum' },
-            { key: 'amount', label: 'Valor fechado', align: 'right', format: 'currency', minWidth: 125, priority: 1, total: 'sum' },
-            { key: 'closingStatus', label: 'Conferência', filterable: true, minWidth: 110 },
-            { key: 'fiscalStatus', label: 'Situação fiscal', filterable: true, minWidth: 145, priority: 1 },
-            { key: 'commitment', label: 'Empenho', filterable: true, minWidth: 120 },
-            { key: 'nad', label: 'NAD', defaultVisible: false, minWidth: 100, priority: 3, stackUnder: 'commitment' },
-            { key: 'invoice', label: 'Nota fiscal', filterable: true, minWidth: 110, stackUnder: 'commitment' },
-            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
-            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
-            { key: 'balance', label: 'Saldo', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
-            { key: 'hash', label: 'Hash SHA-256', defaultVisible: false, minWidth: 300, priority: 3 },
-        ],
-        rows,
-        charts: [{
-            title: 'Valores por situação fiscal',
-            description: 'Distribuição dos fechamentos conforme o estágio atual.',
-            type: 'bar',
-            valueFormat: 'currency',
-            data: [...fiscalStatuses].map(([label, value]) => ({ label, value })),
-        }],
-        notes: [
-            'Cada protocolo representa uma fotografia imutável dos registros validados na competência.',
-            'O hash SHA-256 permite verificar a integridade do conteúdo congelado.',
-            'O empenho exibido deve ser anterior ao fornecimento; a nota, o ateste e o pagamento são etapas posteriores.',
-        ],
-    };
-}
-
 async function maintenanceByShop(f?: ReportFilterInput): Promise<ReportDataset> {
     const { from, to } = dateRange(f);
     const query = supabase
@@ -963,189 +897,6 @@ async function maintenanceByShop(f?: ReportFilterInput): Promise<ReportDataset> 
     };
 }
 
-function fiscalYearFilter(f?: ReportFilterInput): number | null {
-    const fromYear = f?.dateFrom ? Number(f.dateFrom.slice(0, 4)) : null;
-    const toYear = f?.dateTo ? Number(f.dateTo.slice(0, 4)) : null;
-    if (fromYear && toYear && fromYear === toYear) return fromYear;
-    return null;
-}
-
-async function procurementFiscalReconciliation(f?: ReportFilterInput): Promise<ReportDataset> {
-    const year = fiscalYearFilter(f);
-    const [centralResult, legacyResult] = await Promise.all([
-        supabase.rpc('get_procurement_fiscal_reconciliation', {
-            p_year: year,
-            p_instrument: null,
-            p_department: f?.departmentId ?? null,
-        }),
-        supabase.rpc('get_procurement_reconciled_legacy_totals', {
-            p_year: year,
-            p_instrument: null,
-            p_department: f?.departmentId ?? null,
-        }),
-    ]);
-    if (centralResult.error) throw centralResult.error;
-    if (legacyResult.error) throw legacyResult.error;
-    const legacyByAllocation = new Map(
-        (legacyResult.data ?? []).map((row) => [row.allocation_id, Number(row.legacy_reconciled_amount)]),
-    );
-    const sourceRows = centralResult.data ?? [];
-    const rows = sourceRows.map((row) => {
-        const legacyReconciled = legacyByAllocation.get(row.allocation_id) ?? 0;
-        const consumed = Number(row.consumed_amount) + legacyReconciled;
-        return {
-            fiscalYear: row.fiscal_year,
-            process: row.process_reference,
-            instrument: `${row.instrument_reference} (${row.instrument_kind === 'ata' ? 'Ata' : 'Contrato'})`,
-            department: row.department_name,
-            category: ITEM_CATEGORIES[row.category as keyof typeof ITEM_CATEGORIES] ?? row.category,
-            appropriation: row.appropriation,
-            fundingSource: row.funding_source,
-            simam: row.simam_code || '—',
-            planned: Number(row.planned_limit),
-            reserved: Number(row.reserved_amount),
-            realized: Number(row.realized_amount),
-            disputed: Number(row.disputed_amount),
-            legacyReconciled,
-            consumed,
-            remaining: Math.max(Number(row.planned_limit) - consumed, 0),
-            invoiced: row.invoiced_amount == null ? '—' : Number(row.invoiced_amount),
-            attested: row.attested_amount == null ? '—' : Number(row.attested_amount),
-            paid: row.paid_amount == null ? '—' : Number(row.paid_amount),
-        };
-    });
-    const sumNumber = (key: 'planned' | 'reserved' | 'realized' | 'disputed' | 'consumed' | 'remaining') =>
-        rows.reduce((sum, row) => sum + row[key], 0);
-    const byDepartment = new Map<string, number>();
-    for (const row of rows) byDepartment.set(row.department, (byDepartment.get(row.department) ?? 0) + row.consumed);
-    return {
-        kpis: [
-            { label: 'Dotações', value: NUM(rows.length) },
-            { label: 'Teto planejado', value: BRL(sumNumber('planned')) },
-            { label: 'Consumo do teto', value: BRL(sumNumber('consumed')) },
-            { label: 'Saldo disponível', value: BRL(sumNumber('remaining')) },
-        ],
-        columns: [
-            { key: 'fiscalYear', label: 'Exercício', align: 'right', format: 'text', minWidth: 85, stackUnder: 'process' },
-            { key: 'process', label: 'Processo', filterable: true, minWidth: 140, priority: 1, anchor: true },
-            { key: 'instrument', label: 'Instrumento', filterable: true, minWidth: 180, stackUnder: 'process' },
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 170, priority: 1 },
-            { key: 'category', label: 'Categoria', filterable: true, minWidth: 120, stackUnder: 'department' },
-            { key: 'appropriation', label: 'Dotação', filterable: true, minWidth: 135 },
-            { key: 'fundingSource', label: 'Fonte', filterable: true, minWidth: 95, stackUnder: 'appropriation' },
-            { key: 'simam', label: 'Código SIM-AM', filterable: true, minWidth: 150, priority: 3, stackUnder: 'appropriation' },
-            { key: 'planned', label: 'Teto', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
-            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
-            { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
-            { key: 'disputed', label: 'Contestado', align: 'right', format: 'currency', minWidth: 115, priority: 3, total: 'sum' },
-            { key: 'legacyReconciled', label: 'Legado conciliado', align: 'right', format: 'currency', minWidth: 135, priority: 3, total: 'sum' },
-            { key: 'consumed', label: 'Consumido', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
-            { key: 'remaining', label: 'Saldo', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
-            { key: 'invoiced', label: 'Faturado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
-            { key: 'attested', label: 'Atestado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
-            { key: 'paid', label: 'Pago', align: 'right', format: 'currency', minWidth: 105, total: 'sum' },
-        ],
-        rows,
-        charts: [{
-            title: 'Consumo por secretaria',
-            description: 'Soma das reservas, realizações e contestações por dotação da secretaria.',
-            type: 'bar',
-            valueFormat: 'currency',
-            data: topChartData([...byDepartment].map(([label, value]) => ({ label, value }))),
-        }],
-        notes: [
-            'O filtro de período representa o exercício fiscal quando as datas inicial e final pertencem ao mesmo ano; períodos que atravessam anos retornam todos os exercícios.',
-            'Teto, reservado, realizado, contestado e saldo pertencem ao controle da dotação. Faturado, atestado e pago são marcos da mesma despesa e não são somados novamente.',
-            'Legado conciliado é exibido separado e só entra no consumo depois de um vínculo explícito, justificado e auditado.',
-            'Postos e abastecimentos ainda não possuem NF, ateste e pagamento no livro central; nesses campos aparece “—”, preservando a diferença entre inexistente e zero.',
-        ],
-    };
-}
-
-const LEGACY_SOURCE_LABEL: Record<string, string> = {
-    fuelings: 'Abastecimento',
-    service_orders: 'Ordem de serviço',
-    station_operations: 'Operação de posto',
-};
-
-async function procurementLegacyReconciliation(f?: ReportFilterInput): Promise<ReportDataset> {
-    const { data, error } = await supabase.rpc('get_procurement_legacy_reconciliation', {
-        p_year: fiscalYearFilter(f),
-        p_department: f?.departmentId ?? null,
-    });
-    if (error) throw error;
-    const source = data ?? [];
-    // A RPC devolve só identificadores; o relatório mostra nome e placa.
-    const vehicleIds = [...new Set(source.map((row) => row.vehicle_id).filter(Boolean))];
-    const partnerIds = [...new Set(source.map((row) => row.partner_id).filter(Boolean))];
-    const [vehicles, stations, shops] = await Promise.all([
-        vehicleIds.length
-            ? fetchAllRows(supabase.from('vehicles').select('id, plate').in('id', vehicleIds).order('id'))
-            : Promise.resolve([]),
-        partnerIds.length
-            ? fetchAllRows(supabase.from('fuel_stations').select('id, name').in('id', partnerIds).order('id'))
-            : Promise.resolve([]),
-        partnerIds.length
-            ? fetchAllRows(supabase.from('repair_shops').select('id, name').in('id', partnerIds).order('id'))
-            : Promise.resolve([]),
-    ]);
-    const plateById = new Map(vehicles.map((vehicle) => [vehicle.id, vehicle.plate]));
-    const partnerById = new Map([...stations, ...shops].map((partner) => [partner.id, partner.name]));
-    const rows = source.map((row) => ({
-        // `sourceType` segue cru: a conciliação o envia de volta ao banco.
-        sourceType: row.source_type,
-        sourceLabel: LEGACY_SOURCE_LABEL[row.source_type] ?? capitalize(row.source_type),
-        sourceId: row.source_id,
-        contractId: row.contract_id,
-        contract: row.contract_reference,
-        fiscalYear: row.fiscal_year,
-        departmentId: row.department_id,
-        department: row.department_name ?? '—',
-        partnerId: row.partner_id,
-        partner: partnerById.get(row.partner_id) ?? 'Fornecedor não encontrado',
-        vehicleId: row.vehicle_id ?? '—',
-        vehicle: row.vehicle_id ? plateById.get(row.vehicle_id) ?? '—' : '—',
-        reserved: Number(row.reserved_amount),
-        realized: Number(row.realized_amount),
-        disputed: Number(row.disputed_amount),
-        consumed: Number(row.consumed_amount),
-        status: row.reconciliation_status,
-    }));
-    const consumed = rows.reduce((sum, row) => sum + row.consumed, 0);
-    return {
-        kpis: [
-            { label: 'Lançamentos pendentes', value: NUM(rows.length) },
-            { label: 'Valor a conciliar', value: BRL(consumed) },
-            { label: 'Exercícios', value: NUM(new Set(rows.map((row) => row.fiscalYear)).size) },
-            { label: 'Situação', value: rows.length > 0 ? 'Aguardando vínculo' : 'Sem pendências' },
-        ],
-        columns: [
-            { key: 'sourceLabel', label: 'Origem', filterable: true, minWidth: 145, priority: 1, anchor: true },
-            { key: 'sourceId', label: 'Registro legado', filterable: true, defaultVisible: false, minWidth: 280, priority: 3 },
-            { key: 'contractId', label: 'ID do contrato legado', defaultVisible: false, minWidth: 280, priority: 3 },
-            { key: 'contract', label: 'Contrato legado', filterable: true, minWidth: 170 },
-            { key: 'fiscalYear', label: 'Exercício', align: 'right', format: 'text', minWidth: 85, stackUnder: 'contract' },
-            { key: 'departmentId', label: 'ID da secretaria', defaultVisible: false, minWidth: 280, priority: 3 },
-            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 170, priority: 1 },
-            { key: 'partner', label: 'Fornecedor', filterable: true, minWidth: 180, priority: 1 },
-            { key: 'vehicle', label: 'Veículo', filterable: true, minWidth: 90, stackUnder: 'partner' },
-            { key: 'partnerId', label: 'ID do fornecedor', defaultVisible: false, minWidth: 280, priority: 3 },
-            { key: 'vehicleId', label: 'ID do veículo', defaultVisible: false, minWidth: 280, priority: 3 },
-            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
-            { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
-            { key: 'disputed', label: 'Contestado', align: 'right', format: 'currency', minWidth: 115, total: 'sum' },
-            { key: 'consumed', label: 'A conciliar', align: 'right', format: 'currency', minWidth: 125, priority: 1, total: 'sum' },
-            { key: 'status', label: 'Situação', filterable: true, minWidth: 145, priority: 1 },
-        ],
-        rows,
-        notes: [
-            'A fila mostra apenas lançamentos antigos sem reserva central comprovada.',
-            'Nenhuma linha é atribuída automaticamente a uma ata, contrato ou dotação nova. A associação futura exigirá seleção explícita, justificativa e documento de suporte.',
-            'O valor não deve ser somado novamente ao relatório central até a conciliação formal.',
-        ],
-    };
-}
-
 const FETCHERS: Record<string, (f?: ReportFilterInput) => Promise<ReportDataset>> = {
     'fleet-summary': fleetSummary,
     'fuel-consumption': fuelConsumption,
@@ -1159,10 +910,7 @@ const FETCHERS: Record<string, (f?: ReportFilterInput) => Promise<ReportDataset>
     'department-consolidated': departmentConsolidated,
     'infractions': infractionsReport,
     'fuel-by-station': fuelByStation,
-    'station-fiscal-closing': stationFiscalClosing,
     'maintenance-by-shop': maintenanceByShop,
-    'procurement-fiscal-reconciliation': procurementFiscalReconciliation,
-    'procurement-legacy-reconciliation': procurementLegacyReconciliation,
 };
 
 /** Busca o dataset real de um relatório, aplicando os filtros selecionados. */

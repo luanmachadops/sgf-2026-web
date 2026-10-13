@@ -327,6 +327,34 @@ Detalhes e decisões em `PLANO-RELATORIOS.md`. Branch `claude/sweet-tesla-vrsqb8
   (retroativa, fora do expediente, salto de km) — o "Mapa Mensal de Uso do Veículo" local virou esse boletim.
   Migrations P1/P2 locais duplicadas removidas (SQL idêntico às exportadas da produção).
 
+## 🟡 T10 — Licitações reduzidas a "limite por secretaria" (2026-10-13)
+
+Decisão do usuário: licitação, contrato e prestação de contas (TCE/SIM-AM, empenho, NF, ateste,
+pagamento) são geridos pelas secretarias e pela contabilidade. O sistema só precisa do **teto de consumo
+de cada secretaria em cada licitação** (teto total obrigatório), com bloqueio automático.
+
+**Fase 1 (feita, só interface, sem DDL):**
+- Menu "Limites por secretaria" (`/limites`, módulo `budgets`); `/licitacoes/*` e `/configuracoes/limites`
+  redirecionam. Usa o controle já existente `budget_contracts` / `budget_allocations` / `budget_entries`
+  (triggers recusam abastecimento/OS acima da cota). Tela sem dotação, fonte, SIM-AM e "Conferência TCE-PR";
+  dotação/fonte são gravadas como "Não informado" (colunas NOT NULL no banco) e a justificativa vira
+  observação opcional (padrão "Atualização dos limites por secretaria"). Coluna de consumo com alerta a 80%.
+- Removidos: páginas de inventário e cadastro de processos/atas/contratos/itens/preços, planejamento por
+  instrumento, simulação; relatórios "Conciliação Fiscal das Licitações", "Fila de Conciliação do Legado" e
+  "Fechamento Fiscal dos Postos"; módulo `procurement` some da gestão de acessos (o id continua aceito no
+  servidor). Tabelas e funções do banco ficam intactas (vazias ou só com testes).
+
+**Fase 2 (pendente de aprovação — mexe em regras do banco em produção):**
+- O fluxo da OS exige registrar **empenho** antes de a oficina executar (`ServiceOrderFiscalPanel`), e depois
+  NF/ateste/pagamento. Tirar isso exige alterar as funções do fluxo.
+- Fechamento fiscal mensal dos postos (0 registros) e teto/vigência no cadastro do fornecedor
+  (`fuel_stations`/`repair_shops.contract_value`, `contract_start/end`): os triggers
+  `enforce_station_contract_budget` / `enforce_repair_shop_contract_budget` bloqueiam com base nesses campos.
+  Hoje 1 posto e 1 oficina têm valor preenchido. Esconder os campos sem limpar os dados deixaria bloqueios
+  invisíveis.
+- Pré-requisito do limite por secretaria: 82 de 88 veículos sem secretaria — despesas com fornecedor
+  vinculado a uma licitação são recusadas até preencher (usuário vai ajustar manualmente).
+
 ## Checklist final de go-live
 
 - [ ] T2, T3, T4 concluídas e testadas manualmente (login gestor, login motorista, viagem completa com checklist, abastecimento com workflow, push recebido)

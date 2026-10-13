@@ -28,7 +28,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ProfilePhoto } from '@/components/sgf/ProfilePhoto';
 import { useBranding } from '@/contexts/BrandingContext';
 import { canAccessModule, type AccessModule } from '@/lib/accessModules';
-import { procurementAccess } from '@/lib/procurement-navigation';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -50,7 +49,6 @@ type MenuItem = {
     module?: AccessModule;
     accessManagersOnly?: boolean;
     auditOnly?: boolean;
-    procurement?: boolean;
 };
 type MenuSection = { title: string; items: MenuItem[] };
 const menuSections: MenuSection[] = [
@@ -95,7 +93,7 @@ const menuSections: MenuSection[] = [
     {
         title: 'Administração',
         items: [
-            { icon: Gavel, label: 'Licitações e Contratos', path: '/licitacoes', procurement: true },
+            { icon: Gavel, label: 'Limites por secretaria', path: '/limites', module: 'budgets' },
             { icon: BarChart3, label: 'Relatórios & Auditoria', path: '/relatorios', module: 'reports' },
         ]
     },
@@ -129,7 +127,6 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
     const { user, logout } = useAuth();
     const { branding } = useBranding();
     const departmentScoped = Boolean(user?.departmentScopeId);
-    const procurement = procurementAccess(user);
     // Gestão de acessos: só administrador e superadministrador.
     const canManageAccess = user?.accountRole === 'admin'
         || user?.accountRole === 'superadmin';
@@ -140,8 +137,6 @@ function SidebarContent({ isCollapsed, onToggle, showToggle }: SidebarContentPro
         .map((section) => ({
             ...section,
             items: section.items
-                .filter((item) => !item.procurement || Boolean(procurement.entry))
-                .map((item) => item.procurement ? { ...item, path: procurement.entry ?? item.path } : item)
                 .filter((item) => !item.accessManagersOnly || canManageAccess)
                 .filter((item) => !item.auditOnly || canSeeAudit)
                 .filter((item) => !item.module || canAccessModule(user?.allowedModules, item.module))

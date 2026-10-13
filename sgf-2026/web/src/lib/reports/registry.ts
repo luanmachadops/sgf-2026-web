@@ -173,16 +173,6 @@ export const REPORTS: ReportDefinition[] = [
         driverFilter: true,
     },
     {
-        id: 'station-fiscal-closing',
-        title: 'Fechamento Fiscal dos Postos',
-        description: 'Protocolos mensais, empenho, nota fiscal, ateste, pagamento e integridade.',
-        question: 'Em que etapa fiscal está cada fechamento mensal?',
-        subject: 'fiscal',
-        icon: 'receipt',
-        contextKey: 'station',
-        signatures: true,
-    },
-    {
         id: 'maintenance-by-shop',
         title: 'Manutenções por Oficina',
         description: 'Ordens, orçamento aprovado, custo final e processos em aberto por oficina.',
@@ -190,25 +180,6 @@ export const REPORTS: ReportDefinition[] = [
         subject: 'manutencao',
         icon: 'wrench',
         contextKey: 'shop',
-    },
-    {
-        id: 'procurement-fiscal-reconciliation',
-        title: 'Conciliação Fiscal das Licitações',
-        description: 'Teto, reserva, realização, faturamento, ateste e pagamento por secretaria e instrumento.',
-        question: 'Quanto de cada dotação já foi consumido, faturado e pago?',
-        subject: 'fiscal',
-        icon: 'receipt',
-        contextKey: 'department',
-        signatures: true,
-    },
-    {
-        id: 'procurement-legacy-reconciliation',
-        title: 'Fila de Conciliação do Legado',
-        description: 'Lançamentos antigos sem vínculo comprovado com ata, contrato ou dotação central.',
-        question: 'Que gastos antigos ainda precisam ser vinculados a uma licitação?',
-        subject: 'fiscal',
-        icon: 'shield',
-        contextKey: 'department',
     },
 ];
 

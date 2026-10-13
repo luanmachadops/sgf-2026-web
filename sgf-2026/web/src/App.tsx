@@ -37,8 +37,6 @@ import { AppLaunchSplash } from '@/components/pwa/AppLaunchSplash';
 import { PwaInstallPrompt } from '@/components/pwa/PwaInstallPrompt';
 import { canAccessModule, type AccessModule } from '@/lib/accessModules';
 import DepartmentBudgets from '@/pages/DepartmentBudgets';
-import Procurement from '@/pages/Procurement';
-import ProcurementRegistry from '@/pages/ProcurementRegistry';
 import AccessManagement from '@/pages/AccessManagement';
 import TermsAndPrivacy from '@/pages/TermsAndPrivacy';
 
@@ -141,10 +139,10 @@ function App() {
                 <Route path="/oficinas/:id" element={<ModuleRoute module="repair_shops"><GlobalManagementRoute><RepairShops /></GlobalManagementRoute></ModuleRoute>} />
                 <Route path="/auditoria" element={<AuditRoute><Auditoria /></AuditRoute>} />
                 <Route path="/configuracoes" element={<ModuleRoute module="settings"><GlobalManagementRoute><Configuracoes /></GlobalManagementRoute></ModuleRoute>} />
-                <Route path="/licitacoes/processos" element={<ProcurementRegistry />} />
-                <Route path="/licitacoes" element={<Procurement />} />
-                <Route path="/licitacoes/limites" element={<ModuleRoute module="budgets"><DepartmentBudgets /></ModuleRoute>} />
-                <Route path="/configuracoes/limites" element={<ModuleRoute module="budgets"><Navigate to="/licitacoes/limites" replace /></ModuleRoute>} />
+                <Route path="/limites" element={<ModuleRoute module="budgets"><DepartmentBudgets /></ModuleRoute>} />
+                {/* Endereços antigos do módulo de licitações levam aos limites por secretaria. */}
+                <Route path="/licitacoes/*" element={<Navigate to="/limites" replace />} />
+                <Route path="/configuracoes/limites" element={<Navigate to="/limites" replace />} />
                 <Route path="/acessos" element={<AccessManagersRoute><AccessManagement /></AccessManagersRoute>} />
                 <Route path="/perfil" element={<Perfil />} />
                 <Route path="/notificacoes" element={<ModuleRoute module="notifications"><Notificacoes /></ModuleRoute>} />

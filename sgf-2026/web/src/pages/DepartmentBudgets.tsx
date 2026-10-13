@@ -1,6 +1,3 @@
-import { InstrumentBudgetPlanning } from "@/components/procurement/InstrumentBudgetPlanning";
-import { PARANA_FIELDS, paranaReviewCsv } from "@/lib/parana-budget-report";
-import { ProcurementNavigation } from "@/components/procurement/ProcurementNavigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -31,6 +28,12 @@ const categoryName = {
   maintenance: "Manutenção",
 };
 const PAGE_SIZE = 10;
+/** Dotação e fonte são obrigatórias no banco; aqui a contabilidade não as informa. */
+const NOT_INFORMED = "Não informado";
+const DEFAULT_REASON = "Atualização dos limites por secretaria";
+/** Consumo (reservado + realizado + contestado) em relação ao limite, de 0 a 100+. */
+const usagePercent = (a: { spending_limit: number; available: number }) =>
+  a.spending_limit > 0 ? ((a.spending_limit - a.available) / a.spending_limit) * 100 : 0;
 
 function exportSummary(contracts: DepartmentBudget[]) {
   const cell = (v: string | number) =>
@@ -43,13 +46,12 @@ function exportSummary(contracts: DepartmentBudget[]) {
       "Licitação/contrato",
       "Categoria",
       "Secretaria",
-      "Dotação",
-      "Fonte",
       "Limite",
       "Reservado",
       "Realizado",
       "Em contestação",
       "Disponível",
+      "Consumo",
     ],
   ];
   contracts.forEach((c) =>
@@ -59,13 +61,12 @@ function exportSummary(contracts: DepartmentBudget[]) {
         c.reference,
         categoryName[c.category],
         a.department_name,
-        a.appropriation,
-        a.funding_source,
         a.spending_limit,
         a.reserved,
         a.realized,
         a.disputed,
         a.available,
+        `${Math.round(usagePercent(a))}%`,
       ]),
     ),
   );
@@ -150,8 +151,8 @@ function BudgetEditor({
       const next = {
         department_id: id,
         spending_limit: 0,
-        appropriation: "",
-        funding_source: "",
+        appropriation: NOT_INFORMED,
+        funding_source: NOT_INFORMED,
         ...existing,
         ...patch,
       };
@@ -170,19 +171,13 @@ function BudgetEditor({
       return setError("A soma das cotas ultrapassa o teto global.");
     if (!form.allocations.length || !form.partner_ids.length)
       return setError("Selecione fornecedores e ao menos uma secretaria.");
-    if (
-      form.allocations.some(
-        (a) => !a.appropriation.trim() || !a.funding_source.trim(),
-      )
-    )
-      return setError(
-        "Preencha dotação e fonte de todas as secretarias selecionadas.",
-      );
-    if (form.reason.trim().length < 10)
-      return setError(
-        "Descreva a justificativa e o ato de autorização (mínimo 10 caracteres).",
-      );
-    save.mutate(form);
+    if (form.total_limit <= 0)
+      return setError("Informe o teto total da licitação.");
+    const reason = form.reason.trim();
+    save.mutate({
+      ...form,
+      reason: reason.length >= 10 ? reason : reason ? `${DEFAULT_REASON}: ${reason}` : DEFAULT_REASON,
+    });
   };
   const departmentRows = (departments.data ?? []).filter((d) =>
     d.name.toLowerCase().includes(search.toLowerCase()),
@@ -192,7 +187,7 @@ function BudgetEditor({
       isOpen
       onClose={save.isPending ? () => {} : onClose}
       title={
-        contract ? "Revisar limites e dotações" : "Definir limites da licitação"
+        contract ? "Revisar limites da licitação" : "Nova licitação e limites"
       }
       size="xl"
     >
@@ -210,7 +205,7 @@ function BudgetEditor({
         )}
         <div className="grid gap-4 sm:grid-cols-2">
           <SGFInput
-            label="Licitação / contrato / ata"
+            label="Licitação (número ou referência)"
             value={form.reference}
             disabled={Boolean(contract)}
             required
@@ -218,7 +213,7 @@ function BudgetEditor({
             onChange={(e) => setForm({ ...form, reference: e.target.value })}
           />
           <SGFInput
-            label="Teto global no exercício (R$)"
+            label="Teto total da licitação no exercício (R$)"
             type="number"
             min="0"
             step="0.01"
@@ -250,7 +245,7 @@ function BudgetEditor({
           className="rounded-xl border border-slate-200 p-4"
         >
           <legend className="px-2 font-semibold">
-            Fornecedores da mesma licitação
+            Fornecedores desta licitação
           </legend>
           {partners.isPending && <p>Carregando fornecedores…</p>}
           {partners.error && <p role="alert">{partners.error.message}</p>}
@@ -320,14 +315,6 @@ function BudgetEditor({
                             allocations: form.allocations.filter(
                               (a) => a.department_id !== d.id,
                             ),
-                            reporting: {
-                              ...form.reporting,
-                              dotacoes: Object.fromEntries(
-                                Object.entries(form.reporting?.dotacoes ?? {}).filter(
-                                  ([departmentId]) => departmentId !== d.id,
-                                ),
-                              ),
-                            },
                           })
                     }
                   />
@@ -336,7 +323,7 @@ function BudgetEditor({
                 {a && (
                   <div className="mt-3 grid gap-3 sm:grid-cols-3">
                     <SGFInput
-                      label="Limite (R$)"
+                      label="Limite da secretaria (R$)"
                       type="number"
                       min="0"
                       step="0.01"
@@ -345,28 +332,6 @@ function BudgetEditor({
                       onChange={(e) =>
                         updateAllocation(d.id, {
                           spending_limit: Number(e.target.value),
-                        })
-                      }
-                    />
-                    <SGFInput
-                      label="Dotação / classificação"
-                      value={a.appropriation}
-                      required
-                      maxLength={200}
-                      onChange={(e) =>
-                        updateAllocation(d.id, {
-                          appropriation: e.target.value,
-                        })
-                      }
-                    />
-                    <SGFInput
-                      label="Fonte de recursos"
-                      value={a.funding_source}
-                      required
-                      maxLength={200}
-                      onChange={(e) =>
-                        updateAllocation(d.id, {
-                          funding_source: e.target.value,
                         })
                       }
                     />
@@ -393,64 +358,11 @@ function BudgetEditor({
             Próxima
           </SGFButton>
         </div>
-        <details className="rounded-xl border border-slate-200 p-4">
-          <summary className="cursor-pointer font-semibold">
-            Referências para conferência TCE-PR / SIM-AM
-          </summary>
-          <p className="my-3 text-sm text-slate-600">
-            Preencha com a contabilidade. Códigos não informados serão
-            destacados na exportação. Este arquivo auxilia a conferência e não
-            substitui a remessa oficial.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {PARANA_FIELDS.map(([key, label, max]) => (
-              <SGFInput
-                key={key}
-                label={label}
-                maxLength={max}
-                value={form.reporting?.[key] ?? ""}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    reporting: {
-                      ...form.reporting,
-                      [key]: e.target.value.trim(),
-                    },
-                  })
-                }
-              />
-            ))}
-          </div>
-          {form.allocations.map((a) => (
-            <SGFInput
-              key={a.department_id}
-              label={`Dotação SIM-AM · ${departments.data?.find((d) => d.id === a.department_id)?.name ?? a.department_id}`}
-              hint="28 dígitos, incluindo órgão, unidade e classificação completa. Preserve os zeros iniciais."
-              maxLength={28}
-              pattern="[0-9]{28}"
-              value={form.reporting?.dotacoes?.[a.department_id] ?? ""}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  reporting: {
-                    ...form.reporting,
-                    dotacoes: {
-                      ...form.reporting?.dotacoes,
-                      [a.department_id]: e.target.value,
-                    },
-                  },
-                })
-              }
-            />
-          ))}
-        </details>
         <SGFInput
-          label="Justificativa e referência do ato autorizativo"
-          hint="Informe o motivo e o número do documento que autoriza a distribuição ou o remanejamento."
+          label="Observação (opcional)"
+          hint="Ex.: número do processo, motivo do remanejamento. Fica registrada no histórico."
           value={form.reason}
-          minLength={10}
           maxLength={2000}
-          required
           onChange={(e) => setForm({ ...form, reason: e.target.value })}
         />
         {error && (
@@ -516,14 +428,14 @@ function describeSnapshot(value: unknown, contract: DepartmentBudget): string {
       : {};
   const lines = [
     `${details.reference ?? contract.reference}`,
-    `Teto global: ${money(Number(details.total_limit ?? 0))}`,
+    `Teto total: ${money(Number(details.total_limit ?? 0))}`,
   ];
   if (Array.isArray(row.allocations))
     for (const item of row.allocations) {
       if (!item || typeof item !== "object") continue;
       const a = item as Record<string, unknown>;
       lines.push(
-        `${departmentName(a.department_id)}: ${money(Number(a.spending_limit ?? 0))} · Dotação ${a.appropriation} · Fonte ${a.funding_source}`,
+        `${departmentName(a.department_id)}: ${money(Number(a.spending_limit ?? 0))}`,
       );
     }
   return lines.join("\n");
@@ -605,7 +517,6 @@ function BudgetHistory({
 export default function DepartmentBudgets() {
   const { user } = useAuth();
   const { setTitle, setDescription } = useHeader();
-  const [view, setView] = useState<"operational" | "planning">("operational");
   const [year, setYear] = useState(new Date().getFullYear());
   const [category, setCategory] = useState<"fuel" | "maintenance">("fuel");
   const [editor, setEditor] = useState<DepartmentBudget | "new" | null>(null);
@@ -616,14 +527,13 @@ export default function DepartmentBudgets() {
     queryKey: ["department-budgets", user?.tenantId, year],
     queryFn: () => departmentBudgetApi.list(year),
     refetchInterval: 30_000,
-    enabled: view === "operational",
   });
   const canEdit = user?.accountRole === "admin";
   const canAudit = ["admin", "gestor"].includes(user?.accountRole ?? "");
   useEffect(() => {
     setTitle("Limites por secretaria");
     setDescription(
-      "Planejamento de combustível e manutenção por licitação, exercício e secretaria.",
+      "Teto de consumo de cada secretaria em cada licitação de combustível e manutenção.",
     );
   }, [setTitle, setDescription]);
   const contracts = (query.data ?? []).filter(
@@ -633,19 +543,12 @@ export default function DepartmentBudgets() {
   );
   return (
     <div className="space-y-6">
-      <ProcurementNavigation />
-      <div className="flex flex-wrap gap-2" aria-label="Tipo de controle">
-        <SGFButton variant={view === 'operational' ? 'primary' : 'ghost'} onClick={() => setView('operational')}>Limites em operação</SGFButton>
-        <SGFButton variant={view === 'planning' ? 'primary' : 'ghost'} onClick={() => setView('planning')}>Planejamento por instrumento</SGFButton>
-      </div>
-      {view === 'planning' ? <InstrumentBudgetPlanning /> : <>
-
       <SGFCard>
         <p className="text-sm text-slate-600">
-          Uma licitação pode atender várias secretarias e fornecedores. Cada
-          secretaria utiliza apenas a própria cota. Este controle apoia a
-          execução orçamentária; o empenho e os demais documentos continuam nos
-          fluxos fiscais.
+          Cadastre a licitação, os fornecedores dela e quanto cada secretaria pode
+          consumir. Abastecimentos e ordens de serviço que passariam do limite da
+          secretaria são bloqueados automaticamente. Empenho, notas e prestação de
+          contas continuam com a contabilidade.
         </p>
       </SGFCard>
       <div className="flex flex-wrap items-end gap-3">
@@ -690,27 +593,9 @@ export default function DepartmentBudgets() {
         >
           Exportar CSV
         </SGFButton>
-        <SGFButton
-          variant="outline"
-          disabled={!contracts.length}
-          onClick={() => {
-            const url = URL.createObjectURL(
-              new Blob([paranaReviewCsv(contracts)], {
-                type: "text/csv;charset=utf-8;",
-              }),
-            );
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "conferencia-tce-pr.csv";
-            a.click();
-            URL.revokeObjectURL(url);
-          }}
-        >
-          Conferência TCE-PR
-        </SGFButton>
         {canEdit && (
           <SGFButton onClick={() => setEditor("new")}>
-            Definir limites
+            Nova licitação
           </SGFButton>
         )}
       </div>
@@ -728,12 +613,12 @@ export default function DepartmentBudgets() {
       {!query.isPending && !query.error && !contracts.length && (
         <SGFCard>
           <h2 className="font-semibold">
-            Nenhuma cota configurada neste filtro
+            Nenhuma licitação com limites neste filtro
           </h2>
           <p className="mt-2 text-sm text-slate-500">
-            Cadastre a licitação, vincule seus fornecedores e distribua o valor
-            entre as secretarias. Fornecedores sem vínculo continuam sujeitos
-            aos controles globais já existentes.
+            Cadastre a licitação, vincule os fornecedores e defina o limite de
+            cada secretaria. Fornecedores fora de uma licitação não têm limite
+            por secretaria.
           </p>
         </SGFCard>
       )}
@@ -776,7 +661,6 @@ export default function DepartmentBudgets() {
       {history && (
         <BudgetHistory contract={history} onClose={() => setHistory(null)} />
       )}
-      </>}
     </div>
   );
 }
@@ -821,11 +705,11 @@ function ContractCard({
       </div>
       <div className="my-5 grid gap-4 sm:grid-cols-3">
         <div>
-          <p className="text-xs text-slate-500">Teto global no exercício</p>
+          <p className="text-xs text-slate-500">Teto total no exercício</p>
           <p className="text-xl font-bold">{money(c.total_limit)}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-500">Cotas exibidas</p>
+          <p className="text-xs text-slate-500">Distribuído às secretarias</p>
           <p className="text-xl font-bold">{money(allocated)}</p>
         </div>
         {canAudit && (
@@ -842,7 +726,8 @@ function ContractCard({
           <thead>
             <tr className="border-b text-xs text-slate-500">
               {[
-                "Secretaria / dotação",
+                "Secretaria",
+                "Consumo",
                 "Limite",
                 "Reservado",
                 "Realizado",
@@ -862,9 +747,9 @@ function ContractCard({
                 <tr key={a.department_id} className="border-b border-slate-100">
                   <td className="p-3">
                     <p className="font-semibold">{a.department_name}</p>
-                    <p className="text-xs text-slate-500">
-                      {a.appropriation} · Fonte {a.funding_source}
-                    </p>
+                  </td>
+                  <td className="p-3">
+                    <UsageBar percent={usagePercent(a)} />
                   </td>
                   <td className="p-3">{money(a.spending_limit)}</td>
                   <td className="p-3">{money(a.reserved)}</td>
@@ -902,5 +787,22 @@ function ContractCard({
         </div>
       )}
     </SGFCard>
+  );
+}
+
+/** Barra de consumo: verde até 80%, âmbar até 100%, vermelho acima. */
+function UsageBar({ percent }: { percent: number }) {
+  const value = Math.max(0, percent);
+  const tone =
+    value >= 100 ? "bg-[#DC2626]" : value >= 80 ? "bg-[#F59E0B]" : "bg-[var(--sgf-primary)]";
+  return (
+    <div className="min-w-[110px]">
+      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${tone}`} style={{ width: `${Math.min(100, value)}%` }} />
+      </div>
+      <p className={`mt-1 text-xs font-semibold ${value >= 100 ? "text-red-600" : value >= 80 ? "text-amber-600" : "text-slate-500"}`}>
+        {Math.round(value)}%{value >= 80 && value < 100 ? " · atenção" : ""}
+      </p>
+    </div>
   );
 }
