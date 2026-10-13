@@ -55,11 +55,14 @@ const fmtMm = (mm: number) => `${(Math.round(mm * 10) / 10).toLocaleString('pt-B
 
 /** Espaçamentos prontos: preenchem os ajustes finos, que continuam editáveis. */
 const SPACING_PRESETS = {
-    compact: { label: 'Compacto', spacing: 0.35, lineHeight: 1.1, align: 'grouped' as const, qrMargin: 0.02 },
-    normal: { label: 'Normal', spacing: 1, lineHeight: 1.25, align: 'spread' as const, qrMargin: 0.06 },
-    wide: { label: 'Arejado', spacing: 1.6, lineHeight: 1.4, align: 'spread' as const, qrMargin: 0.06 },
+    compact: { label: 'Compacto', spacing: 0.3, lineHeight: 1.1, align: 'grouped' as const, qrMargin: 0.02, side: 1.5 },
+    normal: { label: 'Normal', spacing: 1, lineHeight: 1.25, align: 'grouped' as const, qrMargin: 0.05, side: undefined },
+    wide: { label: 'Arejado', spacing: 1.8, lineHeight: 1.4, align: 'grouped' as const, qrMargin: 0.06, side: undefined },
 };
 type SpacingPreset = keyof typeof SPACING_PRESETS;
+
+/** Margem branca do QR preto (em módulos) equivalente à fração usada no QR original. */
+const quietModules = (ratio: number) => Math.max(1, Math.round(ratio * 60));
 
 const DEFAULT_PROMO_TEXT = 'Baixe o app do motorista:';
 const DEFAULT_APP_NAME = 'Exattus Rotta';
@@ -111,7 +114,7 @@ function LabelPreview({ layout, pxPerMm, plate, lines, look }: {
     const icon = layout.iconMm * pxPerMm;
     const line = (top: number | undefined, size: number, lh: number, className: string, text: string, key?: string) => (top === undefined ? null : (
         <p key={key} className={cn('absolute inset-x-0 truncate text-center', className)}
-            style={{ top: top * pxPerMm, fontSize: pt(size), lineHeight: lh, paddingInline: layout.padding * pxPerMm }}>
+            style={{ top: top * pxPerMm, fontSize: pt(size), lineHeight: lh, paddingInline: layout.sidePadding * pxPerMm }}>
             {text}
         </p>
     ));
@@ -134,7 +137,7 @@ function LabelPreview({ layout, pxPerMm, plate, lines, look }: {
             <div className="absolute" style={{ left: layout.qrLeft * pxPerMm, top: layout.qrTop * pxPerMm, width: layout.qr * pxPerMm, height: layout.qr * pxPerMm }}>
                 {look.qrStyle === 'styled'
                     ? <StyledQr value={rawPlate} size={Math.max(8, Math.round(layout.qr * pxPerMm))} marginRatio={look.qrMargin} />
-                    : <PlainQrPreview value={rawPlate} size={layout.qr * pxPerMm} quiet={look.qrMargin < 0.04 ? 2 : 4} />}
+                    : <PlainQrPreview value={rawPlate} size={layout.qr * pxPerMm} quiet={quietModules(look.qrMargin)} />}
             </div>
             {layout.showPlate && line(layout.plateTop, layout.fonts.plate, Math.max(1, layout.lineHeight * 0.9),
                 cn('font-bold', look.qrStyle === 'plain' ? 'text-black' : 'text-[#0F2B2F]'), plate)}
@@ -250,6 +253,7 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
     const [spacing, setSpacing] = useState(SPACING_PRESETS.normal.spacing);
     const [lineHeight, setLineHeight] = useState(SPACING_PRESETS.normal.lineHeight);
     const [align, setAlign] = useState<'spread' | 'grouped'>(SPACING_PRESETS.normal.align);
+    const [sidePadding, setSidePadding] = useState<number | undefined>(SPACING_PRESETS.normal.side);
     const [qrMargin, setQrMargin] = useState(SPACING_PRESETS.normal.qrMargin);
     const [border, setBorder] = useState(true);
     const [copies, setCopies] = useState('1');
@@ -322,9 +326,10 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
         showPlate,
         fonts: fontOverrides,
         spacing,
+        sidePaddingMm: sidePadding,
         lineHeight,
         align,
-        qrQuietModules: qrMargin < 0.04 ? 2 : 4,
+        qrQuietModules: quietModules(qrMargin),
         skip: sheet === 'label' ? 0 : Math.max(0, Math.floor(Number(skip) || 0)),
         title: 'Etiquetas QR — Frota',
     };
@@ -355,6 +360,7 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
         setLineHeight(presetValues.lineHeight);
         setAlign(presetValues.align);
         setQrMargin(presetValues.qrMargin);
+        setSidePadding(presetValues.side);
     };
     const tweak = <T,>(setter: (value: T) => void) => (value: T) => {
         setter(value);
@@ -608,7 +614,9 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                             <details className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" open={spacingPreset === 'custom'}>
                                 <summary className="cursor-pointer select-none text-xs font-semibold text-slate-500">Ajuste fino do espaçamento</summary>
                                 <div className="mt-3 space-y-3">
-                                    <Slider label="Espaço entre elementos" value={spacing} min={0} max={2.5} step={0.05} onChange={tweak(setSpacing)} format={(v) => `${Math.round(v * 100)}%`} />
+                                    <Slider label="Margens laterais" value={sidePadding ?? layout?.autoSidePadding ?? 3} min={0} max={Math.max(2, Math.round(labelW / 4))} step={0.5}
+                                        onChange={tweak((v: number) => setSidePadding(v))} format={(v) => `${v.toLocaleString('pt-BR')} mm${sidePadding === undefined ? ' (auto)' : ''}`} />
+                                    <Slider label="Espaço entre elementos" value={spacing} min={0} max={3} step={0.05} onChange={tweak(setSpacing)} format={(v) => `${Math.round(v * 100)}%`} />
                                     <Slider label="Entrelinha dos textos" value={lineHeight} min={0.9} max={1.8} step={0.05} onChange={tweak(setLineHeight)} format={(v) => v.toFixed(2).replace('.', ',')} />
                                     <Slider label="Margem branca do QR" value={qrMargin} min={0.01} max={0.1} step={0.01} onChange={tweak(setQrMargin)} format={(v) => `${Math.round(v * 100)}%`} />
                                     <SGFSelect label="Distribuição na etiqueta" fullWidth value={align} onChange={(value) => tweak(setAlign)(value === 'grouped' ? 'grouped' : 'spread')}

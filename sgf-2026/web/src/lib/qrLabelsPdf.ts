@@ -64,8 +64,10 @@ export interface QrLabelSheetOptions {
     promoText?: string;
     /** Tamanhos (pt) por elemento; o que faltar é calculado pela largura da etiqueta. */
     fonts?: Partial<QrLabelFonts>;
-    /** Multiplicador do espaçamento entre elementos e da margem interna (1 = normal). */
+    /** Multiplicador do espaço entre elementos e das margens de cima e de baixo (1 = normal). */
     spacing?: number;
+    /** Margens laterais (mm). Sem valor, sai da largura da etiqueta. */
+    sidePaddingMm?: number;
     /** Entrelinha dos textos (1 = justo; padrão 1,25). */
     lineHeight?: number;
     /** `spread` = cabeçalho no topo e rodapé embaixo; `grouped` = tudo junto no centro. */
@@ -128,6 +130,7 @@ export function qrLabelLayout(options: {
     appPromo?: boolean;
     showPlate?: boolean;
     spacing?: number;
+    sidePaddingMm?: number;
     lineHeight?: number;
     align?: 'spread' | 'grouped';
     lineCount: number;
@@ -142,7 +145,10 @@ export function qrLabelLayout(options: {
     };
     const spacing = clamp(options.spacing ?? 1, 0, 3);
     const lh = clamp(options.lineHeight ?? 1.25, 0.9, 2);
-    const padding = clamp(width * 0.06, 2, 5) * Math.max(0.4, spacing);
+    const autoPadding = clamp(width * 0.06, 2, 5);
+    // Laterais: valor escolhido ou automático; cima/baixo acompanham o espaçamento.
+    const sidePadding = options.sidePaddingMm !== undefined ? clamp(options.sidePaddingMm, 0, width / 3) : autoPadding;
+    const padding = autoPadding * Math.max(0.3, Math.min(spacing, 1.5));
     const gap = clamp(width * 0.025, 1, 2.5) * spacing;
     const inner = gap * 0.45;
     const textMm = (pt: number) => pt * lh * PT_MM;
@@ -161,7 +167,7 @@ export function qrLabelLayout(options: {
     const footerMm = blockHeight(footerParts);
     const gapsAroundQr = (headerMm > 0 ? gap : 0) + (footerMm > 0 ? gap : 0);
 
-    const freeWidth = width - padding * 2;
+    const freeWidth = width - sidePadding * 2;
     let height = options.labelHeightMm;
     let qr: number;
     if (height) {
@@ -193,6 +199,8 @@ export function qrLabelLayout(options: {
         width,
         height,
         padding,
+        sidePadding,
+        autoSidePadding: autoPadding,
         gap,
         qr,
         qrTop,
@@ -422,7 +430,7 @@ export async function buildQrLabelsPdf(options: QrLabelSheetOptions): Promise<Ui
     const header = options.header ? winAnsiSafe(bold, options.header.toUpperCase()) : '';
     const appName = winAnsiSafe(bold, options.appName || 'Exattus Rotta');
     const promoText = winAnsiSafe(regular, options.promoText ?? 'Baixe o app do motorista:');
-    const innerWidth = (L.width - L.padding * 2) * MM;
+    const innerWidth = (L.width - L.sidePadding * 2) * MM;
 
     const centered = (page: PDFPage, font: PDFFont, text: string, size: number, x: number, top: number, color: RGB) => {
         const value = fit(font, text, size, innerWidth);

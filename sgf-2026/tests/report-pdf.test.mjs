@@ -326,6 +326,15 @@ test("etiqueta compacta aproxima os elementos e respeita tamanhos escolhidos", a
   assert.ok(custom.qr < normal.qr, "placa maior toma espaço do QR");
 });
 
+test("margens laterais mudam o QR quando a largura é o limite", async () => {
+  const { qrLabelLayout } = await import("../web/src/lib/qrLabelsPdf.ts");
+  const base = { labelWidthMm: 60, labelHeightMm: 85, lineCount: 1, header: "X", appPromo: true, spacing: 0.2 };
+  const wide = qrLabelLayout({ ...base, sidePaddingMm: 8 });
+  const narrow = qrLabelLayout({ ...base, sidePaddingMm: 2 });
+  assert.equal(wide.qr, 60 - 16);
+  assert.ok(narrow.qr > wide.qr + 10);
+});
+
 test("etiquetas QR personalizadas: uma por página, título, linhas e pular posições", async () => {
   const items = [
     { data: "ABC1D23", plate: "ABC-1D23", lines: ["Fiat Strada", "Obras", "Prefixo 12"] },
