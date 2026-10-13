@@ -335,6 +335,19 @@ test("margens laterais mudam o QR quando a largura é o limite", async () => {
   assert.ok(narrow.qr > wide.qr + 10);
 });
 
+test("disposição na folha: espaços horizontal/vertical, margens e alinhamento", async () => {
+  const { qrLabelMetrics } = await import("../web/src/lib/qrLabelsPdf.ts");
+  const MM = 72 / 25.4;
+  const base = { labelWidthMm: 50, labelHeightMm: 70, sheet: "A4", lineCount: 1 };
+  const m = qrLabelMetrics({ ...base, gapXMm: 0, gapYMm: 10, sheetMarginTopMm: 5, sheetMarginSideMm: 5, gridAlign: "margin" });
+  assert.ok(Math.abs(m.slot(0).x - 5 * MM) < 0.01 && Math.abs(m.slot(0).top - 5 * MM) < 0.01, "começa na margem");
+  assert.ok(Math.abs(m.slot(1).x - m.slot(0).x - 50 * MM) < 0.01, "colunas coladas");
+  assert.ok(Math.abs(m.slot(m.columns).top - m.slot(0).top - 80 * MM) < 0.01, "10 mm entre linhas");
+  // Sem espaço e com margens pequenas cabem mais etiquetas por folha.
+  const loose = qrLabelMetrics({ ...base, gapXMm: 12, gapYMm: 12, sheetMarginTopMm: 15, sheetMarginSideMm: 15 });
+  assert.ok(m.perPage > loose.perPage, `${m.perPage} > ${loose.perPage}`);
+});
+
 test("etiquetas QR personalizadas: uma por página, título, linhas e pular posições", async () => {
   const items = [
     { data: "ABC1D23", plate: "ABC-1D23", lines: ["Fiat Strada", "Obras", "Prefixo 12"] },

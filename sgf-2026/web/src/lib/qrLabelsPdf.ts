@@ -74,6 +74,15 @@ export interface QrLabelSheetOptions {
     align?: 'spread' | 'grouped';
     /** Margem branca em volta do QR, em módulos (padrão 4; 2 = compacta). */
     qrQuietModules?: number;
+    /** Espaço entre colunas de etiquetas na folha (mm; padrão 4). */
+    gapXMm?: number;
+    /** Espaço entre linhas de etiquetas na folha (mm; padrão 4). */
+    gapYMm?: number;
+    /** Margem da folha em cima/embaixo e nas laterais (mm; padrão 8). */
+    sheetMarginTopMm?: number;
+    sheetMarginSideMm?: number;
+    /** `center` = grade centralizada na folha; `margin` = começa exatamente na margem (folhas pré-cortadas). */
+    gridAlign?: 'center' | 'margin';
     /** Posições a pular no início da 1ª folha (reaproveitar folha de etiquetas já usada). */
     skip?: number;
     title?: string;
@@ -221,21 +230,49 @@ export function qrLabelLayout(options: {
     };
 }
 
-/** Grade da folha (pt), compartilhada pelo PDF e pela contagem na tela. */
+export const DEFAULT_SHEET_GAP_MM = 4;
+export const DEFAULT_SHEET_MARGIN_MM = 8;
+
+/** Grade da folha (pt), compartilhada pelo PDF e pela prévia na tela. */
 export function qrLabelMetrics(options: Omit<QrLabelSheetOptions, 'items'> & { lineCount: number }) {
     const layout = qrLabelLayout(options);
     const labelWidth = layout.width * MM;
     const labelHeight = layout.height * MM;
     if (options.sheet === 'label') {
-        return { layout, labelWidth, labelHeight, columns: 1, rows: 1, perPage: 1, pageWidth: labelWidth, pageHeight: labelHeight, margin: 0, gap: 0, fitsSheet: layout.fits };
+        return {
+            layout, labelWidth, labelHeight, columns: 1, rows: 1, perPage: 1,
+            pageWidth: labelWidth, pageHeight: labelHeight, gapX: 0, gapY: 0, marginTop: 0, marginSide: 0,
+            fitsSheet: layout.fits,
+            slot: () => ({ x: 0, top: 0 }),
+        };
     }
     const sheet = SHEETS[options.sheet];
-    const margin = 8 * MM;
-    const gap = 4 * MM;
-    const fitsSheet = layout.fits && labelWidth <= sheet.width - margin * 2 && labelHeight <= sheet.height - margin * 2;
-    const columns = Math.max(1, Math.floor((sheet.width - margin * 2 + gap) / (labelWidth + gap)));
-    const rows = Math.max(1, Math.floor((sheet.height - margin * 2 + gap) / (labelHeight + gap)));
-    return { layout, labelWidth, labelHeight, columns, rows, perPage: columns * rows, pageWidth: sheet.width, pageHeight: sheet.height, margin, gap, fitsSheet };
+    const mm = (value: number | undefined, fallback: number, max: number) =>
+        clamp(Number.isFinite(value) ? (value as number) : fallback, 0, max) * MM;
+    const gapX = mm(options.gapXMm, DEFAULT_SHEET_GAP_MM, 60);
+    const gapY = mm(options.gapYMm, DEFAULT_SHEET_GAP_MM, 60);
+    const marginTop = mm(options.sheetMarginTopMm, DEFAULT_SHEET_MARGIN_MM, 60);
+    const marginSide = mm(options.sheetMarginSideMm, DEFAULT_SHEET_MARGIN_MM, 60);
+    const usableW = sheet.width - marginSide * 2;
+    const usableH = sheet.height - marginTop * 2;
+    const fitsSheet = layout.fits && labelWidth <= usableW + 0.01 && labelHeight <= usableH + 0.01;
+    const columns = Math.max(1, Math.floor((usableW + gapX + 0.01) / (labelWidth + gapX)));
+    const rows = Math.max(1, Math.floor((usableH + gapY + 0.01) / (labelHeight + gapY)));
+    const gridW = columns * labelWidth + (columns - 1) * gapX;
+    const gridH = rows * labelHeight + (rows - 1) * gapY;
+    const centered = options.gridAlign !== 'margin';
+    const originX = centered ? (sheet.width - gridW) / 2 : marginSide;
+    const originY = centered ? (sheet.height - gridH) / 2 : marginTop;
+    return {
+        layout, labelWidth, labelHeight, columns, rows, perPage: columns * rows,
+        pageWidth: sheet.width, pageHeight: sheet.height, gapX, gapY, marginTop, marginSide,
+        fitsSheet,
+        /** Canto superior esquerdo (pt, topo medido de cima) da posição `index` na folha. */
+        slot: (index: number) => ({
+            x: originX + (index % columns) * (labelWidth + gapX),
+            top: originY + Math.floor(index / columns) * (labelHeight + gapY),
+        }),
+    };
 }
 
 function mix(t: number): RGB {
@@ -422,8 +459,6 @@ export async function buildQrLabelsPdf(options: QrLabelSheetOptions): Promise<Ui
     const m = qrLabelMetrics({ ...options, lineCount });
     const L = m.layout;
     const skip = Math.max(0, Math.min(options.skip ?? 0, m.perPage - 1));
-    // Centraliza a grade na folha.
-    const offsetX = (m.pageWidth - (m.columns * m.labelWidth + (m.columns - 1) * m.gap)) / 2;
     const border = rgb(0xcb / 255, 0xd5 / 255, 0xe1 / 255);
     const muted = rgb(0x64 / 255, 0x74 / 255, 0x8b / 255);
     const ink = options.qrStyle === 'plain' ? rgb(0, 0, 0) : mix(0);
@@ -459,8 +494,7 @@ export async function buildQrLabelsPdf(options: QrLabelSheetOptions): Promise<Ui
         if (index % m.perPage === 0 || page === null) page = doc.addPage([m.pageWidth, m.pageHeight]);
         const current: PDFPage = page;
         const slot = index % m.perPage;
-        const x = offsetX + (slot % m.columns) * (m.labelWidth + m.gap);
-        const top = m.margin + Math.floor(slot / m.columns) * (m.labelHeight + m.gap);
+        const { x, top } = m.slot(slot);
         if (options.border !== false) {
             const inset = options.sheet === 'label' ? 0.5 : 0;
             current.drawSvgPath(roundedRect(inset, inset, m.labelWidth - inset * 2, m.labelHeight - inset * 2, 3 * MM), {

@@ -257,6 +257,13 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
     const [qrMargin, setQrMargin] = useState(SPACING_PRESETS.normal.qrMargin);
     const [border, setBorder] = useState(true);
     const [copies, setCopies] = useState('1');
+    // Disposição na folha (mm).
+    const [gapX, setGapX] = useState(4);
+    const [gapY, setGapY] = useState(4);
+    const [linkGaps, setLinkGaps] = useState(true);
+    const [marginTop, setMarginTop] = useState(8);
+    const [marginSide, setMarginSide] = useState(8);
+    const [gridAlign, setGridAlign] = useState<'center' | 'margin'>('center');
     const [skip, setSkip] = useState('0');
     const [busy, setBusy] = useState<'pdf' | 'print' | null>(null);
     const [progress, setProgress] = useState('');
@@ -331,6 +338,11 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
         align,
         qrQuietModules: quietModules(qrMargin),
         skip: sheet === 'label' ? 0 : Math.max(0, Math.floor(Number(skip) || 0)),
+        gapXMm: gapX,
+        gapYMm: gapY,
+        sheetMarginTopMm: marginTop,
+        sheetMarginSideMm: marginSide,
+        gridAlign,
         title: 'Etiquetas QR — Frota',
     };
     const metrics = pdfLib?.qrLabelMetrics({ ...baseOptions, lineCount });
@@ -581,6 +593,41 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                                     </div>
                                 )}
                             </div>
+                            {sheet !== 'label' && (
+                                <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-sm font-semibold text-slate-800">Disposição na folha</span>
+                                        {metrics && <span className="text-xs font-semibold text-slate-500">{metrics.columns} col. × {metrics.rows} lin.</span>}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-1 rounded-lg border border-slate-200 p-1 text-xs font-semibold" role="radiogroup" aria-label="Posição da grade">
+                                        {([['center', 'Centralizada'], ['margin', 'A partir da margem']] as const).map(([value, label]) => (
+                                            <button key={value} type="button" role="radio" aria-checked={gridAlign === value} onClick={() => setGridAlign(value)}
+                                                className={cn('rounded-md px-2 py-1.5', gridAlign === value ? 'bg-[var(--sgf-dark)] text-white' : 'text-slate-500 hover:bg-slate-50')}>
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <Slider label="Espaço horizontal (entre colunas)" value={gapX} min={0} max={20} step={0.5}
+                                        onChange={(v) => { setGapX(v); if (linkGaps) setGapY(v); }} format={(v) => `${v.toLocaleString('pt-BR')} mm`} />
+                                    <Slider label="Espaço vertical (entre linhas)" value={gapY} min={0} max={20} step={0.5}
+                                        onChange={(v) => { setGapY(v); if (linkGaps) setGapX(v); }} format={(v) => `${v.toLocaleString('pt-BR')} mm`} />
+                                    <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                                        <input type="checkbox" checked={linkGaps} onChange={(e) => { setLinkGaps(e.target.checked); if (e.target.checked) setGapY(gapX); }} className="h-3.5 w-3.5 accent-[var(--sgf-primary)]" />
+                                        Mesmo espaço nos dois sentidos
+                                    </label>
+                                    <Slider label="Margem da folha — topo e base" value={marginTop} min={0} max={30} step={0.5}
+                                        onChange={setMarginTop} format={(v) => `${v.toLocaleString('pt-BR')} mm`} />
+                                    <Slider label="Margem da folha — laterais" value={marginSide} min={0} max={30} step={0.5}
+                                        onChange={setMarginSide} format={(v) => `${v.toLocaleString('pt-BR')} mm`} />
+                                    <div className="flex flex-wrap gap-2 text-xs">
+                                        <button type="button" onClick={() => { setGapX(0); setGapY(0); }} className="rounded-lg border border-slate-200 px-2 py-1 font-semibold text-slate-600 hover:bg-slate-50">Etiquetas coladas</button>
+                                        <button type="button" onClick={() => { setGapX(4); setGapY(4); setMarginTop(8); setMarginSide(8); setGridAlign('center'); setLinkGaps(true); }} className="rounded-lg border border-slate-200 px-2 py-1 font-semibold text-slate-600 hover:bg-slate-50">Restaurar padrão</button>
+                                    </div>
+                                    {gridAlign === 'center' && (
+                                        <p className="text-[11px] text-slate-400">Centralizada: a grade fica no meio da folha e as margens só limitam até onde ela vai. Para folhas de etiquetas já recortadas, use "A partir da margem" com as medidas da embalagem.</p>
+                                    )}
+                                </div>
+                            )}
                             {layout && (
                                 <p className="text-xs text-slate-500">
                                     Etiqueta {fmtMm(layout.width)} × {fmtMm(layout.height)} · QR de {fmtMm(Math.max(0, layout.qr))}.
@@ -687,9 +734,9 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                                 <div className="relative bg-white shadow-md" style={{ width: pageWmm * sheetPxPerMm, height: pageHmm * sheetPxPerMm }} aria-label="Prévia da 1ª folha">
                                     {metrics.fitsSheet && firstPage.map((vehicle, slot) => {
                                         const ptToPx = PT_TO_MM * sheetPxPerMm;
-                                        const offsetX = (metrics.pageWidth - (metrics.columns * metrics.labelWidth + (metrics.columns - 1) * metrics.gap)) / 2;
-                                        const left = (offsetX + (slot % metrics.columns) * (metrics.labelWidth + metrics.gap)) * ptToPx;
-                                        const top = (metrics.margin + Math.floor(slot / metrics.columns) * (metrics.labelHeight + metrics.gap)) * ptToPx;
+                                        const position = metrics.slot(slot);
+                                        const left = position.x * ptToPx;
+                                        const top = position.top * ptToPx;
                                         return (
                                             <div key={slot} className="absolute" style={{ left, top }}>
                                                 {vehicle ? (
