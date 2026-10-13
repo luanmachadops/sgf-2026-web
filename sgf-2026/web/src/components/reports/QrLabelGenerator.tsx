@@ -10,9 +10,8 @@ import { Toggle } from '@/components/settings/SettingsToggle';
 import { Download, Loader2, Printer, Search } from '@/components/sgf/icons';
 import { vehiclesApi, departmentsApi } from '@/lib/supabase-api';
 import { downloadBlob, openPendingPdfTab, showPdfInTab } from '@/lib/reports/reportPdfBrowser';
-import type { QrLabelFonts, QrLabelImage, QrLabelItem, QrLabelSheet, QrLabelSheetOptions } from '@/lib/qrLabelsPdf';
+import type { QrLabelFonts, QrLabelItem, QrLabelSheet, QrLabelSheetOptions } from '@/lib/qrLabelsPdf';
 import { APPLE_ICON, APP_LOGO_ICON, GOOGLE_PLAY_ICON, type LabelIcon } from '@/lib/labelIcons';
-import { createVehicleQr } from '@/lib/vehicleQr';
 import { useBranding } from '@/contexts/BrandingContext';
 import { cn, formatPlate, matchesSearch } from '@/lib/utils';
 
@@ -77,14 +76,6 @@ interface LabelLook {
     border: boolean;
     /** Margem branca do QR em fração do lado. */
     qrMargin: number;
-}
-
-/** PNG do QR no design original (qr-code-styling), em ~300 dpi para o tamanho impresso. */
-async function renderQrPng(plate: string, qrMm: number, marginRatio: number): Promise<QrLabelImage | null> {
-    const px = Math.round(Math.min(2000, Math.max(600, (qrMm / 25.4) * 300)));
-    const blob = await createVehicleQr(plate, px, 'canvas', marginRatio).getRawData('png');
-    if (!blob || !(blob instanceof Blob)) return null;
-    return { bytes: new Uint8Array(await blob.arrayBuffer()), type: 'png' };
 }
 
 function IconSvg({ icon, size }: { icon: LabelIcon; size: number }) {
@@ -337,6 +328,7 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
         lineHeight,
         align,
         qrQuietModules: quietModules(qrMargin),
+        qrMarginRatio: qrMargin,
         skip: sheet === 'label' ? 0 : Math.max(0, Math.floor(Number(skip) || 0)),
         gapXMm: gapX,
         gapYMm: gapY,
@@ -414,21 +406,8 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                 plate: formatPlate(v.plate as string),
                 lines: linesFor(v),
             })));
-            const qrImages: Record<string, QrLabelImage> = {};
-            if (qrStyle === 'styled') {
-                const plates = [...new Set(selected.map((v) => v.plate as string))];
-                for (let i = 0; i < plates.length; i += 8) {
-                    setProgress(`Desenhando QR ${Math.min(i + 8, plates.length)} de ${plates.length}…`);
-                    const batch = plates.slice(i, i + 8);
-                    const images = await Promise.all(batch.map((plate) => renderQrPng(plate, layout.qr, qrMargin)));
-                    batch.forEach((plate, index) => {
-                        const image = images[index];
-                        if (image) qrImages[plate] = image;
-                    });
-                }
-            }
             setProgress('Montando o PDF…');
-            const bytes = await pdfLib.buildQrLabelsPdf({ ...baseOptions, items, qrImages });
+            const bytes = await pdfLib.buildQrLabelsPdf({ ...baseOptions, items });
             const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
             const fileName = `etiquetas-qr-${new Date().toISOString().slice(0, 10)}.pdf`;
             if (mode === 'pdf') {

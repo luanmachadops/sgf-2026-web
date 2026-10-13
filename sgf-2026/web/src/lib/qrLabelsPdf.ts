@@ -6,14 +6,12 @@
 // `qrcode-generator` com correção de erro H, a mesma usada pelo qr-code-styling.
 
 import qrcode from 'qrcode-generator';
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage, type RGB } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
 import { APPLE_ICON, APP_LOGO_ICON, GOOGLE_PLAY_ICON, type LabelIcon } from './labelIcons';
 
 const MM = 72 / 25.4;
 const DARK = [0x0f, 0x2b, 0x2f] as const;
 const GREEN = [0x00, 0xa8, 0x6b] as const;
-/** Faixas de cor do degradê: cada uma vira um único caminho no PDF. */
-const GRADIENT_STEPS = 10;
 
 export interface QrLabelItem {
     /** Conteúdo do QR: a placa como cadastrada (o app do motorista lê por ela). */
@@ -29,12 +27,6 @@ export interface QrLabelItem {
 /** Papel da impressão. `label` = uma etiqueta por página, do tamanho da etiqueta (impressora de etiquetas). */
 export type QrLabelSheet = 'A4' | 'letter' | 'A5' | 'label';
 
-/** Imagem do QR já renderizada (design original do qr-code-styling), por conteúdo. */
-export interface QrLabelImage {
-    bytes: Uint8Array;
-    type: 'png';
-}
-
 export interface QrLabelSheetOptions {
     items: QrLabelItem[];
     /** Largura da etiqueta (mm). */
@@ -48,8 +40,8 @@ export interface QrLabelSheetOptions {
     sheet: QrLabelSheet;
     /** `styled` = design da marca; `plain` = escuro sólido (impressora P&B). */
     qrStyle?: 'styled' | 'plain';
-    /** QR no design original, renderizado pelo navegador; sem ele, o estilizado sai em vetor. */
-    qrImages?: Record<string, QrLabelImage>;
+    /** Margem branca do QR colorido, em fração do lado (padrão 0,06, como no app). */
+    qrMarginRatio?: number;
     /** Contorno de corte em volta de cada etiqueta (padrão: sim). */
     border?: boolean;
     /** Nome da prefeitura no topo da etiqueta. */
@@ -303,61 +295,96 @@ export function qrMatrix(data: string, errorCorrection: 'L' | 'M' | 'Q' | 'H' = 
     return Array.from({ length: count }, (_, row) => Array.from({ length: count }, (_, col) => qr.isDark(row, col)));
 }
 
+/** Faixas de cor do degradê no QR vetorial (cada uma vira um caminho no PDF). */
+const STYLED_GRADIENT_STEPS = 48;
+
 /**
- * Desenha o QR em vetor. `x`/`top` = canto superior esquerdo na folha (pt,
- * top medido a partir do topo da página).
+ * Formas do `qr-code-styling` (tipo `rounded`), em coordenadas de uma célula
+ * 0..1. Rotação no sentido horário, como o `rotate()` do SVG que a lib usa.
  */
-export function drawVectorQr(page: PDFPage, data: string, x: number, top: number, size: number): void {
+type Pt = [number, number];
+function rotateCell(points: Pt[], quarterTurns: number): Pt[] {
+    const turns = ((quarterTurns % 4) + 4) % 4;
+    return points.map(([px, py]) => {
+        let [rx, ry] = [px - 0.5, py - 0.5];
+        for (let i = 0; i < turns; i += 1) [rx, ry] = [-ry, rx];
+        return [rx + 0.5, ry + 0.5];
+    });
+}
+
+/**
+ * Caminho de um módulo, igual ao `_drawRounded` do qr-code-styling:
+ * isolado = círculo; 3+ vizinhos ou vizinhos opostos = quadrado; 2 vizinhos =
+ * canto arredondado do lado oposto; 1 vizinho = lado arredondado oposto.
+ */
+function roundedModulePath(x: number, y: number, size: number, n: { l: boolean; r: boolean; t: boolean; b: boolean }): string {
+    const f = (v: number) => v.toFixed(3);
+    const at = ([px, py]: Pt) => `${f(x + px * size)} ${f(y + py * size)}`;
+    const half = f(size / 2);
+    const count = +n.l + +n.r + +n.t + +n.b;
+    if (count === 0) return circle(x + size / 2, y + size / 2, size / 2);
+    if (count > 2 || (n.l && n.r) || (n.t && n.b)) // Mesmo sentido (anti-horário na tela) das outras formas: na regra nonzero do PDF,
+        // sobreposições com sentidos opostos se anulariam e virariam frestas brancas.
+        return `M${at([0, 0])}L${at([0, 1])}L${at([1, 1])}L${at([1, 0])}Z`;
+    if (count === 2) {
+        // Base (rotação 0): vizinhos embaixo e à esquerda, canto superior direito arredondado.
+        const turns = n.l && n.t ? 1 : n.t && n.r ? 2 : n.r && n.b ? 3 : 0;
+        const [p0, p1, p2, p3, p4] = rotateCell([[0, 0], [0, 1], [1, 1], [1, 0.5], [0.5, 0]], turns);
+        return `M${at(p0)}L${at(p1)}L${at(p2)}L${at(p3)}A${half} ${half} 0 0 0 ${at(p4)}Z`;
+    }
+    // Um vizinho. Base: vizinho à esquerda, lado direito arredondado.
+    const turns = n.t ? 1 : n.r ? 2 : n.b ? 3 : 0;
+    const [p0, p1, p2, p3] = rotateCell([[0, 0], [0, 1], [0.5, 1], [0.5, 0]], turns);
+    return `M${at(p0)}L${at(p1)}L${at(p2)}A${half} ${half} 0 0 0 ${at(p3)}Z`;
+}
+
+/**
+ * QR no design do app (o mesmo do qr-code-styling em `vehicleQr.ts`), 100%
+ * vetorial: pontos arredondados conforme os vizinhos, degradê linear a 45°
+ * do verde-escuro ao verde, olhos "extra-rounded" escuros com centro verde.
+ * `x`/`top` = canto superior esquerdo na folha (pt, top medido do topo).
+ */
+export function drawVectorQr(page: PDFPage, data: string, x: number, top: number, size: number, marginRatio = 0.06): void {
     const matrix = qrMatrix(data);
     const count = matrix.length;
-    const quiet = 1;
-    const cell = size / (count + quiet * 2);
-    const origin = quiet * cell;
+    const margin = size * Math.max(0, Math.min(0.2, marginRatio));
+    const cell = (size - margin * 2) / count;
+    const y = page.getHeight() - top;
+    page.drawRectangle({ x, y: y - size, width: size, height: size, color: rgb(1, 1, 1) });
+
     const inFinder = (row: number, col: number) =>
         (row < 7 && col < 7) || (row < 7 && col >= count - 7) || (row >= count - 7 && col < 7);
+    const dark = (row: number, col: number) =>
+        row >= 0 && col >= 0 && row < count && col < count && matrix[row][col] && !inFinder(row, col);
 
-    // Módulos comuns: corridas horizontais arredondadas, agrupadas por faixa de cor.
-    const buckets: string[][] = Array.from({ length: GRADIENT_STEPS }, () => []);
+    const buckets: string[][] = Array.from({ length: STYLED_GRADIENT_STEPS }, () => []);
     for (let row = 0; row < count; row += 1) {
-        let col = 0;
-        while (col < count) {
-            if (!matrix[row][col] || inFinder(row, col)) {
-                col += 1;
-                continue;
-            }
-            let end = col;
-            while (end + 1 < count && matrix[row][end + 1] && !inFinder(row, end + 1)) end += 1;
-            const runX = origin + col * cell;
-            const runY = origin + row * cell;
-            // Leve sobreposição vertical evita frestas brancas entre linhas na impressão.
-            const path = roundedRect(runX, runY - 0.02 * cell, (end - col + 1) * cell, cell * 1.04, cell * 0.45);
-            const t = ((col + end) / 2 + row) / (2 * (count - 1));
-            buckets[Math.min(GRADIENT_STEPS - 1, Math.floor(t * GRADIENT_STEPS))].push(path);
-            col = end + 1;
+        for (let col = 0; col < count; col += 1) {
+            if (!dark(row, col)) continue;
+            const mx = margin + col * cell;
+            const my = margin + row * cell;
+            // Leve sobreposição (3%) evita frestas claras entre módulos vizinhos na impressão.
+            const bleed = cell * 0.03;
+            const path = roundedModulePath(mx - bleed, my - bleed, cell + bleed * 2, {
+                l: dark(row, col - 1), r: dark(row, col + 1), t: dark(row - 1, col), b: dark(row + 1, col),
+            });
+            // Degradê linear a 45°: do canto superior esquerdo ao inferior direito.
+            const t = (mx + my + cell) / (2 * size);
+            buckets[Math.min(STYLED_GRADIENT_STEPS - 1, Math.max(0, Math.floor(t * STYLED_GRADIENT_STEPS)))].push(path);
         }
     }
-    const y = page.getHeight() - top;
     buckets.forEach((paths, index) => {
-        if (paths.length) page.drawSvgPath(paths.join(''), { x, y, color: mix((index + 0.5) / GRADIENT_STEPS) });
+        if (paths.length) page.drawSvgPath(paths.join(''), { x, y, color: mix((index + 0.5) / STYLED_GRADIENT_STEPS) });
     });
 
-    // Olhos: anel 7×7 de cantos arredondados (escuro) + ponto central (verde).
+    // Olhos: quadrado 7×7 de raio 2,5 com furo 5×5 de raio 1,5 (escuro) e ponto central de 3 módulos (verde).
+    const white = rgb(1, 1, 1);
     for (const [row, col] of [[0, 0], [0, count - 7], [count - 7, 0]] as const) {
-        const ex = origin + col * cell;
-        const ey = origin + row * cell;
-        const outer = roundedRect(ex, ey, 7 * cell, 7 * cell, 2.2 * cell);
-        // Furo do anel desenhado no sentido inverso (regra even-odd não é garantida).
-        const innerX = ex + cell;
-        const innerY = ey + cell;
-        const s = 5 * cell;
-        const r = 1.5 * cell;
-        const f = (n: number) => n.toFixed(3);
-        const hole = `M${f(innerX + r)} ${f(innerY)}A${f(r)} ${f(r)} 0 0 0 ${f(innerX)} ${f(innerY + r)}`
-            + `V${f(innerY + s - r)}A${f(r)} ${f(r)} 0 0 0 ${f(innerX + r)} ${f(innerY + s)}`
-            + `H${f(innerX + s - r)}A${f(r)} ${f(r)} 0 0 0 ${f(innerX + s)} ${f(innerY + s - r)}`
-            + `V${f(innerY + r)}A${f(r)} ${f(r)} 0 0 0 ${f(innerX + s - r)} ${f(innerY)}Z`;
-        page.drawSvgPath(outer + hole, { x, y, color: mix(0) });
-        page.drawSvgPath(circle(ex + 3.5 * cell, ey + 3.5 * cell, 1.6 * cell), { x, y, color: mix(1) });
+        const ex = margin + col * cell;
+        const ey = margin + row * cell;
+        page.drawSvgPath(roundedRect(ex, ey, 7 * cell, 7 * cell, 2.5 * cell), { x, y, color: mix(0) });
+        page.drawSvgPath(roundedRect(ex + cell, ey + cell, 5 * cell, 5 * cell, 1.5 * cell), { x, y, color: white });
+        page.drawSvgPath(circle(ex + 3.5 * cell, ey + 3.5 * cell, 1.5 * cell), { x, y, color: rgb(GREEN[0] / 255, GREEN[1] / 255, GREEN[2] / 255) });
     }
 }
 
@@ -479,14 +506,6 @@ export async function buildQrLabelsPdf(options: QrLabelSheetOptions): Promise<Ui
         });
     };
 
-    // Imagens do QR (design original) embutidas uma vez por placa.
-    const embedded = new Map<string, PDFImage>();
-    const qrImage = async (data: string) => {
-        if (options.qrStyle === 'plain' || !options.qrImages?.[data]) return null;
-        if (!embedded.has(data)) embedded.set(data, await doc.embedPng(options.qrImages[data].bytes));
-        return embedded.get(data) ?? null;
-    };
-
     let page: PDFPage | null = null;
     for (let itemIndex = 0; itemIndex < options.items.length; itemIndex += 1) {
         const item = options.items[itemIndex];
@@ -537,13 +556,10 @@ export async function buildQrLabelsPdf(options: QrLabelSheetOptions): Promise<Ui
         const qrTop = top + L.qrTop * MM;
         const qrSize = L.qr * MM;
         const data = item.data.toUpperCase();
-        const image = await qrImage(item.data);
-        if (image) {
-            current.drawImage(image, { x: qrX, y: current.getHeight() - qrTop - qrSize, width: qrSize, height: qrSize });
-        } else if (options.qrStyle === 'plain') {
+        if (options.qrStyle === 'plain') {
             drawPlainVectorQr(current, data, qrX, qrTop, qrSize, 'H', rgb(0, 0, 0), options.qrQuietModules ?? 4);
         } else {
-            drawVectorQr(current, data, qrX, qrTop, qrSize);
+            drawVectorQr(current, data, qrX, qrTop, qrSize, options.qrMarginRatio ?? 0.06);
         }
 
         if (L.showPlate && L.plateTop !== undefined) {
