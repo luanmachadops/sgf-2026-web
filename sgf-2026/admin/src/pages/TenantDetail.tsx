@@ -147,7 +147,7 @@ export default function TenantDetail() {
                 <Input label="Endereço no sistema (slug)" value={t.slug} onChange={(e) => set({ slug: e.target.value })} />
                 <Input label="Nome no app" value={t.app_name ?? ''} onChange={(e) => set({ app_name: e.target.value })} />
                 <Input label="Texto acima do login" value={t.login_eyebrow ?? ''} onChange={(e) => set({ login_eyebrow: e.target.value })} />
-                <Input label="Rodapé dos relatórios" value={t.report_footer ?? ''} onChange={(e) => set({ report_footer: e.target.value })} />
+                <Input label="Rodapé dos relatórios" name="report-footer" autoComplete="off" placeholder="Em branco = Exattus Rotta — exattusrotta.com.br" value={t.report_footer ?? ''} onChange={(e) => set({ report_footer: e.target.value })} />
               </div>
 
               <p className="mb-3 mt-6 text-[13px] font-medium text-[var(--rt-ink500)]">Cores da prefeitura</p>

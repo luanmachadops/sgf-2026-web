@@ -20,6 +20,7 @@ import {
 } from 'pdf-lib';
 import {
     computeTotals,
+    defaultReportFooter,
     filtersSummary,
     formatPrintValue,
     formatReportValue,
@@ -902,7 +903,7 @@ export async function buildReportPdf(options: BuildReportPdfOptions): Promise<Ui
     const institution = (branding?.name || 'PREFEITURA MUNICIPAL').toUpperCase();
     const softwareName = branding?.appName || 'Exattus Rotta';
     const footerText = branding?.reportFooter
-        || `${softwareName} — Sistema de gestão pública de frotas, rastreamento, abastecimentos e manutenções por protocolo digital.`;
+        || defaultReportFooter(softwareName);
     const issuedAt = options.issuedAt ?? new Date();
     const issued = generatedAt(issuedAt);
 

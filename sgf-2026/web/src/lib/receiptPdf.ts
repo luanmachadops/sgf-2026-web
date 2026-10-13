@@ -3,7 +3,7 @@
 // institucional, seções de campos e fotos reduzidas ao tamanho impresso.
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
-import { generatedAt, institutionLines, safeHex } from './reports/format';
+import { defaultReportFooter, generatedAt, institutionLines, safeHex } from './reports/format';
 import type { ReportBranding } from './reports/types';
 import type { ReportLogo } from './reports/pdf';
 
@@ -205,7 +205,7 @@ export async function buildReceiptPdf(options: ReceiptPdfOptions): Promise<Uint8
 
     // Rodapé
     const pages = doc.getPages();
-    const footer = options.branding?.reportFooter || `${options.branding?.appName || 'Exattus Rotta'} — Gestão pública de frotas por protocolo digital`;
+    const footer = options.branding?.reportFooter || defaultReportFooter(options.branding?.appName);
     pages.forEach((current, index) => {
         const top = PAGE.height - MARGIN - 10;
         current.drawLine({ start: { x: MARGIN, y: PAGE.height - top }, end: { x: PAGE.width - MARGIN, y: PAGE.height - top }, thickness: 0.5, color: rule });

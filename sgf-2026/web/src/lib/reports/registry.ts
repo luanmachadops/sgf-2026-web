@@ -3,13 +3,9 @@
 // resolve o id para a consulta.
 
 export type ReportSubject =
-    | 'frota'
-    | 'uso'
-    | 'custos'
-    | 'combustivel'
+    | 'veiculos'
     | 'manutencao'
-    | 'pessoas'
-    | 'controle'
+    | 'abastecimento'
     | 'fiscal';
 
 export type ReportIconKey =
@@ -49,14 +45,10 @@ export interface ReportDefinition {
 }
 
 export const REPORT_SUBJECTS: { id: ReportSubject; label: string }[] = [
-    { id: 'frota', label: 'Frota' },
-    { id: 'uso', label: 'Uso e viagens' },
-    { id: 'custos', label: 'Custos' },
-    { id: 'combustivel', label: 'Combustível' },
-    { id: 'manutencao', label: 'Manutenção' },
-    { id: 'pessoas', label: 'Motoristas e infrações' },
-    { id: 'controle', label: 'Controle interno' },
-    { id: 'fiscal', label: 'Fiscal e licitações' },
+    { id: 'veiculos', label: 'Veículos' },
+    { id: 'manutencao', label: 'Manutenções' },
+    { id: 'abastecimento', label: 'Abastecimento' },
+    { id: 'fiscal', label: 'Fiscal' },
 ];
 
 export const REPORTS: ReportDefinition[] = [
@@ -65,7 +57,7 @@ export const REPORTS: ReportDefinition[] = [
         title: 'Cadastro da Frota',
         description: 'Veículos com placa, modelo, ano, secretaria, odômetro, seguro e situação atual.',
         question: 'Quais veículos a prefeitura tem, onde estão e em que situação?',
-        subject: 'frota',
+        subject: 'veiculos',
         icon: 'car',
         contextKey: 'status',
         snapshot: true,
@@ -75,7 +67,7 @@ export const REPORTS: ReportDefinition[] = [
         title: 'Boletim de Tráfego',
         description: 'Controle de uso: saída, chegada, km inicial e final, motorista, destino e finalidade de cada viagem.',
         question: 'Quem usou cada veículo, quando, para onde e para quê?',
-        subject: 'uso',
+        subject: 'veiculos',
         icon: 'route',
         contextKey: 'plate',
         groupBy: 'plate',
@@ -88,7 +80,7 @@ export const REPORTS: ReportDefinition[] = [
         title: 'Custo por Veículo',
         description: 'Combustível, manutenção e multas por veículo, com km rodados, custo por km e veículos ociosos.',
         question: 'Quanto cada veículo custa por km e quais ficaram parados?',
-        subject: 'custos',
+        subject: 'veiculos',
         icon: 'cost',
         contextKey: 'usage',
     },
@@ -97,7 +89,7 @@ export const REPORTS: ReportDefinition[] = [
         title: 'Consolidado por Secretaria',
         description: 'Veículos, viagens, km, combustível, manutenção, multas e custo por km de cada secretaria.',
         question: 'Quanto cada secretaria usa e gasta com a frota?',
-        subject: 'custos',
+        subject: 'veiculos',
         icon: 'pie',
         contextKey: 'department',
         signatures: true,
@@ -107,7 +99,7 @@ export const REPORTS: ReportDefinition[] = [
         title: 'Consumo de Combustível',
         description: 'Abastecimentos efetivos com litros, valores, consumo médio e posto.',
         question: 'Quanto combustível foi consumido, por quem e a que custo?',
-        subject: 'combustivel',
+        subject: 'abastecimento',
         icon: 'fuel',
         contextKey: 'station',
         driverFilter: true,
@@ -118,7 +110,7 @@ export const REPORTS: ReportDefinition[] = [
         title: 'Abastecimentos com Anomalia',
         description: 'Registros sinalizados, litros acima do tanque e consumo fora do habitual do veículo.',
         question: 'Onde pode haver erro ou desvio de combustível?',
-        subject: 'controle',
+        subject: 'abastecimento',
         icon: 'alert',
         contextKey: 'reasons',
     },
@@ -145,7 +137,7 @@ export const REPORTS: ReportDefinition[] = [
         title: 'Motoristas: Atividade e Habilitação',
         description: 'Viagens, km, infrações e pontos por motorista, com categoria e validade da CNH.',
         question: 'Quem está dirigindo, quanto, e com CNH em dia?',
-        subject: 'pessoas',
+        subject: 'veiculos',
         icon: 'users',
         contextKey: 'cnhStatus',
         driverFilter: true,
@@ -155,7 +147,7 @@ export const REPORTS: ReportDefinition[] = [
         title: 'Infrações de Trânsito',
         description: 'Multas com AIT, condutor indicado, valores, prazo de indicação e situação.',
         question: 'Quais multas a frota recebeu e quais prazos estão correndo?',
-        subject: 'pessoas',
+        subject: 'veiculos',
         icon: 'receipt',
         contextKey: 'status',
         driverFilter: true,
@@ -165,7 +157,7 @@ export const REPORTS: ReportDefinition[] = [
         title: 'Vencimentos',
         description: 'CNH, seguro, documentos de veículos e contratos vencidos ou vencendo em 90 dias.',
         question: 'O que vence nos próximos 30, 60 ou 90 dias?',
-        subject: 'controle',
+        subject: 'veiculos',
         icon: 'calendar',
         contextKey: 'kind',
         snapshot: true,
@@ -175,7 +167,7 @@ export const REPORTS: ReportDefinition[] = [
         title: 'Fechamento por Posto',
         description: 'Volumes, valores validados, pendências e rejeições agrupados por fornecedor.',
         question: 'Quanto cada posto forneceu e quanto resta do contrato?',
-        subject: 'fiscal',
+        subject: 'abastecimento',
         icon: 'fuel',
         contextKey: 'station',
         driverFilter: true,
@@ -195,7 +187,7 @@ export const REPORTS: ReportDefinition[] = [
         title: 'Manutenções por Oficina',
         description: 'Ordens, orçamento aprovado, custo final e processos em aberto por oficina.',
         question: 'Quanto cada oficina executou e quanto resta do contrato?',
-        subject: 'fiscal',
+        subject: 'manutencao',
         icon: 'wrench',
         contextKey: 'shop',
     },

@@ -37,7 +37,7 @@ import {
 } from '@/components/sgf/icons';
 import { fetchDepartmentOptions, fetchDriverOptions, fetchReportDataset, fetchVehicleOptions } from '@/lib/reportData';
 import { exportReportToCsv, exportReportToExcel } from '@/lib/reportExport';
-import { institutionLines } from '@/lib/reports/format';
+import { defaultReportFooter, institutionLines } from '@/lib/reports/format';
 import {
     DEFAULT_PRINT_FONT_PT,
     MAX_PRINT_FONT_PT,
@@ -82,6 +82,12 @@ import { canAccessModule } from '@/lib/accessModules';
 import { toast } from 'sonner';
 import { LegacyReconciliationDialog, type LegacyReportRow } from './LegacyReconciliationDialog';
 import { ReportTable } from './ReportTable';
+
+// Padrões fixos: um array novo a cada render mudaria `filters`/`exportOptions`
+// e faria a prévia em folha A4 regerar o PDF sem parar.
+const ALL_DEPARTMENTS = [{ value: '', label: 'Todas as secretarias' }];
+const ALL_DRIVERS = [{ value: '', label: 'Todos os condutores' }];
+const ALL_VEHICLES = [{ value: '', label: 'Todos os veículos' }];
 
 const EMPTY_DATASET: ReportDataset = { columns: [], rows: [], kpis: [], charts: [] };
 const CHART_COLORS = ['#00A86B', '#0F2B2F', '#70C4A8', '#3B82F6', '#F59E0B', '#8B5CF6', '#DC2626', '#64748B'];
@@ -229,18 +235,18 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
         enabled: isOpen,
     });
 
-    const { data: departmentOptions = [{ value: '', label: 'Todas as secretarias' }] } = useQuery({
+    const { data: departmentOptions = ALL_DEPARTMENTS } = useQuery({
         queryKey: ['report-departments'],
         queryFn: fetchDepartmentOptions,
         staleTime: 5 * 60 * 1000,
     });
-    const { data: driverOptions = [{ value: '', label: 'Todos os condutores' }] } = useQuery({
+    const { data: driverOptions = ALL_DRIVERS } = useQuery({
         queryKey: ['report-drivers'],
         queryFn: fetchDriverOptions,
         enabled: isOpen && supportsDriverFilter,
         staleTime: 5 * 60 * 1000,
     });
-    const { data: vehicleOptions = [{ value: '', label: 'Todos os veículos' }] } = useQuery({
+    const { data: vehicleOptions = ALL_VEHICLES } = useQuery({
         queryKey: ['report-vehicles', department],
         queryFn: () => fetchVehicleOptions(department || undefined),
         enabled: isOpen && supportsVehicleFilter,
@@ -928,7 +934,7 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
                             </div>
 
                             {dataset.kpis.length > 0 && (
-                                <div className="grid grid-cols-2 gap-4 border-b border-slate-100 px-6 py-6 sm:px-10 lg:grid-cols-5">
+                                <div className={`grid grid-cols-2 gap-4 border-b border-slate-100 px-6 py-6 sm:px-10 ${dataset.kpis.length === 6 ? 'lg:grid-cols-3 xl:grid-cols-6' : 'lg:grid-cols-5'}`}>
                                     {dataset.kpis.map((kpi) => (
                                         <div key={kpi.label} className="rounded-2xl border border-slate-200 bg-white p-4">
                                             <p className="text-xl font-extrabold text-[var(--sgf-dark)]">{kpi.value}</p>
@@ -1018,7 +1024,7 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
                             )}
 
                             <div className="flex items-center justify-between gap-4 border-t border-slate-100 px-6 py-4 text-[10px] text-slate-400 sm:px-10">
-                                <span>{reportBranding.reportFooter || `${reportBranding.appName || 'Exattus Rotta'} — Gestão pública de frotas por protocolo digital`}</span>
+                                <span>{reportBranding.reportFooter || defaultReportFooter(reportBranding.appName)}</span>
                                 <span className="whitespace-nowrap">Paginação, assinaturas e código de integridade no PDF</span>
                             </div>
                         </div>

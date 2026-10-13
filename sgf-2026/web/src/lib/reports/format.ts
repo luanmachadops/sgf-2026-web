@@ -127,6 +127,13 @@ function formatFilterDate(value: string): string {
     return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('pt-BR');
 }
 
+/** Site da Exattus, impresso no rodapé quando a prefeitura não define um texto próprio. */
+export const EXATTUS_SITE = 'exattusrotta.com.br';
+
+export function defaultReportFooter(appName?: string): string {
+    return `${appName || 'Exattus Rotta'} — Gestão pública de frotas — ${EXATTUS_SITE}`;
+}
+
 export function filtersSummary(filters: ReportFilters): string {
     const parts: string[] = [
         `Período: ${filters.periodLabel}`,

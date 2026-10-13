@@ -4,6 +4,7 @@
 import ExcelJS from 'exceljs';
 import {
     computeTotals,
+    defaultReportFooter,
     filtersSummary,
     formatReportValue,
     generatedAt,
@@ -58,7 +59,7 @@ export async function exportReportToExcel(options: ReportExportOptions): Promise
     const institutionName = (branding?.name || 'PREFEITURA MUNICIPAL').toUpperCase();
     const softwareName = branding?.appName || 'Exattus Rotta';
     const footerText = branding?.reportFooter
-        || `${softwareName} — Gestão pública de frotas por protocolo digital`;
+        || defaultReportFooter(softwareName);
     const workbook = new ExcelJS.Workbook();
     workbook.creator = softwareName;
     workbook.created = new Date();
