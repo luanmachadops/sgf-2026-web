@@ -34,6 +34,7 @@ import {
     ShieldCheck,
     Trash2,
     X,
+    BarChart3,
 } from '@/components/sgf/icons';
 import { fetchDepartmentOptions, fetchDriverOptions, fetchReportDataset, fetchVehicleOptions } from '@/lib/reportData';
 import { exportReportToCsv, exportReportToExcel } from '@/lib/reportExport';
@@ -163,6 +164,15 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
     const [columnOrder, setColumnOrder] = useState<string[]>([]);
     const [showPanel, setShowPanel] = useState(false);
     const [viewMode, setViewMode] = useState<'table' | 'sheet'>('table');
+    // Gráficos ligados/desligados: vale para a tela, o PDF e a impressão; lembrado por navegador.
+    const [showCharts, setShowCharts] = useState<boolean>(() => {
+        try { return window.localStorage.getItem('sgf.reports.showCharts') !== '0'; } catch { return true; }
+    });
+    const toggleCharts = () => setShowCharts((current) => {
+        const next = !current;
+        try { window.localStorage.setItem('sgf.reports.showCharts', next ? '1' : '0'); } catch { /* sem storage */ }
+        return next;
+    });
     const [orientation, setOrientation] = useState<ReportOrientation>('auto');
     const [fontSize, setFontSize] = useState(DEFAULT_PRINT_FONT_PT);
     const [sort, setSort] = useState<ReportSort | null>(null);
@@ -335,7 +345,7 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
             ...dataset,
             columns: visibleColumns,
             rows: arrangedRows,
-            charts: hasClientFilters ? [] : dataset.charts,
+            charts: hasClientFilters || !showCharts ? [] : dataset.charts,
         },
         filters,
         branding: reportBranding,
@@ -344,7 +354,7 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
         groupColumn,
         signatures: signaturesEnabled ? signatures : undefined,
         issuer: user?.name,
-    }), [arrangedRows, dataset, description, filters, fontSize, groupColumn, hasClientFilters, orientation,
+    }), [arrangedRows, dataset, description, filters, fontSize, groupColumn, hasClientFilters, orientation, showCharts,
         reportBranding, signatures, signaturesEnabled, title, user?.name, visibleColumns]);
 
     // Pré-visualização em folha: o próprio PDF, gerado com atraso para não
@@ -746,6 +756,18 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
                     <p className="hidden truncate text-xs text-slate-500 md:block">{definition?.question ?? description}</p>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
+                    {(dataset.charts?.length ?? 0) > 0 && (
+                        <SGFButton
+                            variant={showCharts ? 'primary' : 'secondary'}
+                            size="sm"
+                            icon={BarChart3}
+                            onClick={toggleCharts}
+                            aria-pressed={showCharts}
+                            title={showCharts ? 'Ocultar gráficos (tela, PDF e impressão)' : 'Mostrar gráficos'}
+                        >
+                            <span className="hidden lg:inline">Gráficos</span>
+                        </SGFButton>
+                    )}
                     <SGFButton variant={showPanel ? 'primary' : 'secondary'} size="sm" icon={Settings} onClick={() => setShowPanel((current) => !current)}>
                         <span className="hidden lg:inline">Layout</span>
                     </SGFButton>
@@ -932,7 +954,7 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
                                 </div>
                             )}
 
-                            {!hasClientFilters && dataset.charts && dataset.charts.length > 0 && (
+                            {showCharts && !hasClientFilters && dataset.charts && dataset.charts.length > 0 && (
                                 <div className="grid gap-4 border-b border-slate-100 px-6 py-6 sm:px-10 lg:grid-cols-2">
                                     {dataset.charts.slice(0, 2).map((chart) => (
                                         <div key={chart.title} className="rounded-2xl border border-slate-200 p-4">

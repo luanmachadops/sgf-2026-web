@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronUp } from '@/components/sgf/icons';
 import { computeTotals, formatReportValue, totalsLabel } from '@/lib/reports/format';
 import type { ReportColumn, ReportDataset } from '@/lib/reports/types';
@@ -21,9 +21,13 @@ interface ReportTableProps {
     renderAction?: (row: ReportDataset['rows'][number]) => ReactNode;
 }
 
-export function ReportTable({ columns, rows, groupColumn, sort, onSort, renderAction }: ReportTableProps) {
+export function ReportTable({ columns: allColumns, rows, groupColumn, sort, onSort, renderAction }: ReportTableProps) {
+    // Agrupado, o valor do grupo já está no cabeçalho do grupo: a coluna sai da tabela (igual ao PDF).
+    const columns = useMemo(
+        () => (groupColumn && allColumns.length > 1 ? allColumns.filter((column) => column.key !== groupColumn.key) : allColumns),
+        [allColumns, groupColumn],
+    );
     const totals = useMemo(() => computeTotals(columns, rows), [columns, rows]);
-    const labelKey = totals ? columns.find((column) => !(column.key in totals))?.key : undefined;
 
     const items = useMemo<Item[]>(() => {
         if (!groupColumn) return rows.map((row, index) => ({ type: 'row', row, zebra: index % 2 === 1 }));
@@ -54,21 +58,29 @@ export function ReportTable({ columns, rows, groupColumn, sort, onSort, renderAc
     const colSpan = columns.length + (renderAction ? 1 : 0);
     const tableWidth = columns.reduce((sum, column) => sum + (column.minWidth ?? 110), 0);
 
-    const totalsRow = (values: Record<string, number>, label: string, tone: 'total' | 'subtotal', key?: string) => (
-        <tr key={key} className={tone === 'total'
-            ? 'border-t-2 border-[var(--sgf-dark)] bg-slate-100 font-bold text-[var(--sgf-dark)]'
-            : 'border-b border-slate-300 bg-slate-50 font-semibold text-slate-700'}
-        >
-            {columns.map((column) => (
-                <td key={column.key} className="whitespace-nowrap px-3 py-2.5 align-top tabular-nums" style={{ textAlign: column.align ?? 'left' }}>
-                    {column.key in values
-                        ? formatReportValue(values[column.key], column.format)
-                        : column.key === labelKey ? label : ''}
+    // O rótulo (Total/Subtotal) ocupa as colunas de texto antes do primeiro valor somado.
+    const totalsRow = (values: Record<string, number>, label: string, tone: 'total' | 'subtotal', key?: string) => {
+        const firstValue = columns.findIndex((column) => column.key in values);
+        const span = Math.max(1, firstValue === -1 ? columns.length : firstValue);
+        const rest = columns.slice(firstValue <= 0 ? 1 : span);
+        const labelValue = firstValue === 0 ? formatReportValue(values[columns[0].key], columns[0].format) : null;
+        return (
+            <tr key={key} className={tone === 'total'
+                ? 'border-t-2 border-[var(--sgf-dark)] bg-slate-100 text-[13px] font-bold text-[var(--sgf-dark)]'
+                : 'border-t border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600'}
+            >
+                <td colSpan={span} className={`px-3 tabular-nums ${tone === 'total' ? 'py-3' : 'py-2'}`}>
+                    {labelValue !== null ? <><span className="mr-2">{label}:</span>{labelValue}</> : label}
                 </td>
-            ))}
-            {renderAction && <td />}
-        </tr>
-    );
+                {rest.map((column) => (
+                    <td key={column.key} className={`whitespace-nowrap px-3 tabular-nums ${tone === 'total' ? 'py-3' : 'py-2'}`} style={{ textAlign: column.align ?? 'left' }}>
+                        {column.key in values ? formatReportValue(values[column.key], column.format) : ''}
+                    </td>
+                ))}
+                {renderAction && <td />}
+            </tr>
+        );
+    };
 
     return (
         <>
@@ -110,14 +122,21 @@ export function ReportTable({ columns, rows, groupColumn, sort, onSort, renderAc
                         {pageItems.map((item, index) => {
                             if (item.type === 'group') {
                                 return (
-                                    <tr key={`g-${page}-${index}`} className="bg-emerald-50/70">
-                                        <td colSpan={colSpan} className="border-l-[3px] border-[var(--sgf-primary)] px-3 py-2 text-xs font-bold text-[var(--sgf-dark)]">
-                                            {groupColumn?.label}: {item.label}
-                                            <span className="ml-2 font-medium text-slate-500">
-                                                · {item.count.toLocaleString('pt-BR')} {item.count === 1 ? 'registro' : 'registros'}
-                                            </span>
-                                        </td>
-                                    </tr>
+                                    <Fragment key={`g-${page}-${index}`}>
+                                        {index > 0 && (
+                                            <tr aria-hidden="true">
+                                                <td colSpan={colSpan} className="h-5 border-0 bg-white p-0" />
+                                            </tr>
+                                        )}
+                                        <tr className="border-y border-emerald-100 bg-emerald-50/80">
+                                            <td colSpan={colSpan} className="border-l-[3px] border-l-[var(--sgf-primary)] px-3 py-2.5 text-[13px] font-bold text-[var(--sgf-dark)]">
+                                                <span className="font-semibold text-slate-500">{groupColumn?.label}:</span> {item.label}
+                                                <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+                                                    {item.count.toLocaleString('pt-BR')} {item.count === 1 ? 'registro' : 'registros'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    </Fragment>
                                 );
                             }
                             if (item.type === 'subtotal') {
@@ -128,7 +147,7 @@ export function ReportTable({ columns, rows, groupColumn, sort, onSort, renderAc
                                     {columns.map((column) => (
                                         <td
                                             key={column.key}
-                                            className="px-3 py-2 align-top text-slate-700 tabular-nums"
+                                            className="px-3 py-2.5 align-top text-slate-700 tabular-nums"
                                             style={{ textAlign: column.align ?? 'left' }}
                                         >
                                             {formatReportValue(item.row[column.key], column.format)}
