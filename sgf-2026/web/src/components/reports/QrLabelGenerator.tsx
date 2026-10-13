@@ -114,7 +114,7 @@ function LabelPreview({ layout, pxPerMm, plate, lines, header, appPromo, qrStyle
             </div>
             <div className="absolute" style={{ left: layout.qrLeft * pxPerMm, top: layout.qrTop * pxPerMm, width: layout.qr * pxPerMm, height: layout.qr * pxPerMm }}>
                 {qrStyle === 'styled'
-                    ? <StyledQr value={plate.replace(/[^A-Za-z0-9]/g, '')} size={Math.max(40, Math.round(layout.qr * pxPerMm))} />
+                    ? <StyledQr value={plate.replace(/[^A-Za-z0-9]/g, '')} size={Math.max(8, Math.round(layout.qr * pxPerMm))} />
                     : <PlainQrPreview value={plate.replace(/[^A-Za-z0-9]/g, '')} size={layout.qr * pxPerMm} />}
             </div>
             <div className="absolute inset-x-0 flex flex-col items-center text-center" style={{ top: layout.footerTop * pxPerMm, paddingInline: layout.padding * pxPerMm }}>
@@ -243,8 +243,22 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
     const canPrint = totalLabels > 0 && Boolean(metrics?.fitsSheet);
 
     // Escala da prévia: cabe em ~320 × 440 px, nunca acima do tamanho real (≈3,78 px/mm).
-    const pxPerMm = layout ? Math.min(3.78, 320 / layout.width, 440 / layout.height) : 3;
+    const pxPerMm = layout ? Math.min(3.78, 320 / layout.width, 400 / layout.height) : 3;
     const sample = selected[0] ?? filtered[0];
+
+    // Prévia da folha: a 1ª página montada, com as posições puladas em branco.
+    const [previewMode, setPreviewMode] = useState<'sheet' | 'label'>('sheet');
+    const showSheet = previewMode === 'sheet' && sheet !== 'label';
+    const PT_TO_MM = 25.4 / 72;
+    const pageWmm = metrics ? metrics.pageWidth * PT_TO_MM : 210;
+    const pageHmm = metrics ? metrics.pageHeight * PT_TO_MM : 297;
+    const sheetPxPerMm = Math.min(320 / pageWmm, 400 / pageHmm);
+    const skipCount = Math.min(baseOptions.skip ?? 0, Math.max(0, perPage - 1));
+    const firstPage = useMemo(() => {
+        if (!metrics) return [];
+        const vehiclesOnPage = selected.flatMap((v) => Array.from({ length: copyCount }, () => v));
+        return Array.from({ length: metrics.perPage }, (_, slot) => (slot < skipCount ? null : vehiclesOnPage[slot - skipCount] ?? undefined));
+    }, [metrics, selected, copyCount, skipCount]);
 
     useEffect(() => {
         if (!isOpen) setProgress('');
@@ -470,11 +484,67 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                     </div>
                 </section>
 
-                {/* Prévia */}
-                <section className="flex flex-col">
-                    <p className={sectionTitle}>Prévia</p>
-                    <div className="flex min-h-[480px] flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-100 p-4">
-                        {layout && sample ? (
+                {/* Prévia: fica parada enquanto as opções rolam. */}
+                <section className="flex flex-col lg:sticky lg:top-0 lg:self-start">
+                    <div className="mb-3 flex items-center justify-between">
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Prévia</p>
+                        {sheet !== 'label' && (
+                            <div className="flex rounded-full border border-slate-200 bg-white p-0.5 text-xs font-semibold" role="tablist" aria-label="Tipo de prévia">
+                                {([['sheet', 'Folha'], ['label', 'Etiqueta']] as const).map(([value, label]) => (
+                                    <button key={value} type="button" role="tab" aria-selected={previewMode === value} onClick={() => setPreviewMode(value)}
+                                        className={cn('rounded-full px-3 py-1', previewMode === value ? 'bg-[var(--sgf-dark)] text-white' : 'text-slate-500')}>
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex min-h-[440px] flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-100 p-4">
+                        {!layout || !sample ? (
+                            <p className="px-6 text-center text-xs text-slate-400">Marque ao menos um veículo para ver a prévia.</p>
+                        ) : showSheet && metrics ? (
+                            <>
+                                <div className="relative bg-white shadow-md" style={{ width: pageWmm * sheetPxPerMm, height: pageHmm * sheetPxPerMm }} aria-label="Prévia da 1ª folha">
+                                    {metrics.fitsSheet && firstPage.map((vehicle, slot) => {
+                                        const ptToPx = PT_TO_MM * sheetPxPerMm;
+                                        const offsetX = (metrics.pageWidth - (metrics.columns * metrics.labelWidth + (metrics.columns - 1) * metrics.gap)) / 2;
+                                        const left = (offsetX + (slot % metrics.columns) * (metrics.labelWidth + metrics.gap)) * ptToPx;
+                                        const top = (metrics.margin + Math.floor(slot / metrics.columns) * (metrics.labelHeight + metrics.gap)) * ptToPx;
+                                        return (
+                                            <div key={slot} className="absolute" style={{ left, top }}>
+                                                {vehicle ? (
+                                                    <LabelPreview
+                                                        layout={layout}
+                                                        pxPerMm={sheetPxPerMm}
+                                                        plate={formatPlate(vehicle.plate as string)}
+                                                        lines={linesFor(vehicle)}
+                                                        header={header}
+                                                        appPromo={appPromo}
+                                                        qrStyle={qrStyle}
+                                                        border={border}
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        className={cn('border border-dashed', vehicle === null ? 'border-slate-300 bg-slate-50' : 'border-slate-200')}
+                                                        style={{ width: layout.width * sheetPxPerMm, height: layout.height * sheetPxPerMm, borderRadius: 3 * sheetPxPerMm }}
+                                                        title={vehicle === null ? 'Posição pulada' : 'Posição livre'}
+                                                    />
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                    {!metrics.fitsSheet && (
+                                        <p className="absolute inset-0 flex items-center justify-center px-6 text-center text-xs text-amber-700">
+                                            A etiqueta não cabe nesse papel.
+                                        </p>
+                                    )}
+                                </div>
+                                <p className="text-center text-xs text-slate-500">
+                                    1ª folha · {metrics.columns} × {metrics.rows} = {perPage} etiqueta{perPage === 1 ? '' : 's'} por folha
+                                    {skipCount > 0 && ` · ${skipCount} ${skipCount === 1 ? 'posição pulada' : 'posições puladas'}`}
+                                </p>
+                            </>
+                        ) : (
                             <>
                                 <LabelPreview
                                     layout={layout}
@@ -491,8 +561,6 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                                     {pxPerMm < 3.78 ? ` · prévia em ${Math.round((pxPerMm / 3.78) * 100)}% do tamanho real` : ' · tamanho real aproximado'}
                                 </p>
                             </>
-                        ) : (
-                            <p className="px-6 text-center text-xs text-slate-400">Marque ao menos um veículo para ver a prévia.</p>
                         )}
                     </div>
                 </section>
