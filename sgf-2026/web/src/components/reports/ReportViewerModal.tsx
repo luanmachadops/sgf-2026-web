@@ -72,7 +72,6 @@ import type {
 import {
     arrangeRows,
     nextSort,
-    rememberRecentReport,
     type ReportSort,
 } from '@/lib/reports/viewerState';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -223,10 +222,6 @@ export function ReportViewerModal({ isOpen, onClose, reportId, title, descriptio
         onError: (deleteError) => toast.error(deleteError instanceof Error ? deleteError.message : 'Não foi possível excluir o modelo.'),
     });
     const [exporting, setExporting] = useState<'pdf' | 'print' | 'excel' | 'csv' | null>(null);
-
-    useEffect(() => {
-        if (isOpen) rememberRecentReport(reportId);
-    }, [isOpen, reportId]);
 
     const { data: pdfMeasurer } = useQuery<TextMeasurer>({
         queryKey: ['report-pdf-measurer'],

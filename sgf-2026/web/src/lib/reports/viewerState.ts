@@ -67,33 +67,3 @@ export function nextSort(current: ReportSort | null, key: string): ReportSort | 
     if (current.direction === 'asc') return { key, direction: 'desc' };
     return null;
 }
-
-// ── Persistência local ──────────────────────────────────────────────────────
-
-function readJson<T>(key: string, fallback: T): T {
-    try {
-        const raw = window.localStorage.getItem(key);
-        return raw ? (JSON.parse(raw) as T) : fallback;
-    } catch {
-        return fallback;
-    }
-}
-
-function writeJson(key: string, value: unknown): void {
-    try {
-        window.localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-        // Armazenamento bloqueado (aba privada): o recurso só não persiste.
-    }
-}
-
-const RECENT_KEY = 'sgf-report-recent';
-
-export function loadRecentReports(): string[] {
-    const value = readJson<unknown>(RECENT_KEY, []);
-    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').slice(0, 6) : [];
-}
-
-export function rememberRecentReport(reportId: string): void {
-    writeJson(RECENT_KEY, [reportId, ...loadRecentReports().filter((id) => id !== reportId)].slice(0, 6));
-}

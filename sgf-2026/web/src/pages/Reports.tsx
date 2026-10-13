@@ -8,7 +8,6 @@ import {
     Calendar,
     Car,
     CheckCircle,
-    Clock,
     Fuel,
     Money,
     PieChart,
@@ -29,7 +28,6 @@ import {
     type ReportIconKey,
     type ReportSubject,
 } from '@/lib/reports/registry';
-import { loadRecentReports } from '@/lib/reports/viewerState';
 import { matchesSearch } from '@/lib/utils';
 
 const ReportViewerModal = lazy(() => import('@/components/reports/ReportViewerModal'));
@@ -86,7 +84,6 @@ export default function Reports() {
     const [subjectFilter, setSubjectFilter] = useState<ReportSubject | ''>('');
     const [searchTerm, setSearchTerm] = useState('');
     const [showQrGen, setShowQrGen] = useState(false);
-    const [recentIds, setRecentIds] = useState<string[]>(() => loadRecentReports());
     const { setTitle, setDescription } = useHeader();
 
     useEffect(() => {
@@ -97,10 +94,6 @@ export default function Reports() {
     const filtered = useMemo(() => REPORTS.filter((report) =>
         (!subjectFilter || report.subject === subjectFilter)
         && matchesSearch(searchTerm, report.title, report.description, report.question)), [searchTerm, subjectFilter]);
-    const recent = recentIds
-        .map((id) => REPORTS.find((report) => report.id === id))
-        .filter((report): report is ReportDefinition => Boolean(report))
-        .slice(0, 4);
     const sections = REPORT_SUBJECTS
         .map((subject) => ({ ...subject, reports: filtered.filter((report) => report.subject === subject.id) }))
         .filter((section) => section.reports.length > 0);
@@ -154,26 +147,6 @@ export default function Reports() {
                 </div>
             </div>
 
-            {recent.length > 0 && !subjectFilter && !searchTerm && (
-                <section aria-labelledby="recent-reports">
-                    <h2 id="recent-reports" className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-                        <Clock className="h-4 w-4" /> Usados recentemente
-                    </h2>
-                    <div className="flex flex-wrap gap-2">
-                        {recent.map((report) => (
-                            <button
-                                key={report.id}
-                                type="button"
-                                onClick={() => setSelectedReport(report)}
-                                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-[var(--sgf-primary)]/50 hover:text-[var(--sgf-dark)]"
-                            >
-                                {report.title}
-                            </button>
-                        ))}
-                    </div>
-                </section>
-            )}
-
             {sections.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 py-12 text-center">
                     <p className="text-sm font-medium text-slate-400">
@@ -221,7 +194,6 @@ export default function Reports() {
                     isOpen
                     onClose={() => {
                         setSelectedReport(null);
-                        setRecentIds(loadRecentReports());
                     }}
                     reportId={selectedReport.id}
                     title={selectedReport.title}
