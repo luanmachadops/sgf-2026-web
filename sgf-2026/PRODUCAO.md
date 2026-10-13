@@ -315,9 +315,10 @@ Detalhes e decisões em `PLANO-RELATORIOS.md`. Branch `claude/sweet-tesla-vrsqb8
 - Painel: usa o backend P1 que já estava em produção e sem tela (`register_report_snapshot`,
   `verify_report`, `sign_report_snapshot`) — PDF com código de verificação + QR, página pública
   `/verificar/:codigo`, lista de documentos emitidos com assinatura eletrônica.
-- Atenção: as migrations P1/P2 de 2026-10-09/11 (`p1_report_snapshots`, `p1_alerts`, `p1_fleet_maintenance`,
-  `p1_resource_modules`, `link_checklist_to_trip`, `p2_retroactive_terms_server_time`) estão aplicadas em
-  produção mas **não têm arquivo em `supabase/migrations/`** — exportar para o repo.
+- ✅ Migrations P1/P2 de 2026-10-09/11 (`p1_alerts`, `p1_report_snapshots`, `p1_fleet_maintenance`,
+  `p1_resource_modules`, `link_checklist_to_trip`, `p2_retroactive_terms_server_time`), que estavam só em
+  produção, exportadas para `supabase/migrations/` em 2026-10-13 a partir de
+  `supabase_migrations.schema_migrations` (SQL idêntico ao registrado; MD5 conferido).
 
 ## Checklist final de go-live
 
