@@ -23,6 +23,7 @@ import {
     type ReportFilterInput,
 } from './datasetHelpers';
 import type { ReportDataset } from './types';
+import { departmentBudgetApi } from '../department-budget-api';
 
 type VehicleRel = {
     plate?: string | null;
@@ -605,6 +606,187 @@ export async function checklistFailures(f?: ReportFilterInput): Promise<ReportDa
             'Itens marcados como "atenção" no checklist pré-viagem do aplicativo do motorista.',
             'Freios, pneus e luzes são críticos: bloqueiam a viagem e geram ordem de serviço automaticamente.',
             'Ocorrências do veículo = total de itens reprovados do mesmo veículo no período (reincidência).',
+        ],
+    };
+}
+
+// ── Extrato por fornecedor ──────────────────────────────────────────────────
+
+/**
+ * Cada abastecimento validado e cada OS recebida no período, por fornecedor:
+ * a comprovação que a contabilidade usa para conferir a nota fiscal antes de
+ * liquidar a despesa (Lei 4.320/64, art. 63).
+ */
+export async function supplierStatement(f?: ReportFilterInput): Promise<ReportDataset> {
+    const { from, to } = dateRange(f);
+    let fq = supabase
+        .from('fuelings')
+        .select(`id, liters, total_cost, fuel_type, odometer, workflow_status, invoice_number, created_at, filled_at, station_id,
+            fuel_stations(name), vehicles(plate, brand, model, department_id, departments(name)),
+            profiles!fuelings_driver_id_fkey(full_name)`)
+        .not('station_id', 'is', null)
+        .in('workflow_status', ['validado', 'lancado_direto'])
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true });
+    if (f?.driverId) fq = fq.eq('driver_id', f.driverId);
+    if (f?.vehicleId) fq = fq.eq('vehicle_id', f.vehicleId);
+    let oq = supabase
+        .from('service_orders')
+        .select(`id, budget, cost, category, description, received_at, repair_shop_id,
+            repair_shops(name), vehicles(plate, brand, model, department_id, departments(name)),
+            profiles!service_orders_driver_id_fkey(full_name)`)
+        .eq('operational_status', 'received')
+        .not('repair_shop_id', 'is', null)
+        .order('received_at', { ascending: true })
+        .order('id', { ascending: true });
+    if (f?.vehicleId) oq = oq.eq('vehicle_id', f.vehicleId);
+    if (from) oq = oq.gte('received_at', from);
+    if (to) oq = oq.lte('received_at', to);
+    const [fuelings, orders] = await Promise.all([
+        fetchAllRows(fq),
+        f?.driverId ? Promise.resolve([]) : fetchAllRows(oq),
+    ]);
+
+    const fuelRows = fuelings
+        .filter((row) => withinRange(row.filled_at ?? row.created_at, from, to) && sameDept(row.vehicles as VehicleRel, f))
+        .map((row) => {
+            const vehicle = row.vehicles as VehicleRel;
+            return {
+                supplier: (row.fuel_stations as { name?: string } | null)?.name ?? 'Posto não identificado',
+                kind: 'Abastecimento',
+                date: fmtDateTime(row.filled_at ?? row.created_at),
+                department: deptName(vehicle),
+                plate: vehicle?.plate ?? '—',
+                vehicle: vehicleLabel(vehicle as Rel),
+                driver: (row.profiles as { full_name?: string } | null)?.full_name ?? '—',
+                detail: `${row.fuel_type ?? 'Combustível'} · ${NUM(Number(row.liters ?? 0), 2)} L${row.odometer ? ` · ${NUM(Number(row.odometer), 0)} km` : ''}`,
+                document: row.invoice_number || '—',
+                amount: Number(Number(row.total_cost ?? 0).toFixed(2)),
+            };
+        });
+    const orderRows = orders
+        .filter((row) => sameDept(row.vehicles as VehicleRel, f))
+        .map((row) => {
+            const vehicle = row.vehicles as VehicleRel;
+            const value = Number(row.cost ?? 0) > 0 ? Number(row.cost) : Number(row.budget ?? 0);
+            return {
+                supplier: (row.repair_shops as { name?: string } | null)?.name ?? 'Oficina não identificada',
+                kind: 'Ordem de serviço',
+                date: fmtDateTime(row.received_at),
+                department: deptName(vehicle),
+                plate: vehicle?.plate ?? '—',
+                vehicle: vehicleLabel(vehicle as Rel),
+                driver: (row.profiles as { full_name?: string } | null)?.full_name ?? '—',
+                detail: [row.category, row.description].filter(Boolean).join(' · ').slice(0, 160) || 'Serviço de manutenção',
+                document: '—',
+                amount: Number(value.toFixed(2)),
+            };
+        });
+    const rows = [...fuelRows, ...orderRows].sort((a, b) =>
+        String(a.supplier).localeCompare(String(b.supplier), 'pt-BR'));
+    const totalFuel = fuelRows.reduce((sum, row) => sum + row.amount, 0);
+    const totalOrders = orderRows.reduce((sum, row) => sum + row.amount, 0);
+    const suppliers = new Set(rows.map((row) => row.supplier));
+
+    return {
+        kpis: [
+            { label: 'Fornecedores', value: NUM(suppliers.size) },
+            { label: 'Abastecimentos validados', value: `${NUM(fuelRows.length)} · ${BRL(totalFuel)}` },
+            { label: 'Serviços recebidos', value: `${NUM(orderRows.length)} · ${BRL(totalOrders)}` },
+            { label: 'Total do período', value: BRL(totalFuel + totalOrders) },
+        ],
+        columns: [
+            { key: 'supplier', label: 'Fornecedor', filterable: true, minWidth: 170, priority: 1, anchor: true },
+            { key: 'kind', label: 'Tipo', filterable: true, minWidth: 120, priority: 3 },
+            { key: 'date', label: 'Data', minWidth: 125, priority: 1 },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 150, priority: 1 },
+            { key: 'plate', label: 'Placa', filterable: true, minWidth: 90, priority: 1 },
+            { key: 'vehicle', label: 'Veículo', minWidth: 150, stackUnder: 'plate', priority: 3 },
+            { key: 'driver', label: 'Motorista', filterable: true, minWidth: 150 },
+            { key: 'detail', label: 'Detalhe', minWidth: 200, priority: 1 },
+            { key: 'document', label: 'Cupom/NF', minWidth: 100, priority: 3 },
+            { key: 'amount', label: 'Valor', align: 'right', format: 'currency', minWidth: 110, priority: 1, total: 'sum' },
+        ],
+        rows,
+        charts: [{
+            title: 'Valor por fornecedor',
+            description: 'Soma dos abastecimentos validados e serviços recebidos no período.',
+            type: 'bar',
+            valueFormat: 'currency',
+            data: topChartData([...rows.reduce((map, row) => map.set(String(row.supplier), (map.get(String(row.supplier)) ?? 0) + Number(row.amount)), new Map<string, number>())]
+                .map(([label, value]) => ({ label, value: Number(value.toFixed(2)) }))),
+        }],
+        notes: [
+            'Comprovação da execução para a liquidação: abastecimentos validados pelo gestor e ordens de serviço com o veículo recebido.',
+            'Abastecimentos ainda não validados e OS não recebidas não entram no extrato.',
+            'Agrupe por fornecedor para conferir cada nota fiscal; o valor da OS é o custo final ou, sem ele, o orçamento aprovado.',
+        ],
+    };
+}
+
+// ── Consumo por secretaria × empenho ────────────────────────────────────────
+
+/**
+ * Saldo do valor empenhado por secretaria em cada licitação (Limites por
+ * secretaria), na situação de hoje. O exercício segue a data inicial do filtro.
+ */
+export async function departmentCommitments(f?: ReportFilterInput): Promise<ReportDataset> {
+    const year = f?.dateFrom ? Number(f.dateFrom.slice(0, 4)) : new Date().getFullYear();
+    const contracts = await departmentBudgetApi.list(year);
+    const category = { fuel: 'Combustível', maintenance: 'Manutenção' } as const;
+    const rows = contracts.flatMap((contract) => contract.allocations
+        .filter((a) => !f?.departmentId || a.department_id === f.departmentId)
+        .map((a) => {
+            const used = a.spending_limit - a.available;
+            return {
+                licitacao: contract.reference,
+                category: category[contract.category],
+                department: a.department_name,
+                commitment: contract.reporting?.empenhos?.[a.department_id] || '—',
+                limit: a.spending_limit,
+                reserved: a.reserved,
+                realized: a.realized,
+                available: a.available,
+                usage: a.spending_limit > 0 ? Number(((used / a.spending_limit) * 100).toFixed(1)) : 0,
+            };
+        }));
+    const totals = rows.reduce((sum, row) => ({
+        limit: sum.limit + row.limit,
+        used: sum.used + row.reserved + row.realized,
+        available: sum.available + row.available,
+    }), { limit: 0, used: 0, available: 0 });
+    const attention = rows.filter((row) => row.usage >= 80).length;
+
+    return {
+        kpis: [
+            { label: 'Valor empenhado', value: BRL(totals.limit) },
+            { label: 'Consumido (reservado + realizado)', value: BRL(totals.used) },
+            { label: 'Saldo disponível', value: BRL(totals.available) },
+            { label: 'Secretarias acima de 80%', value: NUM(attention) },
+        ],
+        columns: [
+            { key: 'licitacao', label: 'Licitação', filterable: true, minWidth: 160, priority: 1, anchor: true },
+            { key: 'category', label: 'Tipo', filterable: true, minWidth: 110, priority: 3 },
+            { key: 'department', label: 'Secretaria', filterable: true, minWidth: 160, priority: 1 },
+            { key: 'commitment', label: 'Empenho(s)', minWidth: 120 },
+            { key: 'limit', label: 'Empenhado', align: 'right', format: 'currency', minWidth: 120, priority: 1, total: 'sum' },
+            { key: 'reserved', label: 'Reservado', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'realized', label: 'Realizado', align: 'right', format: 'currency', minWidth: 110, total: 'sum' },
+            { key: 'available', label: 'Disponível', align: 'right', format: 'currency', minWidth: 115, priority: 1, total: 'sum' },
+            { key: 'usage', label: 'Consumo', align: 'right', format: 'percent', minWidth: 90, priority: 1 },
+        ],
+        rows,
+        charts: [{
+            title: 'Consumo do empenho por secretaria',
+            description: 'Percentual do valor empenhado já reservado ou realizado; a faixa de atenção começa em 80%.',
+            type: 'gauge',
+            valueFormat: 'percent',
+            data: topChartData(rows.map((row) => ({ label: `${row.department} · ${row.licitacao}`, value: row.usage }))),
+        }],
+        notes: [
+            `Exercício ${year}, situação na data de emissão. O valor empenhado é o informado em Limites por secretaria, conforme a contabilidade.`,
+            'Reservado: autorizações e OS aprovadas ainda não concluídas. Realizado: abastecimentos concluídos/validados e OS recebidas.',
+            'Acima de 80%, avise a contabilidade sobre reforço de empenho; ao atingir 100%, novas despesas da secretaria são bloqueadas.',
         ],
     };
 }

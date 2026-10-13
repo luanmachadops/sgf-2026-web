@@ -1,6 +1,5 @@
 import { useGoBack } from '@/hooks/useGoBack';
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -26,10 +25,7 @@ import { useAppSettings } from '@/hooks/useSettings';
 import { SGFBadge, SGFButton, SGFCard, SGFKPICard, SGFTable, SGFToolbar, type SGFTableColumn } from '@/components/sgf';
 import { StationFormModal } from '@/components/stations/StationFormModal';
 import { PartnerAccessCard } from '@/components/partners/PartnerAccessCard';
-import { ContractUsagePanel } from '@/components/procurement/ContractUsageGauge';
-import { procurementApi } from '@/lib/procurement-api';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { differenceInDays, parseISO } from 'date-fns';
 import type { Tables } from '@/types/database.types';
 
 const FUEL_COLORS: Record<string, string> = {
@@ -44,15 +40,6 @@ const FUEL_COLORS: Record<string, string> = {
 
 type StationDoc = { name: string; url: string; size?: number; uploadedAt?: string };
 
-function ContractBadge({ end, alertDays = 30 }: { end: string | null; alertDays?: number }) {
-    if (!end) return <SGFBadge variant="default">Sem data</SGFBadge>;
-    const days = differenceInDays(parseISO(end), new Date());
-    if (days < 0) return <SGFBadge variant="error">Vencida</SGFBadge>;
-    if (days <= alertDays) return <SGFBadge variant="warning">{days} dias</SGFBadge>;
-    if (days <= alertDays * 3) return <SGFBadge variant="info">{days} dias</SGFBadge>;
-    return <SGFBadge variant="success">Em dia</SGFBadge>;
-}
-
 function StationsListPage() {
     const navigate = useNavigate();
     const { setTitle, setDescription, setHeaderAction } = useHeader();
@@ -60,25 +47,10 @@ function StationsListPage() {
     const [formOpen, setFormOpen] = useState(false);
 
     const { data: stations = [], isLoading } = useStations({ search: search || undefined });
-    const { data: contractUsage = [] } = useQuery({
-        queryKey: ['procurement-contract-usage'],
-        queryFn: procurementApi.getContractUsage,
-        staleTime: 30_000,
-    });
-    const usageByStation = useMemo(
-        () => new Map(
-            contractUsage
-                .filter((item) => item.partnerKind === 'posto')
-                .map((item) => [item.partnerId, item]),
-        ),
-        [contractUsage],
-    );
-    const { data: appSettings } = useAppSettings();
-    const contractDays = appSettings?.contractAlertDays ?? 30;
 
     useEffect(() => {
         setTitle('Postos de combustível');
-        setDescription('Cadastro de postos fornecedores e acompanhamento de licitação.');
+        setDescription('Cadastro dos postos fornecedores e preço do litro.');
         setHeaderAction(
             <SGFButton variant="primary" onClick={() => setFormOpen(true)} className="!rounded-full !h-[37px]">
                 <Plus className="h-4 w-4" /> Novo posto
@@ -90,15 +62,6 @@ function StationsListPage() {
     }, [setDescription, setHeaderAction, setTitle]);
 
     const totalActive = stations.filter((s) => s.is_active).length;
-    const expiringSoon = stations.filter((s) => {
-        if (!s.contract_end) return false;
-        const d = differenceInDays(parseISO(s.contract_end), new Date());
-        return d >= 0 && d <= contractDays;
-    }).length;
-    const expired = stations.filter((s) => {
-        if (!s.contract_end) return false;
-        return differenceInDays(parseISO(s.contract_end), new Date()) < 0;
-    }).length;
 
     const columns: SGFTableColumn<Tables<'fuel_stations'>>[] = [
         {
@@ -137,45 +100,6 @@ function StationsListPage() {
                 </div>
             ),
         },
-        { header: 'Contrato', accessor: (s) => s.contract_number ?? '—' },
-        {
-            header: 'Vencimento',
-            accessor: (s) => (
-                <span className="text-sm text-slate-700">{s.contract_end ? formatDate(s.contract_end) : '—'}</span>
-            ),
-        },
-        {
-            header: 'Dias p/ vencer',
-            className: 'text-right',
-            headerClassName: 'text-right',
-            accessor: (s) => {
-                if (!s.contract_end) return <span className="text-sm text-slate-400">—</span>;
-                const days = differenceInDays(parseISO(s.contract_end), new Date());
-                if (days < 0) {
-                    return <span className="text-sm font-bold text-rose-600">{Math.abs(days)} dias vencida</span>;
-                }
-                if (days === 0) {
-                    return <span className="text-sm font-bold text-amber-600">Vence hoje</span>;
-                }
-                const color = days <= contractDays ? 'text-amber-600' : 'text-slate-800';
-                return <span className={`text-sm font-bold tabular-nums ${color}`}>{days} dias</span>;
-            },
-        },
-        {
-            header: '% consumido',
-            className: 'text-right',
-            headerClassName: 'text-right',
-            accessor: (s) => {
-                const usage = usageByStation.get(s.id);
-                if (usage?.consumedPercent == null) return <span className="text-xs text-slate-400">Sem teto</span>;
-                const tone = usage.consumedPercent >= 95
-                    ? 'text-red-600'
-                    : usage.consumedPercent >= 80
-                        ? 'text-amber-600'
-                        : 'text-emerald-700';
-                return <span className={`text-sm font-black tabular-nums ${tone}`}>{usage.consumedPercent.toLocaleString('pt-BR')}%</span>;
-            },
-        },
         {
             header: 'Status',
             accessor: (s) => s.is_active
@@ -189,7 +113,7 @@ function StationsListPage() {
             <div className="grid gap-4 md:grid-cols-3">
                 <SGFKPICard title="Postos cadastrados" value={stations.length} icon={Building2} iconColor="text-emerald-500" />
                 <SGFKPICard title="Ativos" value={totalActive} icon={Fuel} iconColor="text-blue-500" />
-                <SGFKPICard title="Vencendo em 30 dias" value={expiringSoon + expired} icon={Calendar} iconColor={expired > 0 ? 'text-rose-500' : 'text-amber-500'} />
+                <SGFKPICard title="Inativos" value={stations.length - totalActive} icon={Calendar} iconColor="text-slate-400" />
             </div>
 
             <SGFToolbar
@@ -219,11 +143,6 @@ function StationDetailPage({ stationId }: { stationId: string }) {
     const [editOpen, setEditOpen] = useState(false);
 
     const { data: detail, isLoading } = useStationDetail(stationId);
-    const { data: contractUsage = [] } = useQuery({
-        queryKey: ['procurement-contract-usage'],
-        queryFn: procurementApi.getContractUsage,
-        staleTime: 30_000,
-    });
     const { data: appSettings } = useAppSettings();
     const priceMode = appSettings?.fuelPriceMode ?? 'free';
 
@@ -271,10 +190,6 @@ function StationDetailPage({ stationId }: { stationId: string }) {
         () => detail?.byFuelType.map((f) => ({ ...f, color: FUEL_COLORS[f.fuelType] ?? FUEL_COLORS.Outros })) ?? [],
         [detail],
     );
-    const selectedContractUsage = useMemo(
-        () => contractUsage.find((item) => item.partnerKind === 'posto' && item.partnerId === stationId),
-        [contractUsage, stationId],
-    );
 
     if (isLoading) {
         return (
@@ -296,7 +211,6 @@ function StationDetailPage({ stationId }: { stationId: string }) {
 
     return (
         <div className="space-y-6">
-            {selectedContractUsage ? <ContractUsagePanel usage={selectedContractUsage} /> : null}
             {/* Resumo + Contrato */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <SGFCard className="lg:col-span-2">
@@ -354,30 +268,20 @@ function StationDetailPage({ stationId }: { stationId: string }) {
                 </SGFCard>
 
                 <SGFCard>
-                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Contrato / Licitação</p>
-                    <div className="mt-3 space-y-3">
-                        <div className="flex justify-between">
-                            <span className="text-sm text-slate-500">Número</span>
-                            <span className="text-sm font-bold text-slate-900">{s.contract_number ?? '—'}</span>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Limite de consumo</p>
+                    <p className="mt-3 text-sm text-slate-600">
+                        O teto de gastos com este posto é o valor empenhado por cada secretaria na licitação,
+                        definido em{' '}
+                        <button type="button" onClick={() => navigate('/limites')} className="font-semibold text-[var(--sgf-primary)] hover:underline">
+                            Limites por secretaria
+                        </button>.
+                    </p>
+                    {s.notes && (
+                        <div className="mt-3 pt-3 border-t border-slate-100">
+                            <p className="text-[10px] uppercase text-slate-400 font-bold tracking-widest mb-1">Observações</p>
+                            <p className="text-sm text-slate-700">{s.notes}</p>
                         </div>
-                        <div className="flex justify-between">
-                            <span className="text-sm text-slate-500">Início</span>
-                            <span className="text-sm font-bold text-slate-900">{s.contract_start ? formatDate(s.contract_start) : '—'}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-slate-500">Vencimento</span>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-slate-900">{s.contract_end ? formatDate(s.contract_end) : '—'}</span>
-                                <ContractBadge end={s.contract_end} />
-                            </div>
-                        </div>
-                        {s.notes && (
-                            <div className="pt-3 border-t border-slate-100">
-                                <p className="text-[10px] uppercase text-slate-400 font-bold tracking-widest mb-1">Observações</p>
-                                <p className="text-sm text-slate-700">{s.notes}</p>
-                            </div>
-                        )}
-                    </div>
+                    )}
                 </SGFCard>
             </div>
 

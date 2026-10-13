@@ -15,8 +15,6 @@ import {
     YAxis,
 } from 'recharts';
 import { PartnerPortalLayout, type PartnerNavItem } from '@/components/partners/PartnerPortalLayout';
-import { ContractStatusAlerts } from '@/components/partners/ContractStatusAlerts';
-import { ContractUsagePanel } from '@/components/procurement/ContractUsageGauge';
 import { StationHistoryDetailsModal } from '@/components/partners/station/StationHistoryDetailsModal';
 import { StationSupplementalOperations } from '@/components/partners/station/StationSupplementalOperations';
 import { SGFBadge, SGFButton, SGFCard, SGFInput, SGFKPICard } from '@/components/sgf';
@@ -28,7 +26,6 @@ import {
     Clock,
     DollarSign,
     Droplet,
-    FileText,
     Fuel,
     Home,
     Info,
@@ -40,23 +37,18 @@ import {
 } from '@/components/sgf/icons';
 import {
     stationPortalApi,
-    type StationContext,
     type StationAuthorization,
     type StationHistoryItem,
     type StationMonthlySummary,
 } from '@/lib/station-portal-api';
-import { stationClosingApi } from '@/lib/station-closing-api';
 import {
     procurementApi,
-    type PartnerContractStatus,
     type PartnerDashboardData,
-    type ProcurementContractUsage,
 } from '@/lib/procurement-api';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const number = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
 const PAGE_SIZE = 25;
 
 type PortalTab = 'dashboard' | 'pending' | 'history' | 'closing' | 'details';
@@ -123,7 +115,7 @@ const stationStatusLabel: Record<string, string> = {
     lancado_direto: 'Lançamento direto',
 };
 
-function StationDashboard({ usage }: { usage?: ProcurementContractUsage }) {
+function StationDashboard() {
     const query = useQuery({
         queryKey: ['partner-dashboard', 'posto'],
         queryFn: procurementApi.getPartnerDashboard,
@@ -144,7 +136,6 @@ function StationDashboard({ usage }: { usage?: ProcurementContractUsage }) {
 
     return (
         <div className="space-y-6">
-            {usage ? <ContractUsagePanel usage={usage} /> : null}
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <SGFKPICard
                     title="Autorizações pendentes"
@@ -479,13 +470,11 @@ function FuelingModal({
 function PendingAuthorizations({
     tenantId,
     stationId,
-    contractStatus,
     requestedFuelingId,
     onCloseRequested,
 }: {
     tenantId: string;
     stationId: string;
-    contractStatus?: PartnerContractStatus;
     requestedFuelingId: string | null;
     onCloseRequested: () => void;
 }) {
@@ -561,8 +550,8 @@ function PendingAuthorizations({
                                 </tr>
                             ) : (
                                 authorizations.map((item) => {
-                                    const operationBlocked = contractStatus && (item.contractManaged ? !contractStatus.isActive : !contractStatus.canExecuteExisting);
-                                    const disabled = operationBlocked || item.pricePerLiter == null;
+                                    // O teto vale por secretaria (empenho), conferido pelo banco ao autorizar.
+                                    const disabled = item.pricePerLiter == null;
                                     return (
                                         <tr key={item.fuelingId} className="hover:bg-slate-50/70">
                                             <td className="px-5 py-4">
@@ -589,14 +578,9 @@ function PendingAuthorizations({
                                                     size="sm"
                                                     icon={Fuel}
                                                     disabled={disabled}
-                                                    title={operationBlocked ? contractStatus?.blockMessage ?? undefined : undefined}
                                                     onClick={() => setSelected(item)}
                                                 >
-                                                    {operationBlocked
-                                                        ? contractStatus?.blockTitle ?? 'Operação bloqueada'
-                                                        : item.pricePerLiter == null
-                                                            ? 'Preço não cadastrado'
-                                                            : 'Registrar'}
+                                                    {item.pricePerLiter == null ? 'Preço não cadastrado' : 'Registrar'}
                                                 </SGFButton>
                                             </td>
                                         </tr>
@@ -784,13 +768,7 @@ function StationHistory({
     );
 }
 
-function StationDetails({
-    stationId,
-    contractUsage,
-}: {
-    stationId: string;
-    contractUsage?: ProcurementContractUsage;
-}) {
+function StationDetails({ stationId }: { stationId: string }) {
     const query = useQuery({
         queryKey: ['station-details', stationId],
         queryFn: () => stationPortalApi.getDetails(stationId),
@@ -808,8 +786,6 @@ function StationDetails({
 
     return (
         <div className="space-y-6">
-            {contractUsage ? <ContractUsagePanel usage={contractUsage} /> : null}
-
             <div className="grid gap-4 lg:grid-cols-2">
             <SGFCard className="border border-slate-100 shadow-sm" padding="lg">
                 <div className="flex items-center gap-3">
@@ -836,28 +812,6 @@ function StationDetails({
                 </dl>
             </SGFCard>
 
-            <SGFCard className="border border-slate-100 shadow-sm" padding="lg">
-                <div className="flex items-center gap-3">
-                    <div className="grid h-11 w-11 place-items-center rounded-2xl bg-blue-50 text-blue-700">
-                        <FileText className="h-5 w-5" />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Contrato</p>
-                        <h2 className="font-bold text-slate-900">{station.contractNumber || 'Sem número informado'}</h2>
-                    </div>
-                </div>
-                <dl className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl bg-slate-50 p-4">
-                        <dt className="text-xs text-slate-500">Início</dt>
-                        <dd className="mt-1 font-bold text-slate-800">{station.contractStart ? date.format(new Date(`${station.contractStart}T12:00:00`)) : '—'}</dd>
-                    </div>
-                    <div className="rounded-2xl bg-slate-50 p-4">
-                        <dt className="text-xs text-slate-500">Vencimento</dt>
-                        <dd className="mt-1 font-bold text-slate-800">{station.contractEnd ? date.format(new Date(`${station.contractEnd}T12:00:00`)) : '—'}</dd>
-                    </div>
-                </dl>
-            </SGFCard>
-
             <SGFCard className="border border-slate-100 shadow-sm lg:col-span-2" padding="lg">
                 <div className="flex items-center gap-3">
                     <div className="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
@@ -865,7 +819,7 @@ function StationDetails({
                     </div>
                     <div>
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Preços vigentes</p>
-                        <h2 className="font-bold text-slate-900">Valores definidos no contrato</h2>
+                        <h2 className="font-bold text-slate-900">Preço do litro cadastrado pela prefeitura</h2>
                     </div>
                 </div>
                 {prices.length === 0 ? (
@@ -916,40 +870,18 @@ function summaryTotals(rows: StationMonthlySummary[]) {
     });
 }
 
-function StationClosing({ context }: { context: StationContext }) {
+/**
+ * Conferência mensal do posto: volumes e valores apresentados e validados no
+ * mês, base para a nota fiscal. Nota, empenho e pagamento seguem com a
+ * contabilidade da prefeitura.
+ */
+function StationClosing() {
     const [month, setMonth] = useState(currentMonth);
-    const [invoiceNumber, setInvoiceNumber] = useState('');
-    const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
     const summaryQuery = useQuery({
         queryKey: ['station-closing', month],
         queryFn: () => stationPortalApi.getMonthlySummary(month),
     });
     const totals = summaryTotals(summaryQuery.data ?? []);
-    const closingsQuery = useQuery({ queryKey: ['station-closing-register'], queryFn: stationClosingApi.list });
-    const closing = closingsQuery.data?.find((item) => item.competence.startsWith(month));
-    const submitClosing = useMutation({
-        mutationFn: () => stationClosingApi.submit(month),
-        onSuccess: () => {
-            toast.success('Fechamento enviado com protocolo e hash de integridade.');
-            void closingsQuery.refetch();
-        },
-        onError: (error) => toast.error((error as Error).message),
-    });
-    const submitInvoice = useMutation({
-        mutationFn: () => {
-            if (!closing || !invoiceFile || !invoiceNumber.trim()) throw new Error('Informe a nota fiscal e anexe o documento.');
-            return stationClosingApi.submitInvoice({
-                closing, invoiceNumber: invoiceNumber.trim(),
-                issuedOn: new Date().toISOString().slice(0, 10),
-                file: invoiceFile, tenantId: context.tenantId,
-            });
-        },
-        onSuccess: () => {
-            toast.success('Nota fiscal anexada ao protocolo.');
-            void closingsQuery.refetch();
-        },
-        onError: (error) => toast.error((error as Error).message),
-    });
 
     if (summaryQuery.error) {
         return (
@@ -1044,52 +976,9 @@ function StationClosing({ context }: { context: StationContext }) {
                     {totals.pending > 0 && (
                         <div className="flex gap-2 rounded-2xl bg-amber-50 p-4 text-sm text-amber-800">
                             <Info className="mt-0.5 h-5 w-5 shrink-0" />
-                            <p>Existem lançamentos aguardando validação. Aguarde a conferência antes de emitir a NF definitiva.</p>
+                            <p>Existem lançamentos aguardando validação da prefeitura. Aguarde a conferência antes de emitir a nota fiscal.</p>
                         </div>
                     )}
-                    <SGFCard variant="bordered" padding="lg">
-                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Protocolo digital</p>
-                                <h3 className="mt-1 font-black text-slate-950">{closing?.protocol ?? 'Fechamento ainda não enviado'}</h3>
-                                <p className="mt-1 text-sm text-slate-500">
-                                    {closing
-                                        ? `${closing.closingStatus} · ${closing.fiscalStatus.replaceAll('_', ' ')} · hash ${closing.snapshotHash.slice(0, 12)}…`
-                                        : 'O envio congela os registros validados e gera prova de integridade.'}
-                                </p>
-                            </div>
-                            {!closing ? (
-                                <SGFButton
-                                    icon={FileText}
-                                    loading={submitClosing.isPending}
-                                    disabled={totals.pending > 0 || totals.validated === 0}
-                                    onClick={() => submitClosing.mutate()}
-                                >
-                                    Fechar e enviar mês
-                                </SGFButton>
-                            ) : null}
-                        </div>
-                        {closing?.fiscalStatus === 'coberto' ? (
-                            <div className="mt-5 grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-[1fr_1fr_auto]">
-                                <SGFInput label="Número da nota fiscal" value={invoiceNumber} onChange={(event) => setInvoiceNumber(event.target.value)} fullWidth />
-                                <label className="self-end rounded-2xl border border-dashed border-slate-300 px-4 py-3 text-sm">
-                                    <span className="block truncate">{invoiceFile?.name ?? 'Anexar PDF ou imagem da NF'}</span>
-                                    <input className="sr-only" type="file" accept="application/pdf,image/*" onChange={(event) => setInvoiceFile(event.target.files?.[0] ?? null)} />
-                                </label>
-                                <SGFButton className="self-end" loading={submitInvoice.isPending} onClick={() => submitInvoice.mutate()}>Enviar NF</SGFButton>
-                            </div>
-                        ) : null}
-                        {closing?.nextPaymentDate ? (
-                            <p className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm text-blue-800">
-                                Pagamento programado para <strong>{date.format(new Date(`${closing.nextPaymentDate}T12:00:00`))}</strong>.
-                            </p>
-                        ) : null}
-                        {closing?.lastPaymentDate ? (
-                            <p className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800">
-                                Pagamento confirmado em <strong>{date.format(new Date(`${closing.lastPaymentDate}T12:00:00`))}</strong>.
-                            </p>
-                        ) : null}
-                    </SGFCard>
                 </>
             )}
         </div>
@@ -1115,32 +1004,18 @@ export default function StationPortal() {
         staleTime: 5 * 60_000,
     });
     const context = contextQuery.data;
-    const contractQuery = useQuery({
-        queryKey: ['partner-contract-status', 'posto'],
-        queryFn: procurementApi.getPartnerContractStatus,
-        enabled: Boolean(context),
-        staleTime: 30_000,
-    });
-    const contractStatus = contractQuery.data;
-    const contractUsageQuery = useQuery({
-        queryKey: ['partner-contract-usage', 'posto'],
-        queryFn: procurementApi.getPartnerContractUsage,
-        enabled: Boolean(context),
-        staleTime: 30_000,
-    });
-    const contractUsage = contractUsageQuery.data;
 
     const navItems: PartnerNavItem[] = [
         { label: 'Dashboard', path: '/posto', icon: LayoutDashboard, end: true },
         { label: 'Autorizações', path: '/posto/autorizacoes', icon: Home },
         { label: 'Histórico', path: '/posto/historico', icon: Clock },
-        { label: 'Fechamento', path: '/posto/fechamento', icon: Receipt },
+        { label: 'Abastecimentos do mês', path: '/posto/fechamento', icon: Receipt },
         { label: 'Meus dados', path: '/posto/dados', icon: User },
     ];
     const titles: Record<PortalTab, { title: string; description: string }> = {
         dashboard: {
             title: 'Dashboard do posto',
-            description: 'Indicadores de abastecimento, contrato e situação financeira.',
+            description: 'Indicadores dos abastecimentos do posto.',
         },
         pending: {
             title: 'Autorizações pendentes',
@@ -1148,15 +1023,15 @@ export default function StationPortal() {
         },
         history: {
             title: 'Histórico de abastecimentos',
-            description: 'Consulte todos os registros anteriores, mesmo após o fim do contrato.',
+            description: 'Consulte todos os abastecimentos registrados.',
         },
         closing: {
-            title: 'Fechamento mensal',
-            description: 'Confira volumes e valores validados antes de emitir a nota fiscal.',
+            title: 'Abastecimentos do mês',
+            description: 'Confira volumes e valores validados pela prefeitura antes de emitir a nota fiscal.',
         },
         details: {
             title: 'Dados do fornecedor',
-            description: 'Consulte cadastro, licitação, vigência, saldo e preços contratados.',
+            description: 'Consulte o cadastro e os preços do litro.',
         },
     };
     const page = titles[activeTab];
@@ -1177,7 +1052,6 @@ export default function StationPortal() {
             ) : undefined}
         >
             <div className="space-y-6">
-                <ContractStatusAlerts status={contractStatus} />
                 {contextQuery.isLoading ? (
                     <LoadingCards />
                 ) : contextQuery.error || !context ? (
@@ -1186,12 +1060,11 @@ export default function StationPortal() {
                         retry={() => void contextQuery.refetch()}
                     />
                 ) : activeTab === 'dashboard' ? (
-                    <StationDashboard usage={contractUsage} />
+                    <StationDashboard />
                 ) : activeTab === 'pending' ? (
                     <PendingAuthorizations
                         tenantId={context.tenantId}
                         stationId={context.stationId}
-                        contractStatus={contractStatus}
                         requestedFuelingId={requestedFuelingId}
                         onCloseRequested={closeRequestedFueling}
                     />
@@ -1201,9 +1074,9 @@ export default function StationPortal() {
                         onCloseRequested={closeRequestedFueling}
                     />
                 ) : activeTab === 'closing' ? (
-                    <StationClosing context={context} />
+                    <StationClosing />
                 ) : (
-                    <StationDetails stationId={context.stationId} contractUsage={contractUsage} />
+                    <StationDetails stationId={context.stationId} />
                 )}
             </div>
         </PartnerPortalLayout>

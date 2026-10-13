@@ -46,7 +46,8 @@ function exportSummary(contracts: DepartmentBudget[]) {
       "Licitação/contrato",
       "Categoria",
       "Secretaria",
-      "Limite",
+      "Empenho(s)",
+      "Valor empenhado (limite)",
       "Reservado",
       "Realizado",
       "Em contestação",
@@ -61,6 +62,7 @@ function exportSummary(contracts: DepartmentBudget[]) {
         c.reference,
         categoryName[c.category],
         a.department_name,
+        c.reporting?.empenhos?.[a.department_id] ?? "",
         a.spending_limit,
         a.reserved,
         a.realized,
@@ -174,8 +176,17 @@ function BudgetEditor({
     if (form.total_limit <= 0)
       return setError("Informe o teto total da licitação.");
     const reason = form.reason.trim();
+    // Só envia os números de empenho preenchidos (e só a chave se houver algum).
+    const empenhos = Object.fromEntries(
+      Object.entries(form.reporting?.empenhos ?? {})
+        .map(([id, value]) => [id, value.trim()])
+        .filter(([id, value]) => value && form.allocations.some((a) => a.department_id === id)),
+    );
+    const { empenhos: _drop, ...reportingRest } = form.reporting ?? {};
+    void _drop;
     save.mutate({
       ...form,
+      reporting: Object.keys(empenhos).length ? { ...reportingRest, empenhos } : reportingRest,
       reason: reason.length >= 10 ? reason : reason ? `${DEFAULT_REASON}: ${reason}` : DEFAULT_REASON,
     });
   };
@@ -193,8 +204,11 @@ function BudgetEditor({
     >
       <form onSubmit={submit} className="space-y-5">
         <p className="text-sm text-slate-600">
-          {categoryName[category]} · Exercício {year}. As cotas passam a valer
-          para os fornecedores selecionados após salvar.
+          {categoryName[category]} · Exercício {year}. Informe, para cada
+          secretaria, o valor que a contabilidade empenhou nesta licitação. Ao
+          salvar, abastecimentos e ordens de serviço dos fornecedores marcados
+          passam a respeitar esse valor. Quando houver reforço ou anulação de
+          empenho, revise aqui.
         </p>
         {!contract && (
           <p className="rounded-xl bg-blue-50 p-3 text-sm text-blue-800">
@@ -270,7 +284,7 @@ function BudgetEditor({
           </div>
         </fieldset>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-semibold">Cotas por secretaria</h3>
+          <h3 className="font-semibold">Valor empenhado por secretaria</h3>
           <p
             className={
               allocated > form.total_limit ? "text-red-600" : "text-slate-600"
@@ -315,15 +329,22 @@ function BudgetEditor({
                             allocations: form.allocations.filter(
                               (a) => a.department_id !== d.id,
                             ),
+                            reporting: {
+                              ...form.reporting,
+                              empenhos: Object.fromEntries(
+                                Object.entries(form.reporting?.empenhos ?? {}).filter(([id]) => id !== d.id),
+                              ),
+                            },
                           })
                     }
                   />
                   {d.name}
                 </label>
                 {a && (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <SGFInput
-                      label="Limite da secretaria (R$)"
+                      label="Valor empenhado pela secretaria (R$)"
+                      hint="O consumo desta secretaria não pode passar deste valor."
                       type="number"
                       min="0"
                       step="0.01"
@@ -332,6 +353,21 @@ function BudgetEditor({
                       onChange={(e) =>
                         updateAllocation(d.id, {
                           spending_limit: Number(e.target.value),
+                        })
+                      }
+                    />
+                    <SGFInput
+                      label="Nº do(s) empenho(s) (opcional)"
+                      hint="Referência para a conferência com a contabilidade."
+                      value={form.reporting?.empenhos?.[d.id] ?? ""}
+                      maxLength={200}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          reporting: {
+                            ...form.reporting,
+                            empenhos: { ...form.reporting?.empenhos, [d.id]: e.target.value },
+                          },
                         })
                       }
                     />
@@ -545,10 +581,11 @@ export default function DepartmentBudgets() {
     <div className="space-y-6">
       <SGFCard>
         <p className="text-sm text-slate-600">
-          Cadastre a licitação, os fornecedores dela e quanto cada secretaria pode
-          consumir. Abastecimentos e ordens de serviço que passariam do limite da
-          secretaria são bloqueados automaticamente. Empenho, notas e prestação de
-          contas continuam com a contabilidade.
+          Para cada licitação, informe os fornecedores e o valor que cada
+          secretaria empenhou. O sistema acompanha o consumo e bloqueia o
+          abastecimento ou a ordem de serviço que passaria do valor empenhado
+          (Lei 4.320/64, art. 60). Licitação, empenho, liquidação, pagamento e
+          prestação de contas continuam com a contabilidade.
         </p>
       </SGFCard>
       <div className="flex flex-wrap items-end gap-3">
@@ -728,7 +765,7 @@ function ContractCard({
               {[
                 "Secretaria",
                 "Consumo",
-                "Limite",
+                "Empenhado",
                 "Reservado",
                 "Realizado",
                 "Em contestação",
@@ -747,6 +784,9 @@ function ContractCard({
                 <tr key={a.department_id} className="border-b border-slate-100">
                   <td className="p-3">
                     <p className="font-semibold">{a.department_name}</p>
+                    {c.reporting?.empenhos?.[a.department_id] && (
+                      <p className="text-xs text-slate-500">Empenho {c.reporting.empenhos[a.department_id]}</p>
+                    )}
                   </td>
                   <td className="p-3">
                     <UsageBar percent={usagePercent(a)} />
@@ -759,9 +799,11 @@ function ContractCard({
                     className={`p-3 font-semibold ${a.available <= 0 ? "text-red-600" : a.available <= a.spending_limit * 0.2 ? "text-amber-600" : "text-[var(--sgf-primary)]"}`}
                   >
                     {money(a.available)}
-                    {a.available <= 0 && (
-                      <p className="text-xs">Sem saldo para novas despesas</p>
-                    )}
+                    {a.available <= 0 ? (
+                      <p className="text-xs">Sem saldo: peça reforço de empenho</p>
+                    ) : usagePercent(a) >= 80 ? (
+                      <p className="text-xs">Avise a contabilidade sobre reforço</p>
+                    ) : null}
                   </td>
                 </tr>
               ))}

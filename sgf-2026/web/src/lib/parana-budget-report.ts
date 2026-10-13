@@ -15,6 +15,8 @@ export const PARANA_FIELDS = [
 export type ParanaField = (typeof PARANA_FIELDS)[number][0];
 export type ParanaReporting = Partial<Record<ParanaField, string>> & {
   dotacoes?: Record<string, string>;
+  /** Nº do(s) empenho(s) por secretaria (department_id), só como referência. */
+  empenhos?: Record<string, string>;
 };
 interface ReportContract {
   reference: string;

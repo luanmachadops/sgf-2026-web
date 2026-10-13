@@ -6,7 +6,6 @@ import {
     ArrowRight,
     CalendarClock,
     Fuel,
-    Wrench,
     Check,
     Bell,
     ChevronRight,
@@ -17,7 +16,7 @@ import {
     Clock,
 } from '@/components/sgf/icons';
 import { Modal } from '@/components/ui/Modal';
-import { procurementApi, type ProcurementAlert } from '@/lib/procurement-api';
+import { departmentBudgetApi } from '@/lib/department-budget-api';
 import { useDashboardAlerts } from '@/hooks/useDashboard';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { supabase } from '@/lib/supabase';
@@ -28,30 +27,30 @@ import type { IconType } from '@/components/sgf/icons';
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const percent = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
 
-function procurementAlertCopy(alert: ProcurementAlert): { title: string; body: string } {
-    const numText = alert.contractNumber ? ` · Contrato ${alert.contractNumber}` : '';
-    if (alert.code === 'contract_expired') {
-        return {
-            title: `${alert.partnerName}${numText}`,
-            body: `Licitação vencida há ${Math.abs(alert.daysRemaining ?? 0)} dia(s). Operações bloqueadas.`,
-        };
-    }
-    if (alert.code === 'contract_expiring') {
-        return {
-            title: `${alert.partnerName}${numText}`,
-            body: `Contrato vence ${alert.daysRemaining === 0 ? 'hoje' : `em ${alert.daysRemaining} dia(s)`} (${alert.contractEnd ? formatDate(alert.contractEnd) : 'sem data'}).`,
-        };
-    }
-    if (alert.code === 'budget_exhausted') {
-        return {
-            title: `${alert.partnerName}${numText}`,
-            body: `Orçamento 100% comprometido (${currency.format(alert.committedValue)} de ${currency.format(alert.contractValue ?? 0)}).`,
-        };
-    }
-    return {
-        title: `${alert.partnerName}${numText}`,
-        body: `Restam ${percent.format(alert.remainingPercent ?? 0)}% = ${currency.format(alert.remainingValue ?? 0)} de ${currency.format(alert.contractValue ?? 0)}.`,
-    };
+interface CommitmentAlert {
+    key: string;
+    title: string;
+    body: string;
+    severity: 'error' | 'warning';
+}
+
+/** Secretarias com o empenho da licitação acima de 80% (aviso) ou esgotado (crítico). */
+async function fetchCommitmentAlerts(): Promise<CommitmentAlert[]> {
+    const contracts = await departmentBudgetApi.list(new Date().getFullYear());
+    return contracts.flatMap((contract) => contract.allocations.flatMap((a) => {
+        if (a.spending_limit <= 0) return [];
+        const usage = ((a.spending_limit - a.available) / a.spending_limit) * 100;
+        if (usage < 80) return [];
+        const exhausted = a.available <= 0;
+        return [{
+            key: `${contract.id}-${a.department_id}`,
+            title: `${a.department_name} · ${contract.reference}`,
+            body: exhausted
+                ? `Empenho esgotado (${currency.format(a.spending_limit)}). Novas despesas desta secretaria estão bloqueadas: peça reforço à contabilidade.`
+                : `${percent.format(usage)}% do empenho consumido. Restam ${currency.format(a.available)} de ${currency.format(a.spending_limit)}.`,
+            severity: exhausted ? 'error' as const : 'warning' as const,
+        }];
+    })).sort((x, y) => (x.severity === y.severity ? 0 : x.severity === 'error' ? -1 : 1));
 }
 
 const OPERATIONAL_STYLE: Record<string, { card: string; badge: string; icon: string }> = {
@@ -82,29 +81,11 @@ export function SystemAlertsModal({ isOpen: externalIsOpen, onClose: externalOnC
         () => typeof window !== 'undefined' && sessionStorage.getItem(SESSION_STORAGE_KEY) === 'true',
     );
 
-    // 1. Licitações/Contratos
+    // 1. Empenho por secretaria (Limites por secretaria)
     const procurementQuery = useQuery({
-        queryKey: ['procurement-alerts'],
-        queryFn: procurementApi.getAlerts,
+        queryKey: ['department-budget-alerts'],
+        queryFn: fetchCommitmentAlerts,
         staleTime: 60_000,
-    });
-
-    // 2. Fotos de Postos e Oficinas (comércio)
-    const partnerPhotosQuery = useQuery({
-        queryKey: ['partner-photos'],
-        queryFn: async () => {
-            const [stations, shops] = await Promise.all([
-                supabase.from('fuel_stations').select('id, photo_url'),
-                supabase.from('repair_shops').select('id, photo_url'),
-            ]);
-            // Único componente que consulta o Supabase direto, então assina
-            // aqui o que a camada de API assinaria por ele.
-            const rows = await signFotos([...(stations.data || []), ...(shops.data || [])]);
-            const map = new Map<string, string>();
-            rows.forEach((s) => { if (s.photo_url) map.set(s.id, s.photo_url); });
-            return map;
-        },
-        staleTime: 5 * 60 * 1000,
     });
 
     // 3. Motoristas com CNH vencendo ou vencida (detalhado por motorista)
@@ -148,7 +129,6 @@ export function SystemAlertsModal({ isOpen: externalIsOpen, onClose: externalOnC
 
     const procurementAlerts = procurementQuery.data ?? [];
     const driverAlerts = driverCnhQuery.data ?? [];
-    const partnerPhotos = partnerPhotosQuery.data ?? new Map<string, string>();
 
     // Filtra qualquer alerta genérico de CNH para manter APENAS o card detalhado com foto do motorista
     const rawOperationalAlerts = dashboardAlertsQuery.data ?? [];
@@ -191,69 +171,42 @@ export function SystemAlertsModal({ isOpen: externalIsOpen, onClose: externalOnC
                             <Check className="h-6 w-6" />
                         </div>
                         <p className="font-bold text-slate-800">Tudo em dia!</p>
-                        <p className="text-xs text-slate-500">Nenhum aviso de licitação ou pendência de motorista ou frota.</p>
+                        <p className="text-xs text-slate-500">Nenhum aviso de empenho, motorista ou frota.</p>
                     </div>
                 ) : (
                     <>
-                        {/* Seção 1: Licitações e Contratos (Com foto do comércio) */}
+                        {/* Seção 1: Empenho por secretaria */}
                         {procurementAlerts.length > 0 && (
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <FileText className="h-4 w-4 text-amber-600" />
                                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                                        Licitações e Contratos ({procurementAlerts.length})
+                                        Empenho por secretaria ({procurementAlerts.length})
                                     </h3>
                                 </div>
 
                                 <div className="space-y-2.5">
                                     {procurementAlerts.map((alert) => {
-                                        const copy = procurementAlertCopy(alert);
                                         const isError = alert.severity === 'error';
-                                        const DefaultIcon = alert.partnerKind === 'posto' ? Fuel : Wrench;
-                                        const photo = partnerPhotos.get(alert.partnerId);
-                                        const target = alert.partnerKind === 'posto'
-                                            ? `/postos/${alert.partnerId}`
-                                            : `/oficinas/${alert.partnerId}`;
-
                                         return (
                                             <div
-                                                key={`${alert.partnerKind}-${alert.partnerId}-${alert.code}`}
-                                                onClick={() => handleNavigate(target)}
+                                                key={alert.key}
+                                                onClick={() => handleNavigate('/limites')}
                                                 className={`group flex cursor-pointer items-center gap-3.5 rounded-2xl border p-3.5 transition-all hover:shadow-md ${
                                                     isError ? 'border-red-200 bg-red-50/70 hover:bg-red-100/80' : 'border-amber-200 bg-amber-50/70 hover:bg-amber-100/80'
                                                 }`}
                                             >
-                                                {/* Foto do Comércio / Estabelecimento */}
-                                                <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-slate-200/80 bg-white">
-                                                    {photo ? (
-                                                        <img
-                                                            src={photo}
-                                                            alt={alert.partnerName}
-                                                            className="h-full w-full object-cover"
-                                                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                                                        />
-                                                    ) : (
-                                                        <div className={`flex h-full w-full items-center justify-center ${isError ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                            {alert.code.startsWith('contract') ? <CalendarClock className="h-5 w-5" /> : <DefaultIcon className="h-5 w-5" />}
-                                                        </div>
-                                                    )}
+                                                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${isError ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                    <CalendarClock className="h-5 w-5" />
                                                 </div>
-
                                                 <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="truncate text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
-                                                            {copy.title}
-                                                        </span>
-                                                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                                                            isError ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
-                                                        }`}>
-                                                            {alert.partnerKind === 'posto' ? 'Posto' : 'Oficina'}
-                                                        </span>
-                                                    </div>
-                                                    <p className="mt-0.5 truncate text-xs text-slate-600">{copy.body}</p>
+                                                    <span className="block truncate text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
+                                                        {alert.title}
+                                                    </span>
+                                                    <p className="mt-0.5 text-xs text-slate-600">{alert.body}</p>
                                                 </div>
                                                 <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-slate-700 group-hover:text-slate-900 group-hover:translate-x-0.5 transition-all self-center">
-                                                    Ver contrato <ArrowRight className="h-3.5 w-3.5" />
+                                                    Ver limites <ArrowRight className="h-3.5 w-3.5" />
                                                 </span>
                                             </div>
                                         );

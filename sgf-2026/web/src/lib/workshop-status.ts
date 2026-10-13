@@ -14,12 +14,14 @@ export const OPERATIONAL_LABELS: Record<WorkshopOperationalStatus, string> = {
     cancelled: 'Cancelada',
 };
 
+// Situação do orçamento. Empenho, nota e pagamento são tratados com a
+// contabilidade da prefeitura; os rótulos fiscais ficam para OS antigas.
 export const FINANCIAL_LABELS: Record<WorkshopFinancialStatus, string> = {
-    not_started: 'Não iniciado',
-    awaiting_commitment: 'Aguardando empenho',
-    committed: 'Empenhado',
-    invoiced: 'Faturado',
-    attested: 'Atestado',
+    not_started: 'Aguardando orçamento',
+    awaiting_commitment: 'Orçamento aprovado',
+    committed: 'Orçamento aprovado',
+    invoiced: 'Nota registrada',
+    attested: 'Nota atestada',
     paid: 'Pago',
 };
 
@@ -33,12 +35,9 @@ export function nextAction(status: WorkshopOperationalStatus, financialStatus: W
     if (status === 'authorized') return 'Aguardando chegada do veículo';
     if (status === 'at_shop') return 'Enviar orçamento';
     if (status === 'awaiting_quote_approval' && financialStatus === 'committed') return 'Iniciar serviço';
-    if (status === 'awaiting_quote_approval') return 'Aguardando aprovação/empenho';
+    if (status === 'awaiting_quote_approval') return 'Aguardando aprovação do orçamento';
     if (status === 'in_progress') return 'Concluir serviço';
     if (status === 'ready') return 'Aguardando retirada';
-    if (status === 'received' && financialStatus === 'committed') return 'Enviar nota fiscal';
-    if (status === 'received' && financialStatus === 'invoiced') return 'Aguardando ateste';
-    if (status === 'received' && financialStatus === 'attested') return 'Aguardando pagamento';
-    if (status === 'received' && financialStatus === 'paid') return 'Processo encerrado';
+    if (status === 'received') return 'Serviço recebido pela prefeitura';
     return 'Acompanhar processo';
 }

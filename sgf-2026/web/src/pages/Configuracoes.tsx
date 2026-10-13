@@ -163,7 +163,7 @@ export default function Configuracoes() {
             description: 'Antecedência dos avisos de vencimento.',
             summary: [
                 `CNH: ${settings?.cnhAlertDays ?? '—'} dias antes`,
-                `Licitação: ${settings?.contractAlertDays ?? '—'} dias antes`,
+                'Empenho por secretaria: aviso a 80%',
             ],
         },
         ...(canEditWorkHours ? [{
@@ -237,21 +237,13 @@ export default function Configuracoes() {
             </Modal>
 
             <Modal isOpen={openSection === 'alerts'} onClose={closeModal} title="Alertas e prazos" description="Defina com quantos dias de antecedência o sistema avisa os vencimentos." size="md" footer={saveFooter(handleSaveAlerts)}>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4">
                     <SGFInput
                         label="Alertar CNH a vencer (dias)"
                         type="number"
                         value={cnhAlertDays}
                         onChange={(e) => setCnhAlertDays(e.target.value)}
                         hint="Motoristas com CNH vencendo neste prazo entram em alerta."
-                        fullWidth
-                    />
-                    <SGFInput
-                        label="Alertar licitação a vencer (dias)"
-                        type="number"
-                        value={contractAlertDays}
-                        onChange={(e) => setContractAlertDays(e.target.value)}
-                        hint="Postos com contrato vencendo neste prazo entram em alerta."
                         fullWidth
                     />
                 </div>

@@ -22,7 +22,6 @@ import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { NewRefuelingForm } from '@/components/refuelings/NewRefuelingForm';
 import { AuthorizeFuelingModal } from '@/components/refuelings/AuthorizeFuelingModal';
 import { StationOperationsPanel } from '@/components/refuelings/StationOperationsPanel';
-import { StationClosingsPanel } from '@/components/refuelings/StationClosingsPanel';
 import { RefuelingDetailsModal } from '@/components/refuelings/RefuelingDetailsModal';
 import { useRefuelings } from '@/hooks/useRefuelings';
 import type { Tables } from '@/types/database.types';
@@ -102,7 +101,6 @@ export default function Refuelings() {
     const [departmentId, setDepartmentId] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [showAuthorizeModal, setShowAuthorizeModal] = useState(false);
-    const [commitmentStationId, setCommitmentStationId] = useState<string | null>(null);
     const [manualSelectedRefueling, setSelectedRefueling] = useState<RefuelingRow | null>(null);
     const { setTitle, setDescription, setHeaderAction } = useHeader();
 
@@ -367,10 +365,6 @@ export default function Refuelings() {
             </div>
 
             <StationOperationsPanel />
-            <StationClosingsPanel
-                openCommitmentForStationId={commitmentStationId}
-                onCommitmentHandled={() => setCommitmentStationId(null)}
-            />
 
             <RefuelingDetailsModal
                 refueling={selectedRefueling}
@@ -388,20 +382,12 @@ export default function Refuelings() {
                 <NewRefuelingForm
                     onSuccess={() => setShowAddModal(false)}
                     onCancel={() => setShowAddModal(false)}
-                    onOpenCommitment={(stationId) => {
-                        setShowAddModal(false);
-                        setCommitmentStationId(stationId);
-                    }}
                 />
             </Modal>
 
             <AuthorizeFuelingModal
                 isOpen={showAuthorizeModal}
                 onClose={() => setShowAuthorizeModal(false)}
-                onOpenCommitment={(stationId) => {
-                    setShowAuthorizeModal(false);
-                    setCommitmentStationId(stationId);
-                }}
             />
         </div>
     );

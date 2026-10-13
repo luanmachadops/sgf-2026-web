@@ -25,7 +25,6 @@ import {
     nextAction,
 } from '@/lib/workshop-status';
 import { FinishServiceModal } from './FinishServiceModal';
-import { InvoiceModal } from './InvoiceModal';
 import { QuoteModal } from './QuoteModal';
 import { WorkshopModalShell } from './WorkshopModalShell';
 import { openPrivateDocument } from '@/lib/docStorage';
@@ -35,7 +34,7 @@ const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: '
 const date = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' });
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
-type ActionModal = 'quote' | 'finish' | 'invoice' | null;
+type ActionModal = 'quote' | 'finish' | null;
 
 interface OrderDetailsModalProps {
     order: WorkshopOrder;
@@ -96,15 +95,13 @@ export function OrderDetailsModal({
         ),
     });
 
-    // Depois de aprovado (aguardando empenho/empenhado) o banco recusa novo orçamento.
+    // Depois de aprovado o banco recusa novo orçamento. A nota fiscal é tratada
+    // com a contabilidade da prefeitura, fora do portal.
     const canQuote = ['at_shop', 'awaiting_quote_approval'].includes(order.operationalStatus)
         && order.financialStatus === 'not_started';
     const canStart = order.operationalStatus === 'awaiting_quote_approval'
         && order.financialStatus === 'committed';
     const canFinish = order.operationalStatus === 'in_progress';
-    const canInvoice = order.operationalStatus === 'received'
-        && Boolean(order.commitmentNumber)
-        && ['committed', 'invoiced'].includes(order.financialStatus);
 
     const completeAction = (message: string) => {
         setActionModal(null);
@@ -143,11 +140,6 @@ export function OrderDetailsModal({
                                 Concluir serviço
                             </SGFButton>
                         )}
-                        {canInvoice && (
-                            <SGFButton icon={FileText} onClick={() => setActionModal('invoice')}>
-                                Enviar nota fiscal
-                            </SGFButton>
-                        )}
                     </>
                 )}
             >
@@ -160,7 +152,7 @@ export function OrderDetailsModal({
                             </SGFBadge>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
-                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Financeiro</p>
+                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Orçamento</p>
                             <SGFBadge className="mt-2" size="lg" dot variant={financialVariant(order.financialStatus)}>
                                 {FINANCIAL_LABELS[order.financialStatus]}
                             </SGFBadge>
@@ -261,16 +253,13 @@ export function OrderDetailsModal({
                                 )}
                             </section>
 
+                            {/* Notas enviadas no fluxo antigo; novas notas vão direto à contabilidade. */}
+                            {details.invoices.length > 0 && (
                             <section>
                                 <div className="flex items-center gap-2">
                                     <FileText className="h-5 w-5 text-blue-700" />
                                     <h3 className="font-bold text-slate-900">Notas fiscais</h3>
                                 </div>
-                                {details.invoices.length === 0 ? (
-                                    <p className="mt-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
-                                        Nenhuma nota fiscal enviada.
-                                    </p>
-                                ) : (
                                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                                         {details.invoices.map((invoice) => (
                                             <article key={invoice.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
@@ -300,8 +289,8 @@ export function OrderDetailsModal({
                                             </article>
                                         ))}
                                     </div>
-                                )}
                             </section>
+                            )}
 
                             <section>
                                 <div className="flex items-center gap-2">
@@ -389,14 +378,6 @@ export function OrderDetailsModal({
                     context={context}
                     onClose={() => setActionModal(null)}
                     onSuccess={() => completeAction('Serviço concluído. Aguardando retirada do veículo.')}
-                />
-            )}
-            {actionModal === 'invoice' && (
-                <InvoiceModal
-                    order={order}
-                    context={context}
-                    onClose={() => setActionModal(null)}
-                    onSuccess={() => completeAction('Nota fiscal enviada para ateste.')}
                 />
             )}
         </>

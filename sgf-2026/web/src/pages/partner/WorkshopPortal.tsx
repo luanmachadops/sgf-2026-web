@@ -15,16 +15,12 @@ import {
 } from 'recharts';
 import { OrderDetailsModal } from '@/components/partners/workshop/OrderDetailsModal';
 import { PartnerPortalLayout, type PartnerNavItem } from '@/components/partners/PartnerPortalLayout';
-import { ContractStatusAlerts } from '@/components/partners/ContractStatusAlerts';
-import { ContractUsagePanel } from '@/components/procurement/ContractUsageGauge';
 import { SGFBadge, SGFButton, SGFCard, SGFKPICard } from '@/components/sgf';
 import {
     AlertCircle,
     Clock,
     DollarSign,
-    FileText,
     Home,
-    Info,
     LayoutDashboard,
     MapPin,
     Phone,
@@ -42,7 +38,6 @@ import {
 import {
     procurementApi,
     type PartnerDashboardData,
-    type ProcurementContractUsage,
 } from '@/lib/procurement-api';
 import {
     FINANCIAL_LABELS,
@@ -66,12 +61,6 @@ function tabFromPath(path: string): PortalTab {
     if (path.endsWith('/ordens')) return 'orders';
     if (path.endsWith('/fechamento')) return 'closing';
     return 'dashboard';
-}
-
-function safeDate(value: string | null): string {
-    if (!value) return 'Não informado';
-    const parsed = new Date(`${value}T12:00:00`);
-    return Number.isNaN(parsed.getTime()) ? '—' : date.format(parsed);
 }
 
 function ErrorState({ message, retry }: { message: string; retry: () => void }) {
@@ -105,7 +94,7 @@ const monthLabel = (key: string) => {
         .replace('.', '');
 };
 
-function WorkshopDashboard({ usage }: { usage?: ProcurementContractUsage }) {
+function WorkshopDashboard() {
     const query = useQuery({
         queryKey: ['partner-dashboard', 'oficina'],
         queryFn: procurementApi.getPartnerDashboard,
@@ -126,7 +115,6 @@ function WorkshopDashboard({ usage }: { usage?: ProcurementContractUsage }) {
 
     return (
         <div className="space-y-6">
-            {usage ? <ContractUsagePanel usage={usage} /> : null}
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <SGFKPICard
                     title="Ordens em aberto"
@@ -153,8 +141,8 @@ function WorkshopDashboard({ usage }: { usage?: ProcurementContractUsage }) {
                     chartData={monthly.map((item) => ({ month: item.month, value: item.count }))}
                 />
                 <SGFKPICard
-                    title="Faturado no mês"
-                    value={currency.format(data.metrics.monthInvoiced ?? 0)}
+                    title="Orçado no mês"
+                    value={currency.format(monthly.at(-1)?.amount ?? 0)}
                     icon={DollarSign}
                     iconColor="text-emerald-600"
                     chartColor="#00A86B"
@@ -375,13 +363,7 @@ function OrdersView({
     );
 }
 
-function DetailsView({
-    context,
-    contractUsage,
-}: {
-    context: WorkshopContext;
-    contractUsage?: ProcurementContractUsage;
-}) {
+function DetailsView({ context }: { context: WorkshopContext }) {
     const detailsQuery = useQuery({
         queryKey: ['workshop-details', context.repairShopId],
         queryFn: () => workshopPortalApi.getDetails(context.repairShopId),
@@ -401,10 +383,7 @@ function DetailsView({
     const details: WorkshopDetails = detailsQuery.data;
     return (
         <div className="space-y-6">
-            {contractUsage ? <ContractUsagePanel usage={contractUsage} /> : null}
-
-            <div className="grid gap-5 lg:grid-cols-3">
-            <SGFCard variant="bordered" className="lg:col-span-2" padding="lg">
+            <SGFCard variant="bordered" padding="lg">
                 <div className="flex items-start gap-4">
                     <div className="h-16 w-24 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-white">
                         {details.photoUrl ? (
@@ -447,43 +426,15 @@ function DetailsView({
                 </div>
             </SGFCard>
 
-            <SGFCard variant="bordered" padding="lg">
-                <FileText className="h-7 w-7 text-blue-700" />
-                <p className="mt-4 text-xs font-bold uppercase tracking-wide text-slate-400">Contrato</p>
-                <h3 className="mt-1 text-lg font-black text-slate-950">{details.contractNumber || 'Não informado'}</h3>
-                <dl className="mt-5 space-y-4 text-sm">
-                    <div>
-                        <dt className="text-slate-400">Início</dt>
-                        <dd className="font-semibold text-slate-800">{safeDate(details.contractStart)}</dd>
-                    </div>
-                    <div>
-                        <dt className="text-slate-400">Vencimento</dt>
-                        <dd className="font-semibold text-slate-800">{safeDate(details.contractEnd)}</dd>
-                    </div>
-                </dl>
-                <div className="mt-5 flex gap-2 rounded-2xl bg-blue-50 p-4 text-sm text-blue-700">
-                    <Info className="mt-0.5 h-5 w-5 shrink-0" />
-                    <p>Alterações cadastrais e contratuais são feitas pela prefeitura.</p>
-                </div>
-            </SGFCard>
-            </div>
         </div>
     );
 }
 
 
-/** Rótulo curto do eixo financeiro, para a coluna da tabela. */
-const FIN_LABEL: Record<string, string> = {
-    not_started: 'Não iniciado', awaiting_commitment: 'Aguardando empenho',
-    committed: 'Empenhado', invoiced: 'Faturado', attested: 'Atestado', paid: 'Pago',
-};
-
 /**
- * Fechamento mensal da oficina — o espelho do que o posto já tinha.
- *
- * Responde a pergunta que a empresa faz todo mês: "o que entreguei e quanto
- * tenho a receber?". O saldo é faturado − pago, então pagamento parcial fica
- * visível em vez de sumir num status.
+ * Conferência mensal da oficina: os serviços que a prefeitura recebeu no mês e
+ * o valor aprovado de cada um — a base para a oficina emitir a nota. Nota,
+ * empenho e pagamento seguem com a contabilidade da prefeitura.
  */
 function WorkshopClosing() {
     const [month, setMonth] = useState(currentMonth);
@@ -493,17 +444,7 @@ function WorkshopClosing() {
     });
 
     const rows = summaryQuery.data ?? [];
-    const totals = rows.reduce(
-        (acc, r) => ({
-            orders: acc.orders + 1,
-            quoted: acc.quoted + r.quotedAmount,
-            invoiced: acc.invoiced + r.invoicedAmount,
-            attested: acc.attested + r.attestedAmount,
-            paid: acc.paid + r.paidAmount,
-            balance: acc.balance + r.balance,
-        }),
-        { orders: 0, quoted: 0, invoiced: 0, attested: 0, paid: 0, balance: 0 },
-    );
+    const totalApproved = rows.reduce((sum, r) => sum + r.quotedAmount, 0);
 
     if (summaryQuery.error) {
         return <ErrorState message={(summaryQuery.error as Error).message} retry={() => void summaryQuery.refetch()} />;
@@ -515,10 +456,10 @@ function WorkshopClosing() {
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                     <div>
                         <p className="text-xs font-bold uppercase tracking-wide text-blue-700">Competência</p>
-                        <h3 className="mt-1 text-lg font-black text-slate-950">Conferência para faturamento</h3>
+                        <h3 className="mt-1 text-lg font-black text-slate-950">Serviços recebidos no mês</h3>
                         <p className="mt-1 text-sm text-slate-500">
-                            Entram as ordens cujo veículo foi <strong>recebido</strong> pela prefeitura no mês —
-                            é quando o serviço passa a ser faturável.
+                            Entram as ordens cujo veículo foi <strong>recebido</strong> pela prefeitura no mês.
+                            Use esta lista para emitir a nota fiscal e enviá-la à prefeitura.
                         </p>
                     </div>
                     <label className="text-sm font-semibold text-slate-700">
@@ -539,41 +480,27 @@ function WorkshopClosing() {
                 </SGFCard>
             ) : (
                 <>
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
                         <SGFCard variant="bordered">
-                            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Faturado</p>
-                            <p className="mt-2 text-2xl font-black text-slate-950">{currency.format(totals.invoiced)}</p>
-                            <p className="mt-1 text-xs text-slate-500">{totals.orders} ordem(ns) no mês</p>
+                            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Serviços recebidos</p>
+                            <p className="mt-2 text-2xl font-black text-slate-950">{rows.length}</p>
+                            <p className="mt-1 text-xs text-slate-500">Ordens com veículo recebido no mês</p>
                         </SGFCard>
                         <SGFCard variant="bordered">
-                            <p className="text-xs font-bold uppercase tracking-wide text-blue-600">Atestado</p>
-                            <p className="mt-2 text-2xl font-black text-blue-800">{currency.format(totals.attested)}</p>
-                            <p className="mt-1 text-xs text-slate-500">Liberado para pagamento</p>
-                        </SGFCard>
-                        <SGFCard variant="bordered">
-                            <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">Recebido</p>
-                            <p className="mt-2 text-2xl font-black text-emerald-800">{currency.format(totals.paid)}</p>
-                            <p className="mt-1 text-xs text-slate-500">Pagamentos registrados</p>
-                        </SGFCard>
-                        <SGFCard variant="bordered">
-                            <p className="text-xs font-bold uppercase tracking-wide text-amber-600">A receber</p>
-                            <p className="mt-2 text-2xl font-black text-amber-800">{currency.format(totals.balance)}</p>
-                            <p className="mt-1 text-xs text-slate-500">Faturado menos pago</p>
+                            <p className="text-xs font-bold uppercase tracking-wide text-emerald-600">Valor aprovado</p>
+                            <p className="mt-2 text-2xl font-black text-emerald-800">{currency.format(totalApproved)}</p>
+                            <p className="mt-1 text-xs text-slate-500">Soma dos orçamentos aprovados</p>
                         </SGFCard>
                     </div>
 
                     <SGFCard padding="none">
                         <div className="overflow-x-auto">
-                            <table className="w-full min-w-[720px] text-sm">
+                            <table className="w-full min-w-[520px] text-sm">
                                 <thead className="border-b border-slate-100 text-left text-xs font-medium text-slate-500">
                                     <tr>
                                         <th className="px-5 py-3">Veículo</th>
-                                        <th className="px-5 py-3">Entregue em</th>
-                                        <th className="px-5 py-3 text-right">Orçado</th>
-                                        <th className="px-5 py-3 text-right">Faturado</th>
-                                        <th className="px-5 py-3 text-right">Recebido</th>
-                                        <th className="px-5 py-3 text-right">A receber</th>
-                                        <th className="px-5 py-3">Situação</th>
+                                        <th className="px-5 py-3">Recebido em</th>
+                                        <th className="px-5 py-3 text-right">Valor aprovado</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
@@ -586,17 +513,7 @@ function WorkshopClosing() {
                                             <td className="px-5 py-3 text-slate-600">
                                                 {r.receivedAt ? date.format(new Date(r.receivedAt)) : '—'}
                                             </td>
-                                            <td className="px-5 py-3 text-right tabular-nums text-slate-600">{currency.format(r.quotedAmount)}</td>
-                                            <td className="px-5 py-3 text-right tabular-nums font-semibold text-slate-900">{currency.format(r.invoicedAmount)}</td>
-                                            <td className="px-5 py-3 text-right tabular-nums text-emerald-700">{currency.format(r.paidAmount)}</td>
-                                            <td className={`px-5 py-3 text-right tabular-nums font-bold ${r.balance > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
-                                                {currency.format(r.balance)}
-                                            </td>
-                                            <td className="px-5 py-3">
-                                                <SGFBadge variant={r.financialStatus === 'paid' ? 'success' : r.financialStatus === 'attested' ? 'info' : 'warning'}>
-                                                    {FIN_LABEL[r.financialStatus] ?? r.financialStatus}
-                                                </SGFBadge>
-                                            </td>
+                                            <td className="px-5 py-3 text-right tabular-nums font-semibold text-slate-900">{currency.format(r.quotedAmount)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -637,43 +554,29 @@ export default function WorkshopPortal() {
         staleTime: 5 * 60_000,
     });
     const context = contextQuery.data;
-    const contractQuery = useQuery({
-        queryKey: ['partner-contract-status', 'oficina'],
-        queryFn: procurementApi.getPartnerContractStatus,
-        enabled: Boolean(context),
-        staleTime: 30_000,
-    });
-    const contractStatus = contractQuery.data;
-    const contractUsageQuery = useQuery({
-        queryKey: ['partner-contract-usage', 'oficina'],
-        queryFn: procurementApi.getPartnerContractUsage,
-        enabled: Boolean(context),
-        staleTime: 30_000,
-    });
-    const contractUsage = contractUsageQuery.data;
 
     const navItems: PartnerNavItem[] = [
         { label: 'Dashboard', path: '/oficina', icon: LayoutDashboard, end: true },
         { label: 'Ordens de serviço', path: '/oficina/ordens', icon: Home },
-        { label: 'Fechamento', path: '/oficina/fechamento', icon: Receipt },
+        { label: 'Serviços do mês', path: '/oficina/fechamento', icon: Receipt },
         { label: 'Meus dados', path: '/oficina/dados', icon: User },
     ];
     const titles: Record<PortalTab, { title: string; description: string }> = {
         dashboard: {
             title: 'Dashboard da oficina',
-            description: 'Indicadores de ordens, faturamento, contrato e saldo da licitação.',
+            description: 'Indicadores das ordens de serviço e dos orçamentos.',
         },
         orders: {
             title: 'Ordens de serviço',
-            description: 'Acompanhe orçamento, execução, retirada e faturamento de cada veículo.',
+            description: 'Acompanhe orçamento, execução e retirada de cada veículo.',
         },
         closing: {
-            title: 'Fechamento mensal',
-            description: 'Confira o que foi entregue no mês e quanto há a receber da prefeitura.',
+            title: 'Serviços do mês',
+            description: 'Confira os serviços recebidos pela prefeitura no mês, para emitir a nota.',
         },
         details: {
             title: 'Dados da oficina',
-            description: 'Consulte cadastro, contrato, saldo e especialidades vinculadas.',
+            description: 'Consulte o cadastro e as especialidades da oficina.',
         },
     };
     const page = titles[activeTab];
@@ -694,7 +597,6 @@ export default function WorkshopPortal() {
             ) : undefined}
         >
             <div className="space-y-6">
-                <ContractStatusAlerts status={contractStatus} />
                 {contextQuery.isLoading ? (
                     <LoadingCards />
                 ) : contextQuery.error || !context ? (
@@ -703,7 +605,7 @@ export default function WorkshopPortal() {
                         retry={() => void contextQuery.refetch()}
                     />
                 ) : activeTab === 'dashboard' ? (
-                    <WorkshopDashboard usage={contractUsage} />
+                    <WorkshopDashboard />
                 ) : activeTab === 'orders' ? (
                     <OrdersView
                         context={context}
@@ -715,7 +617,7 @@ export default function WorkshopPortal() {
                 ) : activeTab === 'closing' ? (
                     <WorkshopClosing />
                 ) : (
-                    <DetailsView context={context} contractUsage={contractUsage} />
+                    <DetailsView context={context} />
                 )}
             </div>
         </PartnerPortalLayout>

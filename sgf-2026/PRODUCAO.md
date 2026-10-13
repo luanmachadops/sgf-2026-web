@@ -344,16 +344,37 @@ de cada secretaria em cada licitação** (teto total obrigatório), com bloqueio
   "Fechamento Fiscal dos Postos"; módulo `procurement` some da gestão de acessos (o id continua aceito no
   servidor). Tabelas e funções do banco ficam intactas (vazias ou só com testes).
 
-**Fase 2 (pendente de aprovação — mexe em regras do banco em produção):**
-- O fluxo da OS exige registrar **empenho** antes de a oficina executar (`ServiceOrderFiscalPanel`), e depois
-  NF/ateste/pagamento. Tirar isso exige alterar as funções do fluxo.
-- Fechamento fiscal mensal dos postos (0 registros) e teto/vigência no cadastro do fornecedor
-  (`fuel_stations`/`repair_shops.contract_value`, `contract_start/end`): os triggers
-  `enforce_station_contract_budget` / `enforce_repair_shop_contract_budget` bloqueiam com base nesses campos.
-  Hoje 1 posto e 1 oficina têm valor preenchido. Esconder os campos sem limpar os dados deixaria bloqueios
-  invisíveis.
-- Pré-requisito do limite por secretaria: 82 de 88 veículos sem secretaria — despesas com fornecedor
-  vinculado a uma licitação são recusadas até preencher (usuário vai ajustar manualmente).
+**Base legal adotada (análise de 2026-10-13, validar com controle interno/contabilidade):** o sistema não
+replica licitação/empenho/SIM-AM (isso é do sistema contábil oficial). Ele garante: (1) não gastar sem
+empenho — Lei 4.320/64 art. 60 — porque o **limite da secretaria = valor empenhado** por ela na licitação;
+(2) prova de cada abastecimento/serviço na frota oficial para a liquidação — art. 63; TCE-PR Acórdão
+1629/16; (3) fiscalização e recebimento registrados — Lei 14.133/21 arts. 117 e 140.
+
+**Fase 2 — banco (migration `20261013150000_simplify_procurement_to_department_limits.sql`, ⏳ NÃO APLICADA):**
+o `apply_migration` do MCP foi bloqueado pelo controle de permissões do Claude Code. Aplicar pelo painel do
+Supabase (SQL editor) ou liberar a ferramenta. Reversão em `docs/rollback/`. O que faz:
+- remove `trg_fuelings_require_commitment` / `trg_station_operations_require_commitment` (saldo de empenho do
+  posto; sem empenho cadastrado, **recusava toda autorização em posto** — último abastecimento com posto
+  concluído é de junho) e `trg_enforce_station_contract_budget` / `trg_enforce_repair_shop_contract_budget`
+  (teto/vigência no cadastro do fornecedor);
+- `manager_review_service_order_quote` deixa de exigir vínculo de cada item à licitação (antes **nenhum
+  orçamento podia ser aprovado** sem isso) e a aprovação leva a OS direto a `committed` (oficina liberada);
+  a cota da secretaria é reservada nesse update; OS em `awaiting_commitment` são liberadas;
+- `save_department_budget` aceita `reporting.empenhos` ({department_id: nº do empenho}, só referência).
+
+**Fase 3 e 4 — interface (feitas no código, ⏳ só publicar DEPOIS da migration):**
+- Limites: "valor empenhado" por secretaria + nº do empenho opcional; alerta a 80% e mensagem de reforço.
+- OS: orçamento aprovado → oficina executa → recebimento (art. 140). Saem empenho/NF/ateste/pagamento do
+  painel e do portal da oficina (`InvoiceModal` removido); "Fechamento" da oficina vira "Serviços do mês".
+- Postos/oficinas: saem campos e medidores de contrato, alertas de vencimento e o bloqueio por "licitação
+  vencida"; portal do posto sem protocolo/NF/pagamento ("Abastecimentos do mês"); autorização e lançamento de
+  abastecimento sem a trava de empenho do posto (a reserva consome o empenho da secretaria).
+- Alertas do painel: empenho por secretaria ≥80% / esgotado (no lugar dos alertas de contrato).
+- Relatórios novos: **Extrato por Fornecedor** (cada abastecimento validado e OS recebida, para conferir a
+  NF antes de liquidar) e **Consumo por Secretaria × Empenho**. "Fechamento por Posto" e "Manutenções por
+  Oficina" sem colunas de contrato.
+- Pré-requisito: 82 de 88 veículos sem secretaria — despesas com fornecedor vinculado a uma licitação são
+  recusadas até preencher (usuário vai ajustar manualmente).
 
 ## Checklist final de go-live
 

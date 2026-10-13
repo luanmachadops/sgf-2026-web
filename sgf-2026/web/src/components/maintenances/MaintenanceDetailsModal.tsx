@@ -320,7 +320,6 @@ function MaintenanceDetailsModalContent({ maintenanceId, onClose, onEdit }: Prop
                             financialStatus={fin}
                             commitmentNumber={m.commitment_number}
                             commitmentDocumentPath={m.commitment_document_path}
-                            tenantId={m.tenant_id}
                         />
                     )}
 

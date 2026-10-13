@@ -25,6 +25,7 @@ const contractSchema = z.object({
       idTipoDocOrigemLicitacao: z.string().optional(),
       nrDocOrigemLicitacao: z.string().optional(),
       dotacoes: z.record(z.string(), z.string()).optional(),
+      empenhos: z.record(z.string(), z.string()).optional(),
     })
     .optional(),
   id: z.string(),

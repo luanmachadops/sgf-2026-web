@@ -7,8 +7,6 @@ import { SGFInput } from '@/components/sgf/SGFInput';
 import { Camera, Loader2, FileText, X, Download, Search } from '@/components/sgf/icons';
 import { useCreateRepairShop, useUpdateRepairShop, useRepairShops } from '@/hooks/useRepairShops';
 import { useAuth } from '@/contexts/AuthContext';
-import { ProcurementContractFields } from '@/components/procurement/ProcurementContractFields';
-import { assertContractDatesPersisted, validateProcurementContract } from '@/lib/procurement-contract';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { resolveDocUrl, uploadPrivateDoc } from '@/lib/docStorage';
 import {
@@ -60,12 +58,6 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
     const [address, setAddress] = useState('');
     const [city, setCity] = useState('');
     const [phone, setPhone] = useState('');
-    const [contractNumber, setContractNumber] = useState('');
-    const [contractStart, setContractStart] = useState('');
-    const [contractEnd, setContractEnd] = useState('');
-    const [contractValue, setContractValue] = useState('');
-    const [contractAlertPercent, setContractAlertPercent] = useState('20');
-    const [contractAlertDays, setContractAlertDays] = useState('30');
     const [isActive, setIsActive] = useState(true);
     const [specialties, setSpecialties] = useState<string[]>([]);
     const [notes, setNotes] = useState('');
@@ -97,12 +89,6 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
         setAddress(shop?.address ?? '');
         setCity(shop?.city ?? '');
         setPhone(maskPhone(shop?.phone ?? ''));
-        setContractNumber(shop?.contract_number ?? '');
-        setContractStart(shop?.contract_start ?? '');
-        setContractEnd(shop?.contract_end ?? '');
-        setContractValue(shop?.contract_value == null ? '' : String(shop.contract_value));
-        setContractAlertPercent(String(shop?.contract_alert_percent ?? 20));
-        setContractAlertDays(String(shop?.contract_alert_days ?? 30));
         setIsActive(shop?.is_active ?? true);
         setSpecialties(shop?.specialties ?? []);
         setNotes(shop?.notes ?? '');
@@ -280,15 +266,6 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
         e.preventDefault();
         setError(null);
         if (!name.trim()) return setError('Informe o nome da oficina.');
-        const contractError = validateProcurementContract({
-            contractNumber,
-            contractStart,
-            contractEnd,
-            contractValue,
-            contractAlertPercent,
-            contractAlertDays,
-        });
-        if (contractError) return setError(contractError);
 
         const finalCode = (code.trim() || generateNextShopCode(existingShops)).toUpperCase();
 
@@ -299,12 +276,6 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
             address: address.trim() || null,
             city: city.trim() || null,
             phone: phone.replace(/\D/g, '') || null,
-            contract_number: contractNumber.trim() || null,
-            contract_start: contractStart || null,
-            contract_end: contractEnd || null,
-            contract_value: contractValue ? Number(contractValue) : null,
-            contract_alert_percent: Number(contractAlertPercent || 20),
-            contract_alert_days: Number(contractAlertDays || 30),
             is_active: isActive,
             specialties,
             notes: notes.trim() || null,
@@ -313,13 +284,8 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
         };
 
         try {
-            const saved = isEditing && shop
-                ? await updateMut.mutateAsync(payload)
-                : await createMut.mutateAsync(payload);
-            assertContractDatesPersisted(saved, {
-                contract_start: payload.contract_start,
-                contract_end: payload.contract_end,
-            });
+            if (isEditing && shop) await updateMut.mutateAsync(payload);
+            else await createMut.mutateAsync(payload);
             await qc.invalidateQueries({ queryKey: ['repairShops'] });
             toast.success(isEditing ? 'Oficina atualizada!' : 'Oficina cadastrada!');
             onClose();
@@ -367,22 +333,6 @@ export function RepairShopFormModal({ isOpen, onClose, shop }: Props) {
                         <input ref={photoInputRef} type="file" accept="image/*" onChange={handlePhoto} className="hidden" />
                     </div>
                 </div>
-
-                <ProcurementContractFields
-                    idPrefix="repair-shop"
-                    contractNumber={contractNumber}
-                    contractStart={contractStart}
-                    contractEnd={contractEnd}
-                    contractValue={contractValue}
-                    contractAlertPercent={contractAlertPercent}
-                    contractAlertDays={contractAlertDays}
-                    onContractNumberChange={setContractNumber}
-                    onContractStartChange={setContractStart}
-                    onContractEndChange={setContractEnd}
-                    onContractValueChange={setContractValue}
-                    onContractAlertPercentChange={setContractAlertPercent}
-                    onContractAlertDaysChange={setContractAlertDays}
-                />
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="md:col-span-2">

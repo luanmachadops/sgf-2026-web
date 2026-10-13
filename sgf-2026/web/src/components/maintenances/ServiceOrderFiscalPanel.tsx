@@ -5,13 +5,11 @@ import { toast } from 'sonner';
 import { SGFBadge } from '@/components/sgf/SGFBadge';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
-import { SGFSelect } from '@/components/sgf/SGFSelect';
-import { Check, Clock, DollarSign, FileText, Loader2, X } from '@/components/sgf/icons';
+import { Check, Clock, FileText, Loader2, X } from '@/components/sgf/icons';
 import { serviceOrderFiscalApi, type FinStatus, type OpStatus } from '@/lib/supabase-api';
 import { openPrivateDocument } from '@/lib/docStorage';
 import { formatCurrency, formatDate, formatRoleLabel, maskCpfLGPD } from '@/lib/utils';
 import { maintenanceOperationalLabel } from '@/lib/maintenance-status';
-import { workshopQuoteProcurementApi } from '@/lib/workshop-quote-procurement-api';
 
 interface Props {
     orderId: string;
@@ -19,54 +17,54 @@ interface Props {
     financialStatus: FinStatus | null;
     commitmentNumber: string | null;
     commitmentDocumentPath: string | null;
-    tenantId: string;
 }
 
+/**
+ * Situação do orçamento. Empenho, nota, ateste e pagamento ficam com a
+ * contabilidade; os rótulos antigos continuam para as OS que já passaram por eles.
+ */
 const FIN_LABEL: Record<string, string> = {
-    not_started: 'Não iniciado', awaiting_commitment: 'Aguardando empenho', committed: 'Empenhado',
-    invoiced: 'Faturado', attested: 'Atestado', paid: 'Pago',
+    not_started: 'Aguardando orçamento',
+    awaiting_commitment: 'Orçamento aprovado',
+    committed: 'Orçamento aprovado',
+    invoiced: 'Orçamento aprovado · nota registrada',
+    attested: 'Orçamento aprovado · nota atestada',
+    paid: 'Orçamento aprovado · pago',
 };
 
+/**
+ * Fluxo da OS no painel: orçamento aprovado → oficina executa → gestor recebe o
+ * veículo (recebimento, Lei 14.133/21 art. 140). O valor aprovado consome o
+ * empenho da secretaria cadastrado em Limites por secretaria.
+ */
 export function ServiceOrderFiscalPanel({
     orderId,
     operationalStatus,
     financialStatus,
     commitmentNumber,
     commitmentDocumentPath,
-    tenantId,
 }: Props) {
     const qc = useQueryClient();
     const op = (operationalStatus ?? 'pending') as OpStatus;
     const fin = (financialStatus ?? 'not_started') as FinStatus;
-
     const [quoteReviewNote, setQuoteReviewNote] = useState('');
-    const [quoteLinkReason, setQuoteLinkReason] = useState('');
-    const [quoteLinkChoices, setQuoteLinkChoices] = useState<Record<string, string>>({});
-    const [commitment, setCommitment] = useState(commitmentNumber ?? '');
-    const [nad, setNad] = useState('');
-    const [commitmentFile, setCommitmentFile] = useState<File | null>(null);
-    const [payAmount, setPayAmount] = useState('');
-    const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
-    const [payNote, setPayNote] = useState('');
-    const [attestationGlosa, setAttestationGlosa] = useState<Record<string, string>>({});
-    const [attestationNote, setAttestationNote] = useState<Record<string, string>>({});
 
     const invalidate = () => {
         qc.invalidateQueries({ queryKey: ['maintenance', orderId] });
         qc.invalidateQueries({ queryKey: ['osFiscal', orderId] });
         qc.invalidateQueries({ queryKey: ['maintenances'] });
+        qc.invalidateQueries({ queryKey: ['department-budgets'] });
     };
 
     const { data, isLoading } = useQuery({
         queryKey: ['osFiscal', orderId],
         queryFn: async () => {
-            const [quotes, invoices, payments, events] = await Promise.all([
+            const [quotes, invoices, events] = await Promise.all([
                 serviceOrderFiscalApi.quotes(orderId),
                 serviceOrderFiscalApi.invoices(orderId),
-                serviceOrderFiscalApi.payments(orderId),
                 serviceOrderFiscalApi.events(orderId),
             ]);
-            return { quotes, invoices, payments, events };
+            return { quotes, invoices, events };
         },
         enabled: Boolean(orderId),
     });
@@ -82,82 +80,17 @@ export function ServiceOrderFiscalPanel({
     const mutRejectQuote = useMutation({
         mutationFn: (id: string) => serviceOrderFiscalApi.rejectQuote(id, quoteReviewNote),
     });
-    const mutCommit = useMutation({
-        mutationFn: () => serviceOrderFiscalApi.registerCommitment(orderId, {
-            commitmentNumber: commitment,
-            nadNumber: nad || null,
-            document: commitmentFile!,
-            tenantId,
-        }),
-    });
     const mutDelivery = useMutation({
         mutationFn: () => serviceOrderFiscalApi.confirmShopDelivery(orderId),
     });
     const mutReceive = useMutation({
         mutationFn: () => serviceOrderFiscalApi.receiveVehicle(orderId),
     });
-    const mutAttest = useMutation({
-        mutationFn: (input: { id: string; glosaAmount: number; note: string }) => serviceOrderFiscalApi.attestInvoice(input.id, {
-            glosaAmount: input.glosaAmount,
-            note: input.note,
-        }),
-    });
-    const mutPay = useMutation({
-        mutationFn: () => serviceOrderFiscalApi.registerPayment(orderId, {
-            amount: Number(payAmount),
-            paidAt: new Date(`${payDate}T12:00:00`).toISOString(),
-            note: payNote,
-        }),
-    });
 
+    const busy = mutApproveQuote.isPending || mutRejectQuote.isPending || mutDelivery.isPending || mutReceive.isPending;
     const quoteAberto = data?.quotes.find((q) => q.status === 'enviado');
-    const quoteProcurement = useQuery({
-        queryKey: ['quoteProcurement', quoteAberto?.id],
-        queryFn: () => workshopQuoteProcurementApi.candidates(quoteAberto!.id),
-        enabled: Boolean(quoteAberto?.id),
-    });
-    const mutQuoteLinks = useMutation({
-        mutationFn: async () => {
-            if (!quoteAberto || !quoteProcurement.data) throw new Error('Aguarde os vínculos disponíveis.');
-            const links = quoteProcurement.data.map((line) => {
-                const selected = quoteLinkChoices[line.quote_item_id]
-                    ?? (line.linked ? `${line.linked.procurement_item_id}:${line.linked.allocation_id}` : '');
-                const candidate = line.candidates.find((option) => `${option.item_id}:${option.allocation_id}` === selected);
-                if (!candidate) throw new Error(`Selecione o item licitado e a dotação para “${line.description}”.`);
-                return { quoteItemId: line.quote_item_id, procurementItemId: candidate.item_id, allocationId: candidate.allocation_id };
-            });
-            await workshopQuoteProcurementApi.saveLinks(quoteAberto.id, links, quoteLinkReason);
-        },
-        onSuccess: async () => {
-            setQuoteLinkReason('');
-            await qc.invalidateQueries({ queryKey: ['quoteProcurement', quoteAberto?.id] });
-            toast.success('Vínculos com contrato e dotação registrados.');
-        },
-        onError: (error) => toast.error((error as Error).message || 'Não foi possível registrar os vínculos.'),
-    });
-
-    const busy = mutApproveQuote.isPending
-        || mutRejectQuote.isPending
-        || mutCommit.isPending
-        || mutDelivery.isPending
-        || mutReceive.isPending
-        || mutAttest.isPending
-        || mutPay.isPending
-        || mutQuoteLinks.isPending;
-
-    const quoteLinksReady = Boolean(quoteProcurement.data?.length)
-        && quoteProcurement.data!.every((line) => {
-            const selected = quoteLinkChoices[line.quote_item_id]
-                ?? (line.linked ? `${line.linked.procurement_item_id}:${line.linked.allocation_id}` : '');
-            return line.candidates.some((option) => `${option.item_id}:${option.allocation_id}` === selected)
-                && Boolean(line.linked)
-                && selected === `${line.linked!.procurement_item_id}:${line.linked!.allocation_id}`;
-        });
-    const totalNf = (data?.invoices ?? []).reduce((s, i) => s + Number(i.amount ?? 0), 0);
-    const totalPago = (data?.payments ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0);
-    const naoAtestadas = (data?.invoices ?? []).filter((i) => !i.attested_at);
-    const saldoPagar = Math.max(0, totalNf - totalPago);
-    const podePagar = fin === 'attested' && naoAtestadas.length === 0 && saldoPagar > 0;
+    const quoteAprovado = data?.quotes.find((q) => q.status === 'aprovado');
+    const invoiceFiles = (data?.invoices ?? []).filter((invoice) => invoice.file_path);
     const openDocument = async (path: string) => {
         try {
             await openPrivateDocument(path);
@@ -172,19 +105,21 @@ export function ServiceOrderFiscalPanel({
 
     return (
         <div className="space-y-5 text-sm">
-            {/* Os dois eixos, lado a lado */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Situação do veículo</p>
                     <p className="mt-1.5 text-base font-bold leading-snug text-slate-900">{maintenanceOperationalLabel(op, fin)}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Situação do processo</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Orçamento</p>
                     <p className="mt-1.5 text-base font-bold leading-snug text-slate-900">{FIN_LABEL[fin] ?? fin}</p>
+                    {quoteAprovado && (
+                        <p className="mt-1 text-xs text-slate-500">v{quoteAprovado.version} · {formatCurrency(Number(quoteAprovado.total))}</p>
+                    )}
                 </div>
             </div>
 
-            {/* Ações do gestor, só a pertinente à etapa atual */}
+            {/* Ação do gestor pertinente à etapa atual */}
             <div className="space-y-3">
                 {op === 'authorized' && (
                     <SGFButton size="sm" disabled={busy} onClick={run(() => mutDelivery.mutateAsync(), 'Veículo registrado na oficina.')}>
@@ -206,7 +141,7 @@ export function ServiceOrderFiscalPanel({
                         <ul className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white px-3">
                             {quoteAberto.items.map((it) => (
                                 <li key={it.id} className="flex items-start justify-between gap-4 py-2.5 text-sm text-slate-700">
-                                    <span className="min-w-0">{it.kind === 'peca' ? 'Peça' : 'Mão de obra'} · {it.description} × {it.qty} {it.unit ?? ''}<small className="block">{quoteClassificationLabel(it.unit,it.category)}</small></span>
+                                    <span className="min-w-0">{it.kind === 'peca' ? 'Peça' : 'Mão de obra'} · {it.description} × {it.qty} {it.unit ?? ''}<small className="block">{quoteClassificationLabel(it.unit, it.category)}</small></span>
                                     <span className="shrink-0 font-semibold text-slate-900">{formatCurrency(Number(it.unit_price) * Number(it.qty))}</span>
                                 </li>
                             ))}
@@ -220,30 +155,10 @@ export function ServiceOrderFiscalPanel({
                                 <strong>Observação da oficina:</strong> {quoteAberto.note}
                             </p>
                         )}
-                        <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4">
-                            <p className="font-bold text-slate-900">Vínculo com licitação e dotação</p>
-                            <p className="mt-1 text-xs text-slate-600">Cada linha deve usar item contratado, preço vigente e dotação da secretaria do veículo. Esta etapa confere o vínculo; ainda não reserva saldo.</p>
-                            {quoteProcurement.isLoading && <p className="mt-3 text-sm text-slate-600">Carregando itens compatíveis…</p>}
-                            {quoteProcurement.error && <p role="alert" className="mt-3 text-sm text-red-700">{(quoteProcurement.error as Error).message}</p>}
-                            {quoteProcurement.data?.map((line) => {
-                                const current = quoteLinkChoices[line.quote_item_id]
-                                    ?? (line.linked ? `${line.linked.procurement_item_id}:${line.linked.allocation_id}` : '');
-                                return <div key={line.quote_item_id} className="mt-3 rounded-lg border border-sky-100 bg-white p-3">
-                                    <p className="text-sm font-semibold text-slate-800">{line.description} · {quoteClassificationLabel(line.unit, line.category)} · {formatCurrency(line.unit_price)} por {line.unit ?? 'unidade'}</p>
-                                    {line.category === null || line.unit === null ? <p className="mt-2 text-sm text-red-700">Solicite nova versão: este item não foi classificado pela oficina.</p>
-                                        : line.candidates.length === 0 ? <p className="mt-2 text-sm text-red-700">Não há item contratual e dotação compatíveis com o fornecedor, a secretaria, a categoria, a unidade e o preço deste item.</p>
-                                            : <SGFSelect fullWidth className="mt-3" label={`Contrato e dotação · ${line.description}`} placeholder="Selecione o item e a dotação" value={current}
-                                                options={line.candidates.map((option) => ({ value: `${option.item_id}:${option.allocation_id}`, label: `${option.instrument_reference} · ${option.item_reference} · ${option.department_name} · ${option.appropriation} · ${formatCurrency(option.contract_unit_price)}` }))}
-                                                disabled={busy} onChange={(value) => setQuoteLinkChoices((choices) => ({ ...choices, [line.quote_item_id]: value }))} />}
-                                </div>;
-                            })}
-                            {quoteProcurement.data && <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                                <SGFInput label="Justificativa do vínculo" value={quoteLinkReason} maxLength={1000} placeholder="Ex.: item e dotação conferidos no contrato" fullWidth disabled={busy} onChange={(event) => setQuoteLinkReason(event.target.value)} />
-                                <SGFButton type="button" size="sm" disabled={busy || !quoteLinkReason.trim() || !quoteProcurement.data.every((line) => line.candidates.some((option) => `${option.item_id}:${option.allocation_id}` === (quoteLinkChoices[line.quote_item_id] ?? (line.linked ? `${line.linked.procurement_item_id}:${line.linked.allocation_id}` : ''))))} loading={mutQuoteLinks.isPending} onClick={() => mutQuoteLinks.mutate()}>
-                                    Salvar vínculos
-                                </SGFButton>
-                            </div>}
-                        </div>
+                        <p className="mt-3 text-xs text-slate-500">
+                            Ao aprovar, a oficina é liberada para executar e o valor passa a consumir o empenho
+                            da secretaria do veículo (Limites por secretaria). Se não houver saldo, a aprovação é recusada.
+                        </p>
                         <div className="mt-3">
                             <SGFInput
                                 label="Parecer do gestor"
@@ -256,12 +171,12 @@ export function ServiceOrderFiscalPanel({
                         <div className="mt-3 flex flex-wrap gap-2">
                             <SGFButton
                                 size="sm"
-                                disabled={busy || !quoteLinksReady}
+                                disabled={busy}
                                 icon={Check}
                                 onClick={run(async () => {
                                     await mutApproveQuote.mutateAsync(quoteAberto.id);
                                     setQuoteReviewNote('');
-                                }, 'Orçamento aprovado. Solicite o empenho.')}
+                                }, 'Orçamento aprovado. A oficina já pode executar.')}
                             >
                                 Aprovar orçamento
                             </SGFButton>
@@ -282,179 +197,35 @@ export function ServiceOrderFiscalPanel({
                     </div>
                 )}
 
-                {fin === 'awaiting_commitment' && (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                        <p className="mb-3 text-sm font-bold text-slate-900">Empenho / NAD</p>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <SGFInput label="Nº do empenho" value={commitment} onChange={(e) => setCommitment(e.target.value)} fullWidth />
-                            <SGFInput label="Nº da NAD (opcional)" value={nad} onChange={(e) => setNad(e.target.value)} fullWidth />
-                        </div>
-                        <label className={`mt-3 flex cursor-pointer items-center gap-3 rounded-2xl border-2 border-dashed p-4 transition ${
-                            commitmentFile
-                                ? 'border-emerald-400 bg-white'
-                                : 'border-slate-200 bg-white hover:border-blue-300'
-                        }`}>
-                            <FileText className={`h-6 w-6 ${commitmentFile ? 'text-emerald-600' : 'text-blue-600'}`} />
-                            <span className="min-w-0">
-                                <span className="block truncate text-sm font-semibold text-slate-700">
-                                    {commitmentFile?.name || 'Anexar PDF ou imagem do empenho/NAD'}
-                                </span>
-                                <span className="text-xs text-slate-500">Documento privado vinculado à ordem de serviço</span>
-                            </span>
-                            <input
-                                type="file"
-                                accept="application/pdf,image/*"
-                                className="sr-only"
-                                onChange={(event) => setCommitmentFile(event.target.files?.[0] ?? null)}
-                            />
-                        </label>
-                        <SGFButton className="mt-3" size="sm" disabled={busy || !commitment.trim() || !commitmentFile}
-                            onClick={run(() => mutCommit.mutateAsync(), 'Empenho registrado. A oficina já pode executar.')}>
-                            Registrar empenho
+                {op === 'ready' && (
+                    <div className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-xs">
+                        <p className="text-sm font-bold text-slate-900">Recebimento do serviço</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                            Confira o veículo e o serviço executado. O recebimento fica registrado na linha do
+                            tempo e serve de comprovação para a contabilidade liquidar a despesa.
+                        </p>
+                        <SGFButton className="mt-3" size="sm" disabled={busy} onClick={run(() => mutReceive.mutateAsync(), 'Veículo recebido e liberado para uso.')}>
+                            Conferir e receber o veículo
                         </SGFButton>
                     </div>
                 )}
 
-                {op === 'ready' && (
-                    <SGFButton size="sm" disabled={busy} onClick={run(() => mutReceive.mutateAsync(), 'Veículo recebido e liberado para uso.')}>
-                        Conferir e receber o veículo
-                    </SGFButton>
-                )}
-
-                {op === 'received' && naoAtestadas.length > 0 && (
-                    <div className="rounded-2xl border border-blue-200 bg-white p-5 shadow-xs">
-                        <p className="mb-3 text-sm font-bold text-slate-900">Notas a atestar</p>
-                        {naoAtestadas.map((nf) => (
-                            <div key={nf.id} className="space-y-3 border-b border-blue-100 py-3 last:border-0">
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold text-blue-900">NF {nf.invoice_number}</p>
-                                    <p className="text-xs text-blue-700">
-                                        {formatCurrency(Number(nf.amount))} · emitida {formatDate(nf.issued_at)}
-                                        {nf.commitment_number ? ` · empenho ${nf.commitment_number}` : ''}
-                                    </p>
-                                  </div>
-                                  <SGFButton size="sm" variant="secondary" disabled={busy} icon={FileText}
-                                      onClick={run(() => mutAttest.mutateAsync({
-                                          id: nf.id,
-                                          glosaAmount: Number(attestationGlosa[nf.id] || 0),
-                                          note: attestationNote[nf.id] || '',
-                                      }), 'Nota atestada.')}>
-                                      Atestar
-                                  </SGFButton>
-                                </div>
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                  <SGFInput label="Glosa (R$), se houver" type="number" min="0" step="0.01"
-                                      value={attestationGlosa[nf.id] ?? ''}
-                                      onChange={(event) => setAttestationGlosa((current) => ({ ...current, [nf.id]: event.target.value }))}
-                                      fullWidth />
-                                  <SGFInput label="Justificativa da conferência" value={attestationNote[nf.id] ?? ''}
-                                      onChange={(event) => setAttestationNote((current) => ({ ...current, [nf.id]: event.target.value }))}
-                                      fullWidth />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {(commitmentDocumentPath || (data?.invoices ?? []).some((invoice) => invoice.file_path)) && (
+                {/* Documentos de OS anteriores à simplificação (empenho/NF anexados no fluxo antigo). */}
+                {(commitmentDocumentPath || invoiceFiles.length > 0) && (
                     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                        <p className="mb-3 text-sm font-bold text-slate-900">Documentos fiscais</p>
+                        <p className="mb-3 text-sm font-bold text-slate-900">Documentos anexados</p>
                         <div className="flex flex-wrap gap-2">
                             {commitmentDocumentPath && (
-                                <SGFButton
-                                    size="sm"
-                                    variant="secondary"
-                                    icon={FileText}
-                                    onClick={() => void openDocument(commitmentDocumentPath)}
-                                >
-                                    Abrir empenho/NAD
+                                <SGFButton size="sm" variant="secondary" icon={FileText} onClick={() => void openDocument(commitmentDocumentPath)}>
+                                    Abrir empenho{commitmentNumber ? ` ${commitmentNumber}` : ''}
                                 </SGFButton>
                             )}
-                            {(data?.invoices ?? []).filter((invoice) => invoice.file_path).map((invoice) => (
-                                <SGFButton
-                                    key={invoice.id}
-                                    size="sm"
-                                    variant="secondary"
-                                    icon={FileText}
-                                    onClick={() => void openDocument(invoice.file_path!)}
-                                >
+                            {invoiceFiles.map((invoice) => (
+                                <SGFButton key={invoice.id} size="sm" variant="secondary" icon={FileText} onClick={() => void openDocument(invoice.file_path!)}>
                                     Abrir NF {invoice.invoice_number}
                                 </SGFButton>
                             ))}
                         </div>
-                    </div>
-                )}
-
-                {totalNf > 0 && (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm font-bold text-slate-900">Pagamentos</p>
-                            <SGFBadge variant={totalPago >= totalNf ? 'success' : 'warning'} size="sm">
-                                {formatCurrency(totalPago)} de {formatCurrency(totalNf)}
-                            </SGFBadge>
-                        </div>
-                        {(data?.payments ?? []).map((p) => (
-                            <div key={p.id} className="flex justify-between py-1.5 text-sm text-slate-600">
-                                <span>{formatDate(p.paid_at)}{p.note ? ` · ${p.note}` : ''}</span>
-                                <span className="font-semibold">{formatCurrency(Number(p.amount))}</span>
-                            </div>
-                        ))}
-                        {podePagar && (
-                            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                                <SGFInput
-                                    label="Valor pago (R$)"
-                                    type="number"
-                                    min={0.01}
-                                    max={saldoPagar}
-                                    step="0.01"
-                                    value={payAmount}
-                                    onChange={(event) => setPayAmount(event.target.value)}
-                                    icon={DollarSign}
-                                    fullWidth
-                                />
-                                <SGFInput
-                                    label="Data do pagamento"
-                                    type="date"
-                                    value={payDate}
-                                    onChange={(event) => setPayDate(event.target.value)}
-                                    fullWidth
-                                />
-                                <SGFInput
-                                    label="Referência (opcional)"
-                                    value={payNote}
-                                    onChange={(event) => setPayNote(event.target.value)}
-                                    placeholder="OB, processo ou observação"
-                                    fullWidth
-                                />
-                                <div className="md:col-span-3">
-                                    <SGFButton
-                                        size="sm"
-                                        disabled={busy
-                                            || !(Number(payAmount) > 0)
-                                            || Number(payAmount) > saldoPagar
-                                            || !payDate}
-                                        onClick={run(async () => {
-                                            await mutPay.mutateAsync();
-                                            setPayAmount('');
-                                            setPayNote('');
-                                        }, 'Pagamento registrado.')}
-                                    >
-                                        Registrar pagamento
-                                    </SGFButton>
-                                </div>
-                            </div>
-                        )}
-                        {fin === 'invoiced' && naoAtestadas.length > 0 && (
-                            <p className="mt-3 text-xs text-blue-700">
-                                O pagamento será liberado somente depois do ateste de todas as notas.
-                            </p>
-                        )}
-                        {totalPago > 0 && totalPago < totalNf && (
-                            <p className="mt-2 text-xs text-amber-700">
-                                Pagamento parcial: o processo só é encerrado quando os pagamentos cobrem as notas.
-                            </p>
-                        )}
                     </div>
                 )}
             </div>

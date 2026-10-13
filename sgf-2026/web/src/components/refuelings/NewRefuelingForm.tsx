@@ -14,8 +14,6 @@ import { useAppSettings } from '@/hooks/useSettings';
 import { useDrivers } from '@/hooks/useDrivers';
 import { getStationUnavailableReason } from '@/lib/stationStatus';
 import { formatDriverLabel, parseWholeKilometers } from '@/lib/utils';
-import { procurementApi } from '@/lib/procurement-api';
-import { stationClosingApi } from '@/lib/station-closing-api';
 
 // Slot de foto: faz upload ao selecionar e devolve a URL pública.
 function PhotoUpload({ label, hint, url, onChange }: { label: string; hint: string; url: string; onChange: (u: string) => void }) {
@@ -67,7 +65,6 @@ function PhotoUpload({ label, hint, url, onChange }: { label: string; hint: stri
 interface NewRefuelingFormProps {
     onSuccess: () => void;
     onCancel: () => void;
-    onOpenCommitment?: (stationId: string) => void;
 }
 
 const FUEL_OPTIONS = [
@@ -77,7 +74,7 @@ const FUEL_OPTIONS = [
     { value: 'GNV', label: 'GNV' },
 ];
 
-export function NewRefuelingForm({ onSuccess, onCancel, onOpenCommitment }: NewRefuelingFormProps) {
+export function NewRefuelingForm({ onSuccess, onCancel }: NewRefuelingFormProps) {
     const queryClient = useQueryClient();
     const { user } = useAuth();
     const { data: settings } = useAppSettings();
@@ -93,40 +90,22 @@ export function NewRefuelingForm({ onSuccess, onCancel, onOpenCommitment }: NewR
         queryKey: ['stations', 'form-list', { activeOnly: false }],
         queryFn: () => stationsApi.getAll(),
     });
-    const { data: procurementAlerts = [] } = useQuery({
-        queryKey: ['procurement-alerts'],
-        queryFn: procurementApi.getAlerts,
-        staleTime: 60_000,
-    });
-    const stationBudgetAlerts = useMemo(
-        () => new Map(
-            procurementAlerts
-                .filter((alert) => alert.partnerKind === 'posto' && alert.code.startsWith('budget_'))
-                .map((alert) => [alert.partnerId, alert]),
-        ),
-        [procurementAlerts],
-    );
 
     const stationOptions = useMemo(
         () => [
             { value: '', label: 'Outro / livre' },
             ...stations.map((s) => {
-                const budgetAlert = stationBudgetAlerts.get(s.id);
-                const unavailable = getStationUnavailableReason(s)
-                    ?? (budgetAlert?.code === 'budget_exhausted' ? 'orçamento da licitação 100% comprometido' : null);
-                const warning = budgetAlert?.code === 'budget_low'
-                    ? ` — restam ${Number(budgetAlert.remainingPercent ?? 0).toLocaleString('pt-BR')}%`
-                    : '';
+                const unavailable = getStationUnavailableReason(s);
                 return {
                     value: s.id,
-                    label: `${s.name}${s.code ? ` (${s.code})` : ''}${unavailable ? ` — ${unavailable}` : warning}`,
+                    label: `${s.name}${s.code ? ` (${s.code})` : ''}${unavailable ? ` — ${unavailable}` : ''}`,
                     photoUrl: s.photo_url,
                     disabled: !!unavailable,
                     disabledReason: unavailable ?? undefined,
                 };
             }),
         ],
-        [stationBudgetAlerts, stations],
+        [stations],
     );
 
     const [vehicleId, setVehicleId] = useState('');
@@ -148,20 +127,6 @@ export function NewRefuelingForm({ onSuccess, onCancel, onOpenCommitment }: NewR
         return Number.isFinite(amount) && amount > 0 ? amount.toFixed(2) : '';
     }, [liters, pricePerLiter]);
 
-    const commitmentBalance = useQuery({
-        queryKey: ['station-commitment-balance', stationId, date],
-        queryFn: () => stationClosingApi.getCommitmentBalance(stationId, date),
-        enabled: Boolean(stationId && date),
-        staleTime: 15_000,
-    });
-    const requiredCommitment = Number(totalValue || 0);
-    const availableCommitment = Number(commitmentBalance.data ?? 0);
-    const commitmentInsufficient = Boolean(
-        stationId
-        && commitmentBalance.isSuccess
-        && requiredCommitment > 0
-        && availableCommitment < requiredCommitment,
-    );
 
     // Combustível segue o veículo: específico → trava; flex → só Gasolina/Etanol.
     const FUEL_BY_VEHICLE: Record<string, string> = {
@@ -250,27 +215,17 @@ export function NewRefuelingForm({ onSuccess, onCancel, onOpenCommitment }: NewR
 
         if (!vehicleId) return setError('Selecione o veículo.');
         if (!driverId) return setError('Selecione o motorista responsável.');
-        // Bloqueio definitivo (sem opção de confirmar): posto inativo ou com licitação vencida.
+        // Bloqueio definitivo (sem opção de confirmar): posto inativo. O saldo do empenho da
+        // secretaria é conferido pelo banco ao gravar.
         if (stationId) {
             const chosenStation = stations.find((s) => s.id === stationId);
-            const budgetAlert = stationBudgetAlerts.get(stationId);
-            const unavailable = chosenStation
-                ? getStationUnavailableReason(chosenStation)
-                    ?? (budgetAlert?.code === 'budget_exhausted' ? 'orçamento da licitação 100% comprometido' : null)
-                : null;
+            const unavailable = chosenStation ? getStationUnavailableReason(chosenStation) : null;
             if (unavailable) return setError(`Não é possível abastecer neste posto: ${unavailable}.`);
         }
         if (noContractForFuel) return setError(`O posto não possui preço contratado para ${fuelType}.`);
         if (!user?.tenantId) return setError('Sessão expirada. Faça login novamente.');
         if (!liters || Number(liters) <= 0) return setError('Informe a quantidade de litros.');
         if (!pricePerLiter || Number(pricePerLiter) <= 0) return setError('Informe o preço por litro.');
-        if (commitmentInsufficient) {
-            return setError(
-                `Saldo de empenho insuficiente em ${new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR')}: `
-                + `disponível ${availableCommitment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}, `
-                + `necessário ${requiredCommitment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`,
-            );
-        }
         if (parsedOdometer === null || !Number.isSafeInteger(parsedOdometer) || parsedOdometer < 0) {
             return setError('Informe o hodômetro em quilômetros inteiros. Ex.: 45230 ou 45.230.');
         }
@@ -423,34 +378,10 @@ export function NewRefuelingForm({ onSuccess, onCancel, onOpenCommitment }: NewR
                 </div>
 
                 {stationId && (
-                    <div className={`md:col-span-2 rounded-2xl border px-4 py-3 text-sm ${
-                        commitmentInsufficient
-                            ? 'border-rose-200 bg-rose-50 text-rose-700'
-                            : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                    }`}>
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                                <p className="font-bold">
-                                    {commitmentBalance.isLoading
-                                        ? 'Consultando saldo do empenho...'
-                                        : `Saldo de empenho em ${new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR')}: ${availableCommitment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
-                                </p>
-                                <p className="mt-1 text-xs opacity-80">
-                                    O valor contratado da licitação e o saldo do empenho são controles diferentes. O fornecimento exige empenho prévio vigente.
-                                </p>
-                            </div>
-                            {onOpenCommitment && (
-                                <SGFButton
-                                    type="button"
-                                    size="sm"
-                                    variant={commitmentInsufficient ? 'danger' : 'secondary'}
-                                    onClick={() => onOpenCommitment(stationId)}
-                                >
-                                    Cadastrar empenho/NAD
-                                </SGFButton>
-                            )}
-                        </div>
-                    </div>
+                    <p className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                        O valor consome o empenho da secretaria do veículo na licitação deste posto (Limites por secretaria).
+                        Se não houver saldo, o lançamento é recusado.
+                    </p>
                 )}
 
                 <label className="md:col-span-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
@@ -496,7 +427,7 @@ export function NewRefuelingForm({ onSuccess, onCancel, onOpenCommitment }: NewR
                 <SGFButton type="button" variant="ghost" onClick={onCancel} disabled={isSaving}>
                     Cancelar
                 </SGFButton>
-                <SGFButton type="submit" icon={isSaving ? Loader2 : Save} disabled={isSaving || commitmentInsufficient}>
+                <SGFButton type="submit" icon={isSaving ? Loader2 : Save} disabled={isSaving}>
                     {isSaving ? 'Registrando...' : 'Registrar lançamento direto'}
                 </SGFButton>
             </div>

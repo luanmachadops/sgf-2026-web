@@ -1,6 +1,5 @@
 import { useGoBack } from '@/hooks/useGoBack';
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -12,15 +11,11 @@ import {
 } from 'recharts';
 import { useHeader } from '@/contexts/HeaderContext';
 import { useRepairShops, useRepairShopDetail } from '@/hooks/useRepairShops';
-import { useAppSettings } from '@/hooks/useSettings';
 import { SGFBadge, SGFButton, SGFCard, SGFKPICard, SGFTable, SGFToolbar, type SGFTableColumn } from '@/components/sgf';
 import { RepairShopFormModal } from '@/components/repairshops/RepairShopFormModal';
 import { PartnerAccessCard } from '@/components/partners/PartnerAccessCard';
-import { ContractUsagePanel } from '@/components/procurement/ContractUsageGauge';
-import { procurementApi } from '@/lib/procurement-api';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { resolveDocUrl } from '@/lib/docStorage';
-import { differenceInDays, parseISO } from 'date-fns';
 import type { Tables } from '@/types/database.types';
 
 type ShopDoc = { name: string; url: string; size?: number; uploadedAt?: string };
@@ -37,15 +32,6 @@ const OP_STATUS_LABEL: Record<string, string> = {
     cancelled: 'Cancelada',
 };
 
-function ContractBadge({ end, alertDays = 30 }: { end: string | null; alertDays?: number }) {
-    if (!end) return <SGFBadge variant="default">Sem data</SGFBadge>;
-    const days = differenceInDays(parseISO(end), new Date());
-    if (days < 0) return <SGFBadge variant="error">Vencida</SGFBadge>;
-    if (days <= alertDays) return <SGFBadge variant="warning">{days} dias</SGFBadge>;
-    if (days <= alertDays * 3) return <SGFBadge variant="info">{days} dias</SGFBadge>;
-    return <SGFBadge variant="success">Em dia</SGFBadge>;
-}
-
 function RepairShopsListPage() {
     const navigate = useNavigate();
     const { setTitle, setDescription, setHeaderAction } = useHeader();
@@ -53,25 +39,10 @@ function RepairShopsListPage() {
     const [formOpen, setFormOpen] = useState(false);
 
     const { data: shops = [], isLoading } = useRepairShops({ search: search || undefined });
-    const { data: contractUsage = [] } = useQuery({
-        queryKey: ['procurement-contract-usage'],
-        queryFn: procurementApi.getContractUsage,
-        staleTime: 30_000,
-    });
-    const usageByShop = useMemo(
-        () => new Map(
-            contractUsage
-                .filter((item) => item.partnerKind === 'oficina')
-                .map((item) => [item.partnerId, item]),
-        ),
-        [contractUsage],
-    );
-    const { data: appSettings } = useAppSettings();
-    const contractDays = appSettings?.contractAlertDays ?? 30;
 
     useEffect(() => {
         setTitle('Oficinas mecânicas');
-        setDescription('Oficinas credenciadas, contratos e acesso ao Sistema de Manutenção.');
+        setDescription('Oficinas credenciadas e acesso ao Sistema de Manutenção.');
         setHeaderAction(
             <SGFButton variant="primary" onClick={() => setFormOpen(true)} className="!rounded-full !h-[37px]">
                 <Plus className="h-4 w-4" /> Nova oficina
@@ -81,11 +52,6 @@ function RepairShopsListPage() {
     }, [setDescription, setHeaderAction, setTitle]);
 
     const totalActive = shops.filter((s) => s.is_active).length;
-    const vencendo = shops.filter((s) => {
-        if (!s.contract_end) return false;
-        const d = differenceInDays(parseISO(s.contract_end), new Date());
-        return d <= contractDays;
-    }).length;
 
     const columns: SGFTableColumn<Tables<'repair_shops'>>[] = [
         {
@@ -118,30 +84,6 @@ function RepairShopsListPage() {
                 </div>
             ),
         },
-        { header: 'Contrato', accessor: (s) => s.contract_number ?? '—' },
-        {
-            header: 'Vencimento',
-            accessor: (s) => <span className="text-sm text-slate-700">{s.contract_end ? formatDate(s.contract_end) : '—'}</span>,
-        },
-        {
-            header: 'Situação do contrato',
-            accessor: (s) => <ContractBadge end={s.contract_end} alertDays={contractDays} />,
-        },
-        {
-            header: '% consumido',
-            className: 'text-right',
-            headerClassName: 'text-right',
-            accessor: (s) => {
-                const usage = usageByShop.get(s.id);
-                if (usage?.consumedPercent == null) return <span className="text-xs text-slate-400">Sem teto</span>;
-                const tone = usage.consumedPercent >= 95
-                    ? 'text-red-600'
-                    : usage.consumedPercent >= 80
-                        ? 'text-amber-600'
-                        : 'text-emerald-700';
-                return <span className={`text-sm font-black tabular-nums ${tone}`}>{usage.consumedPercent.toLocaleString('pt-BR')}%</span>;
-            },
-        },
         {
             header: 'Status',
             accessor: (s) => s.is_active
@@ -155,7 +97,7 @@ function RepairShopsListPage() {
             <div className="grid gap-4 md:grid-cols-3">
                 <SGFKPICard title="Oficinas cadastradas" value={shops.length} icon={Building2} iconColor="text-blue-500" />
                 <SGFKPICard title="Ativas" value={totalActive} icon={Wrench} iconColor="text-emerald-500" />
-                <SGFKPICard title="Contrato vencendo" value={vencendo} icon={Calendar} iconColor={vencendo > 0 ? 'text-amber-500' : 'text-slate-400'} />
+                <SGFKPICard title="Inativas" value={shops.length - totalActive} icon={Calendar} iconColor="text-slate-400" />
             </div>
 
             <SGFToolbar
@@ -183,11 +125,6 @@ function RepairShopDetailPage({ shopId }: { shopId: string }) {
     const goBack = useGoBack('/oficinas');
     const { setTitle, setDescription, setHeaderAction } = useHeader();
     const { data: detail, isLoading } = useRepairShopDetail(shopId);
-    const { data: contractUsage = [] } = useQuery({
-        queryKey: ['procurement-contract-usage'],
-        queryFn: procurementApi.getContractUsage,
-        staleTime: 30_000,
-    });
     const [editOpen, setEditOpen] = useState(false);
 
     const docs = useMemo(
@@ -226,10 +163,6 @@ function RepairShopDetailPage({ shopId }: { shopId: string }) {
         setTitle(detail.shop.name);
         setDescription(`${detail.shop.code ?? ''} ${detail.shop.city ? `· ${detail.shop.city}` : ''}`.trim());
     }, [detail, setDescription, setTitle]);
-    const selectedContractUsage = useMemo(
-        () => contractUsage.find((item) => item.partnerKind === 'oficina' && item.partnerId === shopId),
-        [contractUsage, shopId],
-    );
 
     if (isLoading) {
         return <div className="flex h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>;
@@ -240,7 +173,6 @@ function RepairShopDetailPage({ shopId }: { shopId: string }) {
 
     return (
         <div className="space-y-6">
-            {selectedContractUsage ? <ContractUsagePanel usage={selectedContractUsage} /> : null}
             {/* Cabeçalho da Oficina com Foto */}
             <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
                 <div className="h-16 w-24 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
@@ -264,15 +196,16 @@ function RepairShopDetailPage({ shopId }: { shopId: string }) {
                 <SGFCard>
                     <div className="flex items-start justify-between gap-3">
                         <div>
-                            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Contrato</p>
-                            <p className="text-sm text-slate-500">Vigência e especialidades da oficina.</p>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Cadastro</p>
+                            <p className="text-sm text-slate-500">
+                                O teto de gastos é o valor empenhado por secretaria, em{' '}
+                                <button type="button" onClick={() => navigate('/limites')} className="font-semibold text-[var(--sgf-primary)] hover:underline">
+                                    Limites por secretaria
+                                </button>.
+                            </p>
                         </div>
-                        <ContractBadge end={detail.shop.contract_end} />
                     </div>
                     <dl className="mt-4 space-y-2 text-sm">
-                        <div className="flex justify-between"><dt className="text-slate-500">Número</dt><dd className="font-semibold text-slate-800">{detail.shop.contract_number ?? '—'}</dd></div>
-                        <div className="flex justify-between"><dt className="text-slate-500">Início</dt><dd className="text-slate-700">{detail.shop.contract_start ? formatDate(detail.shop.contract_start) : '—'}</dd></div>
-                        <div className="flex justify-between"><dt className="text-slate-500">Vencimento</dt><dd className="text-slate-700">{detail.shop.contract_end ? formatDate(detail.shop.contract_end) : '—'}</dd></div>
                         <div className="flex justify-between"><dt className="text-slate-500">CNPJ</dt><dd className="text-slate-700">{detail.shop.cnpj ?? '—'}</dd></div>
                         <div className="flex justify-between"><dt className="text-slate-500">Telefone</dt><dd className="text-slate-700">{detail.shop.phone ?? '—'}</dd></div>
                     </dl>

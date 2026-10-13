@@ -6,8 +6,6 @@ import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFInput } from '@/components/sgf/SGFInput';
 import { Camera, Loader2, FileText, Plus, X, Download } from '@/components/sgf/icons';
 import { useCreateStation, useUpdateStation } from '@/hooks/useStations';
-import { ProcurementContractFields } from '@/components/procurement/ProcurementContractFields';
-import { assertContractDatesPersisted, validateProcurementContract } from '@/lib/procurement-contract';
 import { uploadFoto } from '@/lib/fotoStorage';
 import { resizeAndConvertToWebP, isImageFile, prepareDocumentUpload, formatFileSize, DOCUMENT_ACCEPT, uploadFileId } from '@/lib/imageUtils';
 import { maskCNPJ, maskPhone } from '@/lib/utils';
@@ -33,12 +31,6 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
     const [address, setAddress] = useState('');
     const [city, setCity] = useState('');
     const [phone, setPhone] = useState('');
-    const [contractNumber, setContractNumber] = useState('');
-    const [contractStart, setContractStart] = useState('');
-    const [contractEnd, setContractEnd] = useState('');
-    const [contractValue, setContractValue] = useState('');
-    const [contractAlertPercent, setContractAlertPercent] = useState('20');
-    const [contractAlertDays, setContractAlertDays] = useState('30');
     const [isActive, setIsActive] = useState(true);
     const [fuelTypes, setFuelTypes] = useState<string[]>([]);
     const [fuelPrices, setFuelPrices] = useState<Record<string, string>>({});
@@ -60,12 +52,6 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
         setAddress(station?.address ?? '');
         setCity(station?.city ?? '');
         setPhone(maskPhone(station?.phone ?? ''));
-        setContractNumber(station?.contract_number ?? '');
-        setContractStart(station?.contract_start ?? '');
-        setContractEnd(station?.contract_end ?? '');
-        setContractValue(station?.contract_value == null ? '' : String(station.contract_value));
-        setContractAlertPercent(String(station?.contract_alert_percent ?? 20));
-        setContractAlertDays(String(station?.contract_alert_days ?? 30));
         setIsActive(station?.is_active ?? true);
         setFuelTypes(station?.fuel_types ?? []);
         const fp = (station as { fuel_prices?: Record<string, number> } | null)?.fuel_prices ?? {};
@@ -177,15 +163,6 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
         e.preventDefault();
         setError(null);
         if (!name.trim()) return setError('Informe o nome do posto.');
-        const contractError = validateProcurementContract({
-            contractNumber,
-            contractStart,
-            contractEnd,
-            contractValue,
-            contractAlertPercent,
-            contractAlertDays,
-        });
-        if (contractError) return setError(contractError);
 
         const payload = {
             name: name.trim(),
@@ -194,12 +171,6 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
             address: address.trim() || null,
             city: city.trim() || null,
             phone: phone.replace(/\D/g, '') || null,
-            contract_number: contractNumber.trim() || null,
-            contract_start: contractStart || null,
-            contract_end: contractEnd || null,
-            contract_value: contractValue ? Number(contractValue) : null,
-            contract_alert_percent: Number(contractAlertPercent || 20),
-            contract_alert_days: Number(contractAlertDays || 30),
             is_active: isActive,
             fuel_types: fuelTypes,
             fuel_prices: Object.fromEntries(
@@ -213,13 +184,8 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
         };
 
         try {
-            const saved = isEditing && station
-                ? await updateMut.mutateAsync(payload)
-                : await createMut.mutateAsync(payload);
-            assertContractDatesPersisted(saved, {
-                contract_start: payload.contract_start,
-                contract_end: payload.contract_end,
-            });
+            if (isEditing && station) await updateMut.mutateAsync(payload);
+            else await createMut.mutateAsync(payload);
             await qc.invalidateQueries({ queryKey: ['stations'] });
             toast.success(isEditing ? 'Posto atualizado!' : 'Posto cadastrado!');
             onClose();
@@ -275,22 +241,6 @@ export function StationFormModal({ isOpen, onClose, station }: Props) {
                         <input ref={photoInputRef} type="file" accept="image/*" onChange={uploadPhoto} className="hidden" />
                     </div>
                 </div>
-
-                <ProcurementContractFields
-                    idPrefix="station"
-                    contractNumber={contractNumber}
-                    contractStart={contractStart}
-                    contractEnd={contractEnd}
-                    contractValue={contractValue}
-                    contractAlertPercent={contractAlertPercent}
-                    contractAlertDays={contractAlertDays}
-                    onContractNumberChange={setContractNumber}
-                    onContractStartChange={setContractStart}
-                    onContractEndChange={setContractEnd}
-                    onContractValueChange={setContractValue}
-                    onContractAlertPercentChange={setContractAlertPercent}
-                    onContractAlertDaysChange={setContractAlertDays}
-                />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <SGFInput

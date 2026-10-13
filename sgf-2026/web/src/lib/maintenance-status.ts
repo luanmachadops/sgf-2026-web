@@ -13,8 +13,8 @@ const BASE_OPERATIONAL_LABELS: Record<OpStatus, string> = {
 
 export function maintenanceOperationalLabel(op: OpStatus, fin: FinStatus): string {
     if (op !== 'awaiting_quote_approval') return BASE_OPERATIONAL_LABELS[op];
-    if (fin === 'awaiting_commitment') return 'Orçamento aprovado · aguardando empenho';
-    if (fin === 'committed') return 'Execução liberada · aguardando oficina';
+    // 'awaiting_commitment' só existe em OS anteriores à retirada da etapa de empenho.
+    if (fin === 'awaiting_commitment' || fin === 'committed') return 'Orçamento aprovado · aguardando oficina';
     return BASE_OPERATIONAL_LABELS[op];
 }
 
@@ -23,13 +23,10 @@ export function maintenanceManagerNextAction(op: OpStatus, fin: FinStatus): stri
     if (op === 'authorized') return 'Confirmar entrega na oficina';
     if (op === 'at_shop') return 'Aguardar orçamento da oficina';
     if (op === 'awaiting_quote_approval' && fin === 'not_started') return 'Analisar orçamento';
-    if (op === 'awaiting_quote_approval' && fin === 'awaiting_commitment') return 'Registrar empenho';
-    if (op === 'awaiting_quote_approval' && fin === 'committed') return 'Aguardar início pela oficina';
+    if (op === 'awaiting_quote_approval') return 'Aguardar início pela oficina';
     if (op === 'in_progress') return 'Acompanhar execução';
     if (op === 'ready') return 'Conferir e receber veículo';
     if (op === 'cancelled') return 'Processo cancelado';
-    if (fin === 'invoiced') return 'Atestar notas fiscais';
-    if (fin === 'attested') return 'Registrar pagamento';
-    if (fin === 'paid') return 'Processo encerrado';
-    return 'Aguardar nota fiscal';
+    // Empenho, nota, ateste e pagamento ficam com a contabilidade.
+    return 'Serviço concluído';
 }

@@ -11,14 +11,11 @@ import { useCreateFuelAuthorization } from '@/hooks/useRefuelings';
 import { useDrivers } from '@/hooks/useDrivers';
 import { formatPlate, formatDriverLabel, matchesSearch, ANY_DRIVER_OPTION_LABEL } from '@/lib/utils';
 import { getStationUnavailableReason } from '@/lib/stationStatus';
-import { procurementApi } from '@/lib/procurement-api';
-import { stationClosingApi } from '@/lib/station-closing-api';
 
 interface Props {
     procurement?: { itemId:string; allocationId:string; stationId:string; fuelType:string; unitPrice:number };
     isOpen: boolean;
     onClose: () => void;
-    onOpenCommitment?: (stationId: string) => void;
 }
 
 const FUEL_OPTIONS = [
@@ -39,44 +36,26 @@ export function AuthorizeFuelingModal(props: Props) {
     return <AuthorizeFuelingModalContent key={props.isOpen ? 'open' : 'closed'} {...props} />;
 }
 
-function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment, procurement }: Props) {
+function AuthorizeFuelingModalContent({ isOpen, onClose, procurement }: Props) {
     const createAuth = useCreateFuelAuthorization();
     const { data: drivers = [], isLoading: driversLoading } = useDrivers({ status: 'ACTIVE' });
 
     const { data: vehicles = [] } = useQuery({ queryKey: ['vehicles', 'all'], queryFn: () => vehiclesApi.getAll() });
     // Busca todos os postos (inclusive inativos) para poder listá-los desabilitados/opacos em vez de escondê-los.
     const { data: stations = [] } = useQuery({ queryKey: ['stations', { activeOnly: false }], queryFn: () => stationsApi.getAll() });
-    const { data: procurementAlerts = [] } = useQuery({
-        queryKey: ['procurement-alerts'],
-        queryFn: procurementApi.getAlerts,
-        staleTime: 60_000,
-    });
-    const stationBudgetAlerts = useMemo(
-        () => new Map(
-            procurementAlerts
-                .filter((alert) => alert.partnerKind === 'posto' && alert.code.startsWith('budget_'))
-                .map((alert) => [alert.partnerId, alert]),
-        ),
-        [procurementAlerts],
-    );
 
     const stationOptions = useMemo(
         () => stations.filter(s => !procurement || s.id === procurement.stationId).map((s) => {
-                const budgetAlert = stationBudgetAlerts.get(s.id);
-                const unavailable = procurement ? (s.is_active ? null : 'Posto inativo') : getStationUnavailableReason(s)
-                    ?? (budgetAlert?.code === 'budget_exhausted' ? 'orçamento da licitação 100% comprometido' : null);
-                const warning = budgetAlert?.code === 'budget_low'
-                    ? ` — restam ${Number(budgetAlert.remainingPercent ?? 0).toLocaleString('pt-BR')}% (${Number(budgetAlert.remainingValue ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})`
-                    : '';
+                const unavailable = procurement ? (s.is_active ? null : 'Posto inativo') : getStationUnavailableReason(s);
                 return {
                     value: s.id,
-                    label: `${s.name}${s.code ? ` (${s.code})` : ''}${unavailable ? ` — ${unavailable}` : warning}`,
+                    label: `${s.name}${s.code ? ` (${s.code})` : ''}${unavailable ? ` — ${unavailable}` : ''}`,
                     photoUrl: s.photo_url,
                     disabled: !!unavailable,
                     disabledReason: unavailable ?? undefined,
                 };
             }),
-        [stationBudgetAlerts, stations, procurement],
+        [stations, procurement],
     );
 
     const [vehicleId, setVehicleId] = useState('');
@@ -94,16 +73,6 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment, procu
     const [error, setError] = useState<string | null>(null);
 
     const selectedVehicle = useMemo(() => vehicles.find((v) => v.id === vehicleId), [vehicles, vehicleId]);
-    const today = useMemo(() => {
-        const now = new Date();
-        return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-    }, []);
-    const commitmentBalance = useQuery({
-        queryKey: ['station-commitment-balance', stationId, today],
-        queryFn: () => stationClosingApi.getCommitmentBalance(stationId, today),
-        enabled: Boolean(isOpen && stationId),
-        staleTime: 15_000,
-    });
 
     const authorizationReservation = useMemo(() => {
         if (!stationId || !fuelType || !selectedVehicle) return 0;
@@ -114,13 +83,6 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment, procu
         const quantity = Number(maxLiters || selectedVehicle.tank_capacity || 0);
         return Number.isFinite(price * quantity) ? price * quantity : 0;
     }, [fuelType, maxLiters, selectedVehicle, stationId, stations, procurement]);
-    const availableCommitment = Number(commitmentBalance.data ?? 0);
-    const commitmentInsufficient = Boolean(
-        !procurement && stationId
-        && commitmentBalance.isSuccess
-        && authorizationReservation > 0
-        && availableCommitment < authorizationReservation,
-    );
 
     const filteredVehicles = useMemo(() => {
         return vehicles.filter(
@@ -212,18 +174,10 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment, procu
         }
 
         const chosenStation = stations.find((s) => s.id === stationId);
-        const budgetAlert = stationBudgetAlerts.get(stationId);
         const unavailable = procurement ? (chosenStation?.is_active ? null : 'Posto inativo') : chosenStation
             ? getStationUnavailableReason(chosenStation)
-                ?? (budgetAlert?.code === 'budget_exhausted' ? 'orçamento da licitação 100% comprometido' : null)
             : null;
         if (unavailable) return setError(`Não é possível autorizar neste posto: ${unavailable}.`);
-        if (commitmentInsufficient) {
-            return setError(
-                `Saldo de empenho insuficiente: disponível ${availableCommitment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}, `
-                + `reserva necessária ${authorizationReservation.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`,
-            );
-        }
 
         try {
             await createAuth.mutateAsync({
@@ -255,7 +209,7 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment, procu
             footer={(
                 <ModalFooter>
                     <SGFButton variant="ghost" onClick={onClose} disabled={createAuth.isPending}>Cancelar</SGFButton>
-                    <SGFButton onClick={handleSubmit as unknown as () => void} disabled={createAuth.isPending || commitmentInsufficient}>
+                    <SGFButton onClick={handleSubmit as unknown as () => void} disabled={createAuth.isPending}>
                         {createAuth.isPending ? 'Enviando...' : 'Enviar autorização'}
                     </SGFButton>
                 </ModalFooter>
@@ -426,35 +380,15 @@ function AuthorizeFuelingModalContent({ isOpen, onClose, onOpenCommitment, procu
                     anexa a foto do bico e o cupom. O abastecimento volta para a gestão validar.
                 </div>
 
-                {stationId && (
-                    <div className={`rounded-2xl border p-4 text-sm ${
-                        commitmentInsufficient
-                            ? 'border-rose-200 bg-rose-50 text-rose-700'
-                            : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                    }`}>
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                                <p className="font-bold">
-                                    {commitmentBalance.isLoading
-                                        ? 'Consultando saldo do empenho...'
-                                        : `Saldo de empenho: ${availableCommitment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
-                                </p>
-                                <p className="mt-1 text-xs opacity-80">
-                                    Reserva estimada desta autorização: {authorizationReservation.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.
-                                    {procurement ? ' O valor será conferido com o preço vigente na emissão.' : ' Sem limite adicional, o sistema reserva a capacidade total do tanque.'}
-                                </p>
-                            </div>
-                            {onOpenCommitment && (
-                                <SGFButton
-                                    type="button"
-                                    size="sm"
-                                    variant={commitmentInsufficient ? 'danger' : 'secondary'}
-                                    onClick={() => onOpenCommitment(stationId)}
-                                >
-                                    Cadastrar empenho/NAD
-                                </SGFButton>
-                            )}
-                        </div>
+                {stationId && authorizationReservation > 0 && (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                        <p className="font-bold">
+                            Reserva estimada: {authorizationReservation.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                            Consome o valor empenhado pela secretaria do veículo na licitação deste posto (Limites por secretaria).
+                            Se não houver saldo, a autorização é recusada. Sem limite de litros, reserva a capacidade do tanque.
+                        </p>
                     </div>
                 )}
 
