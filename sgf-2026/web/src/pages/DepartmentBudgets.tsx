@@ -7,6 +7,7 @@ import { useHeader } from "@/contexts/HeaderContext";
 import { SGFButton } from "@/components/sgf/SGFButton";
 import { SGFCard } from "@/components/sgf/SGFCard";
 import { SGFInput } from "@/components/sgf/SGFInput";
+import { SGFCurrencyInput } from "@/components/sgf/SGFCurrencyInput";
 import { SGFSelect } from "@/components/sgf/SGFSelect";
 import { Modal } from "@/components/ui/Modal";
 import {
@@ -227,16 +228,11 @@ function BudgetEditor({
             maxLength={160}
             onChange={(e) => setForm({ ...form, reference: e.target.value })}
           />
-          <SGFInput
-            label="Teto total da licitação no exercício (R$)"
-            type="number"
-            min="0"
-            step="0.01"
+          <SGFCurrencyInput
+            label="Teto total da licitação no exercício"
             value={form.total_limit}
             required
-            onChange={(e) =>
-              setForm({ ...form, total_limit: Number(e.target.value) })
-            }
+            onChange={(value) => setForm({ ...form, total_limit: value })}
           />
           <SGFInput
             label="Início da vigência"
@@ -343,19 +339,12 @@ function BudgetEditor({
                 </label>
                 {a && (
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <SGFInput
-                      label="Valor empenhado pela secretaria (R$)"
+                    <SGFCurrencyInput
+                      label="Valor empenhado pela secretaria"
                       hint="O consumo desta secretaria não pode passar deste valor."
-                      type="number"
-                      min="0"
-                      step="0.01"
                       value={a.spending_limit}
                       required
-                      onChange={(e) =>
-                        updateAllocation(d.id, {
-                          spending_limit: Number(e.target.value),
-                        })
-                      }
+                      onChange={(value) => updateAllocation(d.id, { spending_limit: value })}
                     />
                     <SGFInput
                       label="Nº do(s) empenho(s) (opcional)"
