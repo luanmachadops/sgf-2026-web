@@ -60,6 +60,18 @@ export interface QrLabelSheetOptions {
     appName?: string;
     /** Mostra a placa sob o QR (padrão: sim). */
     showPlate?: boolean;
+    /** Texto do convite (padrão: "Baixe o app do motorista:"). */
+    promoText?: string;
+    /** Tamanhos (pt) por elemento; o que faltar é calculado pela largura da etiqueta. */
+    fonts?: Partial<QrLabelFonts>;
+    /** Multiplicador do espaçamento entre elementos e da margem interna (1 = normal). */
+    spacing?: number;
+    /** Entrelinha dos textos (1 = justo; padrão 1,25). */
+    lineHeight?: number;
+    /** `spread` = cabeçalho no topo e rodapé embaixo; `grouped` = tudo junto no centro. */
+    align?: 'spread' | 'grouped';
+    /** Margem branca em volta do QR, em módulos (padrão 4; 2 = compacta). */
+    qrQuietModules?: number;
     /** Posições a pular no início da 1ª folha (reaproveitar folha de etiquetas já usada). */
     skip?: number;
     title?: string;
@@ -77,9 +89,33 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 /** Menor lado de QR que ainda lê bem com a câmera do celular. */
 export const MIN_QR_MM = 15;
 
+export interface QrLabelFonts {
+    /** Nome da prefeitura. */
+    name: number;
+    /** Texto do convite. */
+    promo: number;
+    /** Nome do app (o logo e os ícones das lojas acompanham). */
+    app: number;
+    plate: number;
+    /** Linhas abaixo da placa (modelo, secretaria, prefixo). */
+    caption: number;
+}
+
+/** Tamanhos automáticos (pt) para uma etiqueta desta largura (mm). */
+export function defaultLabelFonts(labelWidthMm: number): QrLabelFonts {
+    const caption = clamp(labelWidthMm * 0.11, 6, 12);
+    return {
+        name: Math.round(caption * 1.05 * 2) / 2,
+        promo: Math.round(caption * 0.85 * 2) / 2,
+        app: Math.round(caption * 0.95 * 2) / 2,
+        plate: Math.round(clamp(labelWidthMm * 0.2, 9, 28) * 2) / 2,
+        caption: Math.round(caption * 2) / 2,
+    };
+}
+
 /**
- * Posições dentro de uma etiqueta, em mm (fontes em pt). Usado pelo PDF e pela
- * prévia da tela, para as duas saírem iguais.
+ * Posições de cada elemento dentro de uma etiqueta, em mm (fontes em pt). O
+ * PDF e a prévia da tela usam as mesmas contas, para saírem iguais.
  */
 export function qrLabelLayout(options: {
     labelWidthMm: number;
@@ -87,30 +123,44 @@ export function qrLabelLayout(options: {
     qrSizeMm?: number;
     plateSizePt?: number;
     captionSizePt?: number;
+    fonts?: Partial<QrLabelFonts>;
     header?: string;
     appPromo?: boolean;
     showPlate?: boolean;
+    spacing?: number;
+    lineHeight?: number;
+    align?: 'spread' | 'grouped';
     lineCount: number;
 }) {
     const width = options.labelWidthMm;
-    const padding = clamp(width * 0.06, 2, 5);
-    const caption = options.captionSizePt ?? clamp(width * 0.11, 6, 12);
-    const plate = options.plateSizePt ?? clamp(width * 0.2, 9, 28);
-    const gap = clamp(width * 0.025, 1, 2.5);
+    const auto = defaultLabelFonts(width);
+    const fonts: QrLabelFonts = {
+        ...auto,
+        ...(options.plateSizePt ? { plate: options.plateSizePt } : {}),
+        ...(options.captionSizePt ? { caption: options.captionSizePt } : {}),
+        ...Object.fromEntries(Object.entries(options.fonts ?? {}).filter(([, v]) => typeof v === 'number' && v > 0)),
+    };
+    const spacing = clamp(options.spacing ?? 1, 0, 3);
+    const lh = clamp(options.lineHeight ?? 1.25, 0.9, 2);
+    const padding = clamp(width * 0.06, 2, 5) * Math.max(0.4, spacing);
+    const gap = clamp(width * 0.025, 1, 2.5) * spacing;
+    const inner = gap * 0.45;
+    const textMm = (pt: number) => pt * lh * PT_MM;
+    const iconMm = fonts.app * 1.75 * PT_MM;
 
-    const nameSize = caption * 1.05;
-    const promoSize = caption * 0.85;
-    const iconMm = caption * 1.9 * PT_MM;
-    let headerMm = 0;
-    if (options.header) headerMm += nameSize * 1.25 * PT_MM;
-    if (options.appPromo) headerMm += (headerMm > 0 ? gap * 0.6 : 0) + promoSize * 1.3 * PT_MM + gap * 0.4 + iconMm;
-
+    // Blocos em ordem; cada elemento guarda a altura e o espaço antes dele.
+    const headerParts: { key: 'name' | 'promo' | 'app'; h: number }[] = [];
+    if (options.header) headerParts.push({ key: 'name', h: textMm(fonts.name) });
+    if (options.appPromo) headerParts.push({ key: 'promo', h: textMm(fonts.promo) }, { key: 'app', h: iconMm });
     const showPlate = options.showPlate !== false;
-    let footerMm = 0;
-    if (showPlate) footerMm += plate * 1.1 * PT_MM;
-    if (options.lineCount > 0) footerMm += (footerMm > 0 ? gap * 0.5 : 0) + options.lineCount * caption * 1.3 * PT_MM;
-
+    const footerParts: { key: 'plate' | 'line'; h: number }[] = [];
+    if (showPlate) footerParts.push({ key: 'plate', h: fonts.plate * Math.max(1, lh * 0.9) * PT_MM });
+    for (let i = 0; i < options.lineCount; i += 1) footerParts.push({ key: 'line', h: textMm(fonts.caption) });
+    const blockHeight = (parts: { h: number }[]) => parts.reduce((sum, part, i) => sum + part.h + (i > 0 ? inner : 0), 0);
+    const headerMm = blockHeight(headerParts);
+    const footerMm = blockHeight(footerParts);
     const gapsAroundQr = (headerMm > 0 ? gap : 0) + (footerMm > 0 ? gap : 0);
+
     const freeWidth = width - padding * 2;
     let height = options.labelHeightMm;
     let qr: number;
@@ -121,9 +171,24 @@ export function qrLabelLayout(options: {
         qr = Math.min(freeWidth, options.qrSizeMm ?? freeWidth);
         height = padding * 2 + headerMm + footerMm + gapsAroundQr + qr;
     }
-    // Sobra vertical vai para os lados do QR, mantendo cabeçalho no topo e rodapé embaixo.
-    const qrTop = padding + headerMm + (headerMm > 0 ? gap : 0)
-        + Math.max(0, (height - padding * 2 - headerMm - footerMm - gapsAroundQr - qr) / 2);
+    const slack = Math.max(0, height - padding * 2 - headerMm - footerMm - gapsAroundQr - Math.max(qr, 0));
+    const grouped = options.align === 'grouped';
+
+    const headerTop = padding + (grouped ? slack / 2 : 0);
+    const qrTop = headerTop + headerMm + (headerMm > 0 ? gap : 0) + (grouped ? 0 : slack / 2);
+    const footerTop = grouped ? qrTop + qr + (footerMm > 0 ? gap : 0) : height - padding - footerMm;
+
+    const place = <K extends string>(parts: { key: K; h: number }[], start: number) => {
+        let cursor = start;
+        return parts.map((part, i) => {
+            if (i > 0) cursor += inner;
+            const top = cursor;
+            cursor += part.h;
+            return { key: part.key, top, h: part.h };
+        });
+    };
+    const header = place(headerParts, headerTop);
+    const footer = place(footerParts, footerTop);
     return {
         width,
         height,
@@ -133,11 +198,18 @@ export function qrLabelLayout(options: {
         qrTop,
         qrLeft: (width - qr) / 2,
         fits: qr >= MIN_QR_MM,
-        fonts: { caption, plate, name: nameSize, promo: promoSize },
+        fonts,
+        lineHeight: lh,
         iconMm,
         headerMm,
-        footerTop: height - padding - footerMm,
+        footerTop,
         showPlate,
+        /** Topo (mm) de cada elemento do cabeçalho. */
+        nameTop: header.find((e) => e.key === 'name')?.top,
+        promoTop: header.find((e) => e.key === 'promo')?.top,
+        appTop: header.find((e) => e.key === 'app')?.top,
+        plateTop: footer.find((e) => e.key === 'plate')?.top,
+        lineTops: footer.filter((e) => e.key === 'line').map((e) => e.top),
     };
 }
 
@@ -256,10 +328,11 @@ export function drawPlainVectorQr(
     size: number,
     errorCorrection: 'L' | 'M' | 'Q' | 'H' = 'M',
     color: RGB = mix(0),
+    quietModules = 4,
 ): void {
     const matrix = qrMatrix(data, errorCorrection);
     const count = matrix.length;
-    const quiet = 4;
+    const quiet = quietModules;
     const cell = size / (count + quiet * 2);
     const y = page.getHeight() - top;
     page.drawRectangle({ x, y: y - size, width: size, height: size, color: rgb(1, 1, 1) });
@@ -348,6 +421,7 @@ export async function buildQrLabelsPdf(options: QrLabelSheetOptions): Promise<Ui
     const ink = options.qrStyle === 'plain' ? rgb(0, 0, 0) : mix(0);
     const header = options.header ? winAnsiSafe(bold, options.header.toUpperCase()) : '';
     const appName = winAnsiSafe(bold, options.appName || 'Exattus Rotta');
+    const promoText = winAnsiSafe(regular, options.promoText ?? 'Baixe o app do motorista:');
     const innerWidth = (L.width - L.padding * 2) * MM;
 
     const centered = (page: PDFPage, font: PDFFont, text: string, size: number, x: number, top: number, color: RGB) => {
@@ -387,35 +461,34 @@ export async function buildQrLabelsPdf(options: QrLabelSheetOptions): Promise<Ui
         }
 
         // Cabeçalho: prefeitura e convite para o app do motorista.
-        let cursor = top + L.padding * MM;
-        if (header) {
-            centered(current, bold, header, L.fonts.name, x, cursor, mix(0));
-            cursor += L.fonts.name * 1.25;
+        // Texto desenhado com o topo da linha em `topMm` e o corpo centrado na entrelinha.
+        const textTop = (topMm: number, size: number) => top + topMm * MM + (size * L.lineHeight - size) / 2;
+        if (header && L.nameTop !== undefined) {
+            centered(current, bold, header, L.fonts.name, x, textTop(L.nameTop, L.fonts.name), mix(0));
         }
-        if (options.appPromo) {
-            if (header) cursor += L.gap * 0.6 * MM;
-            centered(current, regular, 'Baixe o app do motorista:', L.fonts.promo, x, cursor, muted);
-            cursor += L.fonts.promo * 1.3 + L.gap * 0.4 * MM;
+        if (options.appPromo && L.promoTop !== undefined && L.appTop !== undefined) {
+            centered(current, regular, promoText, L.fonts.promo, x, textTop(L.promoTop, L.fonts.promo), muted);
+            const rowTop = top + L.appTop * MM;
             const icon = L.iconMm * MM;
-            const nameSize = L.fonts.promo * 1.1;
+            const nameSize = L.fonts.app;
             const nameWidth = bold.widthOfTextAtSize(appName, nameSize);
             const spacing = icon * 0.3;
-            const rowWidth = icon + spacing + nameWidth + spacing * 2 + icon * 0.8 * 2 + spacing;
+            const store = icon * 0.8;
+            const rowWidth = icon + spacing + nameWidth + spacing * 2 + store * 2 + spacing;
             let cx = x + (m.labelWidth - rowWidth) / 2;
-            drawIcon(current, APP_LOGO_ICON, cx, cursor, icon);
+            drawIcon(current, APP_LOGO_ICON, cx, rowTop, icon);
             cx += icon + spacing;
             current.drawText(appName, {
                 x: cx,
-                y: current.getHeight() - cursor - icon / 2 - nameSize * 0.35,
+                y: current.getHeight() - rowTop - icon / 2 - nameSize * 0.35,
                 size: nameSize,
                 font: bold,
                 color: mix(0),
             });
             cx += nameWidth + spacing * 2;
-            const store = icon * 0.8;
-            drawIcon(current, GOOGLE_PLAY_ICON, cx, cursor + (icon - store) / 2, store);
+            drawIcon(current, GOOGLE_PLAY_ICON, cx, rowTop + (icon - store) / 2, store);
             cx += store + spacing;
-            drawIcon(current, APPLE_ICON, cx, cursor + (icon - store) / 2, store);
+            drawIcon(current, APPLE_ICON, cx, rowTop + (icon - store) / 2, store);
         }
 
         const qrX = x + L.qrLeft * MM;
@@ -426,20 +499,20 @@ export async function buildQrLabelsPdf(options: QrLabelSheetOptions): Promise<Ui
         if (image) {
             current.drawImage(image, { x: qrX, y: current.getHeight() - qrTop - qrSize, width: qrSize, height: qrSize });
         } else if (options.qrStyle === 'plain') {
-            drawPlainVectorQr(current, data, qrX, qrTop, qrSize, 'H', rgb(0, 0, 0));
+            drawPlainVectorQr(current, data, qrX, qrTop, qrSize, 'H', rgb(0, 0, 0), options.qrQuietModules ?? 4);
         } else {
             drawVectorQr(current, data, qrX, qrTop, qrSize);
         }
 
-        cursor = top + L.footerTop * MM;
-        if (L.showPlate) {
-            centered(current, bold, winAnsiSafe(bold, item.plate), L.fonts.plate, x, cursor, ink);
-            cursor += L.fonts.plate * 1.1 + L.gap * 0.5 * MM;
+        if (L.showPlate && L.plateTop !== undefined) {
+            const plateLine = Math.max(1, L.lineHeight * 0.9);
+            centered(current, bold, winAnsiSafe(bold, item.plate), L.fonts.plate, x, top + L.plateTop * MM + (L.fonts.plate * plateLine - L.fonts.plate) / 2, ink);
         }
-        for (const line of itemLines(item)) {
-            centered(current, regular, winAnsiSafe(regular, line), L.fonts.caption, x, cursor, muted);
-            cursor += L.fonts.caption * 1.3;
-        }
+        itemLines(item).forEach((line, i) => {
+            const lineTop = L.lineTops[i];
+            if (lineTop === undefined) return;
+            centered(current, regular, winAnsiSafe(regular, line), L.fonts.caption, x, textTop(lineTop, L.fonts.caption), muted);
+        });
     }
     if (options.items.length === 0) doc.addPage([m.pageWidth, m.pageHeight]);
     doc.setTitle(options.title ?? 'Etiquetas QR — Frota');

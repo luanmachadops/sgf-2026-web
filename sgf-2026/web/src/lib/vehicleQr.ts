@@ -9,13 +9,19 @@ const PRIMARY_GREEN = '#00A86B';
  * Gradiente escuro→verde + pontos/cantos arredondados, sobre fundo branco e
  * correção de erro ALTA (H) — bonito e na identidade do app, sem perder leitura.
  */
-export function vehicleQrOptions(plate: string, size = 240, type: 'canvas' | 'svg' = 'canvas'): Options {
+export function vehicleQrOptions(
+    plate: string,
+    size = 240,
+    type: 'canvas' | 'svg' = 'canvas',
+    /** Margem branca em fração do lado (padrão 6%; etiquetas compactas usam menos). */
+    marginRatio = 0.06,
+): Options {
     return {
         width: size,
         height: size,
         type,
         data: (plate || '').toUpperCase(),
-        margin: Math.max(8, Math.round(size * 0.06)),
+        margin: marginRatio >= 0.06 ? Math.max(8, Math.round(size * marginRatio)) : Math.round(size * marginRatio),
         qrOptions: { errorCorrectionLevel: 'H' },
         backgroundOptions: { color: '#FFFFFF' },
         dotsOptions: {
@@ -35,8 +41,8 @@ export function vehicleQrOptions(plate: string, size = 240, type: 'canvas' | 'sv
 }
 
 /** Cria uma instância nova do QR estilizado (para anexar a um nó ou baixar). */
-export function createVehicleQr(plate: string, size = 240, type: 'canvas' | 'svg' = 'canvas') {
-    return new QRCodeStyling(vehicleQrOptions(plate, size, type));
+export function createVehicleQr(plate: string, size = 240, type: 'canvas' | 'svg' = 'canvas', marginRatio = 0.06) {
+    return new QRCodeStyling(vehicleQrOptions(plate, size, type, marginRatio));
 }
 
 /** Baixa o QR do veículo como PNG em alta resolução. */

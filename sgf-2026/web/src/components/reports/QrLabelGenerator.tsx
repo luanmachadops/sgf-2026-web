@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
@@ -10,7 +10,7 @@ import { Toggle } from '@/components/settings/SettingsToggle';
 import { Download, Loader2, Printer, Search } from '@/components/sgf/icons';
 import { vehiclesApi, departmentsApi } from '@/lib/supabase-api';
 import { downloadBlob, openPendingPdfTab, showPdfInTab } from '@/lib/reports/reportPdfBrowser';
-import type { QrLabelImage, QrLabelItem, QrLabelSheet, QrLabelSheetOptions } from '@/lib/qrLabelsPdf';
+import type { QrLabelFonts, QrLabelImage, QrLabelItem, QrLabelSheet, QrLabelSheetOptions } from '@/lib/qrLabelsPdf';
 import { APPLE_ICON, APP_LOGO_ICON, GOOGLE_PLAY_ICON, type LabelIcon } from '@/lib/labelIcons';
 import { createVehicleQr } from '@/lib/vehicleQr';
 import { useBranding } from '@/contexts/BrandingContext';
@@ -53,10 +53,33 @@ function toMm(value: string, unit: 'mm' | 'cm'): number {
 
 const fmtMm = (mm: number) => `${(Math.round(mm * 10) / 10).toLocaleString('pt-BR')} mm`;
 
+/** Espaçamentos prontos: preenchem os ajustes finos, que continuam editáveis. */
+const SPACING_PRESETS = {
+    compact: { label: 'Compacto', spacing: 0.35, lineHeight: 1.1, align: 'grouped' as const, qrMargin: 0.02 },
+    normal: { label: 'Normal', spacing: 1, lineHeight: 1.25, align: 'spread' as const, qrMargin: 0.06 },
+    wide: { label: 'Arejado', spacing: 1.6, lineHeight: 1.4, align: 'spread' as const, qrMargin: 0.06 },
+};
+type SpacingPreset = keyof typeof SPACING_PRESETS;
+
+const DEFAULT_PROMO_TEXT = 'Baixe o app do motorista:';
+const DEFAULT_APP_NAME = 'Exattus Rotta';
+
+/** Como a etiqueta é desenhada (compartilhado pela prévia e pelo PDF). */
+interface LabelLook {
+    header: string;
+    appPromo: boolean;
+    promoText: string;
+    appName: string;
+    qrStyle: 'styled' | 'plain';
+    border: boolean;
+    /** Margem branca do QR em fração do lado. */
+    qrMargin: number;
+}
+
 /** PNG do QR no design original (qr-code-styling), em ~300 dpi para o tamanho impresso. */
-async function renderQrPng(plate: string, qrMm: number): Promise<QrLabelImage | null> {
+async function renderQrPng(plate: string, qrMm: number, marginRatio: number): Promise<QrLabelImage | null> {
     const px = Math.round(Math.min(2000, Math.max(600, (qrMm / 25.4) * 300)));
-    const blob = await createVehicleQr(plate, px, 'canvas').getRawData('png');
+    const blob = await createVehicleQr(plate, px, 'canvas', marginRatio).getRawData('png');
     if (!blob || !(blob instanceof Blob)) return null;
     return { bytes: new Uint8Array(await blob.arrayBuffer()), type: 'png' };
 }
@@ -77,72 +100,127 @@ type VehicleRow = Awaited<ReturnType<typeof vehiclesApi.getAll>>[number];
 type Layout = ReturnType<typeof import('@/lib/qrLabelsPdf').qrLabelLayout>;
 
 /** Prévia de uma etiqueta com as mesmas medidas do PDF, desenhada em mm × escala. */
-function LabelPreview({ layout, pxPerMm, plate, lines, header, appPromo, qrStyle, border }: {
+function LabelPreview({ layout, pxPerMm, plate, lines, look }: {
     layout: Layout;
     pxPerMm: number;
     plate: string;
     lines: string[];
-    header: string;
-    appPromo: boolean;
-    qrStyle: 'styled' | 'plain';
-    border: boolean;
+    look: LabelLook;
 }) {
     const pt = (size: number) => size * (25.4 / 72) * pxPerMm;
     const icon = layout.iconMm * pxPerMm;
+    const line = (top: number | undefined, size: number, lh: number, className: string, text: string, key?: string) => (top === undefined ? null : (
+        <p key={key} className={cn('absolute inset-x-0 truncate text-center', className)}
+            style={{ top: top * pxPerMm, fontSize: pt(size), lineHeight: lh, paddingInline: layout.padding * pxPerMm }}>
+            {text}
+        </p>
+    ));
+    const rawPlate = plate.replace(/[^A-Za-z0-9]/g, '');
     return (
         <div
-            className={cn('relative shrink-0 bg-white font-[Helvetica,Arial,sans-serif] shadow-sm', border ? 'border border-slate-300' : 'border border-dashed border-slate-200')}
+            className={cn('relative shrink-0 overflow-hidden bg-white font-[Helvetica,Arial,sans-serif] shadow-sm', look.border ? 'border border-slate-300' : 'border border-dashed border-slate-200')}
             style={{ width: layout.width * pxPerMm, height: layout.height * pxPerMm, borderRadius: 3 * pxPerMm }}
         >
-            <div className="absolute inset-x-0 flex flex-col items-center text-center" style={{ top: layout.padding * pxPerMm, paddingInline: layout.padding * pxPerMm }}>
-                {header && (
-                    <p className="w-full truncate font-bold uppercase text-[#0F2B2F]" style={{ fontSize: pt(layout.fonts.name), lineHeight: 1.25 }}>{header}</p>
-                )}
-                {appPromo && (
-                    <>
-                        <p className="text-[#64748B]" style={{ fontSize: pt(layout.fonts.promo), lineHeight: 1.3, marginTop: header ? layout.gap * 0.6 * pxPerMm : 0 }}>
-                            Baixe o app do motorista:
-                        </p>
-                        <div className="flex items-center" style={{ gap: icon * 0.3, marginTop: layout.gap * 0.4 * pxPerMm, height: icon }}>
-                            <IconSvg icon={APP_LOGO_ICON} size={icon} />
-                            <span className="whitespace-nowrap font-bold text-[#0F2B2F]" style={{ fontSize: pt(layout.fonts.promo * 1.1), marginRight: icon * 0.3 }}>Exattus Rotta</span>
-                            <IconSvg icon={GOOGLE_PLAY_ICON} size={icon * 0.8} />
-                            <IconSvg icon={APPLE_ICON} size={icon * 0.8} />
-                        </div>
-                    </>
-                )}
-            </div>
+            {look.header && line(layout.nameTop, layout.fonts.name, layout.lineHeight, 'font-bold uppercase text-[#0F2B2F]', look.header)}
+            {look.appPromo && line(layout.promoTop, layout.fonts.promo, layout.lineHeight, 'text-[#64748B]', look.promoText)}
+            {look.appPromo && layout.appTop !== undefined && (
+                <div className="absolute inset-x-0 flex items-center justify-center" style={{ top: layout.appTop * pxPerMm, height: icon, gap: icon * 0.3 }}>
+                    <IconSvg icon={APP_LOGO_ICON} size={icon} />
+                    <span className="whitespace-nowrap font-bold text-[#0F2B2F]" style={{ fontSize: pt(layout.fonts.app), marginRight: icon * 0.3 }}>{look.appName}</span>
+                    <IconSvg icon={GOOGLE_PLAY_ICON} size={icon * 0.8} />
+                    <IconSvg icon={APPLE_ICON} size={icon * 0.8} />
+                </div>
+            )}
             <div className="absolute" style={{ left: layout.qrLeft * pxPerMm, top: layout.qrTop * pxPerMm, width: layout.qr * pxPerMm, height: layout.qr * pxPerMm }}>
-                {qrStyle === 'styled'
-                    ? <StyledQr value={plate.replace(/[^A-Za-z0-9]/g, '')} size={Math.max(8, Math.round(layout.qr * pxPerMm))} />
-                    : <PlainQrPreview value={plate.replace(/[^A-Za-z0-9]/g, '')} size={layout.qr * pxPerMm} />}
+                {look.qrStyle === 'styled'
+                    ? <StyledQr value={rawPlate} size={Math.max(8, Math.round(layout.qr * pxPerMm))} marginRatio={look.qrMargin} />
+                    : <PlainQrPreview value={rawPlate} size={layout.qr * pxPerMm} quiet={look.qrMargin < 0.04 ? 2 : 4} />}
             </div>
-            <div className="absolute inset-x-0 flex flex-col items-center text-center" style={{ top: layout.footerTop * pxPerMm, paddingInline: layout.padding * pxPerMm }}>
-                {layout.showPlate && (
-                    <p className={cn('font-bold', qrStyle === 'plain' ? 'text-black' : 'text-[#0F2B2F]')} style={{ fontSize: pt(layout.fonts.plate), lineHeight: 1.1, marginBottom: layout.gap * 0.5 * pxPerMm }}>{plate}</p>
-                )}
-                {lines.map((line) => (
-                    <p key={line} className="w-full truncate text-[#64748B]" style={{ fontSize: pt(layout.fonts.caption), lineHeight: 1.3 }}>{line}</p>
-                ))}
-            </div>
+            {layout.showPlate && line(layout.plateTop, layout.fonts.plate, Math.max(1, layout.lineHeight * 0.9),
+                cn('font-bold', look.qrStyle === 'plain' ? 'text-black' : 'text-[#0F2B2F]'), plate)}
+            {lines.map((text, i) => line(layout.lineTops[i], layout.fonts.caption, layout.lineHeight, 'text-[#64748B]', text, `${i}-${text}`))}
         </div>
     );
 }
 
 /** QR preto chapado para a prévia (mesma matriz do PDF). */
-function PlainQrPreview({ value, size }: { value: string; size: number }) {
+function PlainQrPreview({ value, size, quiet = 4 }: { value: string; size: number; quiet?: number }) {
     const { data: matrix } = useQuery({
         queryKey: ['plain-qr-matrix', value],
         queryFn: async () => (await import('@/lib/qrLabelsPdf')).qrMatrix(value.toUpperCase(), 'H'),
         staleTime: Infinity,
     });
     if (!matrix) return null;
-    const count = matrix.length + 8;
+    const count = matrix.length + quiet * 2;
     return (
         <svg viewBox={`0 0 ${count} ${count}`} width={size} height={size} shapeRendering="crispEdges" aria-label={`QR ${value}`}>
             <rect width={count} height={count} fill="#fff" />
-            {matrix.flatMap((row, r) => row.map((dark, c) => (dark ? <rect key={`${r}-${c}`} x={c + 4} y={r + 4} width={1} height={1} fill="#000" /> : null)))}
+            {matrix.flatMap((row, r) => row.map((dark, c) => (dark ? <rect key={`${r}-${c}`} x={c + quiet} y={r + quiet} width={1} height={1} fill="#000" /> : null)))}
         </svg>
+    );
+}
+
+/** Tamanho de fonte (pt); vazio = automático (cinza). */
+function SizeStepper({ label, value, auto, onChange }: {
+    label: string;
+    value: number | undefined;
+    auto: number | undefined;
+    onChange: (value: number | undefined) => void;
+}) {
+    const current = value ?? auto ?? 8;
+    const step = (delta: number) => onChange(Math.min(40, Math.max(4, Math.round((current + delta) * 2) / 2)));
+    return (
+        <div className="flex shrink-0 items-center rounded-lg border border-slate-200 bg-white" title={`${label}${value === undefined ? ' (automático)' : ''}`}>
+            <button type="button" onClick={() => step(-0.5)} className="px-2 py-1 text-slate-500 hover:text-slate-900" aria-label={`Diminuir ${label}`}>−</button>
+            <button type="button" onClick={() => value !== undefined && onChange(undefined)} disabled={value === undefined}
+                className={cn('min-w-[50px] text-center text-xs font-semibold tabular-nums', value === undefined ? 'text-slate-400' : 'text-slate-800 hover:text-[var(--sgf-primary)]')}
+                aria-label={value === undefined ? `${label}: automático` : `${label}: voltar ao automático`}>
+                {current.toLocaleString('pt-BR')} pt
+            </button>
+            <button type="button" onClick={() => step(0.5)} className="px-2 py-1 text-slate-500 hover:text-slate-900" aria-label={`Aumentar ${label}`}>+</button>
+        </div>
+    );
+}
+
+/** Um elemento da etiqueta: liga/desliga e tamanho no título; texto e opções embaixo. */
+function ElementCard({ title, enabled, onToggle, size, autoSize, onSize, children }: {
+    title: string;
+    enabled: boolean;
+    onToggle?: (value: boolean) => void;
+    size: number | undefined;
+    autoSize: number | undefined;
+    onSize: (value: number | undefined) => void;
+    children?: ReactNode;
+}) {
+    return (
+        <div className={cn('rounded-xl border border-slate-200 bg-white p-3', !enabled && 'bg-slate-50')}>
+            <div className="flex items-center gap-2">
+                <span className={cn('min-w-0 flex-1 text-sm font-semibold', enabled ? 'text-slate-800' : 'text-slate-400')}>{title}</span>
+                {enabled && <SizeStepper label={`Tamanho — ${title}`} value={size} auto={autoSize} onChange={onSize} />}
+                {onToggle && <Toggle checked={enabled} onChange={onToggle} />}
+            </div>
+            {enabled && children && <div className="mt-2 space-y-2">{children}</div>}
+        </div>
+    );
+}
+
+function Slider({ label, value, min, max, step, onChange, format }: {
+    label: string;
+    value: number;
+    min: number;
+    max: number;
+    step: number;
+    onChange: (value: number) => void;
+    format: (value: number) => string;
+}) {
+    return (
+        <label className="block">
+            <span className="mb-1 flex justify-between text-xs font-semibold text-slate-500">
+                <span>{label}</span>
+                <span className="tabular-nums text-slate-700">{format(value)}</span>
+            </span>
+            <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full accent-[var(--sgf-primary)]" />
+        </label>
     );
 }
 
@@ -164,6 +242,15 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
     const [showUnitCode, setShowUnitCode] = useState(false);
     const [showHeader, setShowHeader] = useState(true);
     const [appPromo, setAppPromo] = useState(true);
+    const [headerText, setHeaderText] = useState('');
+    const [promoText, setPromoText] = useState(DEFAULT_PROMO_TEXT);
+    const [appName, setAppName] = useState(DEFAULT_APP_NAME);
+    const [fontOverrides, setFontOverrides] = useState<Partial<QrLabelFonts>>({});
+    const [spacingPreset, setSpacingPreset] = useState<SpacingPreset | 'custom'>('normal');
+    const [spacing, setSpacing] = useState(SPACING_PRESETS.normal.spacing);
+    const [lineHeight, setLineHeight] = useState(SPACING_PRESETS.normal.lineHeight);
+    const [align, setAlign] = useState<'spread' | 'grouped'>(SPACING_PRESETS.normal.align);
+    const [qrMargin, setQrMargin] = useState(SPACING_PRESETS.normal.qrMargin);
     const [border, setBorder] = useState(true);
     const [copies, setCopies] = useState('1');
     const [skip, setSkip] = useState('0');
@@ -213,7 +300,7 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
     const labelW = preset === 'custom' ? toMm(customW, unit) : presetDef?.w ?? 60;
     const labelH = preset === 'custom' ? toMm(customH, unit) : presetDef?.h ?? 85;
     const copyCount = Math.min(20, Math.max(1, Math.floor(Number(copies) || 1)));
-    const header = showHeader ? branding.name || 'Prefeitura Municipal' : '';
+    const header = showHeader ? (headerText.trim() || branding.name || 'Prefeitura Municipal') : '';
 
     const linesFor = (v: VehicleRow): string[] => [
         showModel ? [v.brand, v.model].filter(Boolean).join(' ') : '',
@@ -230,8 +317,14 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
         border,
         header: header || undefined,
         appPromo,
-        appName: 'Exattus Rotta',
+        appName: appName.trim() || DEFAULT_APP_NAME,
+        promoText: promoText.trim() || DEFAULT_PROMO_TEXT,
         showPlate,
+        fonts: fontOverrides,
+        spacing,
+        lineHeight,
+        align,
+        qrQuietModules: qrMargin < 0.04 ? 2 : 4,
         skip: sheet === 'label' ? 0 : Math.max(0, Math.floor(Number(skip) || 0)),
         title: 'Etiquetas QR — Frota',
     };
@@ -241,6 +334,34 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
     const perPage = metrics?.perPage ?? 1;
     const pages = totalLabels === 0 ? 0 : Math.ceil((totalLabels + (baseOptions.skip ?? 0)) / perPage);
     const canPrint = totalLabels > 0 && Boolean(metrics?.fitsSheet);
+    const look: LabelLook = {
+        header,
+        appPromo,
+        promoText: baseOptions.promoText ?? DEFAULT_PROMO_TEXT,
+        appName: baseOptions.appName ?? DEFAULT_APP_NAME,
+        qrStyle,
+        border,
+        qrMargin,
+    };
+    const applySpacingPreset = (value: string) => {
+        if (value === 'custom') {
+            setSpacingPreset('custom');
+            return;
+        }
+        const presetValues = SPACING_PRESETS[value as SpacingPreset];
+        if (!presetValues) return;
+        setSpacingPreset(value as SpacingPreset);
+        setSpacing(presetValues.spacing);
+        setLineHeight(presetValues.lineHeight);
+        setAlign(presetValues.align);
+        setQrMargin(presetValues.qrMargin);
+    };
+    const tweak = <T,>(setter: (value: T) => void) => (value: T) => {
+        setter(value);
+        setSpacingPreset('custom');
+    };
+    const setFont = (key: keyof QrLabelFonts, value: number | undefined) =>
+        setFontOverrides((current) => ({ ...current, [key]: value }));
 
     // Escala da prévia: cabe em ~320 × 440 px, nunca acima do tamanho real (≈3,78 px/mm).
     const pxPerMm = layout ? Math.min(3.78, 320 / layout.width, 400 / layout.height) : 3;
@@ -281,7 +402,7 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                 for (let i = 0; i < plates.length; i += 8) {
                     setProgress(`Desenhando QR ${Math.min(i + 8, plates.length)} de ${plates.length}…`);
                     const batch = plates.slice(i, i + 8);
-                    const images = await Promise.all(batch.map((plate) => renderQrPng(plate, layout.qr)));
+                    const images = await Promise.all(batch.map((plate) => renderQrPng(plate, layout.qr, qrMargin)));
                     batch.forEach((plate, index) => {
                         const image = images[index];
                         if (image) qrImages[plate] = image;
@@ -470,16 +591,67 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                         </div>
                     </div>
                     <div>
-                        <p className={sectionTitle}>Conteúdo e estilo</p>
-                        <div className="space-y-2">
+                        <p className={sectionTitle}>Estilo do QR e espaçamento</p>
+                        <div className="space-y-3">
                             <SGFSelect label="Estilo do QR" options={QR_STYLE_OPTIONS} value={qrStyle} onChange={(value) => setQrStyle(value === 'plain' ? 'plain' : 'styled')} fullWidth />
-                            {check('Cabeçalho com a prefeitura', showHeader, setShowHeader, header || undefined)}
-                            {check('Convite para o app do motorista', appPromo, setAppPromo, 'Logo do Exattus Rotta e lojas Google Play e App Store')}
-                            {check('Placa', showPlate, setShowPlate)}
-                            {check('Marca e modelo', showModel, setShowModel)}
-                            {check('Secretaria', showDepartment, setShowDepartment)}
-                            {check('Prefixo', showUnitCode, setShowUnitCode)}
+                            <div>
+                                <span className={fieldLabel}>Espaçamento</span>
+                                <div className="grid grid-cols-4 gap-1 rounded-xl border border-slate-200 bg-white p-1 text-xs font-semibold" role="radiogroup" aria-label="Espaçamento">
+                                    {([...Object.entries(SPACING_PRESETS).map(([value, p]) => [value, p.label]), ['custom', 'Ajustado']] as [string, string][]).map(([value, label]) => (
+                                        <button key={value} type="button" role="radio" aria-checked={spacingPreset === value} onClick={() => applySpacingPreset(value)}
+                                            className={cn('rounded-lg px-2 py-1.5', spacingPreset === value ? 'bg-[var(--sgf-dark)] text-white' : 'text-slate-500 hover:bg-slate-50')}>
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <details className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" open={spacingPreset === 'custom'}>
+                                <summary className="cursor-pointer select-none text-xs font-semibold text-slate-500">Ajuste fino do espaçamento</summary>
+                                <div className="mt-3 space-y-3">
+                                    <Slider label="Espaço entre elementos" value={spacing} min={0} max={2.5} step={0.05} onChange={tweak(setSpacing)} format={(v) => `${Math.round(v * 100)}%`} />
+                                    <Slider label="Entrelinha dos textos" value={lineHeight} min={0.9} max={1.8} step={0.05} onChange={tweak(setLineHeight)} format={(v) => v.toFixed(2).replace('.', ',')} />
+                                    <Slider label="Margem branca do QR" value={qrMargin} min={0.01} max={0.1} step={0.01} onChange={tweak(setQrMargin)} format={(v) => `${Math.round(v * 100)}%`} />
+                                    <SGFSelect label="Distribuição na etiqueta" fullWidth value={align} onChange={(value) => tweak(setAlign)(value === 'grouped' ? 'grouped' : 'spread')}
+                                        options={[{ value: 'grouped', label: 'Tudo junto no centro' }, { value: 'spread', label: 'Cabeçalho no topo, textos embaixo' }]} />
+                                </div>
+                            </details>
                             {check('Contorno para recorte', border, setBorder)}
+                        </div>
+                    </div>
+                    <div>
+                        <p className={sectionTitle}>Elementos e textos</p>
+                        <div className="space-y-2">
+                            <ElementCard title="Nome da prefeitura" enabled={showHeader} onToggle={setShowHeader}
+                                size={fontOverrides.name} autoSize={layout?.fonts.name} onSize={(v) => setFont('name', v)}>
+                                <input type="text" value={headerText} onChange={(e) => setHeaderText(e.target.value)} placeholder={branding.name || 'Prefeitura Municipal'} maxLength={80} className={textInput} aria-label="Texto do cabeçalho" />
+                            </ElementCard>
+                            <ElementCard title="Convite do app do motorista" enabled={appPromo} onToggle={setAppPromo}
+                                size={fontOverrides.promo} autoSize={layout?.fonts.promo} onSize={(v) => setFont('promo', v)}>
+                                <input type="text" value={promoText} onChange={(e) => setPromoText(e.target.value)} placeholder={DEFAULT_PROMO_TEXT} maxLength={60} className={textInput} aria-label="Texto do convite" />
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs font-semibold text-slate-500">Logo e nome do app</span>
+                                    <SizeStepper label="Logo e nome do app" value={fontOverrides.app} auto={layout?.fonts.app} onChange={(v) => setFont('app', v)} />
+                                </div>
+                                <input type="text" value={appName} onChange={(e) => setAppName(e.target.value)} placeholder={DEFAULT_APP_NAME} maxLength={40} className={textInput} aria-label="Nome do app" />
+                            </ElementCard>
+                            <ElementCard title="Placa" enabled={showPlate} onToggle={setShowPlate}
+                                size={fontOverrides.plate} autoSize={layout?.fonts.plate} onSize={(v) => setFont('plate', v)} />
+                            <ElementCard title="Linhas abaixo da placa" enabled
+                                size={fontOverrides.caption} autoSize={layout?.fonts.caption} onSize={(v) => setFont('caption', v)}>
+                                <div className="flex flex-wrap gap-2 text-xs">
+                                    {([['Modelo', showModel, setShowModel], ['Secretaria', showDepartment, setShowDepartment], ['Prefixo', showUnitCode, setShowUnitCode]] as const).map(([label, value, setter]) => (
+                                        <label key={label} className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2 py-1.5 font-medium text-slate-600">
+                                            <input type="checkbox" checked={value} onChange={(e) => setter(e.target.checked)} className="h-3.5 w-3.5 accent-[var(--sgf-primary)]" />
+                                            {label}
+                                        </label>
+                                    ))}
+                                </div>
+                            </ElementCard>
+                            {Object.values(fontOverrides).some((v) => v !== undefined) && (
+                                <button type="button" onClick={() => setFontOverrides({})} className="text-xs font-semibold text-slate-500 hover:underline">
+                                    Voltar todos os tamanhos ao automático
+                                </button>
+                            )}
                         </div>
                     </div>
                 </section>
@@ -518,10 +690,7 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                                                         pxPerMm={sheetPxPerMm}
                                                         plate={formatPlate(vehicle.plate as string)}
                                                         lines={linesFor(vehicle)}
-                                                        header={header}
-                                                        appPromo={appPromo}
-                                                        qrStyle={qrStyle}
-                                                        border={border}
+                                                        look={look}
                                                     />
                                                 ) : (
                                                     <div
@@ -551,10 +720,7 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                                     pxPerMm={pxPerMm}
                                     plate={formatPlate(sample.plate as string)}
                                     lines={linesFor(sample)}
-                                    header={header}
-                                    appPromo={appPromo}
-                                    qrStyle={qrStyle}
-                                    border={border}
+                                    look={look}
                                 />
                                 <p className="text-center text-xs text-slate-500">
                                     {fmtMm(layout.width)} × {fmtMm(layout.height)}
