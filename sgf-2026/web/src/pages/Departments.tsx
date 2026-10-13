@@ -7,12 +7,10 @@ import {
     ArrowLeft,
     Building2,
     Car,
-    DollarSign,
     Fuel,
     Gauge,
     Pencil,
     Plus,
-    Route,
     ShieldAlert,
     Users,
     UserSquare2,
@@ -22,6 +20,8 @@ import {
 import { CostCentersSection } from '@/components/departments/CostCentersSection';
 import { DepartmentBudgetsSection } from '@/pages/DepartmentBudgets';
 import { canAccessModule } from '@/lib/accessModules';
+import { departmentBudgetApi } from '@/lib/department-budget-api';
+import { ProfilePhoto } from '@/components/sgf/ProfilePhoto';
 import { DepartmentFormModal } from '@/components/departments/DepartmentFormModal';
 import { NewSecretarioModal } from '@/components/settings/NewSecretarioModal';
 import { TripDetailsModal } from '@/components/trips/TripDetailsModal';
@@ -193,6 +193,112 @@ function MaintenanceTooltip({ active, payload }: ChartTooltipProps) {
     );
 }
 
+type BudgetUsage = { limit: number; used: number };
+type Secretary = { id: string; full_name: string; photo_url: string | null };
+
+function DepartmentCard({
+    item,
+    month,
+    secretaries,
+    budget,
+    onOpen,
+}: {
+    item: DepartmentOverview;
+    month?: DepartmentOverview;
+    secretaries: Secretary[];
+    budget?: BudgetUsage;
+    onOpen: () => void;
+}) {
+    const secretary = secretaries[0];
+    const extraSecretaries = secretaries.length - 1;
+    const pct = budget && budget.limit > 0 ? Math.min(100, (budget.used / budget.limit) * 100) : 0;
+    const barColor = pct >= 100 ? 'bg-rose-500' : pct >= 80 ? 'bg-amber-500' : 'bg-emerald-500';
+    const alerts = item.anomalyCount;
+
+    return (
+        <button
+            type="button"
+            onClick={onOpen}
+            className="group flex flex-col rounded-2xl border border-slate-200 bg-white text-left transition-all hover:border-emerald-200 hover:shadow-[var(--sgf-shadow-md)]"
+        >
+            {/* Cabeçalho: nome, sigla e secretário responsável */}
+            <div className="p-5 pb-4">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                        <h4 className="truncate text-base font-semibold leading-tight text-slate-900">{item.name}</h4>
+                        {item.code && <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{item.code}</p>}
+                    </div>
+                    {alerts > 0 ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-600">
+                            <ShieldAlert className="h-3 w-3" />
+                            {alerts} {alerts === 1 ? 'alerta' : 'alertas'}
+                        </span>
+                    ) : (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                            Regular
+                        </span>
+                    )}
+                </div>
+
+                <div className="mt-4 flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">
+                        {secretary ? (
+                            <ProfilePhoto
+                                src={secretary.photo_url}
+                                alt={secretary.full_name}
+                                className="h-full w-full object-cover"
+                                fallback={<span>{getInitials(secretary.full_name)}</span>}
+                            />
+                        ) : (
+                            <User className="h-4 w-4 text-slate-400" />
+                        )}
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-slate-400">Secretário(a)</p>
+                        <p className={cn('truncate text-sm font-semibold', secretary ? 'text-slate-800' : 'italic text-slate-400')}>
+                            {secretary ? secretary.full_name : 'Não definido'}
+                            {extraSecretaries > 0 && <span className="ml-1 font-medium text-slate-400">+{extraSecretaries}</span>}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Valor empenhado do ano */}
+            {budget && budget.limit > 0 && (
+                <div className="border-t border-slate-100 px-5 py-3">
+                    <div className="flex items-baseline justify-between gap-2 text-[11px]">
+                        <span className="font-medium text-slate-400">Empenhado consumido</span>
+                        <span className="font-semibold text-slate-700">{Math.round(pct)}%</span>
+                    </div>
+                    <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div className={cn('h-full rounded-full', barColor)} style={{ width: `${pct}%` }} />
+                    </div>
+                    <p className="mt-1.5 truncate text-[11px] text-slate-500">
+                        {formatCurrency(budget.used)} de {formatCurrency(budget.limit)}
+                    </p>
+                </div>
+            )}
+
+            {/* Números do mês corrente */}
+            <div className="mt-auto border-t border-slate-100 px-5 py-4">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Este mês</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                    <Metric icon={Fuel} tint="text-amber-500 bg-amber-50" label="Combustível" value={formatCurrency(month?.fuelCost ?? 0)} />
+                    <Metric icon={Gauge} tint="text-sky-500 bg-sky-50" label="Rodagem" value={month?.totalTripKm ? formatDistance(month.totalTripKm) : "0 km"} />
+                    <Metric
+                        icon={Car}
+                        tint="text-blue-500 bg-blue-50"
+                        label={item.maintenanceVehicles > 0 ? `Veículos · ${item.maintenanceVehicles} em manut.` : 'Veículos'}
+                        value={item.vehicleCount}
+                    />
+                    <Metric icon={Users} tint="text-emerald-500 bg-emerald-50" label="Motoristas ativos" value={`${item.activeDrivers}/${item.driverCount}`} />
+                </div>
+            </div>
+        </button>
+    );
+}
+
 function DepartmentOverviewPage() {
     const navigate = useNavigate();
     const { setTitle, setDescription, setSearchPlaceholder, setSearchHandler, setHeaderAction } = useHeader();
@@ -215,6 +321,41 @@ function DepartmentOverviewPage() {
         queryKey: ['departments', 'operational-overview'],
         queryFn: () => departmentsApi.getOperationalOverview(),
     });
+
+    // Dados dos cards: mês corrente, secretários e uso do valor empenhado no ano.
+    const { data: monthData = [] } = useQuery({
+        queryKey: ['departments', 'operational-overview', 'current-month'],
+        queryFn: () => departmentsApi.getOperationalOverview(1),
+    });
+    const monthById = useMemo(() => new Map(monthData.map((item) => [item.id, item])), [monthData]);
+    const { data: secretaries = [] } = useQuery({
+        queryKey: ['departments', 'secretaries'],
+        queryFn: departmentsApi.getSecretaries,
+    });
+    const secretariesByDepartment = useMemo(() => {
+        const map = new Map<string, typeof secretaries>();
+        for (const s of secretaries) map.set(s.department_id, [...(map.get(s.department_id) ?? []), s]);
+        return map;
+    }, [secretaries]);
+    const budgetYear = new Date().getFullYear();
+    const { data: budgets = [] } = useQuery({
+        queryKey: ['department-budgets', budgetYear],
+        queryFn: () => departmentBudgetApi.list(budgetYear),
+        enabled: canSeeBudgets,
+        retry: false,
+    });
+    const budgetByDepartment = useMemo(() => {
+        const map = new Map<string, BudgetUsage>();
+        for (const contract of budgets) {
+            for (const a of contract.allocations) {
+                const cur = map.get(a.department_id) ?? { limit: 0, used: 0 };
+                cur.limit += a.spending_limit;
+                cur.used += a.reserved + a.realized;
+                map.set(a.department_id, cur);
+            }
+        }
+        return map;
+    }, [budgets]);
 
     // Período dos gráficos (igual aos gráficos do dashboard).
     const [chartPeriod, setChartPeriod] = useState<PeriodValue>(() => makePeriod('6'));
@@ -379,29 +520,16 @@ function DepartmentOverviewPage() {
                         <p className="py-10 text-center text-sm text-slate-400">Nenhuma secretaria encontrada para os filtros atuais.</p>
                     </SGFCard>
                 ) : (
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                         {filtered.map((item) => (
-                            <button
+                            <DepartmentCard
                                 key={item.id}
-                                type="button"
-                                onClick={() => navigate(`/secretarias/${item.id}`)}
-                                className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-5 text-left transition-all hover:border-emerald-200 hover:shadow-[var(--sgf-shadow-md)]"
-                            >
-                                <div className="flex items-center justify-between gap-2">
-                                    <h4 className="truncate text-base font-semibold leading-tight text-slate-900">{item.name}</h4>
-                                    <span className={cn(
-                                        "h-2.5 w-2.5 shrink-0 rounded-full",
-                                        item.anomalyCount > 0 ? "bg-rose-500" : "bg-emerald-500"
-                                    )} />
-                                </div>
-
-                                <div className="mt-5 grid grid-cols-2 gap-y-5 gap-x-4">
-                                    <Metric icon={Car} tint="text-blue-500 bg-blue-50" label="Veículos" value={item.vehicleCount} />
-                                    <Metric icon={Users} tint="text-emerald-500 bg-emerald-50" label="Motoristas" value={item.driverCount} />
-                                    <Metric icon={Route} tint="text-sky-500 bg-sky-50" label="Viagens" value={item.totalTrips} />
-                                    <Metric icon={DollarSign} tint="text-amber-500 bg-amber-50" label="Custo Total" value={formatCurrency(item.fuelCost)} />
-                                </div>
-                            </button>
+                                item={item}
+                                month={monthById.get(item.id)}
+                                secretaries={secretariesByDepartment.get(item.id) ?? []}
+                                budget={canSeeBudgets ? budgetByDepartment.get(item.id) : undefined}
+                                onOpen={() => navigate(`/secretarias/${item.id}`)}
+                            />
                         ))}
                     </div>
                 )}

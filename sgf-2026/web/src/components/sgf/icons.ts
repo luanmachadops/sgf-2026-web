@@ -11,7 +11,7 @@ export type IconType = React.ComponentType<FluentIconsProps>;
 
 // ── Navegação / Layout ──────────────────────────────────────────────
 export { Home24Regular as Home } from '@fluentui/react-icons';
-export { Navigation24Regular as LayoutDashboard } from '@fluentui/react-icons';
+export { Board24Regular as LayoutDashboard } from '@fluentui/react-icons';
 export { Map24Regular as Map } from '@fluentui/react-icons';
 export { Navigation24Regular as Navigation } from '@fluentui/react-icons';
 export { Navigation24Regular as Menu } from '@fluentui/react-icons';
@@ -60,6 +60,7 @@ export { EditOff24Regular as EditOff } from '@fluentui/react-icons';
 export { Delete24Regular as Trash2 } from '@fluentui/react-icons';
 export { Save24Regular as Save } from '@fluentui/react-icons';
 export { Camera24Regular as Camera } from '@fluentui/react-icons';
+export { VideoSecurity24Regular as SecurityCamera } from '@fluentui/react-icons';
 export { Search24Regular as Search } from '@fluentui/react-icons';
 export { Search24Regular as SearchIcon } from '@fluentui/react-icons';
 export { ArrowUpload24Regular as Upload } from '@fluentui/react-icons';

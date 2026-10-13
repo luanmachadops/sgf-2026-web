@@ -1758,6 +1758,24 @@ export const departmentsApi = withFotoUrls({
         if (error) handleError(error);
     },
 
+    // Secretários (role 'secretario') ativos, com a secretaria a que estão vinculados.
+    getSecretaries: async (): Promise<Array<{ id: string; department_id: string; full_name: string; photo_url: string | null }>> => {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('id, department_id, full_name, photo_url')
+            .eq('role', 'secretario')
+            .is('archived_at', null)
+            .not('department_id', 'is', null)
+            .order('full_name', { ascending: true });
+        if (error) handleError(error);
+        return (data || []).map((row) => ({
+            id: row.id,
+            department_id: row.department_id as string,
+            full_name: row.full_name ?? '',
+            photo_url: row.photo_url,
+        }));
+    },
+
     getOperationalOverview: async (
         monthsBack?: number,
         range?: { from?: string; to?: string },
