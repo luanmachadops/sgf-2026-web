@@ -19,8 +19,14 @@ export interface QrLabelItem {
     data: string;
     /** Placa como aparece impressa na etiqueta. */
     plate: string;
-    caption: string;
+    /** Linhas abaixo da placa (modelo, secretaria, prefixo...), já na ordem. */
+    lines?: string[];
+    /** Linha única abaixo da placa (formato antigo; usado quando `lines` não vem). */
+    caption?: string;
 }
+
+/** Papel da impressão. `label` = uma etiqueta por página, do tamanho da etiqueta (impressora de etiquetas). */
+export type QrLabelSheet = 'A4' | 'letter' | 'A5' | 'label';
 
 export interface QrLabelSheetOptions {
     items: QrLabelItem[];
@@ -29,14 +35,45 @@ export interface QrLabelSheetOptions {
     qrSizeMm: number;
     plateSizePt: number;
     captionSizePt: number;
-    sheet: 'A4' | 'letter';
+    sheet: QrLabelSheet;
+    /** `styled` = degradê da marca; `plain` = preto chapado (impressora P&B, leitura em pouca luz). */
+    qrStyle?: 'styled' | 'plain';
+    /** Contorno de corte em volta de cada etiqueta (padrão: sim). */
+    border?: boolean;
+    /** Texto pequeno acima do QR (ex.: nome da prefeitura). */
+    header?: string;
+    /** Mostra a placa sob o QR (padrão: sim). */
+    showPlate?: boolean;
+    /** Posições a pular no início da 1ª folha (reaproveitar folha de etiquetas já usada). */
+    skip?: number;
     title?: string;
 }
 
-const SHEETS = {
+const SHEETS: Record<Exclude<QrLabelSheet, 'label'>, { width: number; height: number }> = {
     A4: { width: 210 * MM, height: 297 * MM },
     letter: { width: 215.9 * MM, height: 279.4 * MM },
+    A5: { width: 148 * MM, height: 210 * MM },
 };
+
+/** Medidas de uma etiqueta (pt), compartilhadas pelo PDF e pela contagem na tela. */
+export function qrLabelMetrics(options: Omit<QrLabelSheetOptions, 'items'> & { lineCount: number }) {
+    const labelWidth = options.labelWidthMm * MM;
+    const qrSize = options.qrSizeMm * MM;
+    const padding = 3 * MM;
+    const headerHeight = options.header ? options.captionSizePt * 1.3 + 1.5 * MM : 0;
+    const plateHeight = options.showPlate === false ? 0 : 2 * MM + options.plateSizePt * 1.1;
+    const linesHeight = options.lineCount > 0 ? 1.5 * MM + options.lineCount * options.captionSizePt * 1.25 : 0;
+    const labelHeight = padding + headerHeight + qrSize + plateHeight + linesHeight + padding;
+    if (options.sheet === 'label') {
+        return { labelWidth, labelHeight, qrSize, padding, headerHeight, columns: 1, rows: 1, perPage: 1, pageWidth: labelWidth, pageHeight: labelHeight, margin: 0, gap: 0 };
+    }
+    const sheet = SHEETS[options.sheet];
+    const margin = 8 * MM;
+    const gap = 4 * MM;
+    const columns = Math.max(1, Math.floor((sheet.width - margin * 2 + gap) / (labelWidth + gap)));
+    const rows = Math.max(1, Math.floor((sheet.height - margin * 2 + gap) / (labelHeight + gap)));
+    return { labelWidth, labelHeight, qrSize, padding, headerHeight, columns, rows, perPage: columns * rows, pageWidth: sheet.width, pageHeight: sheet.height, margin, gap };
+}
 
 function mix(t: number): RGB {
     const channel = (index: 0 | 1 | 2) => (DARK[index] + (GREEN[index] - DARK[index]) * t) / 255;
@@ -128,8 +165,15 @@ export function drawVectorQr(page: PDFPage, data: string, x: number, top: number
  * QR "clássico" para leitura garantida (ex.: link de verificação longo): fundo
  * branco, margem de 4 módulos, módulos quadrados numa cor só, correção M.
  */
-export function drawPlainVectorQr(page: PDFPage, data: string, x: number, top: number, size: number): void {
-    const matrix = qrMatrix(data, 'M');
+export function drawPlainVectorQr(
+    page: PDFPage,
+    data: string,
+    x: number,
+    top: number,
+    size: number,
+    errorCorrection: 'L' | 'M' | 'Q' | 'H' = 'M',
+): void {
+    const matrix = qrMatrix(data, errorCorrection);
     const count = matrix.length;
     const quiet = 4;
     const cell = size / (count + quiet * 2);
@@ -173,59 +217,72 @@ function winAnsiSafe(font: PDFFont, text: string): string {
     }).join('');
 }
 
+function itemLines(item: QrLabelItem): string[] {
+    if (item.lines) return item.lines.filter(Boolean);
+    return item.caption ? [item.caption] : [];
+}
+
 export async function buildQrLabelsPdf(options: QrLabelSheetOptions): Promise<Uint8Array> {
     const doc = await PDFDocument.create();
     const bold = await doc.embedFont(StandardFonts.HelveticaBold);
     const regular = await doc.embedFont(StandardFonts.Helvetica);
-    const sheet = SHEETS[options.sheet];
-    const margin = 8 * MM;
-    const gap = 4 * MM;
-    const labelWidth = options.labelWidthMm * MM;
-    const qrSize = options.qrSizeMm * MM;
-    const padding = 3 * MM;
-    const labelHeight = padding + qrSize + 2 * MM + options.plateSizePt * 1.1 + 1.5 * MM + options.captionSizePt * 2.4 + padding;
-    const columns = Math.max(1, Math.floor((sheet.width - margin * 2 + gap) / (labelWidth + gap)));
-    const rows = Math.max(1, Math.floor((sheet.height - margin * 2 + gap) / (labelHeight + gap)));
-    const perPage = columns * rows;
+    const lineCount = Math.max(0, ...options.items.map((item) => itemLines(item).length));
+    const m = qrLabelMetrics({ ...options, lineCount });
+    const skip = Math.max(0, Math.min(options.skip ?? 0, m.perPage - 1));
     // Centraliza a grade na folha.
-    const offsetX = (sheet.width - (columns * labelWidth + (columns - 1) * gap)) / 2;
+    const offsetX = (m.pageWidth - (m.columns * m.labelWidth + (m.columns - 1) * m.gap)) / 2;
     const border = rgb(0xcb / 255, 0xd5 / 255, 0xe1 / 255);
     const muted = rgb(0x64 / 255, 0x74 / 255, 0x8b / 255);
+    const showPlate = options.showPlate !== false;
+    const header = options.header ? winAnsiSafe(bold, options.header) : '';
+    const centered = (page: PDFPage, font: PDFFont, text: string, size: number, x: number, top: number, color: RGB) => {
+        const value = fit(font, text, size, m.labelWidth - 4 * MM);
+        if (!value) return;
+        page.drawText(value, {
+            x: x + (m.labelWidth - font.widthOfTextAtSize(value, size)) / 2,
+            y: page.getHeight() - top - size * 0.8,
+            size,
+            font,
+            color,
+        });
+    };
 
     let page: PDFPage | null = null;
-    options.items.forEach((item, index) => {
-        if (index % perPage === 0) page = doc.addPage([sheet.width, sheet.height]);
-        const current = page!;
-        const slot = index % perPage;
-        const x = offsetX + (slot % columns) * (labelWidth + gap);
-        const top = margin + Math.floor(slot / columns) * (labelHeight + gap);
-        current.drawSvgPath(roundedRect(0, 0, labelWidth, labelHeight, 3 * MM), {
-            x, y: current.getHeight() - top, borderColor: border, borderWidth: 0.6,
-        });
-        drawVectorQr(current, item.data.toUpperCase(), x + (labelWidth - qrSize) / 2, top + padding, qrSize);
-        const plate = winAnsiSafe(bold, item.plate);
-        const plateWidth = bold.widthOfTextAtSize(plate, options.plateSizePt);
-        const plateTop = top + padding + qrSize + 2 * MM;
-        current.drawText(plate, {
-            x: x + (labelWidth - plateWidth) / 2,
-            y: current.getHeight() - plateTop - options.plateSizePt * 0.8,
-            size: options.plateSizePt,
-            font: bold,
-            color: mix(0),
-        });
-        const caption = fit(regular, winAnsiSafe(regular, item.caption), options.captionSizePt, labelWidth - 4 * MM);
-        if (caption) {
-            const captionWidth = regular.widthOfTextAtSize(caption, options.captionSizePt);
-            current.drawText(caption, {
-                x: x + (labelWidth - captionWidth) / 2,
-                y: current.getHeight() - plateTop - options.plateSizePt * 1.1 - 1.5 * MM - options.captionSizePt * 0.8,
-                size: options.captionSizePt,
-                font: regular,
-                color: muted,
+    options.items.forEach((item, itemIndex) => {
+        const index = itemIndex + skip;
+        if (index % m.perPage === 0 || page === null) page = doc.addPage([m.pageWidth, m.pageHeight]);
+        const current: PDFPage = page;
+        const slot = index % m.perPage;
+        const x = offsetX + (slot % m.columns) * (m.labelWidth + m.gap);
+        const top = m.margin + Math.floor(slot / m.columns) * (m.labelHeight + m.gap);
+        if (options.border !== false) {
+            const inset = options.sheet === 'label' ? 0.5 : 0;
+            current.drawSvgPath(roundedRect(inset, inset, m.labelWidth - inset * 2, m.labelHeight - inset * 2, 3 * MM), {
+                x, y: current.getHeight() - top, borderColor: border, borderWidth: 0.6,
             });
         }
+        let cursor = top + m.padding;
+        if (header) {
+            centered(current, bold, header.toUpperCase(), options.captionSizePt, x, cursor, muted);
+            cursor += m.headerHeight;
+        }
+        const qrX = x + (m.labelWidth - m.qrSize) / 2;
+        if (options.qrStyle === 'plain') drawPlainVectorQr(current, item.data.toUpperCase(), qrX, cursor, m.qrSize, 'H');
+        else drawVectorQr(current, item.data.toUpperCase(), qrX, cursor, m.qrSize);
+        cursor += m.qrSize;
+        if (showPlate) {
+            cursor += 2 * MM;
+            centered(current, bold, winAnsiSafe(bold, item.plate), options.plateSizePt, x, cursor, options.qrStyle === 'plain' ? rgb(0, 0, 0) : mix(0));
+            cursor += options.plateSizePt * 1.1;
+        }
+        const lines = itemLines(item);
+        if (lines.length > 0) cursor += 1.5 * MM;
+        lines.forEach((line) => {
+            centered(current, regular, winAnsiSafe(regular, line), options.captionSizePt, x, cursor, muted);
+            cursor += options.captionSizePt * 1.25;
+        });
     });
-    if (options.items.length === 0) doc.addPage([sheet.width, sheet.height]);
+    if (options.items.length === 0) doc.addPage([m.pageWidth, m.pageHeight]);
     doc.setTitle(options.title ?? 'Etiquetas QR — Frota');
     doc.setLanguage('pt-BR');
     return doc.save({ useObjectStreams: true });

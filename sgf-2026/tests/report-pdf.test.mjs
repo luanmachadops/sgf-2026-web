@@ -303,6 +303,32 @@ test("etiquetas QR saem em vetor: nenhuma imagem, placa como texto", async () =>
   assert.ok(bytes.length < 400 * 1024, `${Math.round(bytes.length / 1024)} KB`);
 });
 
+test("etiquetas QR personalizadas: uma por página, título, linhas e pular posições", async () => {
+  const items = [
+    { data: "ABC1D23", plate: "ABC-1D23", lines: ["Fiat Strada", "Obras", "Prefixo 12"] },
+    { data: "XYZ9A87", plate: "XYZ-9A87", lines: ["VW Gol"] },
+  ];
+  const single = await buildQrLabelsPdf({
+    items, labelWidthMm: 57, qrSizeMm: 45, plateSizePt: 12, captionSizePt: 7.5,
+    sheet: "label", qrStyle: "plain", header: "Prefeitura de Teste", border: false,
+  });
+  const singleText = drawnText(pdfStreams(single).streams);
+  const { PDFDocument } = await import("../web/node_modules/pdf-lib/cjs/index.js");
+  assert.equal((await PDFDocument.load(single)).getPageCount(), 2, "uma página por etiqueta");
+  assert.match(singleText, /PREFEITURA DE TESTE/);
+  assert.match(singleText, /Prefixo 12/);
+  assert.match(singleText, /XYZ-9A87/);
+
+  const { qrLabelMetrics } = await import("../web/src/lib/qrLabelsPdf.ts");
+  const metrics = qrLabelMetrics({ labelWidthMm: 57, qrSizeMm: 45, plateSizePt: 12, captionSizePt: 7.5, sheet: "A4", lineCount: 1 });
+  // Pulando todas as posições menos uma, a 2ª etiqueta cai na folha seguinte.
+  const skipped = await buildQrLabelsPdf({
+    items, labelWidthMm: 57, qrSizeMm: 45, plateSizePt: 12, captionSizePt: 7.5,
+    sheet: "A4", skip: metrics.perPage - 1,
+  });
+  assert.equal((await PDFDocument.load(skipped)).getPageCount(), 2);
+});
+
 test("matriz do QR usa correção H e o conteúdo da placa crua", () => {
   const matrix = qrMatrix("abc1d23");
   assert.equal(matrix.length, matrix[0].length);
