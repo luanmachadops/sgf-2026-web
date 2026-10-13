@@ -303,6 +303,15 @@ test("etiquetas QR saem em vetor: nenhuma imagem, placa como texto", async () =>
   assert.ok(bytes.length < 400 * 1024, `${Math.round(bytes.length / 1024)} KB`);
 });
 
+test("etiqueta com largura e altura definidas: o QR ocupa o espaço livre", async () => {
+  const { qrLabelLayout } = await import("../web/src/lib/qrLabelsPdf.ts");
+  const small = qrLabelLayout({ labelWidthMm: 60, labelHeightMm: 85, lineCount: 1, header: "X", appPromo: true });
+  const large = qrLabelLayout({ labelWidthMm: 100, labelHeightMm: 140, lineCount: 1, header: "X", appPromo: true });
+  assert.ok(large.qr > small.qr + 25, `${small.qr} -> ${large.qr}`);
+  assert.ok(small.qrTop + small.qr <= small.footerTop, "QR não invade o rodapé");
+  assert.ok(!qrLabelLayout({ labelWidthMm: 25, labelHeightMm: 25, lineCount: 3, header: "X", appPromo: true }).fits);
+});
+
 test("etiquetas QR personalizadas: uma por página, título, linhas e pular posições", async () => {
   const items = [
     { data: "ABC1D23", plate: "ABC-1D23", lines: ["Fiat Strada", "Obras", "Prefixo 12"] },
@@ -310,12 +319,14 @@ test("etiquetas QR personalizadas: uma por página, título, linhas e pular posi
   ];
   const single = await buildQrLabelsPdf({
     items, labelWidthMm: 57, qrSizeMm: 45, plateSizePt: 12, captionSizePt: 7.5,
-    sheet: "label", qrStyle: "plain", header: "Prefeitura de Teste", border: false,
+    sheet: "label", qrStyle: "plain", header: "Prefeitura de Teste", appPromo: true, border: false,
   });
   const singleText = drawnText(pdfStreams(single).streams);
   const { PDFDocument } = await import("../web/node_modules/pdf-lib/cjs/index.js");
   assert.equal((await PDFDocument.load(single)).getPageCount(), 2, "uma página por etiqueta");
   assert.match(singleText, /PREFEITURA DE TESTE/);
+  assert.match(singleText, /Baixe o app do motorista/);
+  assert.match(singleText, /Exattus Rotta/);
   assert.match(singleText, /Prefixo 12/);
   assert.match(singleText, /XYZ-9A87/);
 

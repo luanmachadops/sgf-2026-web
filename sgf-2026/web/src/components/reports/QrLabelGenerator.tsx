@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Modal, ModalFooter } from '@/components/ui/Modal';
 import { SGFButton } from '@/components/sgf/SGFButton';
 import { SGFSelect } from '@/components/sgf/SGFSelect';
+import { VehicleCell } from '@/components/sgf/EntityCells';
+import { StyledQr } from '@/components/qr/StyledQr';
 import { Toggle } from '@/components/settings/SettingsToggle';
 import { Download, Loader2, Printer, Search } from '@/components/sgf/icons';
 import { vehiclesApi, departmentsApi } from '@/lib/supabase-api';
 import { downloadBlob, openPendingPdfTab, showPdfInTab } from '@/lib/reports/reportPdfBrowser';
-import type { QrLabelItem, QrLabelSheet, QrLabelSheetOptions } from '@/lib/qrLabelsPdf';
+import type { QrLabelImage, QrLabelItem, QrLabelSheet, QrLabelSheetOptions } from '@/lib/qrLabelsPdf';
+import { APPLE_ICON, APP_LOGO_ICON, GOOGLE_PLAY_ICON, type LabelIcon } from '@/lib/labelIcons';
+import { createVehicleQr } from '@/lib/vehicleQr';
 import { useBranding } from '@/contexts/BrandingContext';
 import { cn, formatPlate, matchesSearch } from '@/lib/utils';
 
@@ -17,16 +21,16 @@ interface QrLabelGeneratorProps {
     onClose: () => void;
 }
 
-// Tamanhos prontos: lado do QR (mm). Largura da etiqueta e fontes derivam dele.
-const LABEL_PRESETS: { value: string; label: string; qr: number }[] = [
-    { value: 'small', label: 'Pequena — QR 30 mm', qr: 30 },
-    { value: 'medium', label: 'Média — QR 45 mm', qr: 45 },
-    { value: 'large', label: 'Grande — QR 60 mm', qr: 60 },
-    { value: 'xlarge', label: 'Extra grande — QR 90 mm', qr: 90 },
-    { value: 'custom', label: 'Personalizado', qr: 0 },
+// Tamanhos prontos (largura × altura, mm). O QR ocupa o maior espaço que sobra.
+const LABEL_PRESETS: { value: string; label: string; w: number; h: number }[] = [
+    { value: '50x70', label: 'Pequena — 5 × 7 cm', w: 50, h: 70 },
+    { value: '60x85', label: 'Média — 6 × 8,5 cm', w: 60, h: 85 },
+    { value: '75x105', label: 'Grande — 7,5 × 10,5 cm', w: 75, h: 105 },
+    { value: '100x150', label: 'Extra grande — 10 × 15 cm', w: 100, h: 150 },
+    { value: 'custom', label: 'Personalizado (mm ou cm)', w: 0, h: 0 },
 ];
-const MIN_QR_MM = 20;
-const MAX_QR_MM = 180;
+const MIN_LABEL_MM = 25;
+const MAX_LABEL_MM = 280;
 
 const SHEET_OPTIONS: { value: QrLabelSheet; label: string }[] = [
     { value: 'A4', label: 'Folha A4 (210 × 297 mm)' },
@@ -36,20 +40,111 @@ const SHEET_OPTIONS: { value: QrLabelSheet; label: string }[] = [
 ];
 
 const QR_STYLE_OPTIONS = [
-    { value: 'styled', label: 'Colorido (degradê da marca)' },
-    { value: 'plain', label: 'Escuro sólido (impressora P&B)' },
+    { value: 'styled', label: 'Original (degradê arredondado)' },
+    { value: 'plain', label: 'Preto sólido (impressora P&B)' },
 ];
 
-/** Fontes proporcionais ao QR, com limites para continuarem legíveis. */
-function sizesFor(qrMm: number) {
-    return {
-        labelWidthMm: qrMm + 12,
-        plateSizePt: Math.min(28, Math.max(9, qrMm * 0.26)),
-        captionSizePt: Math.min(14, Math.max(6, qrMm * 0.16)),
-    };
+/** Converte o valor digitado (mm ou cm, vírgula ou ponto) para mm dentro dos limites. */
+function toMm(value: string, unit: 'mm' | 'cm'): number {
+    const n = Number(value.replace(',', '.'));
+    if (!Number.isFinite(n) || n <= 0) return MIN_LABEL_MM;
+    return Math.min(MAX_LABEL_MM, Math.max(MIN_LABEL_MM, unit === 'cm' ? n * 10 : n));
+}
+
+const fmtMm = (mm: number) => `${(Math.round(mm * 10) / 10).toLocaleString('pt-BR')} mm`;
+
+/** PNG do QR no design original (qr-code-styling), em ~300 dpi para o tamanho impresso. */
+async function renderQrPng(plate: string, qrMm: number): Promise<QrLabelImage | null> {
+    const px = Math.round(Math.min(2000, Math.max(600, (qrMm / 25.4) * 300)));
+    const blob = await createVehicleQr(plate, px, 'canvas').getRawData('png');
+    if (!blob || !(blob instanceof Blob)) return null;
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), type: 'png' };
+}
+
+function IconSvg({ icon, size }: { icon: LabelIcon; size: number }) {
+    const offset = icon.offset ?? { x: 0, y: 0, scale: 1 };
+    return (
+        <svg viewBox={`0 0 ${icon.box} ${icon.box}`} width={size} height={size} aria-hidden="true" className="shrink-0">
+            {icon.background && <rect width={icon.box} height={icon.box} rx={icon.background.radius} fill={icon.background.fill} />}
+            <g transform={`translate(${offset.x} ${offset.y}) scale(${offset.scale})`}>
+                {icon.paths.map((path, index) => <path key={index} d={path.d} fill={path.fill} />)}
+            </g>
+        </svg>
+    );
 }
 
 type VehicleRow = Awaited<ReturnType<typeof vehiclesApi.getAll>>[number];
+type Layout = ReturnType<typeof import('@/lib/qrLabelsPdf').qrLabelLayout>;
+
+/** Prévia de uma etiqueta com as mesmas medidas do PDF, desenhada em mm × escala. */
+function LabelPreview({ layout, pxPerMm, plate, lines, header, appPromo, qrStyle, border }: {
+    layout: Layout;
+    pxPerMm: number;
+    plate: string;
+    lines: string[];
+    header: string;
+    appPromo: boolean;
+    qrStyle: 'styled' | 'plain';
+    border: boolean;
+}) {
+    const pt = (size: number) => size * (25.4 / 72) * pxPerMm;
+    const icon = layout.iconMm * pxPerMm;
+    return (
+        <div
+            className={cn('relative shrink-0 bg-white font-[Helvetica,Arial,sans-serif] shadow-sm', border ? 'border border-slate-300' : 'border border-dashed border-slate-200')}
+            style={{ width: layout.width * pxPerMm, height: layout.height * pxPerMm, borderRadius: 3 * pxPerMm }}
+        >
+            <div className="absolute inset-x-0 flex flex-col items-center text-center" style={{ top: layout.padding * pxPerMm, paddingInline: layout.padding * pxPerMm }}>
+                {header && (
+                    <p className="w-full truncate font-bold uppercase text-[#0F2B2F]" style={{ fontSize: pt(layout.fonts.name), lineHeight: 1.25 }}>{header}</p>
+                )}
+                {appPromo && (
+                    <>
+                        <p className="text-[#64748B]" style={{ fontSize: pt(layout.fonts.promo), lineHeight: 1.3, marginTop: header ? layout.gap * 0.6 * pxPerMm : 0 }}>
+                            Baixe o app do motorista:
+                        </p>
+                        <div className="flex items-center" style={{ gap: icon * 0.3, marginTop: layout.gap * 0.4 * pxPerMm, height: icon }}>
+                            <IconSvg icon={APP_LOGO_ICON} size={icon} />
+                            <span className="whitespace-nowrap font-bold text-[#0F2B2F]" style={{ fontSize: pt(layout.fonts.promo * 1.1), marginRight: icon * 0.3 }}>Exattus Rotta</span>
+                            <IconSvg icon={GOOGLE_PLAY_ICON} size={icon * 0.8} />
+                            <IconSvg icon={APPLE_ICON} size={icon * 0.8} />
+                        </div>
+                    </>
+                )}
+            </div>
+            <div className="absolute" style={{ left: layout.qrLeft * pxPerMm, top: layout.qrTop * pxPerMm, width: layout.qr * pxPerMm, height: layout.qr * pxPerMm }}>
+                {qrStyle === 'styled'
+                    ? <StyledQr value={plate.replace(/[^A-Za-z0-9]/g, '')} size={Math.max(40, Math.round(layout.qr * pxPerMm))} />
+                    : <PlainQrPreview value={plate.replace(/[^A-Za-z0-9]/g, '')} size={layout.qr * pxPerMm} />}
+            </div>
+            <div className="absolute inset-x-0 flex flex-col items-center text-center" style={{ top: layout.footerTop * pxPerMm, paddingInline: layout.padding * pxPerMm }}>
+                {layout.showPlate && (
+                    <p className={cn('font-bold', qrStyle === 'plain' ? 'text-black' : 'text-[#0F2B2F]')} style={{ fontSize: pt(layout.fonts.plate), lineHeight: 1.1, marginBottom: layout.gap * 0.5 * pxPerMm }}>{plate}</p>
+                )}
+                {lines.map((line) => (
+                    <p key={line} className="w-full truncate text-[#64748B]" style={{ fontSize: pt(layout.fonts.caption), lineHeight: 1.3 }}>{line}</p>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/** QR preto chapado para a prévia (mesma matriz do PDF). */
+function PlainQrPreview({ value, size }: { value: string; size: number }) {
+    const { data: matrix } = useQuery({
+        queryKey: ['plain-qr-matrix', value],
+        queryFn: async () => (await import('@/lib/qrLabelsPdf')).qrMatrix(value.toUpperCase(), 'H'),
+        staleTime: Infinity,
+    });
+    if (!matrix) return null;
+    const count = matrix.length + 8;
+    return (
+        <svg viewBox={`0 0 ${count} ${count}`} width={size} height={size} shapeRendering="crispEdges" aria-label={`QR ${value}`}>
+            <rect width={count} height={count} fill="#fff" />
+            {matrix.flatMap((row, r) => row.map((dark, c) => (dark ? <rect key={`${r}-${c}`} x={c + 4} y={r + 4} width={1} height={1} fill="#000" /> : null)))}
+        </svg>
+    );
+}
 
 export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
     const { branding } = useBranding();
@@ -57,20 +152,23 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
     const [vehicleType, setVehicleType] = useState('');
     const [search, setSearch] = useState('');
     const [excluded, setExcluded] = useState<Set<string>>(() => new Set());
-    const [preset, setPreset] = useState('medium');
-    const [customQr, setCustomQr] = useState('45');
+    const [preset, setPreset] = useState('60x85');
+    const [unit, setUnit] = useState<'mm' | 'cm'>('cm');
+    const [customW, setCustomW] = useState('6');
+    const [customH, setCustomH] = useState('8,5');
     const [sheet, setSheet] = useState<QrLabelSheet>('A4');
     const [qrStyle, setQrStyle] = useState<'styled' | 'plain'>('styled');
     const [showPlate, setShowPlate] = useState(true);
     const [showModel, setShowModel] = useState(true);
     const [showDepartment, setShowDepartment] = useState(true);
     const [showUnitCode, setShowUnitCode] = useState(false);
-    const [showHeader, setShowHeader] = useState(false);
-    const [headerText, setHeaderText] = useState('');
+    const [showHeader, setShowHeader] = useState(true);
+    const [appPromo, setAppPromo] = useState(true);
     const [border, setBorder] = useState(true);
     const [copies, setCopies] = useState('1');
     const [skip, setSkip] = useState('0');
     const [busy, setBusy] = useState<'pdf' | 'print' | null>(null);
+    const [progress, setProgress] = useState('');
 
     const { data: vehicles = [] } = useQuery({
         queryKey: ['vehicles', 'all-for-qr'],
@@ -81,6 +179,12 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
         queryKey: ['departments', 'list-all'],
         queryFn: () => departmentsApi.getAll(),
         enabled: isOpen,
+    });
+    const { data: pdfLib } = useQuery({
+        queryKey: ['qr-labels-lib'],
+        queryFn: () => import('@/lib/qrLabelsPdf'),
+        enabled: isOpen,
+        staleTime: Infinity,
     });
 
     const departmentOptions = useMemo(
@@ -105,98 +209,73 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
     );
     const selected = useMemo(() => filtered.filter((v) => !excluded.has(v.id)), [filtered, excluded]);
 
-    const qrMm = preset === 'custom'
-        ? Math.min(MAX_QR_MM, Math.max(MIN_QR_MM, Number(customQr) || MIN_QR_MM))
-        : LABEL_PRESETS.find((p) => p.value === preset)?.qr ?? 45;
+    const presetDef = LABEL_PRESETS.find((p) => p.value === preset);
+    const labelW = preset === 'custom' ? toMm(customW, unit) : presetDef?.w ?? 60;
+    const labelH = preset === 'custom' ? toMm(customH, unit) : presetDef?.h ?? 85;
     const copyCount = Math.min(20, Math.max(1, Math.floor(Number(copies) || 1)));
-    const header = showHeader ? (headerText.trim() || branding.name || '') : '';
+    const header = showHeader ? branding.name || 'Prefeitura Municipal' : '';
 
-    const lineFor = (v: VehicleRow): string[] => [
+    const linesFor = (v: VehicleRow): string[] => [
         showModel ? [v.brand, v.model].filter(Boolean).join(' ') : '',
         showDepartment ? v.departments?.name ?? '' : '',
         showUnitCode && v.unit_code ? `Prefixo ${v.unit_code}` : '',
     ].filter(Boolean);
+    const lineCount = Math.max(0, ...selected.map((v) => linesFor(v).length));
 
-    const items: QrLabelItem[] = useMemo(
-        () => selected.flatMap((v) => Array.from({ length: copyCount }, () => ({
-            data: v.plate as string,
-            plate: formatPlate(v.plate as string),
-            lines: lineFor(v),
-        }))),
-        // lineFor depende só dos toggles listados abaixo.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [selected, copyCount, showModel, showDepartment, showUnitCode],
-    );
-
-    const baseOptions: Omit<QrLabelSheetOptions, 'items'> = useMemo(() => ({
-        ...sizesFor(qrMm),
-        qrSizeMm: qrMm,
+    const baseOptions: Omit<QrLabelSheetOptions, 'items'> = {
+        labelWidthMm: labelW,
+        labelHeightMm: labelH,
         sheet,
         qrStyle,
         border,
         header: header || undefined,
+        appPromo,
+        appName: 'Exattus Rotta',
         showPlate,
         skip: sheet === 'label' ? 0 : Math.max(0, Math.floor(Number(skip) || 0)),
         title: 'Etiquetas QR — Frota',
-    }), [qrMm, sheet, qrStyle, border, header, showPlate, skip]);
-
-    // Contagem de etiquetas por folha (mesma conta do PDF).
-    const { data: metrics } = useQuery({
-        queryKey: ['qr-label-metrics', baseOptions, items.length > 0 ? Math.max(...items.map((i) => i.lines?.length ?? 0)) : 0],
-        queryFn: async () => {
-            const { qrLabelMetrics } = await import('@/lib/qrLabelsPdf');
-            return qrLabelMetrics({ ...baseOptions, lineCount: Math.max(0, ...items.map((i) => i.lines?.length ?? 0)) });
-        },
-        enabled: isOpen,
-    });
+    };
+    const metrics = pdfLib?.qrLabelMetrics({ ...baseOptions, lineCount });
+    const layout = metrics?.layout;
+    const totalLabels = selected.length * copyCount;
     const perPage = metrics?.perPage ?? 1;
-    const pages = items.length === 0 ? 0 : Math.ceil((items.length + (baseOptions.skip ?? 0)) / perPage);
-    const fitsSheet = sheet === 'label' || (metrics ? metrics.labelWidth <= metrics.pageWidth - 2 * metrics.margin && metrics.labelHeight <= metrics.pageHeight - 2 * metrics.margin : true);
+    const pages = totalLabels === 0 ? 0 : Math.ceil((totalLabels + (baseOptions.skip ?? 0)) / perPage);
+    const canPrint = totalLabels > 0 && Boolean(metrics?.fitsSheet);
 
-    // Prévia: a 1ª página do PDF real, gerada com atraso para não refazer a cada tecla.
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const [previewLoading, setPreviewLoading] = useState(false);
-    const previewRef = useRef<string | null>(null);
+    // Escala da prévia: cabe em ~320 × 440 px, nunca acima do tamanho real (≈3,78 px/mm).
+    const pxPerMm = layout ? Math.min(3.78, 320 / layout.width, 440 / layout.height) : 3;
+    const sample = selected[0] ?? filtered[0];
+
     useEffect(() => {
-        if (!isOpen || items.length === 0) return;
-        let cancelled = false;
-        setPreviewLoading(true);
-        const timer = window.setTimeout(async () => {
-            try {
-                const { buildQrLabelsPdf } = await import('@/lib/qrLabelsPdf');
-                const firstPage = items.slice(0, Math.max(1, perPage - (baseOptions.skip ?? 0)));
-                const bytes = await buildQrLabelsPdf({ ...baseOptions, items: firstPage });
-                if (cancelled) return;
-                const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/pdf' }));
-                if (previewRef.current) URL.revokeObjectURL(previewRef.current);
-                previewRef.current = url;
-                setPreviewUrl(url);
-            } catch {
-                if (!cancelled) setPreviewUrl(null);
-            } finally {
-                if (!cancelled) setPreviewLoading(false);
-            }
-        }, 500);
-        return () => {
-            cancelled = true;
-            window.clearTimeout(timer);
-        };
-    }, [isOpen, items, baseOptions, perPage]);
-    useEffect(() => () => {
-        if (previewRef.current) URL.revokeObjectURL(previewRef.current);
-    }, []);
+        if (!isOpen) setProgress('');
+    }, [isOpen]);
 
     const generate = async (mode: 'pdf' | 'print') => {
-        if (items.length === 0) {
-            toast.error('Selecione ao menos um veículo com placa.');
-            return;
-        }
+        if (!pdfLib || !layout || !canPrint) return;
         // A aba de impressão precisa abrir no clique, antes do await, para não ser bloqueada.
         const tab = mode === 'print' ? openPendingPdfTab() : null;
         setBusy(mode);
         try {
-            const { buildQrLabelsPdf } = await import('@/lib/qrLabelsPdf');
-            const bytes = await buildQrLabelsPdf({ ...baseOptions, items });
+            const items: QrLabelItem[] = selected.flatMap((v) => Array.from({ length: copyCount }, () => ({
+                data: v.plate as string,
+                plate: formatPlate(v.plate as string),
+                lines: linesFor(v),
+            })));
+            const qrImages: Record<string, QrLabelImage> = {};
+            if (qrStyle === 'styled') {
+                const plates = [...new Set(selected.map((v) => v.plate as string))];
+                for (let i = 0; i < plates.length; i += 8) {
+                    setProgress(`Desenhando QR ${Math.min(i + 8, plates.length)} de ${plates.length}…`);
+                    const batch = plates.slice(i, i + 8);
+                    const images = await Promise.all(batch.map((plate) => renderQrPng(plate, layout.qr)));
+                    batch.forEach((plate, index) => {
+                        const image = images[index];
+                        if (image) qrImages[plate] = image;
+                    });
+                }
+            }
+            setProgress('Montando o PDF…');
+            const bytes = await pdfLib.buildQrLabelsPdf({ ...baseOptions, items, qrImages });
             const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
             const fileName = `etiquetas-qr-${new Date().toISOString().slice(0, 10)}.pdf`;
             if (mode === 'pdf') {
@@ -210,6 +289,7 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
             toast.error((err as { message?: string })?.message ?? 'Falha ao gerar as etiquetas.');
         } finally {
             setBusy(null);
+            setProgress('');
         }
     };
 
@@ -225,14 +305,29 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
         return next;
     });
 
+    const changeUnit = (next: 'mm' | 'cm') => {
+        if (next === unit) return;
+        const convert = (value: string) => {
+            const mm = toMm(value, unit);
+            const out = next === 'cm' ? mm / 10 : mm;
+            return String(Math.round(out * 10) / 10).replace('.', ',');
+        };
+        setCustomW(convert(customW));
+        setCustomH(convert(customH));
+        setUnit(next);
+    };
+
     const sectionTitle = 'mb-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-400';
     const fieldLabel = 'mb-1 block text-xs font-semibold text-slate-500';
     const textInput = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-[var(--sgf-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--sgf-primary)]/10';
-    const check = (label: string, checked: boolean, onChange: (value: boolean) => void, disabled?: boolean) => (
-        <label className={cn('flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700', disabled && 'opacity-50')}>
-            <span className="font-medium">{label}</span>
-            <Toggle checked={checked} onChange={onChange} disabled={disabled} />
-        </label>
+    const check = (label: string, checked: boolean, onChange: (value: boolean) => void, hint?: string) => (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700">
+            <span className="min-w-0">
+                <span className="block font-medium">{label}</span>
+                {hint && <span className="block text-xs text-slate-400">{hint}</span>}
+            </span>
+            <Toggle checked={checked} onChange={onChange} />
+        </div>
     );
 
     return (
@@ -245,27 +340,34 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
             footer={(
                 <ModalFooter>
                     <span className="mr-auto text-sm text-slate-500">
-                        {items.length} etiqueta{items.length === 1 ? '' : 's'}
-                        {sheet !== 'label' && pages > 0 && ` · ${perPage} por folha · ${pages} folha${pages === 1 ? '' : 's'}`}
-                        {sheet === 'label' && pages > 0 && ` · ${pages} página${pages === 1 ? '' : 's'}`}
+                        {progress || (
+                            <>
+                                {totalLabels} etiqueta{totalLabels === 1 ? '' : 's'}
+                                {pages > 0 && (sheet === 'label'
+                                    ? ` · ${pages} página${pages === 1 ? '' : 's'}`
+                                    : ` · ${perPage} por folha · ${pages} folha${pages === 1 ? '' : 's'}`)}
+                            </>
+                        )}
                     </span>
                     <SGFButton variant="ghost" onClick={onClose} disabled={busy !== null}>Fechar</SGFButton>
-                    <SGFButton variant="secondary" icon={busy === 'pdf' ? Loader2 : Download} onClick={() => void generate('pdf')} disabled={busy !== null || items.length === 0 || !fitsSheet}>
+                    <SGFButton variant="secondary" icon={busy === 'pdf' ? Loader2 : Download} onClick={() => void generate('pdf')} disabled={busy !== null || !canPrint}>
                         Baixar PDF
                     </SGFButton>
-                    <SGFButton icon={busy === 'print' ? Loader2 : Printer} onClick={() => void generate('print')} disabled={busy !== null || items.length === 0 || !fitsSheet}>
+                    <SGFButton icon={busy === 'print' ? Loader2 : Printer} onClick={() => void generate('print')} disabled={busy !== null || !canPrint}>
                         Imprimir
                     </SGFButton>
                 </ModalFooter>
             )}
         >
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)_minmax(0,1fr)]">
                 {/* Veículos */}
                 <section>
                     <p className={sectionTitle}>Veículos</p>
                     <div className="space-y-3">
-                        <SGFSelect label="Secretaria" options={departmentOptions} value={departmentId} onChange={setDepartmentId} fullWidth searchable={departmentOptions.length > 10} />
-                        <SGFSelect label="Tipo de veículo" options={typeOptions} value={vehicleType} onChange={setVehicleType} fullWidth />
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                            <SGFSelect label="Secretaria" options={departmentOptions} value={departmentId} onChange={setDepartmentId} fullWidth searchable={departmentOptions.length > 10} />
+                            <SGFSelect label="Tipo de veículo" options={typeOptions} value={vehicleType} onChange={setVehicleType} fullWidth />
+                        </div>
                         <div className="relative">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                             <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar placa, modelo ou prefixo" className={cn(textInput, 'pl-9')} aria-label="Buscar veículo" />
@@ -277,14 +379,13 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                                 <button type="button" onClick={() => setAll(false)} className="font-semibold text-slate-500 hover:underline">Desmarcar</button>
                             </span>
                         </div>
-                        <ul className="max-h-72 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200 bg-white">
+                        <ul className="max-h-[420px] divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200 bg-white">
                             {filtered.length === 0 && <li className="px-3 py-6 text-center text-xs text-slate-400">Nenhum veículo com placa para os filtros.</li>}
                             {filtered.map((v) => (
                                 <li key={v.id}>
-                                    <label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-slate-50">
-                                        <input type="checkbox" checked={!excluded.has(v.id)} onChange={() => toggleVehicle(v.id)} className="h-4 w-4 accent-[var(--sgf-primary)]" />
-                                        <span className="font-mono font-bold text-[var(--sgf-dark)]">{formatPlate(v.plate as string)}</span>
-                                        <span className="truncate text-xs text-slate-500">{[v.brand, v.model].filter(Boolean).join(' ')}</span>
+                                    <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-slate-50">
+                                        <input type="checkbox" checked={!excluded.has(v.id)} onChange={() => toggleVehicle(v.id)} className="h-4 w-4 shrink-0 accent-[var(--sgf-primary)]" />
+                                        <VehicleCell plate={v.plate} name={[v.brand, v.model].filter(Boolean).join(' ')} photoUrl={v.photo_url} />
                                     </label>
                                 </li>
                             ))}
@@ -299,9 +400,31 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                         <div className="space-y-3">
                             <SGFSelect label="Tamanho da etiqueta" options={LABEL_PRESETS.map(({ value, label }) => ({ value, label }))} value={preset} onChange={setPreset} fullWidth />
                             {preset === 'custom' && (
-                                <div>
-                                    <label className={fieldLabel} htmlFor="qr-custom-size">Lado do QR (mm, de {MIN_QR_MM} a {MAX_QR_MM})</label>
-                                    <input id="qr-custom-size" type="number" min={MIN_QR_MM} max={MAX_QR_MM} value={customQr} onChange={(e) => setCustomQr(e.target.value)} className={textInput} />
+                                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-slate-500">Medidas da etiqueta</span>
+                                        <div className="flex rounded-full border border-slate-200 bg-white p-0.5 text-xs font-semibold" role="radiogroup" aria-label="Unidade">
+                                            {(['mm', 'cm'] as const).map((value) => (
+                                                <button key={value} type="button" role="radio" aria-checked={unit === value} onClick={() => changeUnit(value)}
+                                                    className={cn('rounded-full px-3 py-1', unit === value ? 'bg-[var(--sgf-dark)] text-white' : 'text-slate-500')}>
+                                                    {value}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className={fieldLabel} htmlFor="qr-label-w">Largura ({unit})</label>
+                                            <input id="qr-label-w" inputMode="decimal" value={customW} onChange={(e) => setCustomW(e.target.value)} className={textInput} />
+                                        </div>
+                                        <div>
+                                            <label className={fieldLabel} htmlFor="qr-label-h">Altura ({unit})</label>
+                                            <input id="qr-label-h" inputMode="decimal" value={customH} onChange={(e) => setCustomH(e.target.value)} className={textInput} />
+                                        </div>
+                                    </div>
+                                    <p className="mt-2 text-xs text-slate-400">
+                                        De {unit === 'cm' ? `${MIN_LABEL_MM / 10} a ${MAX_LABEL_MM / 10} cm` : `${MIN_LABEL_MM} a ${MAX_LABEL_MM} mm`}.
+                                    </p>
                                 </div>
                             )}
                             <SGFSelect label="Papel da impressão" options={SHEET_OPTIONS} value={sheet} onChange={(value) => setSheet(value as QrLabelSheet)} fullWidth />
@@ -317,13 +440,17 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                                     </div>
                                 )}
                             </div>
-                            <p className="text-xs text-slate-500">
-                                Etiqueta de {Math.round(sizesFor(qrMm).labelWidthMm)} mm de largura.
-                                {sheet === 'label' ? ' Cada etiqueta sai numa página do próprio tamanho.' : ' Imprima em escala 100% (tamanho real).'}
-                            </p>
-                            {!fitsSheet && (
+                            {layout && (
+                                <p className="text-xs text-slate-500">
+                                    Etiqueta {fmtMm(layout.width)} × {fmtMm(layout.height)} · QR de {fmtMm(Math.max(0, layout.qr))}.
+                                    {sheet === 'label' ? ' Cada etiqueta sai numa página do próprio tamanho.' : ' Imprima em escala 100% (tamanho real).'}
+                                </p>
+                            )}
+                            {metrics && !metrics.fitsSheet && (
                                 <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                                    A etiqueta não cabe nesse papel. Diminua o tamanho ou escolha outro papel.
+                                    {!metrics.layout.fits
+                                        ? 'A etiqueta ficou pequena demais para o QR com esse conteúdo. Aumente a etiqueta ou desligue algum texto.'
+                                        : 'A etiqueta não cabe nesse papel. Diminua o tamanho ou escolha outro papel.'}
                                 </p>
                             )}
                         </div>
@@ -332,35 +459,40 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                         <p className={sectionTitle}>Conteúdo e estilo</p>
                         <div className="space-y-2">
                             <SGFSelect label="Estilo do QR" options={QR_STYLE_OPTIONS} value={qrStyle} onChange={(value) => setQrStyle(value === 'plain' ? 'plain' : 'styled')} fullWidth />
+                            {check('Cabeçalho com a prefeitura', showHeader, setShowHeader, header || undefined)}
+                            {check('Convite para o app do motorista', appPromo, setAppPromo, 'Logo do Exattus Rotta e lojas Google Play e App Store')}
                             {check('Placa', showPlate, setShowPlate)}
                             {check('Marca e modelo', showModel, setShowModel)}
                             {check('Secretaria', showDepartment, setShowDepartment)}
                             {check('Prefixo', showUnitCode, setShowUnitCode)}
                             {check('Contorno para recorte', border, setBorder)}
-                            {check('Título no topo', showHeader, setShowHeader)}
-                            {showHeader && (
-                                <input type="text" value={headerText} onChange={(e) => setHeaderText(e.target.value)} placeholder={branding.name || 'Prefeitura Municipal'} maxLength={60} className={textInput} aria-label="Título da etiqueta" />
-                            )}
                         </div>
                     </div>
                 </section>
 
                 {/* Prévia */}
-                <section className="flex min-h-[420px] flex-col">
-                    <p className={sectionTitle}>Prévia da 1ª {sheet === 'label' ? 'etiqueta' : 'folha'}</p>
-                    <div className="relative flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-                        {previewUrl && items.length > 0 && (
-                            <iframe title="Prévia das etiquetas" src={`${previewUrl}#toolbar=0&navpanes=0&view=FitH`} className="h-full min-h-[420px] w-full" />
-                        )}
-                        {(items.length === 0 || (!previewUrl && !previewLoading)) && (
-                            <p className="absolute inset-0 flex items-center justify-center px-6 text-center text-xs text-slate-400">
-                                {items.length === 0 ? 'Marque ao menos um veículo para ver a prévia.' : 'Prévia indisponível.'}
-                            </p>
-                        )}
-                        {previewLoading && items.length > 0 && (
-                            <div className="absolute right-3 top-3 flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-xs text-slate-500 shadow" role="status">
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Atualizando
-                            </div>
+                <section className="flex flex-col">
+                    <p className={sectionTitle}>Prévia</p>
+                    <div className="flex min-h-[480px] flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-100 p-4">
+                        {layout && sample ? (
+                            <>
+                                <LabelPreview
+                                    layout={layout}
+                                    pxPerMm={pxPerMm}
+                                    plate={formatPlate(sample.plate as string)}
+                                    lines={linesFor(sample)}
+                                    header={header}
+                                    appPromo={appPromo}
+                                    qrStyle={qrStyle}
+                                    border={border}
+                                />
+                                <p className="text-center text-xs text-slate-500">
+                                    {fmtMm(layout.width)} × {fmtMm(layout.height)}
+                                    {pxPerMm < 3.78 ? ` · prévia em ${Math.round((pxPerMm / 3.78) * 100)}% do tamanho real` : ' · tamanho real aproximado'}
+                                </p>
+                            </>
+                        ) : (
+                            <p className="px-6 text-center text-xs text-slate-400">Marque ao menos um veículo para ver a prévia.</p>
                         )}
                     </div>
                 </section>
