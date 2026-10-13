@@ -348,6 +348,17 @@ test("disposição na folha: espaços horizontal/vertical, margens e alinhamento
   assert.ok(m.perPage > loose.perPage, `${m.perPage} > ${loose.perPage}`);
 });
 
+test("convite e logo do app ligam e desligam separados", async () => {
+  const item = [{ data: "ABC1D23", plate: "ABC-1D23" }];
+  const base = { items: item, labelWidthMm: 60, labelHeightMm: 85, sheet: "label", appPromo: true };
+  const onlyLogo = drawnText(pdfStreams(await buildQrLabelsPdf({ ...base, showPromoText: false })).streams);
+  assert.doesNotMatch(onlyLogo, /Baixe o app/);
+  assert.match(onlyLogo, /Exattus Rotta/);
+  const onlyText = drawnText(pdfStreams(await buildQrLabelsPdf({ ...base, appPromo: false, showPromoText: true })).streams);
+  assert.match(onlyText, /Baixe o app/);
+  assert.doesNotMatch(onlyText, /Exattus Rotta/);
+});
+
 test("etiquetas QR personalizadas: uma por página, título, linhas e pular posições", async () => {
   const items = [
     { data: "ABC1D23", plate: "ABC-1D23", lines: ["Fiat Strada", "Obras", "Prefixo 12"] },

@@ -46,8 +46,10 @@ export interface QrLabelSheetOptions {
     border?: boolean;
     /** Nome da prefeitura no topo da etiqueta. */
     header?: string;
-    /** Abaixo do nome: "Baixe o app do motorista" com o logo do app e as lojas. */
+    /** Linha com o logo e o nome do app e os ícones das lojas. */
     appPromo?: boolean;
+    /** Texto do convite acima do logo (padrão: acompanha `appPromo`). */
+    showPromoText?: boolean;
     /** Nome do app no convite (padrão: Exattus Rotta). */
     appName?: string;
     /** Mostra a placa sob o QR (padrão: sim). */
@@ -129,6 +131,7 @@ export function qrLabelLayout(options: {
     fonts?: Partial<QrLabelFonts>;
     header?: string;
     appPromo?: boolean;
+    showPromoText?: boolean;
     showPlate?: boolean;
     spacing?: number;
     sidePaddingMm?: number;
@@ -158,7 +161,8 @@ export function qrLabelLayout(options: {
     // Blocos em ordem; cada elemento guarda a altura e o espaço antes dele.
     const headerParts: { key: 'name' | 'promo' | 'app'; h: number }[] = [];
     if (options.header) headerParts.push({ key: 'name', h: textMm(fonts.name) });
-    if (options.appPromo) headerParts.push({ key: 'promo', h: textMm(fonts.promo) }, { key: 'app', h: iconMm });
+    if (options.showPromoText ?? options.appPromo) headerParts.push({ key: 'promo', h: textMm(fonts.promo) });
+    if (options.appPromo) headerParts.push({ key: 'app', h: iconMm });
     const showPlate = options.showPlate !== false;
     const footerParts: { key: 'plate' | 'line'; h: number }[] = [];
     if (showPlate) footerParts.push({ key: 'plate', h: fonts.plate * Math.max(1, lh * 0.9) * PT_MM });
@@ -527,8 +531,10 @@ export async function buildQrLabelsPdf(options: QrLabelSheetOptions): Promise<Ui
         if (header && L.nameTop !== undefined) {
             centered(current, bold, header, L.fonts.name, x, textTop(L.nameTop, L.fonts.name), mix(0));
         }
-        if (options.appPromo && L.promoTop !== undefined && L.appTop !== undefined) {
+        if (L.promoTop !== undefined) {
             centered(current, regular, promoText, L.fonts.promo, x, textTop(L.promoTop, L.fonts.promo), muted);
+        }
+        if (options.appPromo && L.appTop !== undefined) {
             const rowTop = top + L.appTop * MM;
             const icon = L.iconMm * MM;
             const nameSize = L.fonts.app;

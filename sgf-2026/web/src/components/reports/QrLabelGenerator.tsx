@@ -116,7 +116,7 @@ function LabelPreview({ layout, pxPerMm, plate, lines, look }: {
             style={{ width: layout.width * pxPerMm, height: layout.height * pxPerMm, borderRadius: 3 * pxPerMm }}
         >
             {look.header && line(layout.nameTop, layout.fonts.name, layout.lineHeight, 'font-bold uppercase text-[#0F2B2F]', look.header)}
-            {look.appPromo && line(layout.promoTop, layout.fonts.promo, layout.lineHeight, 'text-[#64748B]', look.promoText)}
+            {line(layout.promoTop, layout.fonts.promo, layout.lineHeight, 'text-[#64748B]', look.promoText)}
             {look.appPromo && layout.appTop !== undefined && (
                 <div className="absolute inset-x-0 flex items-center justify-center" style={{ top: layout.appTop * pxPerMm, height: icon, gap: icon * 0.3 }}>
                     <IconSvg icon={APP_LOGO_ICON} size={icon} />
@@ -236,6 +236,7 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
     const [showUnitCode, setShowUnitCode] = useState(false);
     const [showHeader, setShowHeader] = useState(true);
     const [appPromo, setAppPromo] = useState(true);
+    const [showPromoText, setShowPromoText] = useState(true);
     const [headerText, setHeaderText] = useState('');
     const [promoText, setPromoText] = useState(DEFAULT_PROMO_TEXT);
     const [appName, setAppName] = useState(DEFAULT_APP_NAME);
@@ -319,6 +320,7 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
         border,
         header: header || undefined,
         appPromo,
+        showPromoText,
         appName: appName.trim() || DEFAULT_APP_NAME,
         promoText: promoText.trim() || DEFAULT_PROMO_TEXT,
         showPlate,
@@ -659,14 +661,14 @@ export function QrLabelGenerator({ isOpen, onClose }: QrLabelGeneratorProps) {
                                 size={fontOverrides.name} autoSize={layout?.fonts.name} onSize={(v) => setFont('name', v)}>
                                 <input type="text" value={headerText} onChange={(e) => setHeaderText(e.target.value)} placeholder={branding.name || 'Prefeitura Municipal'} maxLength={80} className={textInput} aria-label="Texto do cabeçalho" />
                             </ElementCard>
-                            <ElementCard title="Convite do app do motorista" enabled={appPromo} onToggle={setAppPromo}
+                            <ElementCard title="Texto do convite" enabled={showPromoText} onToggle={setShowPromoText}
                                 size={fontOverrides.promo} autoSize={layout?.fonts.promo} onSize={(v) => setFont('promo', v)}>
                                 <input type="text" value={promoText} onChange={(e) => setPromoText(e.target.value)} placeholder={DEFAULT_PROMO_TEXT} maxLength={60} className={textInput} aria-label="Texto do convite" />
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="text-xs font-semibold text-slate-500">Logo e nome do app</span>
-                                    <SizeStepper label="Logo e nome do app" value={fontOverrides.app} auto={layout?.fonts.app} onChange={(v) => setFont('app', v)} />
-                                </div>
+                            </ElementCard>
+                            <ElementCard title="Logo e nome do app" enabled={appPromo} onToggle={setAppPromo}
+                                size={fontOverrides.app} autoSize={layout?.fonts.app} onSize={(v) => setFont('app', v)}>
                                 <input type="text" value={appName} onChange={(e) => setAppName(e.target.value)} placeholder={DEFAULT_APP_NAME} maxLength={40} className={textInput} aria-label="Nome do app" />
+                                <p className="text-[11px] text-slate-400">Com os ícones do Google Play e da App Store.</p>
                             </ElementCard>
                             <ElementCard title="Placa" enabled={showPlate} onToggle={setShowPlate}
                                 size={fontOverrides.plate} autoSize={layout?.fonts.plate} onSize={(v) => setFont('plate', v)} />
