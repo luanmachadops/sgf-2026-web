@@ -49,21 +49,31 @@ const ICONS: Record<ReportIconKey, ComponentType<{ className?: string }>> = {
     shield: ShieldCheck,
 };
 
+/** Cor de cada assunto: borda e ícone dos cards e o filtro correspondente. */
+const SUBJECT_COLORS: Record<ReportSubject, string> = {
+    veiculos: '#2563EB',
+    manutencao: '#7C3AED',
+    abastecimento: '#0D9488',
+    fiscal: '#C2410C',
+};
+
 function ReportCard({ report, onOpen }: { report: ReportDefinition; onOpen: () => void }) {
     const Icon = ICONS[report.icon];
+    const color = SUBJECT_COLORS[report.subject];
     return (
         <button
             type="button"
             onClick={onOpen}
-            className="group flex h-full w-full flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-[var(--sgf-shadow-xs)] transition hover:border-[var(--sgf-primary)]/50 hover:shadow-md focus:outline-none focus-visible:ring-4 focus-visible:ring-[var(--sgf-primary)]/20"
+            style={{ borderColor: `${color}40` }}
+            className="group flex h-full w-full flex-col rounded-2xl border bg-white p-4 text-left shadow-[var(--sgf-shadow-xs)] transition hover:shadow-md focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-300"
         >
             <div className="flex items-start gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--sgf-primary)]/10 text-[var(--sgf-primary)]">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: `${color}14`, color }}>
                     <Icon className="h-5 w-5" />
                 </span>
                 <div className="min-w-0">
                     <h3 className="text-sm font-bold tracking-tight text-slate-900 group-hover:text-[var(--sgf-dark)]">{report.title}</h3>
-                    <p className="mt-1 text-xs font-semibold leading-relaxed text-[var(--sgf-primary)]">{report.question}</p>
+                    <p className="mt-1 text-xs font-semibold leading-relaxed" style={{ color }}>{report.question}</p>
                 </div>
             </div>
             <p className="mt-3 text-xs leading-relaxed text-slate-500">{report.description}</p>
@@ -102,21 +112,23 @@ export default function Reports() {
     const filtered = useMemo(() => REPORTS.filter((report) =>
         (!subjectFilter || report.subject === subjectFilter)
         && matchesSearch(searchTerm, report.title, report.description, report.question)), [searchTerm, subjectFilter]);
-    const sections = REPORT_SUBJECTS
-        .map((subject) => ({ ...subject, reports: filtered.filter((report) => report.subject === subject.id) }))
-        .filter((section) => section.reports.length > 0);
+    // Todos juntos, na ordem dos assuntos; a cor identifica o assunto.
+    const ordered = REPORT_SUBJECTS.flatMap((subject) => filtered.filter((report) => report.subject === subject.id));
 
-    const chip = (active: boolean) =>
-        'px-4 py-2 rounded-full text-sm font-semibold border transition whitespace-nowrap '
-        + (active
-            ? 'bg-[var(--sgf-primary)] text-white border-[var(--sgf-primary)]'
-            : 'bg-white text-slate-600 border-slate-200 hover:border-[var(--sgf-primary)]/50');
+    const chipClass = 'px-4 py-2 rounded-full text-sm font-semibold border transition whitespace-nowrap';
+    const chipStyle = (active: boolean, color?: string) => color
+        ? (active
+            ? { backgroundColor: color, borderColor: color, color: '#fff' }
+            : { backgroundColor: '#fff', borderColor: `${color}55`, color })
+        : (active
+            ? { backgroundColor: 'var(--sgf-dark)', borderColor: 'var(--sgf-dark)', color: '#fff' }
+            : { backgroundColor: '#fff', borderColor: '#E2E8F0', color: '#475569' });
 
     return (
         <div className="space-y-8 pb-10">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Assuntos">
-                    <button type="button" role="tab" aria-selected={subjectFilter === ''} onClick={() => setSubjectFilter('')} className={chip(subjectFilter === '')}>
+                    <button type="button" role="tab" aria-selected={subjectFilter === ''} onClick={() => setSubjectFilter('')} className={chipClass} style={chipStyle(subjectFilter === '')}>
                         Todos
                     </button>
                     {REPORT_SUBJECTS.map((subject) => (
@@ -126,8 +138,10 @@ export default function Reports() {
                             role="tab"
                             aria-selected={subjectFilter === subject.id}
                             onClick={() => setSubjectFilter(subject.id)}
-                            className={chip(subjectFilter === subject.id)}
+                            className={`${chipClass} inline-flex items-center gap-2`}
+                            style={chipStyle(subjectFilter === subject.id, SUBJECT_COLORS[subject.id])}
                         >
+                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: subjectFilter === subject.id ? '#fff' : SUBJECT_COLORS[subject.id] }} />
                             {subject.label}
                         </button>
                     ))}
@@ -155,7 +169,7 @@ export default function Reports() {
                 </div>
             </div>
 
-            {sections.length === 0 && (
+            {ordered.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 py-12 text-center">
                     <p className="text-sm font-medium text-slate-400">
                         Nenhum relatório encontrado{searchTerm ? ` para "${searchTerm}"` : ''}.
@@ -163,16 +177,13 @@ export default function Reports() {
                 </div>
             )}
 
-            {sections.map((section) => (
-                <section key={section.id} aria-labelledby={`subject-${section.id}`}>
-                    <h2 id={`subject-${section.id}`} className="mb-3 text-base font-bold text-[var(--sgf-dark)]">{section.label}</h2>
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {section.reports.map((report) => (
-                            <ReportCard key={report.id} report={report} onOpen={() => setSelectedReport(report)} />
-                        ))}
-                    </div>
-                </section>
-            ))}
+            {ordered.length > 0 && (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {ordered.map((report) => (
+                        <ReportCard key={report.id} report={report} onOpen={() => setSelectedReport(report)} />
+                    ))}
+                </div>
+            )}
 
             {canSeeAudit && (
                 <SGFCard padding="lg" className="overflow-hidden border border-slate-200/80">
