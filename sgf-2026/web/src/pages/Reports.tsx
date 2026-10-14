@@ -64,8 +64,7 @@ function ReportCard({ report, onOpen }: { report: ReportDefinition; onOpen: () =
         <button
             type="button"
             onClick={onOpen}
-            style={{ borderColor: `${color}40` }}
-            className="group flex h-full w-full flex-col rounded-2xl border bg-white p-4 text-left shadow-[var(--sgf-shadow-xs)] transition hover:shadow-md focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-300"
+            className="group flex h-full w-full flex-col rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-[var(--sgf-shadow-xs)] transition hover:shadow-md focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-300"
         >
             <div className="flex items-start gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: `${color}14`, color }}>
@@ -73,7 +72,7 @@ function ReportCard({ report, onOpen }: { report: ReportDefinition; onOpen: () =
                 </span>
                 <div className="min-w-0">
                     <h3 className="text-sm font-bold tracking-tight text-slate-900 group-hover:text-[var(--sgf-dark)]">{report.title}</h3>
-                    <p className="mt-1 text-xs font-semibold leading-relaxed" style={{ color }}>{report.question}</p>
+                    <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-600">{report.question}</p>
                 </div>
             </div>
             <p className="mt-3 text-xs leading-relaxed text-slate-500">{report.description}</p>

@@ -22,6 +22,7 @@ import { SGFKPICard } from '@/components/sgf/SGFKPICard';
 import { NewRefuelingForm } from '@/components/refuelings/NewRefuelingForm';
 import { AuthorizeFuelingModal } from '@/components/refuelings/AuthorizeFuelingModal';
 import { StationOperationsPanel } from '@/components/refuelings/StationOperationsPanel';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { RefuelingDetailsModal } from '@/components/refuelings/RefuelingDetailsModal';
 import { useRefuelings } from '@/hooks/useRefuelings';
 import type { Tables } from '@/types/database.types';
@@ -286,8 +287,25 @@ export default function Refuelings() {
         lancado_direto: byDepartment.filter(r => r.workflowStatus === 'lancado_direto').length,
     }), [byDepartment]);
 
+    const trigger = 'rounded-lg data-[state=active]:bg-[#00A86B] data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm px-4 shrink-0 flex-1';
+
     return (
         <div className="space-y-6">
+            <Tabs
+                value={searchParams.get('aba') === 'itens' ? 'items' : 'fuel'}
+                onValueChange={(value) => {
+                    const next = new URLSearchParams(searchParams);
+                    if (value === 'items') next.set('aba', 'itens'); else next.delete('aba');
+                    setSearchParams(next, { replace: true });
+                }}
+                className="w-full"
+            >
+            <TabsList className="flex w-full max-w-[520px] overflow-x-auto rounded-xl bg-slate-100/50 p-1 whitespace-nowrap scrollbar-none">
+                <TabsTrigger value="fuel" className={trigger}>Combustível</TabsTrigger>
+                <TabsTrigger value="items" className={trigger}>ARLA, lubrificantes e serviços</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="fuel" className="mt-6 space-y-6">
             <div className="grid gap-4 md:grid-cols-4">
                 <SGFKPICard
                     title="Volume Total"
@@ -363,8 +381,12 @@ export default function Refuelings() {
                     emptyMessage="Nenhum abastecimento encontrado."
                 />
             </div>
+            </TabsContent>
 
-            <StationOperationsPanel />
+            <TabsContent value="items" className="mt-6">
+                <StationOperationsPanel />
+            </TabsContent>
+            </Tabs>
 
             <RefuelingDetailsModal
                 refueling={selectedRefueling}
