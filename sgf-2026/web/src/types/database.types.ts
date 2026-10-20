@@ -593,6 +593,7 @@ export type Database = {
       }
       checklists: {
         Row: {
+          client_id: string | null
           created_at: string
           driver_id: string
           fuel_level: Database["public"]["Enums"]["checklist_fuel_level"] | null
@@ -603,9 +604,11 @@ export type Database = {
           spare_tire_ok: boolean | null
           tenant_id: string
           trip_id: string | null
+          updated_at: string
           vehicle_id: string | null
         }
         Insert: {
+          client_id?: string | null
           created_at?: string
           driver_id: string
           fuel_level?:
@@ -618,9 +621,11 @@ export type Database = {
           spare_tire_ok?: boolean | null
           tenant_id?: string
           trip_id?: string | null
+          updated_at?: string
           vehicle_id?: string | null
         }
         Update: {
+          client_id?: string | null
           created_at?: string
           driver_id?: string
           fuel_level?:
@@ -633,6 +638,7 @@ export type Database = {
           spare_tire_ok?: boolean | null
           tenant_id?: string
           trip_id?: string | null
+          updated_at?: string
           vehicle_id?: string | null
         }
         Relationships: [
@@ -1320,6 +1326,7 @@ export type Database = {
           cancellation_reason: string | null
           cancelled_at: string | null
           cancelled_by: string | null
+          client_id: string | null
           created_at: string
           driver_id: string | null
           expires_at: string | null
@@ -1347,6 +1354,7 @@ export type Database = {
           tenant_id: string
           total_cost: number | null
           trip_id: string | null
+          updated_at: string
           validated_at: string | null
           validated_by: string | null
           vehicle_id: string | null
@@ -1360,6 +1368,7 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
+          client_id?: string | null
           created_at?: string
           driver_id?: string | null
           expires_at?: string | null
@@ -1387,6 +1396,7 @@ export type Database = {
           tenant_id?: string
           total_cost?: number | null
           trip_id?: string | null
+          updated_at?: string
           validated_at?: string | null
           validated_by?: string | null
           vehicle_id?: string | null
@@ -1400,6 +1410,7 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
+          client_id?: string | null
           created_at?: string
           driver_id?: string | null
           expires_at?: string | null
@@ -1427,6 +1438,7 @@ export type Database = {
           tenant_id?: string
           total_cost?: number | null
           trip_id?: string | null
+          updated_at?: string
           validated_at?: string | null
           validated_by?: string | null
           vehicle_id?: string | null
@@ -1804,6 +1816,7 @@ export type Database = {
       }
       issues: {
         Row: {
+          client_id: string | null
           created_at: string
           description: string | null
           driver_id: string
@@ -1814,9 +1827,11 @@ export type Database = {
           tenant_id: string
           title: string
           trip_id: string | null
+          updated_at: string
           vehicle_id: string | null
         }
         Insert: {
+          client_id?: string | null
           created_at?: string
           description?: string | null
           driver_id: string
@@ -1827,9 +1842,11 @@ export type Database = {
           tenant_id?: string
           title: string
           trip_id?: string | null
+          updated_at?: string
           vehicle_id?: string | null
         }
         Update: {
+          client_id?: string | null
           created_at?: string
           description?: string | null
           driver_id?: string
@@ -1840,6 +1857,7 @@ export type Database = {
           tenant_id?: string
           title?: string
           trip_id?: string | null
+          updated_at?: string
           vehicle_id?: string | null
         }
         Relationships: [
@@ -2105,6 +2123,7 @@ export type Database = {
           tenant_id: string
           title: string
           type: string
+          updated_at: string
         }
         Insert: {
           body: string
@@ -2118,6 +2137,7 @@ export type Database = {
           tenant_id?: string
           title: string
           type: string
+          updated_at?: string
         }
         Update: {
           body?: string
@@ -2131,6 +2151,7 @@ export type Database = {
           tenant_id?: string
           title?: string
           type?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -3046,6 +3067,7 @@ export type Database = {
           shift_start: string | null
           station_id: string | null
           tenant_id: string
+          updated_at: string
           updated_by: string | null
         }
         Insert: {
@@ -3083,6 +3105,7 @@ export type Database = {
           shift_start?: string | null
           station_id?: string | null
           tenant_id?: string
+          updated_at?: string
           updated_by?: string | null
         }
         Update: {
@@ -3120,6 +3143,7 @@ export type Database = {
           shift_start?: string | null
           station_id?: string | null
           tenant_id?: string
+          updated_at?: string
           updated_by?: string | null
         }
         Relationships: [
@@ -3998,6 +4022,7 @@ export type Database = {
           repair_shop_id: string | null
           status: Database["public"]["Enums"]["service_order_status"]
           tenant_id: string
+          updated_at: string
           vehicle_id: string | null
         }
         Insert: {
@@ -4030,6 +4055,7 @@ export type Database = {
           repair_shop_id?: string | null
           status?: Database["public"]["Enums"]["service_order_status"]
           tenant_id?: string
+          updated_at?: string
           vehicle_id?: string | null
         }
         Update: {
@@ -4062,6 +4088,7 @@ export type Database = {
           repair_shop_id?: string | null
           status?: Database["public"]["Enums"]["service_order_status"]
           tenant_id?: string
+          updated_at?: string
           vehicle_id?: string | null
         }
         Relationships: [
@@ -4921,6 +4948,57 @@ export type Database = {
           },
         ]
       }
+      sync_receipts: {
+        Row: {
+          driver_id: string
+          event_id: string
+          event_type: string
+          occurred_at: string | null
+          payload_hash: string
+          received_at: string
+          result: Json
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          driver_id: string
+          event_id: string
+          event_type: string
+          occurred_at?: string | null
+          payload_hash: string
+          received_at?: string
+          result?: Json
+          status: string
+          tenant_id: string
+        }
+        Update: {
+          driver_id?: string
+          event_id?: string
+          event_type?: string
+          occurred_at?: string | null
+          payload_hash?: string
+          received_at?: string
+          result?: Json
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_receipts_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sync_receipts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_ai_limits: {
         Row: {
           enabled: boolean
@@ -5267,6 +5345,7 @@ export type Database = {
       trip_locations: {
         Row: {
           accuracy: number | null
+          client_point_id: string | null
           driver_id: string
           heading: number | null
           id: number
@@ -5281,6 +5360,7 @@ export type Database = {
         }
         Insert: {
           accuracy?: number | null
+          client_point_id?: string | null
           driver_id: string
           heading?: number | null
           id?: never
@@ -5295,6 +5375,7 @@ export type Database = {
         }
         Update: {
           accuracy?: number | null
+          client_point_id?: string | null
           driver_id?: string
           heading?: number | null
           id?: never
@@ -5460,6 +5541,7 @@ export type Database = {
           cancelled_at: string | null
           cancelled_by: string | null
           cargo_description: string | null
+          client_id: string | null
           created_at: string
           destination: string
           distance_km: number | null
@@ -5492,6 +5574,7 @@ export type Database = {
           status: Database["public"]["Enums"]["trip_status"]
           tenant_id: string
           trip_number: number
+          updated_at: string
           vehicle_id: string | null
         }
         Insert: {
@@ -5499,6 +5582,7 @@ export type Database = {
           cancelled_at?: string | null
           cancelled_by?: string | null
           cargo_description?: string | null
+          client_id?: string | null
           created_at?: string
           destination: string
           distance_km?: number | null
@@ -5531,6 +5615,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["trip_status"]
           tenant_id?: string
           trip_number?: number
+          updated_at?: string
           vehicle_id?: string | null
         }
         Update: {
@@ -5538,6 +5623,7 @@ export type Database = {
           cancelled_at?: string | null
           cancelled_by?: string | null
           cargo_description?: string | null
+          client_id?: string | null
           created_at?: string
           destination?: string
           distance_km?: number | null
@@ -5570,6 +5656,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["trip_status"]
           tenant_id?: string
           trip_number?: number
+          updated_at?: string
           vehicle_id?: string | null
         }
         Relationships: [
@@ -5772,6 +5859,7 @@ export type Database = {
           tank_capacity: number | null
           tenant_id: string
           unit_code: string
+          updated_at: string
           vehicle_type: string | null
           year: number | null
         }
@@ -5802,6 +5890,7 @@ export type Database = {
           tank_capacity?: number | null
           tenant_id?: string
           unit_code: string
+          updated_at?: string
           vehicle_type?: string | null
           year?: number | null
         }
@@ -5832,6 +5921,7 @@ export type Database = {
           tank_capacity?: number | null
           tenant_id?: string
           unit_code?: string
+          updated_at?: string
           vehicle_type?: string | null
           year?: number | null
         }

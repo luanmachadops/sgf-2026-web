@@ -1,0 +1,19 @@
+-- Corrige a trava que limita os campos da O.S. que o motorista pode alterar.
+--
+-- tf_service_order_guard_driver_update era SECURITY DEFINER e começava com
+--   if current_user not in ('authenticated', 'anon') then return NEW;
+-- Dentro de uma função SECURITY DEFINER, current_user é o DONO da função
+-- (postgres), nunca 'authenticated' — então a trava saía sempre nesse if e
+-- não protegia nada. Verificado em 19/10/2026: o motorista conseguia trocar
+-- repair_shop_id da própria O.S. pendente.
+--
+-- Com SECURITY INVOKER o teste volta a fazer o que pretendia:
+-- - update direto do motorista via PostgREST: current_user = authenticated → a trava vale;
+-- - RPCs SECURITY DEFINER (ex.: driver_update_service_order entregando o veículo
+--   na oficina): current_user = postgres → passa, como deve;
+-- - service_role / cron: passa.
+-- As funções is_* chamadas dentro dela continuam SECURITY DEFINER e funcionam.
+--
+-- Testado antes de aplicar (transação desfeita): edição de descrição/prioridade
+-- passa; troca de repair_shop_id é bloqueada; RPC 'deliver' segue funcionando.
+alter function public.tf_service_order_guard_driver_update() security invoker;
